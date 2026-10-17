@@ -23,6 +23,19 @@ public class CursorRequest {
 	}
 
 	@Builder
+	public record CouponCampaignCursorPageRequest(
+		Integer size,
+		Long lastId,
+		LocalDateTime lastIssueStartAt
+	) {
+		public CouponCampaignCursorPageRequest {
+			if (size == null) {
+				size = 20;
+			}
+		}
+	}
+
+	@Builder
 	public record ReviewCursorPageRequest(
 		Integer size,
 		Long lastId,

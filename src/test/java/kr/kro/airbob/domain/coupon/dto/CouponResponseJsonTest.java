@@ -13,6 +13,7 @@ import org.springframework.core.io.ClassPathResource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
@@ -35,7 +36,8 @@ class CouponResponseJsonTest {
 			coupon(12, "매진 쿠폰").build());
 
 		assertContract("coupon-campaigns.json", new CouponResponse.CouponInfos(campaigns.stream()
-			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon, coupon.getId() == 12 ? 10L : 0L), NOW)).toList()));
+			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon, coupon.getId() == 12 ? 10L : 0L), NOW)).toList(),
+			new CursorResponse.PageInfo(false, null, campaigns.size())));
 	}
 
 	@Test
@@ -50,7 +52,8 @@ class CouponResponseJsonTest {
 			owned(coupon(17, "발급 종료 보유 쿠폰").issueEndAt(NOW).build(), false));
 
 		assertContract("member-coupons.json", new CouponResponse.MemberCouponInfos(owned.stream()
-			.map(memberCoupon -> CouponResponse.MemberCouponInfo.of(memberCoupon, NOW)).toList()));
+			.map(memberCoupon -> CouponResponse.MemberCouponInfo.of(memberCoupon, NOW)).toList(),
+			new CursorResponse.PageInfo(false, null, owned.size())));
 	}
 
 	private void assertContract(String name, Object response) throws Exception {
@@ -69,7 +72,8 @@ class CouponResponseJsonTest {
 	}
 
 	private MemberCouponProjection owned(Coupon coupon, boolean used) {
-		return new MemberCouponProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
+		return new MemberCouponProjection(coupon.getId() + 100, NOW,
+			coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
 	}

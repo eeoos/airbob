@@ -15,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.cursor.dto.CouponCampaignCursorData;
 import kr.kro.airbob.cursor.dto.CursorData;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.dto.ReviewCursorData;
@@ -84,6 +85,43 @@ class CursorPageInfoCreatorTest {
 	}
 
 	@Test
+	@DisplayName("캠페인 커서 팩토리는 마지막 항목의 발급 시작 시각을 사용한다")
+	void createsCampaignNextCursorFromLastItem() {
+		LocalDateTime startAt = LocalDateTime.of(2026, 8, 13, 12, 30, 0, 123456000);
+		List<Campaign> content = List.of(
+			new Campaign(3L, startAt.plusDays(1)),
+			new Campaign(2L, startAt)
+		);
+		when(cursorEncoder.encode(any())).thenReturn("campaign-next-cursor");
+
+		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
+			content,
+			true,
+			campaign -> new CouponCampaignCursorData(campaign.id(), campaign.issueStartAt())
+		);
+
+		verify(cursorEncoder).encode(new CouponCampaignCursorData(2L, startAt));
+		assertThat(pageInfo)
+			.isEqualTo(new CursorResponse.PageInfo(true, "campaign-next-cursor", 2));
+	}
+
+	@Test
+	@DisplayName("마지막 캠페인 페이지에서는 커서 팩토리를 호출하지 않는다")
+	void omitsCampaignCursorWhenThereIsNoNextPage() {
+		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
+			List.of(new Campaign(2L, LocalDateTime.of(2026, 8, 13, 12, 30))),
+			false,
+			campaign -> {
+				throw new AssertionError("마지막 페이지에는 커서가 필요하지 않습니다.");
+			}
+		);
+
+		assertThat(pageInfo)
+			.isEqualTo(new CursorResponse.PageInfo(false, null, 1));
+		verifyNoInteractions(cursorEncoder);
+	}
+
+	@Test
 	@DisplayName("다음 페이지가 없으면 커서를 만들지 않는다")
 	void omitsCursorWhenThereIsNoNextPage() {
 		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
@@ -126,5 +164,8 @@ class CursorPageInfoCreatorTest {
 		LocalDateTime createdAt,
 		Integer rating
 	) {
+	}
+
+	private record Campaign(Long id, LocalDateTime issueStartAt) {
 	}
 }

@@ -52,7 +52,7 @@ public class CursorPageInfoCreator {
 		);
 	}
 
-	private <T> CursorResponse.PageInfo createPageInfo(
+	public <T> CursorResponse.PageInfo createPageInfo(
 		List<T> content,
 		boolean hasNext,
 		Function<T, ? extends CursorPayload> cursorFactory

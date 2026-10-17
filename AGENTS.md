@@ -99,6 +99,10 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - The only issuance endpoint is `/api/v1/coupons/{couponId}/issue`. There is no strategy lookup,
   conditional-UPDATE issuance, RC issuance, or composite unit table. Unit reads and deletes use
   Spring Data JPA native queries; preparation retains bounded JDBC multi-row inserts.
+- Coupon campaign and owned-coupon lists use `@CursorParam` with a default size of 20 and maximum
+  of 50. Campaign order is `(issue_start_at, coupon.id)` descending; owned-coupon order is
+  `(created_at, member_coupon.id)` descending. V32 requires nonnull member-coupon creation times;
+  reconcile historical NULLs from trusted issuance evidence before migration, never invent dates.
 - Before V31, stop old application readers/writers and close active conditional-UPDATE campaigns.
   V31 copies only remaining composite units into the surrogate table, preserves member coupons,
   and drops the composite table and experiment columns. Never regenerate consumed stock.
@@ -205,9 +209,11 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V31. V29 introduces coupon issue units and immutable issue strategy,
+- Current schema history is V1 through V32. V29 introduces coupon issue units and immutable issue strategy,
   renames stock_prepared_at, and blocks unreconciled Redis coupon preparation. V30 normalizes
-  coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance; see docs/operations/coupon-time-contract.md for the coordinated API cutover.
+  coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance. V32 adds coupon
+  cursor indexes and requires nonnull member_coupon.created_at after a missing-timestamp guard;
+  see docs/operations/coupon-time-contract.md for the coordinated API cutover.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.

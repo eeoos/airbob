@@ -45,5 +45,10 @@
       "total_quantity": 10,
       "issuance_status": "SOLD_OUT"
     }
-  ]
+  ],
+  "page_info": {
+    "has_next": false,
+    "next_cursor": null,
+    "current_size": 3
+  }
 }

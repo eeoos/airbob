@@ -2,6 +2,8 @@ package kr.kro.airbob.domain.coupon.repository.projection;
 
 import java.time.LocalDateTime;
 
+import com.querydsl.core.annotations.QueryProjection;
+
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 
 public record CouponCampaignProjection(
@@ -19,4 +21,7 @@ public record CouponCampaignProjection(
 	Integer totalQuantity,
 	Long issuedQuantity
 ) {
+	@QueryProjection
+	public CouponCampaignProjection {
+	}
 }

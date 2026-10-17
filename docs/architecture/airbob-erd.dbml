@@ -1,0 +1,706 @@
+// Airbob ERD — Flyway V1~V30 기준. history, failed_indexing_events, coupon_issue_unit_composite 제외.
+// 27 tables / 342 columns / 33 physical FKs / 5 logical references
+// 실선: DB 외래키. 점선(inactive): 코드에서 사용하는 논리 참조이며 DB 제약은 없다.
+// 시각화용 논리 참조가 포함되어 있으므로 운영 DB 생성 SQL로 사용하지 않는다.
+
+Project Airbob {
+  database_type: 'MySQL'
+  Note: 'Airbob ERD. Flyway V1~V30 기준. history, failed_indexing_events, coupon_issue_unit_composite 제외. 실선은 DB 외래키, 점선은 DB 제약이 없는 논리 참조.'
+}
+
+// 회원
+
+Table member {
+  id bigint [pk, increment, not null]
+  created_at datetime(6)
+  email varchar(255)
+  nickname varchar(1000)
+  password varchar(255)
+  thumbnail_image_url varchar(255)
+  role varchar(50)
+  updated_at datetime(6) [not null]
+  status varchar(20) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    email [unique, name: 'uk_member_email']
+  }
+
+  Note: '회원 계정과 권한'
+}
+
+// 숙소
+
+Table accommodation {
+  id bigint [pk, increment, not null]
+  address_id bigint
+  member_id bigint [not null]
+  occupancy_policy_id bigint
+  base_price bigint
+  created_at datetime(6)
+  description text
+  name varchar(255)
+  thumbnail_url varchar(255)
+  type varchar(50) [note: 'common_code의 ACCOMMODATION_TYPE 그룹으로 검증. DB 외래키 없음.']
+  check_in_time time [not null]
+  check_out_time time [not null]
+  accommodation_uid binary(16) [not null]
+  updated_at datetime(6) [not null]
+  status varchar(20) [not null]
+  currency varchar(3)
+  created_by bigint
+  updated_by bigint
+  time_zone_id varchar(64)
+
+  indexes {
+    accommodation_uid [unique, name: 'accommodation_uid']
+    address_id [name: 'FK_accommodation_address_id']
+    member_id [name: 'FK_accommodation_member_id']
+    occupancy_policy_id [name: 'FK_accommodation_occupancy_policy_id']
+    (status, id) [name: 'idx_accommodation_inventory_seed_scan']
+  }
+
+  Note: '숙소 기본 정보와 게시 상태'
+}
+
+Table address {
+  id bigint [pk, increment, not null]
+  latitude double
+  longitude double
+  postal_code varchar(12)
+  created_at datetime(6)
+  city varchar(255)
+  country varchar(255)
+  detail varchar(255)
+  district varchar(255)
+  street varchar(255)
+  state varchar(255)
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  Note: '숙소 주소와 좌표'
+}
+
+Table occupancy_policy {
+  id bigint [pk, increment, not null]
+  infant_occupancy int
+  max_occupancy int
+  pet_occupancy int
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  Note: '숙소 인원·유아·반려동물 수용 정책'
+}
+
+Table accommodation_image {
+  id bigint [pk, increment, not null]
+  accommodation_id bigint
+  created_at datetime(6)
+  image_url varchar(255)
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    accommodation_id [name: 'FK_accommodation_image_accommodation_id']
+  }
+
+  Note: '숙소 이미지'
+}
+
+Table accommodation_amenity {
+  id bigint [pk, increment, not null]
+  accommodation_id bigint
+  amenity_code varchar(50) [note: 'common_code의 AMENITY_TYPE 그룹으로 검증. DB 외래키 없음.']
+  created_at datetime(6)
+  count int
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    accommodation_id [name: 'FK_accommodation_amenity_accommodation_id']
+  }
+
+  Note: '숙소별 편의시설. amenity_code는 common_code의 AMENITY_TYPE 그룹으로 검증하며 DB 외래키는 없다.'
+}
+
+// 리뷰
+
+Table review {
+  id bigint [pk, increment, not null]
+  accommodation_id bigint
+  member_id bigint
+  rating int
+  created_at datetime(6)
+  content text
+  updated_at datetime(6) [not null]
+  status varchar(20) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    accommodation_id [name: 'FK_review_accommodation_id']
+    member_id [name: 'FK_review_member_id']
+  }
+
+  Note: '회원이 작성한 숙소 리뷰'
+}
+
+Table review_image {
+  id bigint [pk, increment, not null]
+  review_id bigint
+  created_at datetime(6)
+  image_url varchar(255)
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    review_id [name: 'FK_review_image_review_id']
+  }
+
+  Note: '리뷰 이미지'
+}
+
+Table accommodation_review_summary {
+  accommodation_id bigint [pk, not null]
+  total_review_count int [not null, default: 0]
+  rating_sum bigint [not null, default: 0]
+  average_rating decimal(3,2) [not null, default: 0.00]
+  created_at datetime(6) [default: `CURRENT_TIMESTAMP(6)`]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  Note: '숙소별 리뷰 수·평점 합계·평균을 저장하는 요약'
+}
+
+// 위시리스트
+
+Table wishlist {
+  id bigint [pk, increment, not null]
+  member_id bigint
+  representative_accommodation_id bigint [note: 'accommodation.id 논리 참조. DB 외래키 없음.']
+  name varchar(255) [not null]
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  status varchar(20) [not null]
+  created_by bigint
+  updated_by bigint
+  accommodation_count int [not null, default: 0]
+
+  indexes {
+    member_id [name: 'FK_wishlist_member_id']
+  }
+
+  Note: '회원의 위시리스트. 숙소 개수와 대표 숙소 ID를 함께 보관한다.'
+}
+
+Table wishlist_accommodation {
+  id bigint [pk, increment, not null]
+  wishlist_id bigint
+  accommodation_id bigint
+  memo varchar(1024)
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    accommodation_id [name: 'FK_wishlist_accommodation_accommodation_id']
+    (wishlist_id, accommodation_id) [unique, name: 'uk_wishlist_accommodation_unique']
+  }
+
+  Note: '위시리스트에 담긴 숙소. 같은 목록에 같은 숙소를 중복 저장할 수 없다.'
+}
+
+// 쿠폰
+
+Table coupon {
+  id bigint [pk, increment, not null]
+  discount_value int [not null]
+  is_active tinyint(1) [not null]
+  max_discount_amount int
+  min_payment_price int
+  created_at datetime(6)
+  usable_until datetime(6) [not null]
+  usable_from datetime(6) [not null]
+  description varchar(255)
+  name varchar(255) [not null]
+  discount_type varchar(50) [not null]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+  total_quantity int
+  issued_quantity int [not null, default: 0]
+  issue_start_at datetime(6) [not null]
+  issue_end_at datetime(6) [not null]
+  stock_prepared_at datetime(6)
+  issue_strategy varchar(32) [not null, default: 'SKIP_SURROGATE_RR', note: '기본값 SKIP_SURROGATE_RR. 캠페인에 고정된 발급 전략.']
+
+  Note: '쿠폰 정책·발급 기간·사용 기간·발급 전략. 업무 시각은 UTC.'
+}
+
+Table coupon_issue_unit {
+  id bigint [pk, increment, not null]
+  coupon_id bigint [not null]
+  unit_no int [not null]
+
+  indexes {
+    (coupon_id, unit_no) [unique, name: 'uk_coupon_issue_unit_coupon_unit']
+  }
+
+  Note: '기본 발급 전략의 미사용 쿠폰 재고. 대리 키를 사용한다.'
+}
+
+Table member_coupon {
+  id bigint [pk, increment, not null]
+  member_id bigint [not null]
+  coupon_id bigint [not null]
+  reservation_id bigint [note: 'reservation.id 논리 참조. DB 외래키 없음.']
+  used tinyint(1) [not null, default: 0]
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+  used_at datetime(6)
+
+  indexes {
+    coupon_id [name: 'idx_member_coupon_coupon_id']
+    (member_id, coupon_id) [unique, name: 'uk_member_coupon']
+    reservation_id [unique, name: 'uk_member_coupon_reservation_id']
+  }
+
+  Note: '회원에게 발급한 쿠폰. 회원·쿠폰 중복을 방지하며 사용한 예약을 기록한다.'
+}
+
+// 예약
+
+Table reservation {
+  id bigint [pk, increment, not null]
+  accommodation_id bigint [not null]
+  guest_id bigint [not null]
+  reservation_uid binary(16) [not null]
+  check_in_date date [not null]
+  check_out_date date [not null]
+  check_in_at datetime(6) [not null]
+  check_out_at datetime(6) [not null]
+  time_zone_id varchar(64) [not null]
+  guest_count int [not null]
+  total_price bigint [not null]
+  status varchar(50) [not null]
+  message varchar(500)
+  reservation_code varchar(10)
+  created_at datetime(6) [not null, default: `CURRENT_TIMESTAMP(6)`]
+  expires_at datetime(6) [not null]
+  payment_attempt_required tinyint(1) [not null, default: 0]
+  payment_attempt_uid binary(16)
+  payment_attempt_started_at datetime(6)
+  payment_attempt_consumed_at datetime(6)
+  updated_at datetime(6) [not null]
+  currency varchar(3) [not null]
+  created_by bigint
+  updated_by bigint
+  discount_amount bigint [not null, default: 0]
+
+  indexes {
+    accommodation_id [name: 'FK_reservation_accommodation']
+    guest_id [name: 'FK_reservation_member']
+    (status, expires_at, id) [name: 'idx_reservation_expiration_cleanup']
+    reservation_code [unique, name: 'reservation_code']
+    reservation_uid [unique, name: 'reservation_uid']
+    (id, accommodation_id) [unique, name: 'uk_reservation_id_accommodation']
+    payment_attempt_uid [unique, name: 'uk_reservation_payment_attempt_uid']
+  }
+
+  checks {
+    `(((payment_attempt_required = false) and (payment_attempt_uid is null) and (payment_attempt_started_at is null) and (payment_attempt_consumed_at is null)) or ((payment_attempt_required = true) and (((payment_attempt_uid is null) and (payment_attempt_started_at is null) and (payment_attempt_consumed_at is null)) or ((payment_attempt_uid is not null) and (payment_attempt_started_at is not null) and ((payment_attempt_consumed_at is null) or (payment_attempt_consumed_at >= payment_attempt_started_at))))))` [name: 'chk_reservation_payment_attempt']
+  }
+
+  Note: '예약 상태·숙박 날짜·가격·결제 시도 정보'
+}
+
+Table reservation_quote {
+  id bigint [pk, increment, not null]
+  member_id bigint [not null]
+  accommodation_id bigint [not null]
+  coupon_id bigint
+  reservation_id bigint
+  quote_uid binary(16) [not null]
+  order_name varchar(255) [not null]
+  check_in_date date [not null]
+  check_out_date date [not null]
+  guest_count int [not null]
+  nightly_price bigint [not null]
+  nights bigint [not null]
+  subtotal bigint [not null]
+  discount_amount bigint [not null]
+  amount bigint [not null]
+  currency char(3) [not null]
+  quoted_at datetime(6) [not null]
+  checked_out_at datetime(6)
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    accommodation_id [name: 'fk_reservation_quote_accommodation']
+    coupon_id [name: 'fk_reservation_quote_coupon']
+    (created_at, id) [name: 'idx_reservation_quote_cleanup']
+    (member_id, created_at, id) [name: 'idx_reservation_quote_member_created']
+    reservation_id [unique, name: 'uk_reservation_quote_reservation']
+    quote_uid [unique, name: 'uk_reservation_quote_uid']
+  }
+
+  checks {
+    `(((reservation_id is null) and (checked_out_at is null)) or ((reservation_id is not null) and (checked_out_at is not null)))` [name: 'chk_reservation_quote_checkout']
+    `(check_out_date > check_in_date)` [name: 'chk_reservation_quote_dates']
+    `(guest_count > 0)` [name: 'chk_reservation_quote_guests']
+    `((nightly_price >= 0) and (nights > 0) and (subtotal >= 0) and (discount_amount >= 0) and (discount_amount <= subtotal) and (amount = (subtotal - discount_amount)))` [name: 'chk_reservation_quote_price']
+    `((nights = (to_days(check_out_date) - to_days(check_in_date))) and (subtotal = (nightly_price * nights)))` [name: 'chk_reservation_quote_stay_price']
+  }
+
+  Note: '예약 전 가격 견적과 체크아웃 연결. 견적 자체에는 시간 만료 컬럼이 없다.'
+}
+
+Table reservation_checkout_request {
+  id bigint [pk, increment, not null]
+  member_id bigint [not null]
+  reservation_id bigint
+  endpoint varchar(50) [not null, note: 'ASCII / ascii_bin']
+  key_hash char(64) [not null, note: 'ASCII / ascii_bin']
+  request_fingerprint char(64) [not null, note: 'ASCII / ascii_bin']
+  created_at datetime(6) [not null]
+  completed_at datetime(6)
+  updated_at datetime(6) [not null]
+
+  indexes {
+    (created_at, id) [name: 'idx_reservation_checkout_request_created']
+    (member_id, endpoint, key_hash) [unique, name: 'uk_reservation_checkout_request_key']
+    reservation_id [unique, name: 'uk_reservation_checkout_request_reservation']
+  }
+
+  Note: '체크아웃 멱등성 키 해시와 처리 결과. JDBC로 접근한다.'
+}
+
+Table accommodation_inventory_day {
+  accommodation_id bigint [not null]
+  stay_date date [not null]
+  reservation_id bigint
+  state varchar(32) [not null, note: 'FREE / HOLD / OCCUPIED ASCII / ascii_bin']
+  hold_expires_at datetime(6)
+
+  indexes {
+    (state, stay_date, accommodation_id) [name: 'idx_inventory_day_free_retention']
+    (reservation_id, accommodation_id) [name: 'idx_inventory_day_reservation_owner']
+    (accommodation_id, stay_date) [pk]
+  }
+
+  checks {
+    `(((state = _utf8mb4\'FREE\') and (reservation_id is null) and (hold_expires_at is null)) or ((state = _utf8mb4\'HOLD\') and (reservation_id is not null) and (hold_expires_at is not null)) or ((state = _utf8mb4\'OCCUPIED\') and (reservation_id is not null) and (hold_expires_at is null)))` [name: 'chk_inventory_day_state_owner']
+  }
+
+  Note: '숙소·날짜별 예약 소유권. FREE / HOLD / OCCUPIED 상태를 관리한다.'
+}
+
+// 결제
+
+Table payment {
+  id bigint [pk, increment, not null]
+  reservation_id bigint [not null]
+  payment_uid binary(16) [not null]
+  payment_key varchar(200) [not null]
+  order_id varchar(64) [not null]
+  amount bigint [not null]
+  method varchar(50) [not null]
+  approved_at datetime(6) [not null]
+  created_at datetime(6) [not null]
+  status varchar(50) [not null]
+  balance_amount bigint [not null]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    payment_key [unique, name: 'payment_key']
+    payment_uid [unique, name: 'payment_uid']
+    reservation_id [unique, name: 'reservation_id']
+  }
+
+  Note: '예약별 확정 결제와 잔액'
+}
+
+Table payment_operation {
+  id bigint [pk, increment, not null]
+  reservation_id bigint [not null]
+  requester_member_id bigint [not null]
+  operation_uid binary(16) [not null]
+  operation_type varchar(30) [not null]
+  status varchar(30) [not null]
+  next_action varchar(30) [not null]
+  payment_key varchar(200) [not null]
+  expected_amount bigint [not null]
+  provider_idempotency_key varchar(100) [not null]
+  deduplication_key varchar(100) [not null]
+  dispatch_generation bigint [not null, default: 1]
+  attempt_count int [not null, default: 0]
+  next_attempt_at datetime(6)
+  queued_at datetime(6) [not null]
+  lease_owner varchar(100)
+  lease_expires_at datetime(6)
+  review_required_at datetime(6)
+  cancellation_reason varchar(200)
+  manual_reconciliation_pending tinyint(1) [not null, default: 0]
+  not_paid_resolution_eligible tinyint(1) [not null, default: 0]
+  manual_review_count int [not null, default: 0]
+  failure_code varchar(100)
+  failure_message varchar(512)
+  completed_at datetime(6)
+  version bigint [not null, default: 0]
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    requester_member_id [name: 'fk_payment_operation_requester']
+    reservation_id [name: 'fk_payment_operation_reservation']
+    (status, lease_expires_at, id) [name: 'idx_payment_operation_lease_due']
+    (status, review_required_at, id) [name: 'idx_payment_operation_manual_review_queue']
+    (status, queued_at, id) [name: 'idx_payment_operation_queued']
+    (status, next_attempt_at, id) [name: 'idx_payment_operation_retry_due']
+    deduplication_key [unique, name: 'uk_payment_operation_deduplication_key']
+    provider_idempotency_key [unique, name: 'uk_payment_operation_provider_key']
+    operation_uid [unique, name: 'uk_payment_operation_uid']
+  }
+
+  checks {
+    `(expected_amount > 0)` [name: 'chk_payment_operation_amount']
+  }
+
+  Note: '비동기 결제 승인·취소 작업과 재시도·수동 검토 상태'
+}
+
+Table payment_operation_resolution {
+  id bigint [pk, increment, not null]
+  payment_operation_id bigint [not null]
+  actor_member_id bigint
+  dispatch_generation bigint [not null, default: 1]
+  actor_type varchar(30) [not null]
+  resolution_action varchar(50) [not null]
+  reason varchar(512) [not null]
+  evidence_reference varchar(512)
+  previous_status varchar(30) [not null]
+  result_status varchar(30) [not null]
+  created_at datetime(6) [not null]
+
+  indexes {
+    actor_member_id [name: 'fk_payment_operation_resolution_actor']
+    (payment_operation_id, created_at, id) [name: 'idx_payment_operation_resolution_audit']
+  }
+
+  checks {
+    `(resolution_action in (_utf8mb4\'RECONCILIATION_REQUESTED\',_utf8mb4\'RECONCILIATION_APPLIED\',_utf8mb4\'RECONCILIATION_DECLINED\',_utf8mb4\'RECONCILIATION_RETURNED_TO_REVIEW\',_utf8mb4\'MARKED_NOT_PAID\'))` [name: 'chk_payment_operation_resolution_action']
+    `(((actor_type = _utf8mb4\'SYSTEM\') and (actor_member_id is null)) or ((actor_type = _utf8mb4\'ADMIN\') and (actor_member_id is not null)))` [name: 'chk_payment_operation_resolution_actor_identity']
+    `(actor_type in (_utf8mb4\'SYSTEM\',_utf8mb4\'ADMIN\'))` [name: 'chk_payment_operation_resolution_actor_type']
+    `(dispatch_generation > 0)` [name: 'chk_payment_operation_resolution_generation']
+  }
+
+  Note: '운영자·시스템의 결제 작업 수동 처리 및 재조정 이력'
+}
+
+Table payment_transaction {
+  id bigint [pk, increment, not null]
+  reservation_id bigint [not null, note: 'reservation.id 논리 참조. DB 외래키 없음.']
+  payment_id bigint [note: 'payment.id 논리 참조. DB 외래키 없음.']
+  payment_operation_id bigint
+  transaction_type varchar(30) [not null]
+  status varchar(50)
+  amount bigint
+  payment_key varchar(200)
+  order_id varchar(64)
+  method varchar(50)
+  failure_code varchar(100)
+  failure_message varchar(512)
+  virtual_bank_code varchar(20)
+  virtual_account_number varchar(30)
+  virtual_customer_name varchar(100)
+  virtual_due_date datetime(6)
+  cancel_amount bigint
+  cancel_reason varchar(200)
+  transaction_key varchar(64)
+  canceled_at datetime(6)
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    order_id [name: 'idx_payment_transaction_order_id']
+    payment_id [name: 'idx_payment_transaction_payment_id']
+    reservation_id [name: 'idx_payment_transaction_reservation_id']
+    payment_operation_id [unique, name: 'uk_payment_transaction_operation_id']
+  }
+
+  Note: '결제 거래 원장. payment_operation_id만 DB 외래키이며 reservation_id·payment_id는 논리 참조다.'
+}
+
+// 정산·매출
+
+Table settlement {
+  id bigint [pk, increment, not null]
+  host_id bigint [not null]
+  settlement_month date [not null]
+  gross_amount bigint [not null, default: 0]
+  refund_amount bigint [not null, default: 0]
+  net_amount bigint [not null, default: 0]
+  commission_rate decimal(5,4) [not null, default: 0.0000]
+  commission_amount bigint [not null, default: 0]
+  payout_amount bigint [not null, default: 0]
+  status varchar(20) [not null]
+  settled_at datetime(6)
+  created_at datetime(6) [default: `CURRENT_TIMESTAMP(6)`]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    host_id [name: 'fk_settlement_host']
+    (host_id, settlement_month) [unique, name: 'uk_settlement_host_month']
+  }
+
+  Note: '호스트 월별 정산과 수수료·지급액'
+}
+
+Table daily_revenue_stats {
+  stat_date date [not null]
+  accommodation_id bigint [not null, note: 'accommodation.id 논리 참조. DB 외래키 없음.']
+  gross_amount bigint [not null, default: 0]
+  refund_amount bigint [not null, default: 0]
+  net_amount bigint [not null, default: 0]
+  payment_count int [not null, default: 0]
+  refund_count int [not null, default: 0]
+  created_at datetime(6) [default: `CURRENT_TIMESTAMP(6)`]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    (stat_date, accommodation_id) [pk]
+  }
+
+  Note: '날짜·숙소별 매출 집계. accommodation_id에 DB 외래키는 없다.'
+}
+
+// 공통 코드
+
+Table common_code_group {
+  group_code varchar(50) [pk, not null]
+  group_name varchar(100) [not null]
+  description varchar(255)
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime(6) [default: `CURRENT_TIMESTAMP(6)`]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  Note: '편의시설·숙소 유형 등 공통 코드 그룹'
+}
+
+Table common_code {
+  group_code varchar(50) [not null]
+  code varchar(50) [not null]
+  name varchar(100) [not null]
+  description varchar(255)
+  sort_order int [not null, default: 0]
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime(6) [default: `CURRENT_TIMESTAMP(6)`]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    (group_code, is_active, sort_order) [name: 'idx_common_code_lookup']
+    (group_code, code) [pk]
+  }
+
+  Note: '그룹별 공통 코드. 복합 PK는 (group_code, code).'
+}
+
+// 메시징·운영
+
+Table outbox {
+  id bigint [pk, increment, not null]
+  event_id varchar(36) [not null]
+  destination varchar(255) [not null]
+  partition_key varchar(255) [not null]
+  aggregate_type varchar(255) [not null]
+  aggregate_id varchar(255) [not null]
+  event_type varchar(255) [not null]
+  event_version varchar(30) [not null]
+  payload text [not null]
+  occurred_at datetime(6) [not null]
+  deduplication_key varchar(255)
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+  created_by bigint
+  updated_by bigint
+
+  indexes {
+    (occurred_at, id) [name: 'idx_outbox_cleanup']
+    deduplication_key [unique, name: 'uk_outbox_deduplication_key']
+    event_id [unique, name: 'uk_outbox_event_id']
+  }
+
+  Note: '업무 트랜잭션과 함께 기록하는 메시징 이벤트'
+}
+
+// DB 외래키
+
+Ref FK_accommodation_address_id: accommodation.address_id >? address.id [delete: no action, update: no action]
+Ref FK_accommodation_member_id: accommodation.member_id > member.id [delete: no action, update: no action]
+Ref FK_accommodation_occupancy_policy_id: accommodation.occupancy_policy_id >? occupancy_policy.id [delete: no action, update: no action]
+Ref FK_accommodation_amenity_accommodation_id: accommodation_amenity.accommodation_id >? accommodation.id [delete: no action, update: no action]
+Ref FK_accommodation_image_accommodation_id: accommodation_image.accommodation_id >? accommodation.id [delete: no action, update: no action]
+Ref fk_inventory_day_accommodation: accommodation_inventory_day.accommodation_id > accommodation.id [delete: no action, update: no action]
+Ref fk_inventory_day_reservation_owner: accommodation_inventory_day.(reservation_id, accommodation_id) >? reservation.(id, accommodation_id) [delete: no action, update: no action]
+Ref fk_accommodation_review_summary_accommodation: accommodation.id - accommodation_review_summary.accommodation_id [delete: cascade, update: no action]
+Ref fk_common_code_group: common_code.group_code > common_code_group.group_code [delete: no action, update: no action]
+Ref fk_coupon_issue_unit_coupon: coupon_issue_unit.coupon_id > coupon.id [delete: no action, update: no action]
+Ref fk_member_coupon_coupon: member_coupon.coupon_id > coupon.id [delete: no action, update: no action]
+Ref fk_member_coupon_member: member_coupon.member_id > member.id [delete: no action, update: no action]
+Ref fk_payment_to_reservation: reservation.id - payment.reservation_id [delete: no action, update: no action]
+Ref fk_payment_operation_requester: payment_operation.requester_member_id > member.id [delete: no action, update: no action]
+Ref fk_payment_operation_reservation: payment_operation.reservation_id > reservation.id [delete: no action, update: no action]
+Ref fk_payment_operation_resolution_actor: payment_operation_resolution.actor_member_id >? member.id [delete: no action, update: no action]
+Ref fk_payment_operation_resolution_operation: payment_operation_resolution.payment_operation_id > payment_operation.id [delete: no action, update: no action]
+Ref fk_payment_transaction_operation: payment_operation.id ?- payment_transaction.payment_operation_id [delete: no action, update: no action]
+Ref FK_reservation_accommodation: reservation.accommodation_id > accommodation.id [delete: no action, update: no action]
+Ref FK_reservation_member: reservation.guest_id > member.id [delete: no action, update: no action]
+Ref fk_reservation_checkout_request_member: reservation_checkout_request.member_id > member.id [delete: no action, update: no action]
+Ref fk_reservation_checkout_request_reservation: reservation.id ?- reservation_checkout_request.reservation_id [delete: no action, update: no action]
+Ref fk_reservation_quote_accommodation: reservation_quote.accommodation_id > accommodation.id [delete: no action, update: no action]
+Ref fk_reservation_quote_coupon: reservation_quote.coupon_id >? coupon.id [delete: no action, update: no action]
+Ref fk_reservation_quote_member: reservation_quote.member_id > member.id [delete: no action, update: no action]
+Ref fk_reservation_quote_reservation: reservation.id ?- reservation_quote.reservation_id [delete: no action, update: no action]
+Ref FK_review_accommodation_id: review.accommodation_id >? accommodation.id [delete: no action, update: no action]
+Ref FK_review_member_id: review.member_id >? member.id [delete: no action, update: no action]
+Ref FK_review_image_review_id: review_image.review_id >? review.id [delete: no action, update: no action]
+Ref fk_settlement_host: settlement.host_id > member.id [delete: no action, update: no action]
+Ref FK_wishlist_member_id: wishlist.member_id >? member.id [delete: no action, update: no action]
+Ref FK_wishlist_accommodation_accommodation_id: wishlist_accommodation.accommodation_id >? accommodation.id [delete: no action, update: no action]
+Ref FK_wishlist_accommodation_wishlist_id: wishlist_accommodation.wishlist_id >? wishlist.id [delete: no action, update: no action]
+
+// 논리 참조 — DB 외래키 없음
+
+Ref logical_payment_transaction_reservation_id: payment_transaction.reservation_id > reservation.id [inactive]
+Ref logical_payment_transaction_payment_id: payment_transaction.payment_id >? payment.id [inactive]
+Ref logical_member_coupon_reservation_id: reservation.id ?- member_coupon.reservation_id [inactive]
+Ref logical_daily_revenue_stats_accommodation_id: daily_revenue_stats.accommodation_id > accommodation.id [inactive]
+Ref logical_wishlist_representative_accommodation_id: wishlist.representative_accommodation_id >? accommodation.id [inactive]

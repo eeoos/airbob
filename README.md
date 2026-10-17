@@ -11,7 +11,10 @@
 - **팀 개발:** 숙소 후기·위시리스트·최근 본 숙소 기능 개발
 - **개인 고도화:** 숙소 상세 조회 캐시·쿠폰 발급·쿼리 최적화·인프라 개선
 
-Java · Spring Boot · JPA · QueryDSL · MySQL · Redis
+Java 21.0.12.1 · Spring Boot · JPA · QueryDSL · MySQL · Redis
+
+개발·빌드에는 **Eclipse Temurin JDK 21.0.12.1+1**을 사용합니다. 터미널의 `JAVA_HOME`, IntelliJ의
+Project SDK와 Gradle JVM을 같은 JDK로 맞추고 `java -version`, `./gradlew --version`으로 확인합니다.
 
 Website: [Airbob](https://www.airbob.cloud/) <br>
 

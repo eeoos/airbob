@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 
 import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
+import kr.kro.airbob.cursor.resolver.CouponCampaignCursorParamArgumentResolver;
 import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.cursor.resolver.ReviewCursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
@@ -29,9 +30,11 @@ class WebMvcConfigCursorResolverTest {
 			mock(CursorParamArgumentResolver.class);
 		ReviewCursorParamArgumentResolver reviewCursorResolver =
 			mock(ReviewCursorParamArgumentResolver.class);
+		CouponCampaignCursorParamArgumentResolver campaignCursorResolver =
+			mock(CouponCampaignCursorParamArgumentResolver.class);
 		WebMvcConfig config = new WebMvcConfig(
 			memberResolver,
-			List.of(cursorResolver, reviewCursorResolver),
+			List.of(cursorResolver, reviewCursorResolver, campaignCursorResolver),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
 			mock(QueryCountInterceptor.class)
@@ -41,6 +44,6 @@ class WebMvcConfigCursorResolverTest {
 		config.addArgumentResolvers(resolvers);
 
 		assertThat(resolvers)
-			.contains(cursorResolver, reviewCursorResolver, memberResolver);
+			.containsExactly(cursorResolver, reviewCursorResolver, campaignCursorResolver, memberResolver);
 	}
 }

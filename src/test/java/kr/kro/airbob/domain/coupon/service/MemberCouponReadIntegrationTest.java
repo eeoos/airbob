@@ -45,6 +45,12 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.cursor.dto.CursorData;
+import kr.kro.airbob.cursor.dto.CursorRequest.CursorPageRequest;
+import kr.kro.airbob.cursor.dto.CursorResponse.PageInfo;
+import kr.kro.airbob.cursor.util.CursorDecoder;
+import kr.kro.airbob.cursor.util.CursorEncoder;
+import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
@@ -56,6 +62,7 @@ import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, CouponQueryService.class,
+	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	MemberCouponReadIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("내 쿠폰 목록 MySQL 조회 계약")
@@ -82,6 +89,7 @@ class MemberCouponReadIntegrationTest {
 	@Autowired private MemberCouponRepository memberCouponRepository;
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private ObjectMapper objectMapper;
+	@Autowired private CursorDecoder cursorDecoder;
 	@Autowired private EntityManager entityManager;
 	@Autowired private EntityManagerFactory entityManagerFactory;
 	@Autowired private SqlCapture sqlCapture;
@@ -113,7 +121,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(201, 8L, 12, true, NOW.plusMinutes(1));
 		Statistics statistics = prepareMeasurement();
 
-		var result = service.findMyCoupons(MEMBER_ID);
+		var result = service.findMyCoupons(MEMBER_ID, firstPage(20));
 
 		try (var fixture = new ClassPathResource("contracts/member-coupons.json").getInputStream()) {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(result)))
@@ -142,7 +150,7 @@ class MemberCouponReadIntegrationTest {
 		when(timeProvider.now()).thenReturn(now);
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findMyCoupons(MEMBER_ID).infos()).singleElement()
+		assertThat(service.findMyCoupons(MEMBER_ID, firstPage(20)).infos()).singleElement()
 			.satisfies(info -> assertThat(info.status()).isEqualTo(expected));
 
 		assertRead(statistics);
@@ -160,7 +168,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(400, 8L, 12, true, NOW.plusMinutes(1));
 		Statistics statistics = prepareMeasurement();
 
-		var result = service.findMyCoupons(MEMBER_ID);
+		var result = service.findMyCoupons(MEMBER_ID, firstPage(20));
 
 		assertThat(result.infos()).extracting(CouponResponse.MemberCouponInfo::couponId)
 			.containsExactly(12L, 13L, 14L);
@@ -168,7 +176,7 @@ class MemberCouponReadIntegrationTest {
 		assertRead(statistics);
 
 		statistics = prepareMeasurement();
-		assertThat(service.findMyCoupons(8L).infos()).singleElement().satisfies(info -> {
+		assertThat(service.findMyCoupons(8L, firstPage(20)).infos()).singleElement().satisfies(info -> {
 			assertThat(info.couponId()).isEqualTo(12L);
 			assertThat(info.status()).isEqualTo(MemberCouponStatus.USED);
 		});
@@ -183,7 +191,10 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(101, 8L, 12, false, NOW);
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findMyCoupons(memberId).infos()).isEmpty();
+		var result = service.findMyCoupons(memberId, firstPage(20));
+
+		assertThat(result.infos()).isEmpty();
+		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 0));
 
 		assertRead(statistics);
 	}
@@ -204,7 +215,7 @@ class MemberCouponReadIntegrationTest {
 				discount_value = 15, min_payment_price = NULL, max_discount_amount = 15000 WHERE id = 12
 			""");
 		Statistics statistics = prepareMeasurement();
-		assertThat(service.findMyCoupons(MEMBER_ID).infos()).containsExactly(
+		assertThat(service.findMyCoupons(MEMBER_ID, firstPage(20)).infos()).containsExactly(
 			new CouponResponse.MemberCouponInfo(12L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE,
 				15, null, 15000, NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusDays(1).toInstant(java.time.ZoneOffset.UTC), MemberCouponStatus.AVAILABLE));
 		assertRead(statistics);
@@ -213,9 +224,92 @@ class MemberCouponReadIntegrationTest {
 		assertCurrentStatus(MemberCouponStatus.USED);
 	}
 
+	@Test
+	@DisplayName("마이크로초 시각과 보유 ID를 커서로 사용해 타인 쿠폰 없이 다음 페이지로 연결한다")
+	void traversesOwnedCouponCursorAcrossTiedMicrosecondTimes() {
+		LocalDateTime createdAt = NOW.plusNanos(123_456_000);
+		for (long id : List.of(12L, 13L, 14L, 15L)) {
+			insertCoupon(id, "쿠폰 " + id, true, NOW.minusDays(1), NOW.plusDays(1));
+		}
+		insertOwned(301, MEMBER_ID, 14, false, createdAt.minusNanos(1_000));
+		insertOwned(199, MEMBER_ID, 15, false, createdAt);
+		insertOwned(200, MEMBER_ID, 13, false, createdAt);
+		insertOwned(201, MEMBER_ID, 12, false, createdAt);
+		insertOwned(400, 8L, 12, true, createdAt.plusSeconds(1));
+		insertOwned(198, 8L, 13, true, createdAt);
+		Statistics statistics = prepareMeasurement();
+
+		var first = service.findMyCoupons(MEMBER_ID, firstPage(2));
+
+		assertThat(first.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(12L, 13L);
+		assertThat(first.pageInfo().hasNext()).isTrue();
+		assertThat(first.pageInfo().currentSize()).isEqualTo(2);
+		CursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CursorData.class);
+		assertThat(cursor).isEqualTo(new CursorData(200L, createdAt));
+		assertRead(statistics);
+
+		statistics = prepareMeasurement();
+		var second = service.findMyCoupons(MEMBER_ID, nextPage(2, cursor));
+
+		assertThat(second.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(15L, 14L);
+		assertThat(second.infos()).allMatch(info -> info.status() == MemberCouponStatus.AVAILABLE);
+		assertThat(second.pageInfo()).isEqualTo(new PageInfo(false, null, 2));
+		assertRead(statistics);
+	}
+
+	@Test
+	@DisplayName("앞선 신규 발급과 커서 기준 보유 행 삭제가 있어도 남은 쿠폰을 건너뛰지 않는다")
+	void preservesOwnedCouponCursorAfterInsertionAndAnchorDeletion() {
+		for (long id : List.of(12L, 13L, 14L, 15L)) {
+			insertCoupon(id, "쿠폰 " + id, true, NOW.minusDays(1), NOW.plusDays(1));
+		}
+		insertOwned(199, MEMBER_ID, 14, false, NOW);
+		insertOwned(200, MEMBER_ID, 13, false, NOW);
+		insertOwned(201, MEMBER_ID, 12, false, NOW);
+		Statistics statistics = prepareMeasurement();
+		var first = service.findMyCoupons(MEMBER_ID, firstPage(2));
+		assertThat(first.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(12L, 13L);
+		CursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CursorData.class);
+		assertRead(statistics);
+
+		insertOwned(202, MEMBER_ID, 15, false, NOW.plusSeconds(1));
+		jdbc.update("DELETE FROM member_coupon WHERE id = 200");
+		statistics = prepareMeasurement();
+
+		var second = service.findMyCoupons(MEMBER_ID, nextPage(2, cursor));
+
+		assertThat(second.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(14L);
+		assertThat(second.pageInfo()).isEqualTo(new PageInfo(false, null, 1));
+		assertRead(statistics);
+	}
+
+	@Test
+	@DisplayName("첫 페이지 크기만큼 보유한 회원에게 다음 커서를 발급하지 않는다")
+	void returnsExactSizeOwnedCouponPageWithoutNextCursor() {
+		insertCoupon(12, "첫 쿠폰", true, NOW.minusDays(1), NOW.plusDays(1));
+		insertCoupon(13, "두 번째 쿠폰", true, NOW.minusDays(1), NOW.plusDays(1));
+		insertOwned(101, MEMBER_ID, 12, false, NOW);
+		insertOwned(102, MEMBER_ID, 13, false, NOW);
+		Statistics statistics = prepareMeasurement();
+
+		var result = service.findMyCoupons(MEMBER_ID, firstPage(2));
+
+		assertThat(result.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(13L, 12L);
+		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 2));
+		assertRead(statistics);
+	}
+
+	private CursorPageRequest firstPage(int size) {
+		return new CursorPageRequest(size, null, null);
+	}
+
+	private CursorPageRequest nextPage(int size, CursorData cursor) {
+		return new CursorPageRequest(size, cursor.id(), cursor.lastCreatedAt());
+	}
+
 	private void assertCurrentStatus(MemberCouponStatus expected) {
 		Statistics statistics = prepareMeasurement();
-		assertThat(service.findMyCoupons(MEMBER_ID).infos()).singleElement()
+		assertThat(service.findMyCoupons(MEMBER_ID, firstPage(20)).infos()).singleElement()
 			.satisfies(info -> assertThat(info.status()).isEqualTo(expected));
 		assertRead(statistics);
 	}
@@ -249,13 +343,13 @@ class MemberCouponReadIntegrationTest {
 	private void assertRead(Statistics statistics) {
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
-		assertThat(selectedColumnCount()).isEqualTo(11);
+		assertThat(selectedColumnCount()).isEqualTo(13);
 		String sql = sqlCapture.statements.getFirst();
 		String selected = sql.substring("select ".length(), sql.indexOf(" from "));
 		assertThat(selected).doesNotContain(".member_id", ".reservation_id", ".used_at", ".issue_start_at",
-			".issue_end_at", ".total_quantity", ".stock_prepared_at", ".created_at",
+			".issue_end_at", ".total_quantity", ".stock_prepared_at",
 			".updated_at", ".created_by", ".updated_by");
-		assertThat(sql).contains(" join coupon ").doesNotContain(" join member ", " for update", " for share");
+		assertThat(sql).contains(" join coupon ", "limit ?").doesNotContain(" join member ", " for update", " for share");
 		verifyNoInteractions(stockManager);
 	}
 

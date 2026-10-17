@@ -49,6 +49,12 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.cursor.dto.CouponCampaignCursorData;
+import kr.kro.airbob.cursor.dto.CursorRequest.CouponCampaignCursorPageRequest;
+import kr.kro.airbob.cursor.dto.CursorResponse.PageInfo;
+import kr.kro.airbob.cursor.util.CursorDecoder;
+import kr.kro.airbob.cursor.util.CursorEncoder;
+import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
@@ -60,7 +66,8 @@ import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, CouponQueryService.class,
-	CouponTimeProvider.class, CouponCampaignReadIntegrationTest.ReadTestConfig.class})
+	CouponTimeProvider.class, CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
+	CouponCampaignReadIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("발급 쿠폰 목록 MySQL 조회 계약")
 class CouponCampaignReadIntegrationTest {
@@ -85,6 +92,7 @@ class CouponCampaignReadIntegrationTest {
 	@Autowired private CouponRepository couponRepository;
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private ObjectMapper objectMapper;
+	@Autowired private CursorDecoder cursorDecoder;
 	@Autowired private EntityManager entityManager;
 	@Autowired private EntityManagerFactory entityManagerFactory;
 	@Autowired private SqlCapture sqlCapture;
@@ -104,7 +112,7 @@ class CouponCampaignReadIntegrationTest {
 		insertCoupon(12, "매진 쿠폰", NOW.minusDays(1), NOW.plusDays(1), 10, 10);
 		Statistics statistics = prepareMeasurement();
 
-		var result = service.findCouponCampaigns();
+		var result = service.findCouponCampaigns(firstPage(20));
 
 		assertThat(result.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(10L, 12L, 11L);
 		try (var fixture = new ClassPathResource("contracts/coupon-campaigns.json").getInputStream()) {
@@ -125,14 +133,14 @@ class CouponCampaignReadIntegrationTest {
 		"0, 10, 11, SOLD_OUT",
 		"-1, 10, 10, UPCOMING"
 	})
-	@DisplayName("Redis 시각의 시작 경계와 매진·무제한 수량·발급 예정 우선순위를 유지한다")
+	@DisplayName("MySQL 시각의 시작 경계와 매진·발급 예정 우선순위를 유지한다")
 	void preservesIssuanceStatus(long offsetMillis, Integer totalQuantity, int issuedQuantity,
 		CouponIssuanceStatus expected) {
 		insertCoupon(10, "발급 경계", NOW, NOW.plusHours(1), totalQuantity, issuedQuantity);
 		setDatabaseNow(NOW.plusNanos(offsetMillis * 1_000_000));
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findCouponCampaigns().infos()).singleElement().satisfies(info -> {
+		assertThat(service.findCouponCampaigns(firstPage(20)).infos()).singleElement().satisfies(info -> {
 			assertThat(info.totalQuantity()).isEqualTo(totalQuantity);
 			assertThat(info.issuanceStatus()).isEqualTo(expected);
 		});
@@ -155,7 +163,7 @@ class CouponCampaignReadIntegrationTest {
 			NOW.plusMinutes(30), NOW.plusDays(2));
 		Statistics statistics = prepareMeasurement();
 
-		var result = service.findCouponCampaigns();
+		var result = service.findCouponCampaigns(firstPage(20));
 
 		assertThat(result.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(14L, 13L);
 		assertThat(result.infos()).extracting(CouponResponse.CouponInfo::issuanceStatus)
@@ -164,24 +172,24 @@ class CouponCampaignReadIntegrationTest {
 
 		setDatabaseNow(NOW.plusHours(1));
 		statistics = prepareMeasurement();
-		assertThat(service.findCouponCampaigns().infos()).isEmpty();
+		assertThat(service.findCouponCampaigns(firstPage(20)).infos()).isEmpty();
 		assertRead(statistics);
 	}
 
 	@Test
-	@DisplayName("종료 직전에는 노출하고 Redis 시각이 종료에 도달하면 제외한다")
+	@DisplayName("종료 직전에는 노출하고 MySQL 시각이 종료에 도달하면 제외한다")
 	void excludesCampaignAtExactIssuanceEnd() {
 		insertCoupon(10, "종료 경계", NOW.minusDays(1), NOW, 10, 0);
 		setDatabaseNow(NOW.minusNanos(1_000_000));
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findCouponCampaigns().infos()).singleElement()
+		assertThat(service.findCouponCampaigns(firstPage(20)).infos()).singleElement()
 			.satisfies(info -> assertThat(info.issuanceStatus()).isEqualTo(CouponIssuanceStatus.OPEN));
 		assertRead(statistics);
 
 		setDatabaseNow(NOW);
 		statistics = prepareMeasurement();
-		assertThat(service.findCouponCampaigns().infos()).isEmpty();
+		assertThat(service.findCouponCampaigns(firstPage(20)).infos()).isEmpty();
 		assertRead(statistics);
 	}
 
@@ -190,7 +198,7 @@ class CouponCampaignReadIntegrationTest {
 	void readsCurrentQuantityAndDiscountAfterChanges() {
 		insertCoupon(10, "원래 쿠폰", NOW.minusDays(1), NOW.plusHours(1), 1, 0);
 		Statistics statistics = prepareMeasurement();
-		assertThat(service.findCouponCampaigns().infos()).singleElement()
+		assertThat(service.findCouponCampaigns(firstPage(20)).infos()).singleElement()
 			.satisfies(info -> assertThat(info.issuanceStatus()).isEqualTo(CouponIssuanceStatus.OPEN));
 		assertRead(statistics);
 
@@ -201,7 +209,7 @@ class CouponCampaignReadIntegrationTest {
 			""");
 		statistics = prepareMeasurement();
 
-		assertThat(service.findCouponCampaigns().infos()).containsExactly(new CouponResponse.CouponInfo(
+		assertThat(service.findCouponCampaigns(firstPage(20)).infos()).containsExactly(new CouponResponse.CouponInfo(
 			10L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE, 15, null, 15000,
 			NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusHours(1).toInstant(java.time.ZoneOffset.UTC), NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusMonths(1).toInstant(java.time.ZoneOffset.UTC),
 			1, CouponIssuanceStatus.SOLD_OUT));
@@ -213,9 +221,84 @@ class CouponCampaignReadIntegrationTest {
 	void returnsEmptyCollection() {
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findCouponCampaigns().infos()).isEmpty();
+		var result = service.findCouponCampaigns(firstPage(20));
+
+		assertThat(result.infos()).isEmpty();
+		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 0));
 
 		assertRead(statistics);
+	}
+
+	@Test
+	@DisplayName("마이크로초가 있는 같은 발급 시작시각의 ID 경계를 넘어 정확한 크기의 마지막 페이지를 반환한다")
+	void traversesCampaignCursorAcrossTiedMicrosecondTimes() {
+		LocalDateTime issueStart = NOW.plusNanos(123_456_000);
+		for (long id : List.of(10L, 11L, 12L)) {
+			insertCoupon(id, "같은 시작시각 " + id, issueStart, NOW.plusDays(1), 10, 0);
+		}
+		insertCoupon(13, "1마이크로초 이른 캠페인", issueStart.minusNanos(1_000), NOW.plusDays(1), 10, 0);
+		Statistics statistics = prepareMeasurement();
+
+		var first = service.findCouponCampaigns(firstPage(2));
+
+		assertThat(first.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(12L, 11L);
+		assertThat(first.pageInfo().hasNext()).isTrue();
+		assertThat(first.pageInfo().currentSize()).isEqualTo(2);
+		CouponCampaignCursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CouponCampaignCursorData.class);
+		assertThat(cursor).isEqualTo(new CouponCampaignCursorData(11L, issueStart));
+		assertRead(statistics);
+
+		statistics = prepareMeasurement();
+		var second = service.findCouponCampaigns(nextPage(2, cursor));
+
+		assertThat(second.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(10L, 13L);
+		assertThat(second.pageInfo()).isEqualTo(new PageInfo(false, null, 2));
+		assertRead(statistics);
+	}
+
+	@Test
+	@DisplayName("페이지 사이에 앞선 캠페인을 추가하고 커서 기준 행을 삭제해도 남은 결과를 건너뛰지 않는다")
+	void preservesCampaignCursorAfterInsertionAndAnchorDeletion() {
+		for (long id : List.of(10L, 11L, 12L)) {
+			insertCoupon(id, "같은 시작시각 " + id, NOW, NOW.plusDays(1), 10, 0);
+		}
+		Statistics statistics = prepareMeasurement();
+		var first = service.findCouponCampaigns(firstPage(2));
+		assertThat(first.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(12L, 11L);
+		CouponCampaignCursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CouponCampaignCursorData.class);
+		assertRead(statistics);
+
+		insertCoupon(13, "새 캠페인", NOW.plusSeconds(1), NOW.plusDays(1), 10, 0);
+		jdbc.update("DELETE FROM coupon WHERE id = 11");
+		statistics = prepareMeasurement();
+
+		var second = service.findCouponCampaigns(nextPage(2, cursor));
+
+		assertThat(second.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(10L);
+		assertThat(second.pageInfo()).isEqualTo(new PageInfo(false, null, 1));
+		assertRead(statistics);
+	}
+
+	@Test
+	@DisplayName("첫 페이지 크기와 결과 수가 같으면 다음 커서를 발급하지 않는다")
+	void returnsExactSizeCampaignPageWithoutNextCursor() {
+		insertCoupon(10, "첫 캠페인", NOW, NOW.plusDays(1), 10, 0);
+		insertCoupon(11, "두 번째 캠페인", NOW, NOW.plusDays(1), 10, 0);
+		Statistics statistics = prepareMeasurement();
+
+		var result = service.findCouponCampaigns(firstPage(2));
+
+		assertThat(result.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(11L, 10L);
+		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 2));
+		assertRead(statistics);
+	}
+
+	private CouponCampaignCursorPageRequest firstPage(int size) {
+		return new CouponCampaignCursorPageRequest(size, null, null);
+	}
+
+	private CouponCampaignCursorPageRequest nextPage(int size, CouponCampaignCursorData cursor) {
+		return new CouponCampaignCursorPageRequest(size, cursor.id(), cursor.lastIssueStartAt());
 	}
 
 	private void insertCoupon(long id, String name, LocalDateTime issueStart, LocalDateTime issueEnd,
@@ -261,7 +344,7 @@ class CouponCampaignReadIntegrationTest {
 		String selected = sql.substring("select ".length(), sql.indexOf(" from "));
 		assertThat(selected).doesNotContain(".is_active", ".stock_prepared_at", ".created_at",
 			".updated_at", ".created_by", ".updated_by");
-		assertThat(sql).doesNotContain(" join ", " for update", " for share");
+		assertThat(sql).contains("limit ?").doesNotContain(" join ", " for update", " for share");
 		verify(units).databaseNow();
 
 		verify(timeProvider, never()).now();
