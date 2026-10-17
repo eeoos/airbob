@@ -75,7 +75,9 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.reservation.api.ReservationController;
+import kr.kro.airbob.domain.reservation.api.ReservationCommandController;
+import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
+import kr.kro.airbob.domain.reservation.api.ReservationHostController;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
@@ -126,7 +128,9 @@ class GlobalTemporalFlowIntegrationTest {
 	}
 
 	@Autowired private AdjustableClock clock;
-	@Autowired private ReservationController controller;
+	@Autowired private ReservationCommandController commandController;
+	@Autowired private ReservationGuestController guestController;
+	@Autowired private ReservationHostController hostController;
 	@Autowired private ReservationQuoteService quoteService;
 	@Autowired private ReservationService reservationService;
 	@Autowired private ReservationRepository reservationRepository;
@@ -159,7 +163,7 @@ class GlobalTemporalFlowIntegrationTest {
 		guest = memberRepository.save(Member.builder().email("temporal-guest@example.test")
 			.nickname("temporal-guest").build());
 		UserContext.set(new UserInfo(guest.getId()));
-		mvc = MockMvcBuilders.standaloneSetup(controller)
+		mvc = MockMvcBuilders.standaloneSetup(commandController, guestController, hostController)
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper)).build();

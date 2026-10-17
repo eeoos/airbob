@@ -35,7 +35,7 @@ import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 
 @ExtendWith(MockitoExtension.class)
-class ReservationControllerTest {
+class ReservationCommandControllerTest {
 
 	private static final long MEMBER_ID = 7L;
 
@@ -52,7 +52,7 @@ class ReservationControllerTest {
 			.findAndRegisterModules()
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationController(quoteService, reservationService, holdCommandService))
+			new ReservationCommandController(quoteService, reservationService, holdCommandService))
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.build();

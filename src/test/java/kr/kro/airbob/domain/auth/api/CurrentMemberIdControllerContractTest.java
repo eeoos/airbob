@@ -18,7 +18,9 @@ import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;
 import kr.kro.airbob.domain.recentlyViewed.api.RecentlyViewedController;
-import kr.kro.airbob.domain.reservation.api.ReservationController;
+import kr.kro.airbob.domain.reservation.api.ReservationCommandController;
+import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
+import kr.kro.airbob.domain.reservation.api.ReservationHostController;
 import kr.kro.airbob.domain.review.api.ReviewController;
 import kr.kro.airbob.domain.settlement.api.SettlementController;
 import kr.kro.airbob.domain.wishlist.api.WishlistAccommodationController;
@@ -69,15 +71,15 @@ class CurrentMemberIdControllerContractTest {
 			required(RecentlyViewedController.class, "addRecentlyViewed"),
 			required(RecentlyViewedController.class, "removeRecentlyViewed"),
 			required(RecentlyViewedController.class, "getRecentlyViewed"),
-			required(ReservationController.class, "createQuote"),
-			required(ReservationController.class, "checkout"),
-			required(ReservationController.class, "releaseHold"),
-			required(ReservationController.class, "beginPaymentAttempt"),
-			required(ReservationController.class, "cancelReservation"),
-			required(ReservationController.class, "getGuestReservationDetail"),
-			required(ReservationController.class, "getGuestReservations"),
-			required(ReservationController.class, "getHostReservations"),
-			required(ReservationController.class, "getHostReservationDetail"),
+			required(ReservationCommandController.class, "createQuote"),
+			required(ReservationCommandController.class, "checkout"),
+			required(ReservationCommandController.class, "releaseHold"),
+			required(ReservationCommandController.class, "beginPaymentAttempt"),
+			required(ReservationCommandController.class, "cancelReservation"),
+			required(ReservationGuestController.class, "getGuestReservationDetail"),
+			required(ReservationGuestController.class, "getGuestReservations"),
+			required(ReservationHostController.class, "getHostReservations"),
+			required(ReservationHostController.class, "getHostReservationDetail"),
 			required(ReviewController.class, "createReview"),
 			required(ReviewController.class, "updateReview"),
 			required(ReviewController.class, "deleteReview"),
