@@ -83,6 +83,10 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - There is no external distributed reservation lock or best-effort Redis hold.
 - Redis remains in use for sessions, caches, recently viewed accommodations; do
   not confuse those uses with reservation authority.
+- Host reservation lists select cursor keys with ownership, status, checkout, and cursor filters
+  before `size + 1`, then join display fields in one HQL-derived-table SQL statement. Preserve
+  current accommodation ownership, outer ordering, and the nonnull guest foreign-key contract.
+  V33 covers the candidate scan with `(accommodation_id, created_at DESC, id DESC, status, check_out_at)`.
 
 ### Coupon issuance
 
@@ -97,8 +101,15 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - Before issue_start_at only, preparation/quantity changes/discard lock the coupon first. After start,
   no quantity changes or restocking. UNIQUE(member_id,coupon_id) and whole-transaction rollback prevent duplicates.
 - The only issuance endpoint is `/api/v1/coupons/{couponId}/issue`. There is no strategy lookup,
-  conditional-UPDATE issuance, RC issuance, or composite unit table. Unit reads and deletes use
+  conditional-UPDATE issuance, RC issuance, or composite unit table. Issuance unit reads and deletes use
   Spring Data JPA native queries; preparation retains bounded JDBC multi-row inserts.
+- Coupon campaign and owned-coupon lists use `@CursorParam` with a default size of 20 and maximum
+  of 50. Campaign order is `(issue_start_at, coupon.id)` descending; owned-coupon order is
+  `(created_at, member_coupon.id)` descending. V32 requires nonnull member-coupon creation times;
+  reconcile historical NULLs from trusted issuance evidence before migration, never invent dates.
+- Campaign availability uses a correlated QueryDSL `EXISTS` on remaining `coupon_issue_unit` rows,
+  without counting issued member coupons or locking stock. Preserve UPCOMING precedence and the
+  historical nullable-quantity read contract; the issuance transaction revalidates availability.
 - Before V31, stop old application readers/writers and close active conditional-UPDATE campaigns.
   V31 copies only remaining composite units into the surrogate table, preserves member coupons,
   and drops the composite table and experiment columns. Never regenerate consumed stock.
@@ -205,9 +216,12 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V31. V29 introduces coupon issue units and immutable issue strategy,
+- Current schema history is V1 through V33. V29 introduces coupon issue units and immutable issue strategy,
   renames stock_prepared_at, and blocks unreconciled Redis coupon preparation. V30 normalizes
-  coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance; see docs/operations/coupon-time-contract.md for the coordinated API cutover.
+  coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance. V32 adds coupon
+  cursor indexes and requires nonnull member_coupon.created_at after a missing-timestamp guard;
+  see docs/operations/coupon-time-contract.md for the coordinated API cutover. V33 adds cursor
+  indexes for reservations, host accommodations, review sorting, wishlists, and wishlist details.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.

@@ -1,4 +1,4 @@
-# 쿠폰 발급 운영과 V31 전환
+# 쿠폰 발급·조회 운영과 스키마 전환
 
 쿠폰 발급은 대리 키 재고 행과 `REPEATABLE_READ`로 확정한다. 공개 발급 API는
 `POST /api/v1/coupons/{couponId}/issue` 하나이며, 기존 세션 인증을 유지한다.
@@ -19,8 +19,45 @@
   한도 소진 후에는 `503/CP012`를 반환하고 호출자가 다시 요청해야 한다.
 - 발급 시작 후 증감·재준비는 허용하지 않는다. 사용 취소로 보유 쿠폰을 복원하는 것은
   발급용 재고를 다시 만드는 작업과 다르다.
-- 캠페인 V1 조회는 기존 `member_coupon` 집계로 상태를 계산한다. 조회 비교 API는 제거했고,
-  운영 V1 조회 계약은 유지한다.
+- 캠페인 V1 조회는 목록 쿼리 안에서 `coupon_issue_unit`의 잔여 행을 `EXISTS`로 확인한다.
+  시작 전에는 `UPCOMING`, 시작 후 유한 수량 쿠폰은 재고가 있으면 `OPEN`, 없으면 `SOLD_OUT`이다.
+  과거 `total_quantity IS NULL` 데이터는 시작 후 `OPEN`으로 표시하는 기존 조회 계약을 유지한다.
+  발급 건수를 집계하거나 재고 존재 여부를 API 필드로 노출하지 않는다. 일반 조회로 상태만 표시하며,
+  실제 발급 가능 여부는 발급 트랜잭션에서 다시 확인한다. 캠페인·보유 쿠폰 목록은 아래 커서 계약을 사용한다.
+
+## 쿠폰 목록 페이지네이션
+
+두 목록 API는 `@CursorParam`으로 `size`와 `cursor`를 받는다. `size` 기본값은 20, 허용 범위는
+1~50이다. 첫 요청에서는 `cursor`를 생략한다. 파라미터 없는 요청도 전체 목록이 아닌 첫 20개만
+반환하므로, 프론트는 `data.page_info.has_next`가 참이면 `next_cursor`를 다음 요청의 `cursor`로
+전달해야 한다. URL 파라미터 인코딩은 적용하되 커서 내용을 해석하거나 직접 생성하지 않는다.
+
+| API | 정렬 | 서버 내부 커서 경계 |
+| --- | --- | --- |
+| `GET /api/v1/coupons` | `coupon.issue_start_at DESC, coupon.id DESC` | `lastIssueStartAt` + 쿠폰 ID |
+| `GET /api/v1/members/me/coupons` | `member_coupon.created_at DESC, member_coupon.id DESC` | `lastCreatedAt` + 회원 쿠폰 ID |
+
+내 쿠폰의 정렬 경계는 `member_coupon.id`다. 기존 응답 항목의 `coupon_id`는 쿠폰 자체의 ID이므로
+커서 경계로 사용하지 않는다. 두 API의 커서를 서로 바꾸어 쓰지 않는다.
+
+응답 `data`에는 기존 `infos`와 `page_info`가 함께 들어간다. `current_size`는 실제 반환 항목 수다.
+마지막 페이지는 `has_next=false`, `next_cursor=null`이며 빈 결과는 다음과 같다.
+
+```json
+{
+  "infos": [],
+  "page_info": {
+    "has_next": false,
+    "next_cursor": null,
+    "current_size": 0
+  }
+}
+```
+
+페이지는 요청 시점의 현재 데이터를 읽는다. 캠페인 종료·활성 상태 변경으로 목록에서 빠지거나,
+발급 시작 전 기간 수정으로 정렬 위치가 바뀔 수 있으므로 여러 요청에 걸친 스냅샷을 보장하지 않는다.
+새 발급 내역 등 최신 목록은 커서 없이 다시 조회한다. 기존 발급·사용 상태 판정과 UTC `Instant`
+응답은 유지하며, 날짜 표시와 커서의 시간 정밀도는 [쿠폰 시간 계약](coupon-time-contract.md)을 따른다.
 
 ## 준비·수량 변경
 
@@ -69,6 +106,29 @@ V30은 쿠폰 업무 시각을 UTC로 변환한다. 이전 reader/writer를 중�
 MySQL DDL은 전체 마이그레이션을 하나의 트랜잭션으로 롤백하지 않는다. 복사 또는 DDL 이후 오류가
 발생하면 앱을 정지한 상태에서 실제 스키마와 재고를 확인하고 남은 단계를 복구한다. 확인 없이
 Flyway 성공 이력을 추가하거나 이전 앱을 재시작하지 않는다.
+
+## V32 적용
+
+V32는 보유 쿠폰 정렬의 필수 값인 `member_coupon.created_at`을 `DATETIME(6) NOT NULL`로 바꾸고,
+`member_coupon(member_id, created_at DESC, id DESC)`와
+`coupon(is_active, issue_start_at DESC, id DESC)` 인덱스를 추가한다. 기존 쿠폰·회원 쿠폰·재고와
+UTC 감사 시각의 값은 변경하지 않는다.
+
+1. 배포 전에 `member_coupon.created_at IS NULL`인 행을 확인한다. 누락된 시각은 신뢰할 수 있는
+   실제 발급 이력에 근거해 복구하고 근거를 남긴다. 현재 시각, `updated_at`, 캠페인 시작 시각을
+   일괄 대입하거나 알 수 없는 시각을 추측하지 않는다. 근거가 없으면 전환을 보류한다.
+2. 백업 후 쿠폰 writer를 중지하고 누락 여부를 다시 확인한다. 원시 SQL로 발급 행을 넣는 도구도
+   실제 발급 시각을 UTC로 기록해야 한다. V32 사전 검사는 writer를 차단하는 DB fence가 아니다.
+3. V32를 적용한다. NULL이 하나라도 있으면 테이블 변경 전에
+   `Reconcile member_coupon.created_at from trusted issuance evidence before V32`로 실패한다.
+   자동 보정은 수행하지 않는다. 실패했으면 실제 데이터·스키마·Flyway 이력을 확인하고 원인을
+   해결한 뒤 실패 이력을 복구하고 다시 적용한다. MySQL DDL의 부분 성공 여부를 확인하지 않고
+   마이그레이션 완료를 기록하지 않는다.
+4. 페이지네이션 대응 프론트와 백엔드를 함께 반영하고 첫 페이지·다음 페이지·마지막 페이지,
+   기존 UTC 날짜와 발급 동작을 확인한다. 파라미터 없는 목록이 첫 20개로 바뀌는 점을 검증한다.
+
+실제 MySQL 마이그레이션 테스트는 누락된 시각에 대한 사전 실패, 기존 행과 마이크로초 보존,
+인덱스 컬럼 순서·방향, 이후 NULL 입력 거부를 검증한다. V1~V31과 과거 실험 데이터셋은 수정하지 않는다.
 
 ## 관측과 실험 이력
 

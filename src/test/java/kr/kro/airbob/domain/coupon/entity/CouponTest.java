@@ -149,7 +149,7 @@ class CouponTest {
 	void upcomingIssuanceStatus() {
 		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
 
-		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), 0, ISSUE_START.minusNanos(1)))
+		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), false, ISSUE_START.minusNanos(1)))
 			.isEqualTo(CouponIssuanceStatus.UPCOMING);
 	}
 
@@ -158,7 +158,7 @@ class CouponTest {
 	void openIssuanceStatus() {
 		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
 
-		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), 0, ISSUE_START))
+		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), true, ISSUE_START))
 			.isEqualTo(CouponIssuanceStatus.OPEN);
 	}
 
@@ -177,7 +177,14 @@ class CouponTest {
 			.totalQuantity(100)
 			.build();
 
-		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), 100, ISSUE_START))
+		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), false, ISSUE_START))
 			.isEqualTo(CouponIssuanceStatus.SOLD_OUT);
+	}
+
+	@Test
+	@DisplayName("과거 수량 미설정 쿠폰은 재고 행이 없어도 기존 OPEN 조회 상태를 유지한다")
+	void preservesLegacyNullableQuantityStatus() {
+		assertThat(CouponIssuanceStatus.resolve(ISSUE_START, null, false, ISSUE_START))
+			.isEqualTo(CouponIssuanceStatus.OPEN);
 	}
 }

@@ -448,8 +448,8 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 		long couponId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 		jdbc.update("""
 			INSERT INTO member_coupon (
-			  member_id, coupon_id, used, used_at, reservation_id, updated_at
-			) VALUES (?, ?, true, NOW(6), ?, NOW(6))
+			  member_id, coupon_id, used, used_at, reservation_id, created_at, updated_at
+			) VALUES (?, ?, true, NOW(6), ?, NOW(6), NOW(6))
 			""", adminMemberId, couponId, reservationId);
 		memberCouponId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 		jdbc.update("""

@@ -164,7 +164,7 @@ class CouponConcurrencyTest {
 		try (Connection owner = dataSource.getConnection()) {
 			owner.setAutoCommit(false);
 			try (var remove = owner.prepareStatement("delete from coupon_issue_unit where coupon_id=?");
-				var insert = owner.prepareStatement("insert into member_coupon (coupon_id,member_id,used,updated_at) values (?,?,false,utc_timestamp(6))")) {
+				var insert = owner.prepareStatement("insert into member_coupon (coupon_id,member_id,used,created_at,updated_at) values (?,?,false,utc_timestamp(6),utc_timestamp(6))")) {
 				remove.setLong(1, coupon.getId()); remove.executeUpdate();
 				insert.setLong(1, coupon.getId()); insert.setLong(2, users.getFirst().getId()); insert.executeUpdate();
 			}

@@ -11,6 +11,9 @@ public record ReviewCursorData(
 	@Override
 	public void validate() {
 		CursorPayload.super.validate();
+		if (lastCreatedAt == null) {
+			throw new IllegalArgumentException("커서 경계 값이 유효하지 않습니다.");
+		}
 		if (lastRating == null || lastRating < 1 || lastRating > 5) {
 			throw new IllegalArgumentException("리뷰 평점 커서 값이 유효하지 않습니다.");
 		}

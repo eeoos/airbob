@@ -13,7 +13,7 @@ import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 원본 변경 트랜잭션에 durable invalidation event를 기록하고 로컬 after-commit 삭제를 예약한다.
+ * 원본 변경 트랜잭션에 durable invalidation event를 기록하고 로컬 after-commit 삭제를 예약
  */
 @Component
 @RequiredArgsConstructor

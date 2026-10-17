@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -59,7 +60,7 @@ class CouponQueryRepositoryTest {
 	private JdbcTemplate jdbc;
 
 	@Test
-	@DisplayName("Redis 재고가 준비된 활성·미종료 캠페인만 발급 시작 최신순으로 조회한다")
+	@DisplayName("재고가 준비된 활성·미종료 캠페인만 발급 시작 최신순으로 조회한다")
 	void findsVisibleCampaignsInLatestIssueOrder() {
 		long older = insertCoupon("진행 중", true, NOW.minusHours(1), NOW.plusHours(1));
 		long latest = insertCoupon("오픈 예정", true, NOW.plusMinutes(30), NOW.plusHours(2));
@@ -67,7 +68,7 @@ class CouponQueryRepositoryTest {
 		insertCoupon("비활성", false, NOW.plusHours(1), NOW.plusHours(2));
 		insertUnpreparedCoupon("재고 미준비", NOW.minusMinutes(30), NOW.plusHours(1));
 
-		assertThat(couponRepository.findCampaigns(NOW))
+		assertThat(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
 			.extracting(CouponCampaignProjection::id)
 			.containsExactly(latest, older);
 	}
@@ -82,8 +83,9 @@ class CouponQueryRepositoryTest {
 		insertMemberCoupon(memberId, soldOut, NOW.minusMinutes(2));
 		insertMemberCoupon(memberId, ended, NOW.minusMinutes(1));
 
-		assertThat(couponRepository.findCampaigns(NOW)).extracting(CouponCampaignProjection::id).containsExactly(soldOut);
-		assertThat(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId))
+		assertThat(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
+			.extracting(CouponCampaignProjection::id).containsExactly(soldOut);
+		assertThat(memberCouponRepository.findByMemberIdWithCursor(memberId, null, null, PageRequest.of(0, 20)))
 			.extracting(MemberCouponProjection::couponId).containsExactly(ended, soldOut);
 	}
 
@@ -106,7 +108,7 @@ class CouponQueryRepositoryTest {
 		insertMemberCoupon(anotherMemberId, otherCouponId, NOW);
 
 		List<MemberCouponProjection> result =
-			memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId);
+			memberCouponRepository.findByMemberIdWithCursor(memberId, null, null, PageRequest.of(0, 20)).getContent();
 
 		assertThat(result)
 			.extracting(MemberCouponProjection::couponId)

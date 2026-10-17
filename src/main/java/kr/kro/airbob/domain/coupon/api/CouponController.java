@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.cursor.annotation.CursorParam;
+import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
@@ -27,16 +29,19 @@ public class CouponController {
 	private final CouponSkipLockedIssueService issueService;
 
 	@GetMapping("/v1/coupons")
-	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findCouponCampaigns() {
-		CouponResponse.CouponInfos coupons = couponQueryService.findCouponCampaigns();
+	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findCouponCampaigns(
+		@CursorParam CursorRequest.CouponCampaignCursorPageRequest request
+	) {
+		CouponResponse.CouponInfos coupons = couponQueryService.findCouponCampaigns(request);
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 
 	@GetMapping("/v1/members/me/coupons")
 	public ResponseEntity<ApiResponse<CouponResponse.MemberCouponInfos>> findMyCoupons(
-		@CurrentMemberId Long memberId
+		@CurrentMemberId Long memberId,
+		@CursorParam CursorRequest.CursorPageRequest request
 	) {
-		CouponResponse.MemberCouponInfos coupons = couponQueryService.findMyCoupons(memberId);
+		CouponResponse.MemberCouponInfos coupons = couponQueryService.findMyCoupons(memberId, request);
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 

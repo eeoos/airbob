@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.CouponTime;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
@@ -45,12 +46,13 @@ public class CouponResponse {
 				CouponTime.toInstant(coupon.usableFrom()),
 				CouponTime.toInstant(coupon.usableUntil()),
 				coupon.totalQuantity(),
-				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.issuedQuantity(), now));
+				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.hasRemainingStock(), now));
 		}
 	}
 
 	public record CouponInfos(
-		List<CouponInfo> infos
+		List<CouponInfo> infos,
+		CursorResponse.PageInfo pageInfo
 	) {
 
 	}
@@ -84,7 +86,8 @@ public class CouponResponse {
 	}
 
 	public record MemberCouponInfos(
-		List<MemberCouponInfo> infos
+		List<MemberCouponInfo> infos,
+		CursorResponse.PageInfo pageInfo
 	) {
 
 	}

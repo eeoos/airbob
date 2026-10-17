@@ -22,6 +22,27 @@
 공개 캠페인 응답에는 `issued_quantity`가 없고 사용자 화면에 남은 수량을 표시하지 않는다.
 대응하는 프론트 변경은 `airbob-front`의 `a484c5a8` 커밋이다.
 
+## 목록 커서와 시간
+
+`GET /api/v1/coupons`와 `GET /api/v1/members/me/coupons`는 `size`(기본 20, 최대 50)와 `cursor`로
+페이지를 조회한다. 응답에는 기존 `data.infos`와 `data.page_info`의 `has_next`, `next_cursor`,
+`current_size`가 들어간다. 첫 요청에는 커서를 생략하고, 프론트는 다음 페이지가 있으면 서버가 준
+커서를 그대로 전달한다. 파라미터 없는 요청도 첫 20개만 반환하므로 다음 페이지 처리가 필요하다.
+
+캠페인은 UTC `issue_start_at`(`lastIssueStartAt`)과 쿠폰 ID를, 내 쿠폰은 이미 UTC인 감사 시각
+`member_coupon.created_at`(`lastCreatedAt`)과 **회원 쿠폰 ID**를 내림차순 경계로 사용한다.
+동일 시각의 행은 각 ID로 구분하고 DB의 마이크로초 정밀도를 유지한다. 커서는 불투명한 서버 값이며,
+프론트에서 시각을 한국 시간으로 바꾸거나 잘라서 다시 만들지 않는다. 기존 응답의 업무 날짜는 계속
+UTC `Instant`와 `Z`로 반환한다.
+
+페이지마다 현재 상태를 조회하므로 캠페인 종료나 시작 전 기간 수정으로 포함 여부·순서가 바뀔 수
+있고, 여러 페이지를 하나의 스냅샷으로 보장하지 않는다. 최신 목록은 커서 없이 다시 요청한다.
+
+V32는 `member_coupon.created_at`을 `DATETIME(6) NOT NULL`로 제한한다. 이 값은 V30 전에도 UTC였으므로
+9시간 변환을 다시 하지 않는다. NULL인 기존 값은 신뢰할 수 있는 실제 발급 이력으로만 복구하며,
+마이그레이션이 시각을 만들어 넣지 않는다. 누락값이 있으면 테이블 변경 전 실패한다.
+스키마·프론트 전환 절차는 [쿠폰 발급·조회 운영의 V32 적용](coupon-issuance-operations.md#v32-적용)을 따른다.
+
 ## V30 전환
 
 1. 쿠폰 조회·발급·관리와 쿠폰을 사용하는 예약·결제 경로의 구버전 reader/writer를 모두 중지한다.
