@@ -18,7 +18,7 @@
 
 ## API 명세와 연동
 
-[API 사용 안내](api/README.md)에서 일반 회원·호스트 및 관리자 OpenAPI 명세와 사용 가이드를 확인한다.
+[API 사용 안내](api/README.md)에서 일반 회원·호스트 및 관리자 OpenAPI 명세와 인증·예약·결제·쿠폰 가이드를 확인한다.
 명세는 코드에서 생성하며 `./gradlew updateOpenApi verifyOpenApi`로 갱신하고 검증한다.
 
 ## 운영과 개발 안내

@@ -1,6 +1,7 @@
 package kr.kro.airbob.config.apidocs;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -165,10 +166,15 @@ public class OpenApiConfiguration {
 	}
 
 	private static void normalizeNullableReferences(Schema<?> schema) {
+		boolean nullable = Boolean.TRUE.equals(schema.getNullable()) || "null".equals(schema.getType())
+			|| schema.getTypes() != null && schema.getTypes().contains("null");
+		// An enum constraint must explicitly include null even when its type already allows it.
+		if (nullable && schema.getEnum() != null && !schema.getEnum().contains(null)) {
+			includeNullEnumValue(schema);
+		}
 		// swagger-core can emit {$ref: ..., type: null} for a nullable DTO reference in OAS 3.1.
 		// JSON Schema combines those constraints; anyOf is needed to accept either the DTO or null.
-		if (schema.get$ref() != null && (Boolean.TRUE.equals(schema.getNullable())
-			|| "null".equals(schema.getType()) || schema.getTypes() != null && schema.getTypes().contains("null"))) {
+		if (schema.get$ref() != null && nullable) {
 			String reference = schema.get$ref();
 			schema.set$ref(null);
 			schema.setType(null);
@@ -182,6 +188,12 @@ public class OpenApiConfiguration {
 		if (schema.getItems() != null) {
 			normalizeNullableReferences(schema.getItems());
 		}
+	}
+
+	private static <T> void includeNullEnumValue(Schema<T> schema) {
+		List<T> values = new ArrayList<>(schema.getEnum());
+		values.add(null);
+		schema.setEnum(values);
 	}
 
 	private static void documentSuccessEnvelope(String name, Schema<?> schema) {

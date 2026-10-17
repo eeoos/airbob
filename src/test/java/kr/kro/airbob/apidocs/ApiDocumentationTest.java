@@ -128,6 +128,7 @@ import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredExcep
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.exception.InsufficientImageCountException;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
+import kr.kro.airbob.domain.coupon.exception.*;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.cursor.dto.CursorResponse;
@@ -273,6 +274,72 @@ class ApiDocumentationTest {
 				+ yaml.writeValueAsString(sorted(spec)));
 		}
 		assertThat(documented).containsExactlyInAnyOrderElementsOf(actual);
+	}
+
+	@Test
+	void documentsCursorAndAsyncPaymentContracts() throws Exception {
+		JsonNode spec = specification("client");
+		JsonNode coupons = spec.path("paths").path("/api/v1/coupons").path("get");
+		Map<String, JsonNode> parameters = new TreeMap<>();
+		coupons.path("parameters").forEach(p -> parameters.put(p.path("name").asText(), p));
+		assertThat(parameters.keySet()).containsExactly("cursor", "size");
+		assertThat(parameters.get("size").at("/schema/default").asInt()).isEqualTo(20);
+		assertThat(parameters.get("size").at("/schema/maximum").asInt()).isEqualTo(50);
+		JsonNode checkout = spec.path("paths").path("/api/v1/reservations").path("post");
+		assertThat(checkout.path("parameters").findValuesAsText("name")).contains("Idempotency-Key");
+		assertThat(spec.path("paths").path("/api/v1/payments/confirm").path("post").path("responses").has("202")).isTrue();
+		assertThat(spec.path("paths").path("/api/v1/reservations/{reservationUid}").path("post")
+			.at("/responses/202/headers/Location").isMissingNode()).isFalse();
+		assertThat(spec.toString()).doesNotContain("quote_expires_at", "Bearer", "bearerAuth");
+	}
+
+	@Test
+	void generatedSchemaMatchesRealMvcResponses() throws Exception {
+		JsonNode spec = specification("client");
+		when(context.getBean(PaymentOperationCommandService.class).requestConfirmation(any(), anyLong()))
+			.thenReturn(new PaymentOperationResponse.Accepted(UUID.fromString("00000000-0000-0000-0000-000000000001"),
+				PaymentOperationResponse.Status.PENDING, "/api/v1/payment-operations/00000000-0000-0000-0000-000000000001"));
+		String body = mvc.perform(post("/api/v1/payments/confirm").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"payment_key":"example-payment-key","order_id":"00000000-0000-0000-0000-000000000002",
+				 "amount":10000,"payment_attempt_id":"00000000-0000-0000-0000-000000000003"}
+				""")).andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/payments/confirm", "post", "202", body);
+		assertThat(mapper.readTree(body).path("data").has("operation_id")).isTrue();
+		assertThat(mapper.readTree(body).has("error")).isFalse();
+
+		String issued = mvc.perform(post("/api/v1/coupons/1/issue").cookie(SESSION))
+			.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/coupons/{couponId}/issue", "post", "201", issued);
+		assertThat(mapper.readTree(issued)).isEqualTo(mapper.readTree("{\"success\":true}"));
+
+		String invalid = mvc.perform(get("/api/v1/coupons").cookie(SESSION).param("size", "51"))
+			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/coupons", "get", "400", invalid);
+		assertThat(mapper.readTree(invalid).at("/error/code").asText()).isEqualTo("C006");
+	}
+
+	@Test
+	void optionalFieldsMatchHistoricalCouponsAndZeroPriceReservations() throws Exception {
+		Instant now = Instant.parse("2027-01-01T00:00:00Z");
+		when(context.getBean(CouponQueryService.class).findCouponCampaigns(any())).thenReturn(new CouponResponse.CouponInfos(
+			List.of(new CouponResponse.CouponInfo(1L, "과거 쿠폰", null, DiscountType.FIXED_AMOUNT, 1000,
+				null, null, now, now.plusSeconds(86400), now, now.plusSeconds(86400), null, CouponIssuanceStatus.OPEN)),
+			new CursorResponse.PageInfo(false, null, 1)));
+		String coupons = mvc.perform(get("/api/v1/coupons").cookie(SESSION)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		JsonNode spec = specification("client");
+		validateResponse(spec, "/api/v1/coupons", "get", "200", coupons);
+		assertThat(mapper.readTree(coupons).at("/data/infos/0/total_quantity").isNull()).isTrue();
+		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
+			.thenReturn(new ReservationResponse.Ready("00000000-0000-0000-0000-000000000020", "숙소", LocalDate.parse("2027-01-10"),
+				LocalDate.parse("2027-01-12"), 2, 10000L, 10000L, 0L, "KRW", ReservationStatus.CONFIRMED,
+				false, false, null, now, "docs@example.invalid", "여행자"));
+		String ready = mvc.perform(post("/api/v1/reservations").cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
+			.contentType(MediaType.APPLICATION_JSON).content("{\"quote_uid\":\"00000000-0000-0000-0000-000000000010\"}"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/reservations", "post", "200", ready);
+		assertThat(mapper.readTree(ready).at("/data/payment_required").asBoolean()).isFalse();
 	}
 
 	@Test
@@ -1058,6 +1125,260 @@ class ApiDocumentationTest {
 			.andExpect(status().isServiceUnavailable()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "post", "503", "P007", response.getContentAsString());
 		assertThat(response.getHeader("Retry-After")).isNull();
+	}
+
+	@Test
+	void couponListsRequireSessionsAndExposeOnlyValidatedCursors() throws Exception {
+		JsonNode spec = specification("client");
+		CouponQueryService service = context.getBean(CouponQueryService.class);
+		var emptyPage = new CursorResponse.PageInfo(false, null, 0);
+		when(service.findCouponCampaigns(any())).thenReturn(new CouponResponse.CouponInfos(List.of(), emptyPage));
+		when(service.findMyCoupons(eq(10L), any())).thenReturn(new CouponResponse.MemberCouponInfos(List.of(), emptyPage));
+		for (String path : List.of("/api/v1/coupons", "/api/v1/members/me/coupons")) {
+			JsonNode operation = spec.path("paths").path(path).path("get");
+			assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("cursor", "size");
+			JsonNode size = operation.path("parameters").path(1).path("schema");
+			assertThat(size.path("type").asText()).isEqualTo("integer");
+			assertThat(size.path("default").asInt()).isEqualTo(20);
+			assertThat(size.path("minimum").asInt()).isEqualTo(1);
+			assertThat(size.path("maximum").asInt()).isEqualTo(50);
+			String unauthenticated = mvc.perform(get(path)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "401", "M004", unauthenticated);
+			String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "get", "200", body);
+			assertThat(mapper.readTree(body).at("/data/infos").isEmpty()).isTrue();
+			assertThat(mapper.readTree(body).at("/data/page_info/next_cursor").isNull()).isTrue();
+			for (String invalidSize : List.of("0", "51", "invalid", "", "2147483648")) {
+				String invalid = mvc.perform(get(path).cookie(SESSION).param("size", invalidSize)).andExpect(status().isBadRequest())
+					.andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, path, "get", "400", "C006", invalid);
+			}
+			String invalidCursor = mvc.perform(get(path).cookie(SESSION).param("cursor", "not-base64!"))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "400", "C010", invalidCursor);
+			Object wrongCursor = path.equals("/api/v1/coupons")
+				? new kr.kro.airbob.cursor.dto.CursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"))
+				: new kr.kro.airbob.cursor.dto.CouponCampaignCursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"));
+			String encoded = java.util.Base64.getEncoder().encodeToString(mapper.writeValueAsBytes(wrongCursor));
+			String mismatched = mvc.perform(get(path).cookie(SESSION).param("cursor", encoded)).andExpect(status().isBadRequest())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "400", "C010", mismatched);
+		}
+		verify(service).findCouponCampaigns(argThat(request -> request.size() == 20 && request.lastId() == null));
+		verify(service).findMyCoupons(eq(10L), argThat(request -> request.size() == 20 && request.lastId() == null));
+	}
+
+	@Test
+	void couponListSchemasMatchAllIssuanceAndOwnershipStates() throws Exception {
+		JsonNode spec = specification("client");
+		java.time.LocalDateTime now = java.time.LocalDateTime.parse("2027-01-01T00:00:00.123456");
+		var campaignInfos = new java.util.ArrayList<CouponResponse.CouponInfo>();
+		for (int index = 0; index < 4; index++) {
+			var row = new kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection(101L + index,
+				"쿠폰", null, DiscountType.FIXED_AMOUNT, 1000, null, null,
+				index == 0 ? now.plusHours(1) : now, now.plusDays(1), now, now.plusDays(30),
+				index == 3 ? null : 100, index == 2);
+			campaignInfos.add(CouponResponse.CouponInfo.of(row, now));
+		}
+		CouponQueryService service = context.getBean(CouponQueryService.class);
+		when(service.findCouponCampaigns(any())).thenReturn(new CouponResponse.CouponInfos(campaignInfos,
+			new CursorResponse.PageInfo(false, null, 4)));
+		String campaigns = mvc.perform(get("/api/v1/coupons").cookie(SESSION)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/coupons", "get", "200", campaigns);
+		assertThat(mapper.readTree(campaigns).at("/data/infos").findValuesAsText("issuance_status"))
+			.containsExactly("UPCOMING", "SOLD_OUT", "OPEN", "OPEN");
+		assertThat(mapper.readTree(campaigns).at("/data/infos/3/total_quantity").isNull()).isTrue();
+		assertThat(mapper.readTree(campaigns).at("/data/infos/1/issue_start_at").asText()).isEqualTo("2027-01-01T00:00:00.123456Z");
+		assertThat(campaigns).doesNotContain("has_remaining_stock", "issued_quantity", "stock_prepared_at", "issue_strategy");
+
+		var ownedInfos = new java.util.ArrayList<CouponResponse.MemberCouponInfo>();
+		for (int index = 0; index < 5; index++) {
+			var row = new kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection(201L + index, now,
+				101L + index, "쿠폰", null, DiscountType.FIXED_AMOUNT, 1000, null, null,
+				index == 2 || index == 3 ? now.plusHours(1) : now.minusHours(1), index < 2 ? now : now.plusDays(1),
+				index == 0, index >= 3);
+			ownedInfos.add(CouponResponse.MemberCouponInfo.of(row, now));
+		}
+		when(service.findMyCoupons(eq(10L), any())).thenReturn(new CouponResponse.MemberCouponInfos(ownedInfos,
+			new CursorResponse.PageInfo(false, null, 5)));
+		String owned = mvc.perform(get("/api/v1/members/me/coupons").cookie(SESSION)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/members/me/coupons", "get", "200", owned);
+		assertThat(mapper.readTree(owned).at("/data/infos").findValuesAsText("status"))
+			.containsExactly("USED", "EXPIRED", "UNAVAILABLE", "UPCOMING", "AVAILABLE");
+		assertThat(mapper.readTree(owned).at("/data/infos/0/coupon_id").asLong()).isEqualTo(101);
+		assertThat(owned).doesNotContain("member_coupon_id", "created_at", "issuance_status");
+	}
+
+	@Test
+	void couponIssuanceDocumentsEmptyBodyAndDistinctSoldOutAndContentionErrors() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/coupons/{couponId}/issue";
+		JsonNode operation = spec.path("paths").path(path).path("post");
+		assertThat(operation.has("requestBody")).isFalse();
+		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("couponId");
+		String noSession = mvc.perform(post(path, 101)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "401", "M004", noSession);
+		String invalidId = mvc.perform(post(path, "invalid").cookie(SESSION)).andExpect(status().isBadRequest())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "400", "C004", invalidId);
+		CouponSkipLockedIssueService service = context.getBean(CouponSkipLockedIssueService.class);
+		verifyNoInteractions(service);
+		String success = mvc.perform(post(path, 101).cookie(SESSION)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "post", "201", success);
+		assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
+		verify(service).issue(101L, 10L);
+		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(), new CouponSoldOutException(),
+			new CouponAlreadyIssuedException(), new CouponNotIssuableException(), new CouponStockNotPreparedException(), new CouponIssueContendedException())) {
+			doThrow(error).when(service).issue(101L, 10L);
+			var response = mvc.perform(post(path, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
+				.andReturn().getResponse();
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertThat(response.getHeader("Retry-After")).isNull();
+		}
+	}
+
+	@Test
+	void couponCreationDocumentsIdentityOptionalFieldsAndConfigurationErrors() throws Exception {
+		JsonNode spec = specification("admin");
+		String path = "/api/v1/admin/coupons";
+		ObjectNode request = (ObjectNode)mapper.readTree("""
+			{"name":"쿠폰","description":null,"discount_type":"FIXED_AMOUNT","discount_value":1000,
+			 "min_payment_price":null,"max_discount_amount":null,"issue_start_at":"2027-01-01T00:30:00+09:00",
+			 "issue_end_at":"2027-01-31T00:00:00Z","usable_from":"2027-01-01T00:30:00+09:00",
+			 "usable_until":"2027-02-28T00:00:00Z","is_active":true,"total_quantity":100}
+			""");
+		JsonNode schema = spec.at("/components/schemas/CouponRequestCreate");
+		validateInstance(spec, schema, request);
+		assertThat(schema.at("/properties/name/maxLength").asInt()).isEqualTo(255);
+		assertThat(schema.at("/properties/description/maxLength").asInt()).isEqualTo(255);
+		assertThat(schema.path("required").size()).isEqualTo(9);
+		CouponService service = context.getBean(CouponService.class);
+		String noSession = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
+			.andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "401", "M004", noSession);
+		String forbidden = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
+			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "403", "M006", forbidden);
+		verifyNoInteractions(service);
+		allowDocumentationAdmin();
+		for (ObjectNode invalid : List.of(request.deepCopy().put("issue_start_at", "2027-01-01T00:00:00"),
+			request.deepCopy().put("discount_type", "UNKNOWN"), request.deepCopy().put("total_quantity", 2147483648L))) {
+			String body = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "post", "400", "C001", body);
+		}
+		when(service.createCoupon(any())).thenReturn(101L);
+		String success = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
+			.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "post", "201", success);
+		assertThat(mapper.readTree(success).at("/data/id").asLong()).isEqualTo(101);
+		verify(service).createCoupon(argThat(dto -> dto.issueStartAt().equals(Instant.parse("2026-12-31T15:30:00Z")) && dto.description() == null));
+		doThrow(new CouponInvalidConfigurationException()).when(service).createCoupon(any());
+		String invalidConfiguration = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "400", "CP013", invalidConfiguration);
+		String unsupported = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(request.toString()))
+			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
+	}
+
+	@Test
+	void couponPatchSchemaAcceptsExplicitNullsAndDocumentsLockedConfiguration() throws Exception {
+		JsonNode spec = specification("admin");
+		allowDocumentationAdmin();
+		String path = "/api/v1/admin/coupons/{couponId}";
+		String request = """
+			{"name":null,"description":"","discount_type":null,"discount_value":null,"min_payment_price":null,
+			 "max_discount_amount":null,"issue_start_at":null,"issue_end_at":null,"usable_from":null,
+			 "usable_until":null,"is_active":null,"total_quantity":null}
+			""";
+		JsonNode schema = spec.at("/components/schemas/CouponRequestUpdate");
+		assertThat(schema.path("properties").has("issue_start_at")).isTrue();
+		assertThat(schema.path("properties").has("issue_end_at")).isTrue();
+		assertThat(schema.path("properties").has("issueStartAt")).isFalse();
+		assertThat(schema.path("properties").has("issueEndAt")).isFalse();
+		validateInstance(spec, schema, mapper.readTree(request));
+		validateInstance(spec, schema, mapper.readTree("{}"));
+		String success = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "patch", "200", success);
+		CouponService service = context.getBean(CouponService.class);
+		verify(service).updateCoupon(argThat(dto -> dto.name() == null && dto.description().isEmpty() && dto.discountType() == null
+			&& dto.isActive() == null && dto.totalQuantity() == null), eq(101L));
+		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(),
+			new CouponConfigurationLockedException(), new CouponInvalidConfigurationException())) {
+			doThrow(error).when(service).updateCoupon(any(), eq(101L));
+			var response = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":200}"))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, path, "patch", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
+	}
+
+	@Test
+	void couponQuantityRejectsMissingAndNonpositiveValuesAndReturnsEmptySuccess() throws Exception {
+		JsonNode spec = specification("admin");
+		allowDocumentationAdmin();
+		String path = "/api/v1/admin/coupons/{couponId}/quantity";
+		assertThat(spec.at("/components/schemas/CouponRequestQuantity/properties/total_quantity/minimum").asInt()).isEqualTo(1);
+		for (String request : List.of("{}", "{\"total_quantity\":null}", "{\"total_quantity\":0}", "{\"total_quantity\":-1}")) {
+			String invalid = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "patch", "400", "C001", invalid);
+		}
+		String invalidId = mvc.perform(patch(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":100}"))
+			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "patch", "400", "C004", invalidId);
+		verifyNoInteractions(context.getBean(CouponService.class));
+		String success = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":100}"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "patch", "200", success);
+		assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
+	}
+
+	@Test
+	void couponPreparationAndDeletionHaveNoBodyAndUseRealAdminGuards() throws Exception {
+		JsonNode spec = specification("admin");
+		CouponService couponService = context.getBean(CouponService.class);
+		CouponStockPreparationService preparationService = context.getBean(CouponStockPreparationService.class);
+		String preparePath = "/api/v1/admin/coupons/{couponId}/stock/prepare";
+		String deletePath = "/api/v1/admin/coupons/{couponId}";
+		for (boolean prepare : List.of(true, false)) {
+			String path = prepare ? preparePath : deletePath;
+			String method = prepare ? "post" : "delete";
+			assertThat(spec.path("paths").path(path).path(method).has("requestBody")).isFalse();
+			assertThat(spec.path("paths").path(path).path(method).path("parameters").findValuesAsText("name")).containsExactly("couponId");
+			String noSession = mvc.perform(prepare ? post(path, 101) : delete(path, 101)).andExpect(status().isUnauthorized())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, method, "401", "M004", noSession);
+			String forbidden = mvc.perform((prepare ? post(path, 101) : delete(path, 101)).cookie(SESSION)).andExpect(status().isForbidden())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, method, "403", "M006", forbidden);
+		}
+		verifyNoInteractions(couponService, preparationService);
+		allowDocumentationAdmin();
+		for (boolean prepare : List.of(true, false)) {
+			String path = prepare ? preparePath : deletePath;
+			String method = prepare ? "post" : "delete";
+			String success = mvc.perform((prepare ? post(path, 101) : delete(path, 101)).cookie(SESSION)).andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, method, "200", success);
+			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
+		}
+		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(),
+			new CouponAlreadyPreparedException(), new CouponStockPreparationNotAllowedException(), new CouponInvalidConfigurationException())) {
+			doThrow(error).when(preparationService).prepare(101L);
+			var response = mvc.perform(post(preparePath, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
+				.andReturn().getResponse();
+			assertDocumentedError(spec, preparePath, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
+		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(), new CouponConfigurationLockedException())) {
+			doThrow(error).when(couponService).deleteCoupon(101L);
+			var response = mvc.perform(delete(deletePath, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
+				.andReturn().getResponse();
+			assertDocumentedError(spec, deletePath, "delete", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
 	}
 
 	private void allowDocumentationAdmin() {

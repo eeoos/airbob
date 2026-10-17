@@ -683,10 +683,22 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseCouponInfos:
+    ApiResponseCouponResponseCouponInfos:
       properties:
         data:
-          $ref: "#/components/schemas/CouponInfos"
+          $ref: "#/components/schemas/CouponResponseCouponInfos"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseCouponResponseMemberCouponInfos:
+      properties:
+        data:
+          $ref: "#/components/schemas/CouponResponseMemberCouponInfos"
         success:
           enum:
           - true
@@ -751,18 +763,6 @@ components:
           items:
             $ref: "#/components/schemas/HostSettlement"
           type: "array"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
-    ApiResponseMemberCouponInfos:
-      properties:
-        data:
-          $ref: "#/components/schemas/MemberCouponInfos"
         success:
           enum:
           - true
@@ -1024,59 +1024,201 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
-    CouponInfo:
+    CouponResponseCouponInfo:
       properties:
         description:
-          type: "string"
+          description: "쿠폰 안내. 없으면 null"
+          example: "숙박 예약 할인 쿠폰"
+          type:
+          - "string"
+          - "null"
         discount_type:
+          description: "정액 또는 정률 할인"
           enum:
           - "PERCENTAGE"
           - "FIXED_AMOUNT"
+          example: "FIXED_AMOUNT"
           type: "string"
         discount_value:
+          description: "정액은 원 단위, 정률은 퍼센트"
+          example: 1000
           format: "int32"
           type: "integer"
         id:
+          description: "캠페인 ID. 발급 API의 couponId"
+          example: 101
           format: "int64"
           type: "integer"
-        issuanceStatus:
+        issuance_status:
+          description: "시작 전 UPCOMING 우선. 시작 후 total_quantity가 null이 아니고 잔여 재고가 없으면 SOLD_OUT, 그 외 OPEN. 실제 발급은 다시 검증합니다."
           enum:
           - "UPCOMING"
           - "OPEN"
           - "SOLD_OUT"
+          example: "UPCOMING"
           type: "string"
-        issueEndAt:
+        issue_end_at:
+          description: "발급 종료 UTC 시각(제외)"
+          example: "2027-01-31T00:00:00Z"
           format: "date-time"
           type: "string"
-        issueStartAt:
+        issue_start_at:
+          description: "발급 시작 UTC 시각(포함)"
+          example: "2027-01-01T00:00:00Z"
           format: "date-time"
           type: "string"
         max_discount_amount:
+          description: "정률 할인액 상한. null이면 상한 없음, 정액에서는 적용하지 않음"
+          example: 5000
           format: "int32"
-          type: "integer"
+          type:
+          - "integer"
+          - "null"
         min_payment_price:
+          description: "할인 전 숙박 금액의 하한. null이면 하한 없음"
+          example: 10000
           format: "int32"
-          type: "integer"
+          type:
+          - "integer"
+          - "null"
         name:
+          description: "쿠폰 이름"
+          example: "겨울 여행 할인"
           type: "string"
         total_quantity:
+          description: "캠페인 전체 수량으로 잔여 수량이 아닙니다. 과거 데이터는 null일 수 있습니다."
+          example: 100
           format: "int32"
-          type: "integer"
+          type:
+          - "integer"
+          - "null"
         usable_from:
+          description: "사용 시작 UTC 시각(포함)"
+          example: "2027-01-01T00:00:00Z"
           format: "date-time"
           type: "string"
         usable_until:
+          description: "사용 종료 UTC 시각(제외)"
+          example: "2027-02-28T00:00:00Z"
           format: "date-time"
           type: "string"
+      required:
+      - "description"
+      - "discount_type"
+      - "discount_value"
+      - "id"
+      - "issuance_status"
+      - "issue_end_at"
+      - "issue_start_at"
+      - "max_discount_amount"
+      - "min_payment_price"
+      - "name"
+      - "total_quantity"
+      - "usable_from"
+      - "usable_until"
       type: "object"
-    CouponInfos:
+    CouponResponseCouponInfos:
       properties:
         infos:
+          description: "현재 페이지 캠페인 목록. 없으면 빈 배열"
           items:
-            $ref: "#/components/schemas/CouponInfo"
+            $ref: "#/components/schemas/CouponResponseCouponInfo"
           type: "array"
         page_info:
           $ref: "#/components/schemas/CursorResponsePageInfo"
+          description: "다음 페이지 여부·커서·현재 항목 수"
+      required:
+      - "infos"
+      - "page_info"
+      type: "object"
+    CouponResponseMemberCouponInfo:
+      properties:
+        coupon_id:
+          description: "캠페인 ID. 예약 견적의 coupon_id에 사용하며 보유 내역 ID와 다릅니다."
+          example: 101
+          format: "int64"
+          type: "integer"
+        description:
+          description: "현재 쿠폰 안내. 없으면 null"
+          example: "숙박 예약 할인 쿠폰"
+          type:
+          - "string"
+          - "null"
+        discount_type:
+          description: "현재 할인 종류"
+          enum:
+          - "PERCENTAGE"
+          - "FIXED_AMOUNT"
+          example: "FIXED_AMOUNT"
+          type: "string"
+        discount_value:
+          description: "정액은 원 단위, 정률은 퍼센트"
+          example: 1000
+          format: "int32"
+          type: "integer"
+        max_discount_amount:
+          description: "정률 할인액 상한. null이면 상한 없음, 정액에서는 적용하지 않음"
+          example: 5000
+          format: "int32"
+          type:
+          - "integer"
+          - "null"
+        min_payment_price:
+          description: "할인 전 숙박 금액의 하한. null이면 하한 없음"
+          example: 10000
+          format: "int32"
+          type:
+          - "integer"
+          - "null"
+        name:
+          description: "현재 캠페인의 쿠폰 이름"
+          example: "겨울 여행 할인"
+          type: "string"
+        status:
+          description: "USED 우선, 그다음 사용 종료 도달 시 EXPIRED, 비활성 UNAVAILABLE, 사용 시작 전 UPCOMING, 그 외 AVAILABLE. 금액 적용 조건은 견적에서 다시 확인합니다."
+          enum:
+          - "UPCOMING"
+          - "AVAILABLE"
+          - "UNAVAILABLE"
+          - "USED"
+          - "EXPIRED"
+          example: "AVAILABLE"
+          type: "string"
+        usable_from:
+          description: "사용 시작 UTC 시각(포함)"
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type: "string"
+        usable_until:
+          description: "사용 종료 UTC 시각(제외)"
+          example: "2027-02-28T00:00:00Z"
+          format: "date-time"
+          type: "string"
+      required:
+      - "coupon_id"
+      - "description"
+      - "discount_type"
+      - "discount_value"
+      - "max_discount_amount"
+      - "min_payment_price"
+      - "name"
+      - "status"
+      - "usable_from"
+      - "usable_until"
+      type: "object"
+    CouponResponseMemberCouponInfos:
+      properties:
+        infos:
+          description: "현재 페이지 보유 쿠폰 목록. 없으면 빈 배열"
+          items:
+            $ref: "#/components/schemas/CouponResponseMemberCouponInfo"
+          type: "array"
+        page_info:
+          $ref: "#/components/schemas/CursorResponsePageInfo"
+          description: "다음 페이지 여부·커서·현재 항목 수"
+      required:
+      - "infos"
+      - "page_info"
       type: "object"
     Create:
       properties:
@@ -1229,53 +1371,6 @@ components:
           type: "number"
         valid:
           type: "boolean"
-      type: "object"
-    MemberCouponInfo:
-      properties:
-        coupon_id:
-          format: "int64"
-          type: "integer"
-        description:
-          type: "string"
-        discount_type:
-          enum:
-          - "PERCENTAGE"
-          - "FIXED_AMOUNT"
-          type: "string"
-        discount_value:
-          format: "int32"
-          type: "integer"
-        max_discount_amount:
-          format: "int32"
-          type: "integer"
-        min_payment_price:
-          format: "int32"
-          type: "integer"
-        name:
-          type: "string"
-        status:
-          enum:
-          - "UPCOMING"
-          - "AVAILABLE"
-          - "UNAVAILABLE"
-          - "USED"
-          - "EXPIRED"
-          type: "string"
-        usable_from:
-          format: "date-time"
-          type: "string"
-        usable_until:
-          format: "date-time"
-          type: "string"
-      type: "object"
-    MemberCouponInfos:
-      properties:
-        infos:
-          items:
-            $ref: "#/components/schemas/MemberCouponInfo"
-          type: "array"
-        page_info:
-          $ref: "#/components/schemas/CursorResponsePageInfo"
       type: "object"
     MemberRequestSignup:
       properties:
@@ -3965,7 +4060,8 @@ paths:
       - "common-code-controller"
   /api/v1/coupons:
     get:
-      operationId: "findCouponCampaigns"
+      description: "활성 상태이고 재고 준비를 완료했으며 발급 종료 시각 전인 캠페인만 조회합니다. 발급 시작 전·품절·이미 본인이 발급받은 캠페인도 포함됩니다.\n발급 시작 시각·캠페인 ID 내림차순이며 cursor와 size(기본 20, 1~50)로 다음 페이지를 조회합니다.\n\nissuance_status는 시작 전 UPCOMING이 우선이고, 시작 후 유한 수량의 잔여 재고가 없으면 SOLD_OUT, 그 외 OPEN입니다.\n과거 total_quantity=null은 발급 시작 후 OPEN으로 읽지만 새 무제한 쿠폰을 만들거나 발급할 수 있다는 의미는 아닙니다.\n전체 수량은 잔여 수량이 아닙니다. 발급 시 조건을 다시 확인하므로 목록의 OPEN이 발급 성공을 보장하지 않습니다.\n"
+      operationId: "Coupon.findCouponCampaigns"
       parameters:
       - description: "이전 응답 page_info의 next_cursor. 첫 페이지에서는 생략합니다. 필터·정렬을 바꾸면 초기화합니다."
         in: "query"
@@ -3988,8 +4084,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseCouponInfos"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseCouponResponseCouponInfos"
+          description: "성공"
         "400":
           content:
             application/json:
@@ -4049,25 +4145,45 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "쿠폰 캠페인 조회"
       tags:
-      - "coupon-controller"
+      - "쿠폰"
   /api/v1/coupons/{couponId}/issue:
     post:
-      operationId: "issueCoupon"
+      description: "현재 회원에게 캠페인 쿠폰을 한 번 발급합니다. 본문·회원 ID 입력은 필요하지 않습니다. 성공은 201과 {\"success\":true}이며 보유 쿠폰 목록에서 결과를 확인합니다.\n활성·양수 유한 수량·발급 기간(시작 포함, 종료 제외)·재고 준비 여부를 다시 확인합니다. 조건 미충족은 409/CP005, 발급 기간 안의 미준비 재고는 503/CP011입니다.\n\n이미 발급받았다면 409/CP003이며 쿠폰을 사용하거나 복원해도 다시 발급받을 수 없습니다. 기간 종료 등으로 발급 조건을 벗어났다면 중복 확인보다 CP005가 먼저 반환될 수 있습니다.\n409/CP002는 품절, 503/CP012는 재시도 가능한 경합입니다. CP012에는 Retry-After 헤더가 없으므로 지연을 두고 제한적으로 재시도합니다.\n응답 유실 후 재요청에서 CP003을 받으면 보유 목록을 조회해 첫 요청의 성공 여부를 확인합니다.\n"
+      operationId: "Coupon.issueCoupon"
       parameters:
-      - in: "path"
+      - description: "캠페인 목록의 id"
+        example: 101
+        in: "path"
         name: "couponId"
         required: true
         schema:
           format: "int64"
           type: "integer"
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "생성 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -4080,6 +4196,56 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                CP001:
+                  summary: "존재하지 않는 쿠폰입니다."
+                  value:
+                    error:
+                      code: "CP001"
+                      errors: []
+                      message: "존재하지 않는 쿠폰입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                CP002:
+                  summary: "쿠폰이 모두 소진되었습니다."
+                  value:
+                    error:
+                      code: "CP002"
+                      errors: []
+                      message: "쿠폰이 모두 소진되었습니다."
+                      status: 409
+                    success: false
+                CP003:
+                  summary: "이미 발급받은 쿠폰입니다."
+                  value:
+                    error:
+                      code: "CP003"
+                      errors: []
+                      message: "이미 발급받은 쿠폰입니다."
+                      status: 409
+                    success: false
+                CP005:
+                  summary: "발급할 수 없는 쿠폰입니다. (기간 만료 또는 비활성)"
+                  value:
+                    error:
+                      code: "CP005"
+                      errors: []
+                      message: "발급할 수 없는 쿠폰입니다. (기간 만료 또는 비활성)"
+                      status: 409
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -4100,10 +4266,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "503":
+          content:
+            application/json:
+              examples:
+                CP011:
+                  summary: "쿠폰 재고가 준비되지 않았습니다."
+                  value:
+                    error:
+                      code: "CP011"
+                      errors: []
+                      message: "쿠폰 재고가 준비되지 않았습니다."
+                      status: 503
+                    success: false
+                CP012:
+                  summary: "발급 요청이 몰리고 있습니다. 잠시 후 다시 시도해 주세요."
+                  value:
+                    error:
+                      code: "CP012"
+                      errors: []
+                      message: "발급 요청이 몰리고 있습니다. 잠시 후 다시 시도해 주세요."
+                      status: 503
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "쿠폰 발급"
       tags:
-      - "coupon-controller"
+      - "쿠폰"
   /api/v1/members:
     post:
       description: "로그인 없이 활성 상태의 일반 회원(MEMBER)을 생성합니다. 닉네임·이메일·비밀번호는 필수이고 썸네일은 선택입니다.\n탈퇴·휴면 회원을 포함해 이미 등록된 이메일은 사용할 수 없습니다. 중복된 요청은 동시 가입 시에도 409/M002로 거절합니다.\n\n성공 응답은 201과 {\"success\":true}입니다. 회원 ID나 세션 쿠키를 반환하지 않으므로,\n가입 후 인증 → 로그인으로 세션을 발급받고 인증 → 로그인 회원 조회에서 회원 ID를 확인합니다.\n"
@@ -4175,7 +4367,8 @@ paths:
       - "회원"
   /api/v1/members/me/coupons:
     get:
-      operationId: "findMyCoupons"
+      description: "현재 회원이 발급받은 쿠폰을 발급 내역 생성 시각·보유 내역 ID 내림차순으로 조회합니다. 사용 완료·만료·비활성 쿠폰도 포함됩니다.\ncursor와 size(기본 20, 1~50)를 사용하며 캠페인 목록의 커서와 바꾸어 쓰지 않습니다. 응답의 coupon_id는 보유 내역 ID가 아닌 캠페인 ID로, 예약 견적에 사용합니다.\n\n사용 상태의 우선순위는 USED, EXPIRED, UNAVAILABLE, UPCOMING, AVAILABLE입니다.\n발급 기간 종료나 캠페인 품절은 이미 보유한 쿠폰의 사용을 막지 않습니다. AVAILABLE도 예약 금액·최소 금액 등 적용 조건을 보장하지 않으므로 견적에서 다시 검증합니다.\n체크아웃에 적용한 쿠폰은 결제 완료 전부터 USED이며, 예약 해제·취소로 복원된 뒤에는 현재 사용 기간과 활성 상태에 따라 다시 표시됩니다.\n"
+      operationId: "Coupon.findMyCoupons"
       parameters:
       - description: "이전 응답 page_info의 next_cursor. 첫 페이지에서는 생략합니다. 필터·정렬을 바꾸면 초기화합니다."
         in: "query"
@@ -4198,8 +4391,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseMemberCouponInfos"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseCouponResponseMemberCouponInfos"
+          description: "성공"
         "400":
           content:
             application/json:
@@ -4259,8 +4452,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "내 쿠폰 조회"
       tags:
-      - "coupon-controller"
+      - "쿠폰"
   /api/v1/members/recently-viewed:
     get:
       operationId: "getRecentlyViewed"

@@ -18,7 +18,7 @@ Project SDK와 Gradle JVM을 같은 JDK로 맞추고 `java -version`, `./gradlew
 
 Website: [Airbob](https://www.airbob.cloud/) <br>
 API 명세: [일반 회원·호스트](https://api.airbob.cloud/swagger-ui/index.html?urls.primaryName=client) · [관리자](https://api.airbob.cloud/swagger-ui/index.html?urls.primaryName=admin) <br>
-API 사용 가이드: [사용 안내](docs/api/README.md) · [공통 규칙](docs/api/conventions.md) · [예약·결제](docs/api/reservation-payment.md)
+API 사용 가이드: [사용 안내](docs/api/README.md) · [공통 규칙](docs/api/conventions.md) · [예약·결제](docs/api/reservation-payment.md) · [쿠폰](docs/api/coupons.md)
 
 <details>
 <summary>체험 계정</summary>
