@@ -31,6 +31,13 @@
 일반 개발 Compose 인수와 별도 로컬 스택은 서로 다른 경로다. 이 도구들은 필요한
 `infra/aws/scripts/` 모듈과 함께 저장소에서 사용하며, 일반 OCI 앱 배포에는 복사하지 않는다.
 
+## CI 검사 선택과 결과
+
+- [ci/scope.py](ci/scope.py): 정확한 Git 변경 범위에서 앱·인프라·데이터 검사와 OCI 배포 여부를 고른다.
+- [ci/check_result.py](ci/check_result.py): 선택한 모든 검사가 성공했는지 확인하는 필수 `CI result` 검사다.
+
+PR과 main 배포는 같은 CI 정의를 사용한다. 전체 흐름은 [CI·CD 안내](../docs/operations/oci-deployment-runbook.md#ci와-cd의-역할)를 따른다.
+
 ## 보관한 일회성 도구
 
 [bootstrap-oci-b-host-runtime.py](archive/bootstrap-oci-b-host-runtime.py)는 당시 OCI ARM64 호스트에

@@ -3,6 +3,37 @@
 예약 날짜 재고의 공통 hard-cutover 계약은
 [reservation-inventory-cutover.md](reservation-inventory-cutover.md)를 먼저 따른다.
 
+## CI와 CD의 역할
+
+PR은 `ci.yml`에서 변경 범위에 맞는 앱·인프라·데이터 검사를 병렬로 실행한다.
+`CI result`는 항상 실행하며, 선택한 검사가 실패·취소·누락되면 실패한다.
+문서와 보관한 측정 코드만 바뀌면 무거운 검사는 생략하고 결과 검사만 통과한다.
+필수 통과 검사 이름은 `CI result`다. 같은 PR의 이전 실행은 새 실행이 시작되면 취소한다.
+
+`main`의 CD도 같은 CI 정의를 호출한다. 해당 커밋의 검사가 모두 통과한 뒤,
+그 실행에서 테스트와 함께 만든 `app-jar-<전체 SHA>`를 받아 GHCR 이미지를 한 번 만든다.
+이미지 태그는 전체 커밋 SHA이며, 서버에는 빌드 결과의 digest를 전달한다.
+CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출물을 가져오지 않는다.
+
+| 변경 | 선택하는 검사 | OCI 배포 |
+|---|---|---|
+| 앱 Java 코드 | 앱 | 실행 |
+| 앱 테스트만 | 앱 | 생략 |
+| DB migration·앱 설정·공유 빌드·Docker 설정 | 관련 앱·인프라·데이터 검사 | 운영 입력이 바뀌면 실행 |
+| AWS 인프라·도구 | 인프라·데이터 | 앱 이미지 정의 등 공유 운영 입력만 실행 |
+| B 복원 Python 도구 | 데이터 | 생략 |
+| 문서·보관한 load-test 코드 | 결과 검사 | 생략 |
+
+경로 선택은 [scope.py](../../scripts/ci/scope.py)에 모았다. Git 전체 diff를 사용하므로
+파일 삭제와 300개가 넘는 변경도 포함한다. CI 설정 변경은 모든 검사 그룹을 실행한다.
+정의가 없는 새 코드 경로도 모든 검사를 실행한다.
+
+AWS 앱 이미지가 새로 필요하면 `Publish AWS application image`를 수동 실행한다.
+검토한 `main` SHA를 입력하고 같은 CI를 통과한 뒤 ECR에 게시하며 OCI 배포는 하지 않는다.
+고정된 과거 B 이미지 게시와 AWS 자원 기동·종료 워크플로는 별도로 유지한다.
+OCI에서 사용하지 않던 GHCR 인프라 이미지 게시 작업은 제거했고, Elasticsearch·Debezium은
+아래와 같이 서버에서 검토한 소스로 빌드한다.
+
 ## 배포 전제
 
 main CD의 self-hosted runner에는 다음 항목이 준비되어 있어야 한다.
@@ -72,7 +103,7 @@ OCI 앱 빌드·배포를 유발하지 않는다. 전체 역할은 [실행 도�
 docker-compose.oci.yml을 명시해서 다음 순서로 실행한다.
 
 1. docker compose config --quiet
-2. 선택한 SHA의 app image를 `APP_IMAGE`로 직접 지정하고, 로컬에 없으면 GHCR에서 pull
+2. 검증 후 게시한 app image digest를 `APP_IMAGE`로 지정하고, 로컬에 없으면 GHCR에서 pull
 3. Elasticsearch와 Debezium 이미지를 `compose build --pull`로 빌드
 4. 기존 Nginx와 app을 중지해 신규 요청과 기존 outbox producer 차단
 5. MySQL, Redis, Elasticsearch, Kafka 기동 및 health 대기
@@ -101,7 +132,8 @@ IANA ZoneId의 완전한 유효성은 새 애플리케이션의
 넘기지 않아 V25 guard 실패를 `repair`해야 하는 정상 운영 시나리오를 만들지 않는다.
 
 운영 `aws`/`oci` profile은 inventory startup과 rolling seed를 둘 다 필수로 검증한다.
-`test`와 읽기 전용 `performance-lab`만 lifecycle 비활성화와 readiness 우회를 허용한다.
+현재 운영 프로필에서는 lifecycle과 readiness 검증을 수행한다. 실험 프로필은 제거됐으며,
+테스트의 격리 설정을 운영 배포에 적용하지 않는다.
 OCI app이 실행 중인 채 bootstrap으로 health가 `unhealthy`여도 배포 스크립트는 전체
 readiness 기한을 기다리며, container가 `exited` 또는 `dead`일 때만 즉시 실패한다.
 
@@ -111,10 +143,13 @@ DB writer 자격 증명 사용을 통제해야 한다. preflight를 통과한 �
 때까지 그런 writer를 다시 시작하면 안 된다. 최초 cutover 전에 데이터가 있다면 migration을
 강행하지 말고 별도 검증된 backfill 계획을 먼저 수립한다.
 
-수동으로 같은 reviewed script를 실행할 때는 immutable image tag를 넘긴다.
+수동으로 같은 reviewed script를 실행할 때도 게시 결과의 digest를 넘긴다.
 
-    DEPLOY_DIR="$HOME/airbob" IMAGE_TAG="<git-sha-7>" \
+    DEPLOY_DIR="$HOME/airbob" IMAGE_DIGEST="sha256:<게시된 이미지의 64자리 해시>" \
       sh "$HOME/airbob/scripts/deploy-oci.sh"
+
+기존 수동 운영을 위한 `IMAGE_TAG`도 지원하지만 자동 CD는 digest를 사용한다.
+두 값을 함께 주면 digest를 우선한다.
 
 ### V28 견적 만료 제거 배포
 

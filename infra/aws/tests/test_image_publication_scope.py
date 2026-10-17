@@ -89,10 +89,11 @@ class ScopeTests(unittest.TestCase):
 
     def test_all_legacy_write_jobs_consume_gate(self):
         workflow = (ROOT / '.github/workflows/infra-images.yml').read_text()
-        for name in ('publish-ecr-images', 'publish-oci-compat-images', 'publish-service-bundles'):
+        for name in ('publish-ecr-images', 'publish-service-bundles'):
             job = re.split(r'\n  \S', workflow.split('  ' + name + ':\n', 1)[1], maxsplit=1)[0]
             self.assertIn("needs.prepare.outputs.images_required == 'true'", job)
         self.assertIn('images_required: ${{ steps.scope.outputs.images_required }}', workflow)
+        self.assertNotIn('publish-oci-compat-images', workflow)
 
 
 if __name__ == '__main__':

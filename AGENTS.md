@@ -184,6 +184,10 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   publication authenticated through GitHub OIDC.
 - OCI deployment remains independent from the AWS experiment and retains the messaging,
   migration, and connector gates in `scripts/deploy-oci.sh`.
+- PR CI and main CD reuse `ci.yml`. Keep the required `CI result` job unconditional and reject
+  failed, cancelled, or unexpectedly skipped checks. CD must use the tested JAR from that exact
+  main run and deploy the resulting image digest. AWS app publication is an explicit manual
+  workflow; do not add it back to the OCI deployment path.
 - `scripts/README.md` identifies deployment, dataset, and archived tools. OCI CD and asset sync
   include only the five named deployment/operations scripts; local dataset and archived tools
   must not trigger an OCI deployment or be copied to its deployment directory.

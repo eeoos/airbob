@@ -225,6 +225,27 @@ class OciDeploymentContractTest {
 	}
 
 	@Test
+	@DisplayName("CI가 게시한 digest를 tag나 이전 환경값보다 우선해서 배포한다")
+	void deploysTheExactPublishedDigest() throws Exception {
+		String digest = "sha256:" + "a".repeat(64);
+		DeploymentAttempt attempt = failDeploymentAt("build --pull elasticsearch debezium", false, digest);
+
+		assertThat(attempt.commands()).contains("APP_IMAGE=ghcr.io/eeoos/airbob@" + digest)
+			.contains("pull ghcr.io/eeoos/airbob@" + digest)
+			.doesNotContain("airbob:reviewed-sha", "stale-image:latest");
+	}
+
+	@Test
+	@DisplayName("잘못된 digest는 기존 컨테이너를 건드리기 전에 거부한다")
+	void rejectsInvalidImageDigestBeforeDocker() throws Exception {
+		DeploymentAttempt attempt = failDeploymentAt("build", false, "sha256:not-a-digest");
+
+		assertThat(attempt.exitCode()).isNotZero();
+		assertThat(attempt.commands()).isEmpty();
+		assertThat(attempt.output()).contains("IMAGE_DIGEST must be a sha256 digest");
+	}
+
+	@Test
 	@DisplayName("인프라 기동 실패는 Flyway 실행 전 실패로 보고하고 migration을 실행하지 않는다")
 	void reportsInfrastructureFailureBeforeMigration() throws Exception {
 		DeploymentAttempt attempt = failDeploymentAt("up -d --wait --wait-timeout 240");
@@ -521,6 +542,11 @@ class OciDeploymentContractTest {
 	}
 
 	private DeploymentAttempt failDeploymentAt(String failureMarker, boolean cachedAppImage) throws Exception {
+		return failDeploymentAt(failureMarker, cachedAppImage, "");
+	}
+
+	private DeploymentAttempt failDeploymentAt(String failureMarker, boolean cachedAppImage, String digest)
+		throws Exception {
 		Path deployment = tempDir.resolve("failed-deployment");
 		Files.createDirectories(deployment);
 		Files.writeString(deployment.resolve(".env.oci"), "DB_ROOT_PASSWORD=test\n");
@@ -545,6 +571,7 @@ class OciDeploymentContractTest {
 		builder.environment().put("DOCKER_BIN", fakeDocker.toString());
 		builder.environment().put("IMAGE_REPO", "ghcr.io/eeoos/airbob");
 		builder.environment().put("IMAGE_TAG", "reviewed-sha");
+		builder.environment().put("IMAGE_DIGEST", digest);
 		builder.environment().put("APP_IMAGE", "stale-image:latest");
 		builder.environment().put("FAKE_DOCKER_LOG", dockerLog.toString());
 		builder.environment().put("FAKE_DOCKER_FAILURE", failureMarker);
@@ -558,7 +585,7 @@ class OciDeploymentContractTest {
 		}
 		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 		assertThat(completed).withFailMessage(output).isTrue();
-		return new DeploymentAttempt(process.exitValue(), Files.readString(dockerLog), output);
+		return new DeploymentAttempt(process.exitValue(), Files.exists(dockerLog) ? Files.readString(dockerLog) : "", output);
 	}
 
 	private record DeploymentAttempt(int exitCode, String commands, String output) {
