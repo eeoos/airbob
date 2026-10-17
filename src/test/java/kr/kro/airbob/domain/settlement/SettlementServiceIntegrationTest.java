@@ -244,6 +244,49 @@ class SettlementServiceIntegrationTest {
 		assertThat(host2Summary.paidCount()).isZero();
 	}
 
+
+	@Test
+	void hostDateRangeIncludesMonthStartRatherThanAnyOverlappingDayAndEmptySummaryIsZero() {
+		settlementService.generateMonth(MAY);
+		assertThat(settlementService.getHostSettlements(host1, MAY_1, MAY_1)).hasSize(1);
+		assertThat(settlementService.getHostSettlements(host1, MAY_1.plusDays(1), MAY.atEndOfMonth())).isEmpty();
+		long emptyHost = insertMember("empty-host");
+		assertThat(settlementService.getHostSettlements(emptyHost, MAY_1, MAY.atEndOfMonth())).isEmpty();
+		assertThat(settlementService.getHostSummary(emptyHost)).isEqualTo(new SettlementResponse.HostSummary(0, 0, 0, 0));
+	}
+
+	@Test
+	void inclusiveBackfillUsesRefundDateAndCanProduceNegativePayoutWithHalfUpCommission() {
+		long reservation = jdbc.queryForObject("SELECT id FROM reservation WHERE reservation_code = 'R1'", Long.class);
+		insertCancel(reservation, 50, LocalDate.of(2026, 6, 1));
+		jdbc.update("UPDATE payment_transaction SET created_at = '2026-07-01 00:00:00' WHERE cancel_amount = 50");
+		settlementService.backfill(MAY, YearMonth.of(2026, 6));
+		var rows = settlementService.getHostSettlements(host1, MAY_1, LocalDate.of(2026, 6, 1));
+		assertThat(rows).extracting(SettlementResponse.HostSettlement::settlementMonth).containsExactly(MAY_1, LocalDate.of(2026, 6, 1));
+		var june = rows.get(1);
+		assertThat(june.grossAmount()).isZero();
+		assertThat(june.refundAmount()).isEqualTo(50);
+		assertThat(june.netAmount()).isEqualTo(-50);
+		assertThat(june.commissionAmount()).isEqualTo(-2);
+		assertThat(june.payoutAmount()).isEqualTo(-48);
+	}
+
+	@Test
+	void paidSummaryIsFrozenButDetailLinesUseCurrentLedgerAndNullableAccommodationNames() {
+		settlementService.generateMonth(MAY);
+		long id = settlementId(host1);
+		settlementService.markPaid(id);
+		long reservation = jdbc.queryForObject("SELECT id FROM reservation WHERE reservation_code = 'R2'", Long.class);
+		insertCancel(reservation, 10000, LocalDate.of(2026, 5, 27));
+		settlementService.generateMonth(MAY);
+		var detail = settlementService.getSettlementDetail(id, host1);
+		assertThat(detail.status()).isEqualTo(SettlementStatus.PAID);
+		assertThat(detail.netAmount()).isEqualTo(130000);
+		assertThat(detail.items().stream().mapToLong(SettlementResponse.LineItem::netAmount).sum()).isEqualTo(120000);
+		assertThat(detail.items()).allSatisfy(item -> assertThat(item.accommodationName()).isNull());
+		assertThat(historyCount(id)).isEqualTo(2);
+	}
+
 	// ===== helpers =====
 
 	private void assertSettlement(long hostId, long gross, long refund, long net,

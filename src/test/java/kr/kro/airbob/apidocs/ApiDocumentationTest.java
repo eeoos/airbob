@@ -174,6 +174,10 @@ import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
 import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
+import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
+import kr.kro.airbob.domain.settlement.entity.Settlement;
+import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
+import kr.kro.airbob.domain.settlement.exception.*;
 import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
@@ -2238,6 +2242,153 @@ class ApiDocumentationTest {
 			assertDocumentedError(spec, paths.get(i), methods.get(i), "415", "C011", unsupported);
 		}
 		verifyNoInteractions(context.getBean(CommonCodeAdminService.class));
+	}
+
+	@Test
+	void settlementRejectsMalformedMonthsAndReversedBackfillBeforeInvokingServices() throws Exception {
+		allowDocumentationAdmin();
+		for (String month : List.of("2027-13", "2027-1", "2027-01-01", "", " 2027-01 ", "0000-01", "0999-12", "+10000-01")) {
+			mvc.perform(get("/api/v1/admin/settlements").cookie(SESSION).param("month", month)).andExpect(status().isBadRequest());
+			mvc.perform(post("/api/v1/admin/settlements/generate").cookie(SESSION).param("month", month)).andExpect(status().isBadRequest());
+			mvc.perform(post("/api/v1/admin/settlements/backfill").cookie(SESSION).param("from", month).param("to", "2027-02"))
+				.andExpect(status().isBadRequest());
+		}
+		mvc.perform(post("/api/v1/admin/settlements/backfill").cookie(SESSION).param("from", "2027-02").param("to", "2027-01"))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(context.getBean(SettlementService.class));
+	}
+
+	@Test
+	void settlementRejectsReversedOrUnsupportedHostDateRanges() throws Exception {
+		String path = "/api/v1/profile/host/settlements";
+		mvc.perform(get(path).cookie(SESSION).param("from", "2027-02-01").param("to", "2027-01-01"))
+			.andExpect(status().isBadRequest());
+		mvc.perform(get(path).cookie(SESSION).param("from", "0999-12-31").param("to", "2027-01-01"))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(context.getBean(SettlementService.class));
+	}
+
+	@Test
+	void everySettlementOperationUsesSessionIdentityAndAdminActionsRequireAdmin() throws Exception {
+		var paths = List.of("/api/v1/profile/host/settlements", "/api/v1/profile/host/settlements/summary", "/api/v1/profile/host/settlements/{settlementId}",
+			"/api/v1/admin/settlements", "/api/v1/admin/settlements/generate", "/api/v1/admin/settlements/backfill", "/api/v1/admin/settlements/{settlementId}/pay");
+		var methods = List.of("get", "get", "get", "get", "post", "post", "post");
+		var requests = List.of(get(paths.get(0)), get(paths.get(1)), get(paths.get(2), 101), get(paths.get(3)),
+			post(paths.get(4)), post(paths.get(5)), post(paths.get(6), 101));
+		JsonNode client = specification("client"), admin = specification("admin");
+		for (int i = 0; i < requests.size(); i++) {
+			JsonNode spec = i < 3 ? client : admin;
+			String absent = mvc.perform(requests.get(i)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths.get(i), methods.get(i), "401", "M004", absent);
+			JsonNode operation = spec.path("paths").path(paths.get(i)).path(methods.get(i));
+			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("hostId", "memberId", "SESSION_ID", "page", "size", "cursor");
+			assertThat(operation.has("requestBody")).isFalse();
+			if (i >= 3) {
+				String forbidden = mvc.perform(requests.get(i).cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, paths.get(i), methods.get(i), "403", "M006", forbidden);
+			}
+		}
+		verifyNoInteractions(context.getBean(SettlementService.class));
+	}
+
+	@Test
+	void settlementHostReadsMatchDatesNullableNamesAmountsAndSessionOwnership() throws Exception {
+		JsonNode spec = specification("client");
+		var service = context.getBean(SettlementService.class);
+		String list = "/api/v1/profile/host/settlements", summary = list + "/summary", detail = list + "/{settlementId}";
+		var settlement = documentationSettlement();
+		when(service.getHostSettlements(eq(10L), any(), any())).thenReturn(List.of(SettlementResponse.HostSettlement.from(settlement)));
+		String body = mvc.perform(get(list).cookie(SESSION).param("from", "2027-01-01").param("to", "2027-03-31").param("hostId", "999"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, list, "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/0/settlement_month").asText()).isEqualTo("2027-01-01");
+		assertThat(mapper.readTree(body).at("/data/0/settled_at").isNull()).isTrue();
+		verify(service).getHostSettlements(10L, LocalDate.parse("2027-01-01"), LocalDate.parse("2027-03-31"));
+		when(service.getHostSummary(10L)).thenReturn(new SettlementResponse.HostSummary(0, 0, 0, 0));
+		String zero = mvc.perform(get(summary).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, summary, "get", "200", zero);
+		assertThat(mapper.readTree(zero).path("data")).isEqualTo(mapper.readTree("{\"pending_payout_total\":0,\"pending_count\":0,\"paid_payout_total\":0,\"paid_count\":0}"));
+		settlement.markPaid(Instant.parse("2027-02-01T04:00:00Z"));
+		when(service.getSettlementDetail(101L, 10L)).thenReturn(SettlementResponse.SettlementDetail.of(settlement,
+			List.of(new SettlementResponse.LineItem(201L, null, 150000, 20000, 130000))));
+		String paid = mvc.perform(get(detail, 101).cookie(SESSION).param("hostId", "999")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, detail, "get", "200", paid);
+		assertThat(mapper.readTree(paid).at("/data/settled_at").asText()).isEqualTo("2027-02-01T04:00:00Z");
+		assertThat(mapper.readTree(paid).at("/data/items/0/accommodation_name").isNull()).isTrue();
+		when(service.getHostSettlements(eq(10L), any(), any())).thenReturn(List.of());
+		String empty = mvc.perform(get(list).cookie(SESSION).param("from", "2027-01-01").param("to", "2027-01-01"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, list, "get", "200", empty);
+		assertThat(mapper.readTree(empty).path("data").isEmpty()).isTrue();
+	}
+
+	@Test
+	void settlementAdminReadsAndActionsUseQueryMonthsAndBodylessSuccess() throws Exception {
+		allowDocumentationAdmin();
+		var service = context.getBean(SettlementService.class);
+		JsonNode spec = specification("admin");
+		String list = "/api/v1/admin/settlements", generate = list + "/generate", backfill = list + "/backfill", pay = list + "/{settlementId}/pay";
+		var negative = Settlement.createPending(10L, LocalDate.parse("2027-01-01"), 0, 50, new BigDecimal("0.03"));
+		org.springframework.test.util.ReflectionTestUtils.setField(negative, "id", 102L);
+		when(service.getSettlements(any(), any())).thenReturn(List.of(SettlementResponse.AdminSettlement.from(negative)));
+		String body = mvc.perform(get(list).cookie(SESSION).param("month", "2027-01").param("status", "PENDING"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, list, "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/0/payout_amount").asLong()).isEqualTo(-48);
+		verify(service).getSettlements(java.time.YearMonth.of(2027, 1), SettlementStatus.PENDING);
+		mvc.perform(get(list).cookie(SESSION).param("month", "2027-01").param("status", "")).andExpect(status().isOk());
+		verify(service).getSettlements(java.time.YearMonth.of(2027, 1), null);
+		var requests = List.of(post(generate).param("month", "2027-01"), post(backfill).param("from", "2027-01").param("to", "2027-03"), post(pay, 101));
+		var paths = List.of(generate, backfill, pay);
+		for (int i = 0; i < requests.size(); i++) {
+			String success = mvc.perform(requests.get(i).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, paths.get(i), "post", "200", success);
+			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
+		}
+		verify(service).generateMonth(java.time.YearMonth.of(2027, 1));
+		verify(service).backfill(java.time.YearMonth.of(2027, 1), java.time.YearMonth.of(2027, 3));
+		verify(service).markPaid(101L);
+	}
+
+	@Test
+	void settlementMissingInputsMalformedTypesAndBusinessErrorsAreDocumented() throws Exception {
+		allowDocumentationAdmin();
+		var service = context.getBean(SettlementService.class);
+		JsonNode client = specification("client"), admin = specification("admin");
+		String host = "/api/v1/profile/host/settlements", detail = host + "/{settlementId}";
+		String list = "/api/v1/admin/settlements", generate = list + "/generate", backfill = list + "/backfill", pay = list + "/{settlementId}/pay";
+		var missingRequests = List.of(get(host).param("to", "2027-02-01"), get(list), post(generate), post(backfill).param("from", "2027-01"));
+		var missingPaths = List.of(host, list, generate, backfill);
+		for (int i = 0; i < missingRequests.size(); i++) {
+			String body = mvc.perform(missingRequests.get(i).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(i == 0 ? client : admin, missingPaths.get(i), i < 2 ? "get" : "post", "400", "C001", body);
+		}
+		var invalidRequests = List.of(get(host).param("from", "2027-02-30").param("to", "2027-03-01"), get(list).param("month", "2027-01").param("status", "pending"),
+			get(detail, "invalid"), post(pay, "invalid"));
+		var invalidPaths = List.of(host, list, detail, pay);
+		for (int i = 0; i < invalidRequests.size(); i++) {
+			String body = mvc.perform(invalidRequests.get(i).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(i == 0 || i == 2 ? client : admin, invalidPaths.get(i), i == 3 ? "post" : "get", "400", "C004", body);
+		}
+		for (var exception : List.of(new SettlementNotFoundException(), new SettlementAccessDeniedException())) {
+			doThrow(exception).when(service).getSettlementDetail(101L, 10L);
+			String body = mvc.perform(get(detail, 101).cookie(SESSION)).andExpect(status().is(exception.getErrorCode().getStatus().value()))
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(client, detail, "get", Integer.toString(exception.getErrorCode().getStatus().value()), exception.getErrorCode().getCode(), body);
+		}
+		for (var exception : List.of(new SettlementNotFoundException(), new SettlementAlreadyPaidException(), new SettlementMonthNotClosedException())) {
+			doThrow(exception).when(service).markPaid(101L);
+			String body = mvc.perform(post(pay, 101).cookie(SESSION)).andExpect(status().is(exception.getErrorCode().getStatus().value()))
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(admin, pay, "post", Integer.toString(exception.getErrorCode().getStatus().value()), exception.getErrorCode().getCode(), body);
+		}
+	}
+
+
+	private Settlement documentationSettlement() {
+		return Settlement.builder().id(101L).hostId(10L).settlementMonth(LocalDate.parse("2027-01-01"))
+			.grossAmount(150000L).refundAmount(20000L).netAmount(130000L).commissionRate(new BigDecimal("0.03"))
+			.commissionAmount(3900L).payoutAmount(126100L).status(SettlementStatus.PENDING).build();
 	}
 
 	private void allowDocumentationAdmin() {

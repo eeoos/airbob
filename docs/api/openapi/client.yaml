@@ -784,18 +784,6 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseHostSummary:
-      properties:
-        data:
-          $ref: "#/components/schemas/HostSummary"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
     ApiResponseImageResponseImageUploadResult:
       properties:
         data:
@@ -822,11 +810,11 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseListHostSettlement:
+    ApiResponseListSettlementResponseHostSettlement:
       properties:
         data:
           items:
-            $ref: "#/components/schemas/HostSettlement"
+            $ref: "#/components/schemas/SettlementResponseHostSettlement"
           type: "array"
         success:
           enum:
@@ -1016,10 +1004,22 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseSettlementDetail:
+    ApiResponseSettlementResponseHostSummary:
       properties:
         data:
-          $ref: "#/components/schemas/SettlementDetail"
+          $ref: "#/components/schemas/SettlementResponseHostSummary"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseSettlementResponseSettlementDetail:
+      properties:
+        data:
+          $ref: "#/components/schemas/SettlementResponseSettlementDetail"
         success:
           enum:
           - true
@@ -1395,55 +1395,6 @@ components:
         value:
           type: "string"
       type: "object"
-    HostSettlement:
-      properties:
-        commission_amount:
-          format: "int64"
-          type: "integer"
-        commission_rate:
-          type: "number"
-        gross_amount:
-          format: "int64"
-          type: "integer"
-        net_amount:
-          format: "int64"
-          type: "integer"
-        payout_amount:
-          format: "int64"
-          type: "integer"
-        refund_amount:
-          format: "int64"
-          type: "integer"
-        settled_at:
-          format: "date-time"
-          type: "string"
-        settlement_id:
-          format: "int64"
-          type: "integer"
-        settlement_month:
-          format: "date"
-          type: "string"
-        status:
-          enum:
-          - "PENDING"
-          - "PAID"
-          type: "string"
-      type: "object"
-    HostSummary:
-      properties:
-        paid_count:
-          format: "int64"
-          type: "integer"
-        paid_payout_total:
-          format: "int64"
-          type: "integer"
-        pending_count:
-          format: "int64"
-          type: "integer"
-        pending_payout_total:
-          format: "int64"
-          type: "integer"
-      type: "object"
     ImageResponseImageInfo:
       properties:
         id:
@@ -1463,23 +1414,6 @@ components:
           items:
             $ref: "#/components/schemas/ImageResponseImageInfo"
           type: "array"
-      type: "object"
-    LineItem:
-      properties:
-        accommodation_id:
-          format: "int64"
-          type: "integer"
-        accommodation_name:
-          type: "string"
-        gross_amount:
-          format: "int64"
-          type: "integer"
-        net_amount:
-          format: "int64"
-          type: "integer"
-        refund_amount:
-          format: "int64"
-          type: "integer"
       type: "object"
     MemberRequestSignup:
       properties:
@@ -2793,46 +2727,214 @@ components:
       required:
       - "id"
       type: "object"
-    SettlementDetail:
+    SettlementResponseHostSettlement:
       properties:
         commission_amount:
+          description: "net_amount × commission_rate를 정수로 HALF_UP 반올림한 수수료. 음수일 수 있습니다."
+          example: 3900
           format: "int64"
           type: "integer"
         commission_rate:
+          description: "정산 시 저장한 수수료율. 0.03은 3%이며 PENDING 재집계 시 현재 설정으로 갱신합니다."
+          example: 0.03
           type: "number"
         gross_amount:
+          description: "해당 월 CONFIRM 원장의 amount 합계. 숙박일이 아닌 원장 생성일 기준"
+          example: 150000
           format: "int64"
           type: "integer"
-        host_id:
-          format: "int64"
-          type: "integer"
-        items:
-          items:
-            $ref: "#/components/schemas/LineItem"
-          type: "array"
         net_amount:
+          description: "gross_amount - refund_amount. 다른 달 매출의 환불로 음수일 수 있습니다."
+          example: 130000
           format: "int64"
           type: "integer"
         payout_amount:
+          description: "net_amount - commission_amount. 실제 송금 여부를 증명하는 값은 아니며 음수일 수 있습니다."
+          example: 126100
           format: "int64"
           type: "integer"
         refund_amount:
+          description: "해당 월 CANCEL·PARTIAL_CANCEL 원장의 cancel_amount 합계. 취소일 우선, 없으면 원장 생성일 기준"
+          example: 20000
           format: "int64"
           type: "integer"
         settled_at:
+          description: "지급 완료 상태를 기록한 서버 UTC 시각(Z). 지급 전에는 null"
+          example: "2027-02-01T04:00:00Z"
           format: "date-time"
-          type: "string"
+          type:
+          - "string"
+          - "null"
         settlement_id:
+          description: "정산 ID. 상세 조회·지급 처리 경로의 settlementId"
+          example: 101
           format: "int64"
           type: "integer"
         settlement_month:
+          description: "정산 월의 1일. 월 집계는 UTC 날짜 기준"
+          example: "2027-01-01"
           format: "date"
           type: "string"
         status:
+          description: "PENDING: 지급 처리 전, PAID: 지급 완료 상태를 기록함. 외부 송금 결과와는 별개입니다."
           enum:
           - "PENDING"
           - "PAID"
+          example: "PAID"
           type: "string"
+      required:
+      - "commission_amount"
+      - "commission_rate"
+      - "gross_amount"
+      - "net_amount"
+      - "payout_amount"
+      - "refund_amount"
+      - "settled_at"
+      - "settlement_id"
+      - "settlement_month"
+      - "status"
+      type: "object"
+    SettlementResponseHostSummary:
+      properties:
+        paid_count:
+          description: "PAID 정산 레코드 수. 예약 건수가 아닙니다."
+          example: 1
+          format: "int64"
+          type: "integer"
+        paid_payout_total:
+          description: "저장된 PAID 정산의 payout_amount 합계. 없으면 0, 음수일 수 있습니다."
+          example: 97000
+          format: "int64"
+          type: "integer"
+        pending_count:
+          description: "PENDING 정산 레코드 수. 예약 건수가 아닙니다."
+          example: 1
+          format: "int64"
+          type: "integer"
+        pending_payout_total:
+          description: "저장된 PENDING 정산의 payout_amount 합계. 없으면 0, 음수일 수 있습니다."
+          example: 126100
+          format: "int64"
+          type: "integer"
+      required:
+      - "paid_count"
+      - "paid_payout_total"
+      - "pending_count"
+      - "pending_payout_total"
+      type: "object"
+    SettlementResponseLineItem:
+      properties:
+        accommodation_id:
+          description: "숙소 ID"
+          example: 201
+          format: "int64"
+          type: "integer"
+        accommodation_name:
+          description: "숙소의 현재 이름. 과거 데이터는 null일 수 있습니다."
+          example: "서울 숙소"
+          type:
+          - "string"
+          - "null"
+        gross_amount:
+          description: "해당 월 CONFIRM 원장의 amount 합계. 숙박일이 아닌 원장 생성일 기준"
+          example: 150000
+          format: "int64"
+          type: "integer"
+        net_amount:
+          description: "gross_amount - refund_amount. 다른 달 매출의 환불로 음수일 수 있습니다."
+          example: 130000
+          format: "int64"
+          type: "integer"
+        refund_amount:
+          description: "해당 월 CANCEL·PARTIAL_CANCEL 원장의 cancel_amount 합계. 취소일 우선, 없으면 원장 생성일 기준"
+          example: 20000
+          format: "int64"
+          type: "integer"
+      required:
+      - "accommodation_id"
+      - "accommodation_name"
+      - "gross_amount"
+      - "net_amount"
+      - "refund_amount"
+      type: "object"
+    SettlementResponseSettlementDetail:
+      properties:
+        commission_amount:
+          description: "net_amount × commission_rate를 정수로 HALF_UP 반올림한 수수료. 음수일 수 있습니다."
+          example: 3900
+          format: "int64"
+          type: "integer"
+        commission_rate:
+          description: "정산 시 저장한 수수료율. 0.03은 3%이며 PENDING 재집계 시 현재 설정으로 갱신합니다."
+          example: 0.03
+          type: "number"
+        gross_amount:
+          description: "해당 월 CONFIRM 원장의 amount 합계. 숙박일이 아닌 원장 생성일 기준"
+          example: 150000
+          format: "int64"
+          type: "integer"
+        host_id:
+          description: "정산 대상 회원 ID"
+          example: 10
+          format: "int64"
+          type: "integer"
+        items:
+          description: "현재 원장에서 계산한 숙소별 내역. 숙소 ID 오름차순이며 요약 금액과 달라질 수 있고 없으면 빈 배열"
+          items:
+            $ref: "#/components/schemas/SettlementResponseLineItem"
+          type: "array"
+        net_amount:
+          description: "gross_amount - refund_amount. 다른 달 매출의 환불로 음수일 수 있습니다."
+          example: 130000
+          format: "int64"
+          type: "integer"
+        payout_amount:
+          description: "net_amount - commission_amount. 실제 송금 여부를 증명하는 값은 아니며 음수일 수 있습니다."
+          example: 126100
+          format: "int64"
+          type: "integer"
+        refund_amount:
+          description: "해당 월 CANCEL·PARTIAL_CANCEL 원장의 cancel_amount 합계. 취소일 우선, 없으면 원장 생성일 기준"
+          example: 20000
+          format: "int64"
+          type: "integer"
+        settled_at:
+          description: "지급 완료 상태를 기록한 서버 UTC 시각(Z). 지급 전에는 null"
+          example: "2027-02-01T04:00:00Z"
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
+        settlement_id:
+          description: "정산 ID. 상세 조회·지급 처리 경로의 settlementId"
+          example: 101
+          format: "int64"
+          type: "integer"
+        settlement_month:
+          description: "정산 월의 1일. 월 집계는 UTC 날짜 기준"
+          example: "2027-01-01"
+          format: "date"
+          type: "string"
+        status:
+          description: "PENDING: 지급 처리 전, PAID: 지급 완료 상태를 기록함. 외부 송금 결과와는 별개입니다."
+          enum:
+          - "PENDING"
+          - "PAID"
+          example: "PAID"
+          type: "string"
+      required:
+      - "commission_amount"
+      - "commission_rate"
+      - "gross_amount"
+      - "host_id"
+      - "items"
+      - "net_amount"
+      - "payout_amount"
+      - "refund_amount"
+      - "settled_at"
+      - "settlement_id"
+      - "settlement_month"
+      - "status"
       type: "object"
     WishlistAccommodationRequestCreate:
       properties:
@@ -7149,15 +7251,20 @@ paths:
       - "예약"
   /api/v1/profile/host/settlements:
     get:
-      operationId: "getHostSettlements"
+      description: "로그인한 회원 본인의 저장된 정산을 월 오름차순으로 조회합니다. from·to는 YYYY-MM-DD이며 양 끝을 포함해 settlement_month(각 월의 1일)를 비교합니다. 예를 들어 from=2027-01-15이면 1월 정산은 제외됩니다. from은 to 이하여야 하며 연도는 1000~9999입니다. 페이지 구분 없이 전체 목록을 반환하고 정산이 없으면 빈 배열입니다."
+      operationId: "Settlement.getHostSettlements"
       parameters:
-      - in: "query"
+      - description: "정산 월초 날짜의 조회 시작일(포함). from ≤ to"
+        example: "2027-01-01"
+        in: "query"
         name: "from"
         required: true
         schema:
           format: "date"
           type: "string"
-      - in: "query"
+      - description: "정산 월초 날짜의 조회 종료일(포함). 연도는 1000~9999"
+        example: "2027-03-31"
+        in: "query"
         name: "to"
         required: true
         schema:
@@ -7168,8 +7275,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseListHostSettlement"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseListSettlementResponseHostSettlement"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -7204,18 +7336,20 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "내 정산 목록 조회"
       tags:
-      - "settlement-controller"
+      - "정산"
   /api/v1/profile/host/settlements/summary:
     get:
-      operationId: "getHostSummary"
+      description: "로그인한 회원 본인의 저장된 정산 전체를 PENDING·PAID별로 합산합니다. 기간 필터는 없으며 건수는 예약 수가 아닌 정산 레코드 수입니다. 정산이 없으면 금액과 건수 모두 0입니다. PENDING에는 아직 마감되지 않은 월도 포함될 수 있습니다."
+      operationId: "Settlement.getHostSummary"
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseHostSummary"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseSettlementResponseHostSummary"
+          description: "성공"
         "401":
           content:
             application/json:
@@ -7250,13 +7384,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "내 정산 요약 조회"
       tags:
-      - "settlement-controller"
+      - "정산"
   /api/v1/profile/host/settlements/{settlementId}:
     get:
-      operationId: "getHostSettlementDetail"
+      description: "로그인한 회원 본인의 정산만 조회합니다. 다른 회원의 정산은 403/S004, 없는 정산은 404/S001입니다. 요약 금액은 저장된 정산 값이며 items는 조회 시점의 원장을 현재 숙소 소유자 기준으로 다시 집계합니다. 원장이나 숙소 소유자가 바뀌면 요약과 items 합계가 다를 수 있습니다. items는 숙소 ID 오름차순이며 수수료·지급액은 요약에만 있습니다."
+      operationId: "Settlement.getHostSettlementDetail"
       parameters:
-      - in: "path"
+      - description: "정산 목록 응답의 settlement_id"
+        example: 101
+        in: "path"
         name: "settlementId"
         required: true
         schema:
@@ -7267,8 +7405,24 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseSettlementDetail"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseSettlementResponseSettlementDetail"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -7281,6 +7435,38 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                S004:
+                  summary: "해당 정산 내역에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "S004"
+                      errors: []
+                      message: "해당 정산 내역에 대한 접근 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                S001:
+                  summary: "존재하지 않는 정산 내역입니다."
+                  value:
+                    error:
+                      code: "S001"
+                      errors: []
+                      message: "존재하지 않는 정산 내역입니다."
+                      status: 404
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -7303,8 +7489,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "내 정산 상세 조회"
       tags:
-      - "settlement-controller"
+      - "정산"
   /api/v1/reservation-quotes:
     post:
       description: "로그인한 회원의 가격·쿠폰·숙박 조건을 견적으로 저장합니다. 숙소 현지 오늘부터 3개월 범위에서 체크아웃일이 체크인일보다 뒤여야 하며, 당일 예약은 숙소 체크인 시각 전까지만 가능합니다. 예시 날짜는 실행 시 예약 가능한 날짜로 바꿉니다.\n\n현재 재고를 조회하지만 잠그거나 확보하지 않으며 쿠폰도 사용 처리하지 않습니다. coupon_id는 보유 쿠폰의 캠페인 ID입니다. 성공 응답의 quote_uid를 체크아웃에 사용합니다.\n\n견적 자체의 시간 만료는 없지만 데이터 보관 정책에 따라 삭제될 수 있습니다. 체크아웃에서 가격·할인·숙소·재고를 다시 검사합니다.\n"
