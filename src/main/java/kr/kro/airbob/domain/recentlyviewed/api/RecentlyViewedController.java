@@ -1,11 +1,11 @@
-package kr.kro.airbob.domain.recentlyViewed.api;
+package kr.kro.airbob.domain.recentlyviewed.api;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
+import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.recentlyViewed.api;
+package kr.kro.airbob.domain.recentlyviewed.api;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;

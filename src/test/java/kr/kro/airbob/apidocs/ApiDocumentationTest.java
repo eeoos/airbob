@@ -159,7 +159,7 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandS
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
-import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
+import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;

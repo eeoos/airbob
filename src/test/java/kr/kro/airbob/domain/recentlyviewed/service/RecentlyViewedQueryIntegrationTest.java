@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.recentlyViewed.service;
+package kr.kro.airbob.domain.recentlyviewed.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

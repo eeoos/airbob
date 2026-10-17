@@ -18,7 +18,7 @@ import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;
-import kr.kro.airbob.domain.recentlyViewed.api.RecentlyViewedController;
+import kr.kro.airbob.domain.recentlyviewed.api.RecentlyViewedController;
 import kr.kro.airbob.domain.reservation.api.ReservationCommandController;
 import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
 import kr.kro.airbob.domain.reservation.api.ReservationHostController;
