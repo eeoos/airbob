@@ -21,6 +21,7 @@ import kr.kro.airbob.domain.recentlyViewed.api.RecentlyViewedController;
 import kr.kro.airbob.domain.reservation.api.ReservationController;
 import kr.kro.airbob.domain.review.api.ReviewController;
 import kr.kro.airbob.domain.settlement.api.SettlementController;
+import kr.kro.airbob.domain.wishlist.api.WishlistAccommodationController;
 import kr.kro.airbob.domain.wishlist.api.WishlistController;
 import kr.kro.airbob.search.api.AccommodationSearchController;
 
@@ -89,10 +90,10 @@ class CurrentMemberIdControllerContractTest {
 			required(WishlistController.class, "updateWishlist"),
 			required(WishlistController.class, "deleteWishlist"),
 			required(WishlistController.class, "findWishlists"),
-			required(WishlistController.class, "createWishlistAccommodation"),
-			required(WishlistController.class, "updateWishlistAccommodation"),
-			required(WishlistController.class, "deleteWishlistAccommodation"),
-			required(WishlistController.class, "findWishlistAccommodations"),
+			required(WishlistAccommodationController.class, "createWishlistAccommodation"),
+			required(WishlistAccommodationController.class, "updateWishlistAccommodation"),
+			required(WishlistAccommodationController.class, "deleteWishlistAccommodation"),
+			required(WishlistAccommodationController.class, "findWishlistAccommodations"),
 			optional(AccommodationSearchController.class, "searchAccommodations")
 		);
 	}
