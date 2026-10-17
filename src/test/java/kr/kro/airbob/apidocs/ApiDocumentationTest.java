@@ -139,6 +139,8 @@ import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
 import kr.kro.airbob.domain.auth.service.AuthService;
+import kr.kro.airbob.domain.commoncode.dto.*;
+import kr.kro.airbob.domain.commoncode.exception.*;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeAdminService;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.coupon.service.CouponQueryService;
@@ -2062,6 +2064,180 @@ class ApiDocumentationTest {
 		var unavailable = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isServiceUnavailable()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "get", "503", "SE001", unavailable.getContentAsString());
 		assertThat(unavailable.getHeader("Retry-After")).isNull();
+	}
+
+	@Test
+	void commonCodePublicListsAreAnonymousAndMissingGroupsAreDocumented() throws Exception {
+		String path = "/api/v1/common-codes/{group}";
+		JsonNode spec = specification("client");
+		var service = context.getBean(CommonCodeService.class);
+		when(service.getCodes("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeResponse("WIFI", "무선 인터넷", -1)));
+		String response = mvc.perform(get(path, "amenity_type")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", response);
+		assertThat(mapper.readTree(response).at("/data/0/code").asText()).isEqualTo("WIFI");
+		assertThat(mapper.readTree(response).at("/data/0/sort_order").asInt()).isEqualTo(-1);
+		assertThat(mapper.readTree(response).at("/data/0").has("active")).isFalse();
+		assertThat(spec.path("paths").path(path).path("get").path("security").isEmpty()).isTrue();
+		when(service.getCodes("INACTIVE_GROUP")).thenReturn(List.of());
+		String empty = mvc.perform(get(path, "inactive_group").cookie(new Cookie("SESSION_ID", "expired")))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", empty);
+		assertThat(mapper.readTree(empty)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":[]}"));
+		when(service.getCodes("MISSING_GROUP")).thenThrow(new CommonCodeGroupNotFoundException());
+		String missing = mvc.perform(get(path, "missing_group")).andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "404", "CC001", missing);
+	}
+
+	@Test
+	void everyCommonCodeAdminOperationRequiresActiveAdminWithoutManualSessionInput() throws Exception {
+		JsonNode spec = specification("admin");
+		String groups = "/api/v1/admin/common-code-groups", group = groups + "/{groupCode}";
+		String codes = "/api/v1/admin/common-codes/{group}", code = codes + "/{code}";
+		var paths = List.of(groups, groups, group, codes, codes, code);
+		var methods = List.of("get", "post", "patch", "get", "post", "patch");
+		var requests = List.of(get(groups), post(groups), patch(group, "AMENITY_TYPE"),
+			get(codes, "AMENITY_TYPE"), post(codes, "AMENITY_TYPE"), patch(code, "AMENITY_TYPE", "WIFI"));
+		for (int i = 0; i < requests.size(); i++) {
+			var request = requests.get(i);
+			String absent = mvc.perform(request).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths.get(i), methods.get(i), "401", "M004", absent);
+			String forbidden = mvc.perform(request.cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths.get(i), methods.get(i), "403", "M006", forbidden);
+			JsonNode operation = spec.path("paths").path(paths.get(i)).path(methods.get(i));
+			assertThat(operation.at("/security/0/sessionCookie").isArray()).isTrue();
+			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("SESSION_ID", "memberId", "member_id", "page", "size", "cursor");
+		}
+		verifyNoInteractions(context.getBean(CommonCodeAdminService.class));
+	}
+
+	@Test
+	void commonCodeAdminListsIncludeInactiveEntriesAndNullableDescriptions() throws Exception {
+		allowDocumentationAdmin();
+		JsonNode spec = specification("admin");
+		var service = context.getBean(CommonCodeAdminService.class);
+		String groups = "/api/v1/admin/common-code-groups", codes = "/api/v1/admin/common-codes/{group}";
+		when(service.getGroups()).thenReturn(List.of(new CommonCodeGroupResponse("AMENITY_TYPE", "편의시설", null, false)));
+		when(service.getAll("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeAdminResponse("WIFI", "무선 인터넷", null, 0, false)));
+		String groupBody = mvc.perform(get(groups).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String codeBody = mvc.perform(get(codes, "amenity_type").cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, groups, "get", "200", groupBody);
+		validateResponse(spec, codes, "get", "200", codeBody);
+		for (String body : List.of(groupBody, codeBody)) {
+			assertThat(mapper.readTree(body).at("/data/0/description").isNull()).isTrue();
+			assertThat(mapper.readTree(body).at("/data/0/active").asBoolean()).isFalse();
+			assertThat(mapper.readTree(body).at("/data/0").has("is_active")).isFalse();
+		}
+		when(service.getAll("EMPTY_GROUP")).thenReturn(List.of());
+		String empty = mvc.perform(get(codes, "empty_group").cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, codes, "get", "200", empty);
+		when(service.getAll("MISSING_GROUP")).thenThrow(new CommonCodeGroupNotFoundException());
+		String missing = mvc.perform(get(codes, "missing_group").cookie(SESSION)).andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, codes, "get", "404", "CC001", missing);
+	}
+
+	@Test
+	void commonCodeGroupWritesBindIsActiveAndReturnGroupIdentity() throws Exception {
+		allowDocumentationAdmin();
+		JsonNode spec = specification("admin");
+		var service = context.getBean(CommonCodeAdminService.class);
+		String groups = "/api/v1/admin/common-code-groups", group = groups + "/{groupCode}";
+		when(service.createGroup(any())).thenReturn(new CommonCodeGroupResponse("EXAMPLE_GROUP", "예시 그룹", null, false));
+		var created = mvc.perform(post(groups).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"group_code\":\" example_group \",\"group_name\":\"예시 그룹\",\"is_active\":false}"))
+			.andExpect(status().isCreated()).andReturn().getResponse();
+		validateResponse(spec, groups, "post", "201", created.getContentAsString());
+		assertThat(created.getHeader("Location")).isNull();
+		verify(service).createGroup(new CommonCodeGroupRequest.Create("example_group", "예시 그룹", null, false));
+		when(service.updateGroup(eq("EXAMPLE_GROUP"), any())).thenReturn(new CommonCodeGroupResponse("EXAMPLE_GROUP", "예시 그룹", "", false));
+		for (String request : List.of("{}", "{\"group_name\":null,\"description\":\"\",\"is_active\":false}")) {
+			String updated = mvc.perform(patch(group, "example_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, group, "patch", "200", updated);
+		}
+		verify(service).updateGroup("EXAMPLE_GROUP", new CommonCodeGroupRequest.Update(null, "", false));
+		validateInstance(spec, spec.at("/components/schemas/CommonCodeGroupRequestUpdate"), mapper.readTree("{\"group_name\":null,\"description\":null,\"is_active\":null}"));
+		when(service.createGroup(any())).thenThrow(new CommonCodeGroupDuplicateException());
+		String duplicate = mvc.perform(post(groups).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"group_code\":\"EXAMPLE_GROUP\",\"group_name\":\"예시 그룹\"}"))
+			.andExpect(status().isConflict()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, groups, "post", "409", "CC004", duplicate);
+		when(service.updateGroup(eq("EXAMPLE_GROUP"), any())).thenThrow(new CommonCodeGroupNotFoundException());
+		String missing = mvc.perform(patch(group, "example_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, group, "patch", "404", "CC001", missing);
+	}
+
+	@Test
+	void commonCodeWritesBindSnakeCasePatchFieldsAndDocumentActualNotFoundCode() throws Exception {
+		allowDocumentationAdmin();
+		JsonNode spec = specification("admin");
+		var service = context.getBean(CommonCodeAdminService.class);
+		String codes = "/api/v1/admin/common-codes/{group}", code = codes + "/{code}";
+		when(service.create(eq("AMENITY_TYPE"), any())).thenReturn(new CommonCodeAdminResponse("WIFI", "무선 인터넷", null, -1, false));
+		String request = "{\"code\":\"　wifi　\",\"name\":\"무선 인터넷\",\"sort_order\":-1,\"is_active\":false}";
+		var created = mvc.perform(post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isCreated()).andReturn().getResponse();
+		validateResponse(spec, codes, "post", "201", created.getContentAsString());
+		assertThat(created.getHeader("Location")).isNull();
+		verify(service).create("AMENITY_TYPE", new CommonCodeRequest.Create("wifi", "무선 인터넷", null, -1, false));
+		when(service.update(eq("AMENITY_TYPE"), eq("wifi"), any())).thenReturn(new CommonCodeAdminResponse("WIFI", "무선 인터넷", "", 0, false));
+		for (String patchBody : List.of("{}", "{\"name\":null,\"description\":\"\",\"sort_order\":0,\"is_active\":false}")) {
+			String updated = mvc.perform(patch(code, "amenity_type", "wifi").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(patchBody))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, code, "patch", "200", updated);
+		}
+		verify(service).update("AMENITY_TYPE", "wifi", new CommonCodeRequest.Update(null, "", 0, false));
+		validateInstance(spec, spec.at("/components/schemas/CommonCodeRequestUpdate"), mapper.readTree("{\"name\":null,\"description\":null,\"sort_order\":null,\"is_active\":null}"));
+		when(service.create(eq("AMENITY_TYPE"), any())).thenThrow(new CommonCodeDuplicateException());
+		String duplicate = mvc.perform(post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isConflict()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, codes, "post", "409", "CC003", duplicate);
+		when(service.create(eq("MISSING_GROUP"), any())).thenThrow(new CommonCodeGroupNotFoundException());
+		String missingGroup = mvc.perform(post(codes, "missing_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, codes, "post", "404", "CC001", missingGroup);
+		when(service.update(eq("MISSING_GROUP"), eq("wifi"), any())).thenThrow(new CommonCodeNotFoundException());
+		String missingCode = mvc.perform(patch(code, "missing_group", "wifi").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, code, "patch", "404", "CC002", missingCode);
+		assertThat(spec.path("paths").path(code).path("patch").at("/responses/404/content/application~1json/examples").properties())
+			.extracting(Map.Entry::getKey).containsExactly("CC002");
+	}
+
+	@Test
+	void commonCodeWriteValidationAndMediaTypesMatchTheContract() throws Exception {
+		allowDocumentationAdmin();
+		JsonNode spec = specification("admin");
+		String groups = "/api/v1/admin/common-code-groups", group = groups + "/{groupCode}";
+		String codes = "/api/v1/admin/common-codes/{group}", code = codes + "/{code}";
+		var paths = List.of(groups, group, codes, code);
+		var methods = List.of("post", "patch", "post", "patch");
+		var requests = List.of(post(groups), patch(group, "EXAMPLE_GROUP"), post(codes, "AMENITY_TYPE"), patch(code, "AMENITY_TYPE", "WIFI"));
+		var bodies = List.of(
+			List.of("{}", "{\"group_code\":\"BAD-CODE\",\"group_name\":\"이름\"}", "{\"group_code\":\"EXAMPLE_GROUP\",\"group_name\":\"　\"}",
+				mapper.writeValueAsString(Map.of("group_code", "A".repeat(51), "group_name", "이름")),
+				mapper.writeValueAsString(Map.of("group_code", "EXAMPLE_GROUP", "group_name", "이".repeat(101))),
+				mapper.writeValueAsString(Map.of("group_code", "EXAMPLE_GROUP", "group_name", "이름", "description", "설".repeat(256)))),
+			List.of("{\"group_name\":\"\"}", "{\"group_name\":\"　\"}", mapper.writeValueAsString(Map.of("group_name", "이".repeat(101))),
+				mapper.writeValueAsString(Map.of("description", "설".repeat(256)))),
+			List.of("{}", "{\"code\":\"BAD-CODE\",\"name\":\"이름\"}", "{\"code\":\"WIFI\",\"name\":\"　\"}",
+				mapper.writeValueAsString(Map.of("code", "A".repeat(51), "name", "이름")),
+				mapper.writeValueAsString(Map.of("code", "WIFI", "name", "이".repeat(101))),
+				mapper.writeValueAsString(Map.of("code", "WIFI", "name", "이름", "description", "설".repeat(256)))),
+			List.of("{\"name\":\"\"}", "{\"name\":\"　\"}", mapper.writeValueAsString(Map.of("name", "이".repeat(101))),
+				mapper.writeValueAsString(Map.of("description", "설".repeat(256))), "{\"sort_order\":2147483648}"));
+		for (int i = 0; i < requests.size(); i++) {
+			var request = requests.get(i).cookie(SESSION);
+			for (String body : java.util.stream.Stream.concat(bodies.get(i).stream(), java.util.stream.Stream.of("", "null", "{" , "{\"is_active\":\"invalid\"}")).toList()) {
+				String invalid = mvc.perform(request.contentType(MediaType.APPLICATION_JSON).content(body))
+					.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, paths.get(i), methods.get(i), "400", "C001", invalid);
+			}
+			String unsupported = mvc.perform(request.contentType(MediaType.TEXT_PLAIN).content("{}"))
+				.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths.get(i), methods.get(i), "415", "C011", unsupported);
+		}
+		verifyNoInteractions(context.getBean(CommonCodeAdminService.class));
 	}
 
 	private void allowDocumentationAdmin() {

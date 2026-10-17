@@ -215,27 +215,194 @@ components:
     CommonCodeAdminResponse:
       properties:
         active:
+          description: "코드 자체의 활성 여부. 입력 필드명은 is_active이며 그룹의 활성 여부와 별개입니다."
+          example: true
           type: "boolean"
         code:
+          description: "그룹 내 고유 코드. 수정 경로의 code에 사용합니다."
+          example: "EXAMPLE_AMENITY"
           type: "string"
         description:
-          type: "string"
+          description: "코드 설명. 없으면 null 또는 빈 문자열"
+          example: "시설 설명"
+          type:
+          - "string"
+          - "null"
         name:
+          description: "코드 표시명"
+          example: "예시 편의시설"
           type: "string"
         sort_order:
+          description: "오름차순 정렬 값. 음수도 허용합니다."
+          example: 1
           format: "int32"
           type: "integer"
+      required:
+      - "active"
+      - "code"
+      - "description"
+      - "name"
+      - "sort_order"
+      type: "object"
+    CommonCodeGroupRequestCreate:
+      properties:
+        description:
+          description: "그룹 설명. 생략·null이면 설명 없이 생성하며 빈 문자열도 허용합니다."
+          example: "선택 목록에 표시할 그룹"
+          maxLength: 255
+          minLength: 0
+          type:
+          - "string"
+          - "null"
+        group_code:
+          description: "그룹 코드. 앞뒤 공백 제거 후 영문자로 시작하는 영문·숫자·밑줄 1~50자. 대문자로 저장하며 생성 후 변경하지 않습니다."
+          example: "EXAMPLE_GROUP"
+          maxLength: 50
+          minLength: 0
+          pattern: "^[A-Za-z][A-Za-z0-9_]*$"
+          type: "string"
+        group_name:
+          description: "그룹 표시명. 공백만 있는 값은 허용하지 않습니다."
+          example: "예시 그룹"
+          maxLength: 100
+          minLength: 0
+          pattern: "(?sU).*\\S.*"
+          type: "string"
+        is_active:
+          description: "그룹 활성 여부. 생략·null이면 true. 응답에서는 active라는 이름을 사용합니다."
+          example: true
+          type:
+          - "boolean"
+          - "null"
+      required:
+      - "group_code"
+      - "group_name"
+      type: "object"
+    CommonCodeGroupRequestUpdate:
+      properties:
+        description:
+          description: "변경할 설명. 생략·null이면 유지, 빈 문자열이면 내용을 비웁니다."
+          example: "선택 목록에 표시할 그룹"
+          maxLength: 255
+          minLength: 0
+          type:
+          - "string"
+          - "null"
+        group_name:
+          description: "변경할 그룹 표시명. 생략·null이면 유지하며 빈 문자열·공백만 있는 값은 허용하지 않습니다."
+          example: "예시 그룹"
+          maxLength: 100
+          minLength: 0
+          pattern: "(?sU).*\\S.*"
+          type:
+          - "string"
+          - "null"
+        is_active:
+          description: "변경할 그룹 활성 여부. 생략·null이면 유지. false이면 공개 목록에서 그룹 전체를 숨기며 하위 코드 자체의 active는 바꾸지 않습니다."
+          example: true
+          type:
+          - "boolean"
+          - "null"
       type: "object"
     CommonCodeGroupResponse:
       properties:
         active:
+          description: "그룹 활성 여부. 입력 필드명은 is_active이며 false이면 공개 코드 목록은 비어 있습니다."
+          example: true
           type: "boolean"
         description:
-          type: "string"
+          description: "그룹 설명. 없으면 null 또는 빈 문자열"
+          example: "선택 목록에 표시할 그룹"
+          type:
+          - "string"
+          - "null"
         group_code:
+          description: "그룹 코드. 공통 코드 조회·생성·관리 경로의 그룹 식별자로 사용합니다."
+          example: "EXAMPLE_GROUP"
           type: "string"
         group_name:
+          description: "그룹 표시명"
+          example: "예시 그룹"
           type: "string"
+      required:
+      - "active"
+      - "description"
+      - "group_code"
+      - "group_name"
+      type: "object"
+    CommonCodeRequestCreate:
+      properties:
+        code:
+          description: "그룹 내 고유 코드. 앞뒤 공백 제거 후 영문자로 시작하는 영문·숫자·밑줄 1~50자. 대문자로 저장하며 생성 후 변경하지 않습니다."
+          example: "EXAMPLE_AMENITY"
+          maxLength: 50
+          minLength: 0
+          pattern: "^[A-Za-z][A-Za-z0-9_]*$"
+          type: "string"
+        description:
+          description: "설명. 생략·null이면 설명 없이 생성하며 빈 문자열도 허용합니다."
+          example: "시설 설명"
+          maxLength: 255
+          minLength: 0
+          type:
+          - "string"
+          - "null"
+        is_active:
+          description: "코드 활성 여부. 생략·null이면 true. 공개 목록에는 그룹과 코드가 모두 활성인 항목만 표시하며 응답에서는 active라는 이름을 사용합니다."
+          example: true
+          type:
+          - "boolean"
+          - "null"
+        name:
+          description: "코드 표시명. 공백만 있는 값은 허용하지 않습니다."
+          example: "예시 편의시설"
+          maxLength: 100
+          minLength: 0
+          pattern: "(?sU).*\\S.*"
+          type: "string"
+        sort_order:
+          description: "32비트 정렬 순서. 생략·null이면 0이며 음수도 허용합니다. 작은 값부터 조회하고 같은 값 안의 순서는 보장하지 않습니다."
+          example: 1
+          format: "int32"
+          type:
+          - "integer"
+          - "null"
+      required:
+      - "code"
+      - "name"
+      type: "object"
+    CommonCodeRequestUpdate:
+      properties:
+        description:
+          description: "변경할 설명. 생략·null이면 유지, 빈 문자열이면 내용을 비웁니다."
+          example: "시설 설명"
+          maxLength: 255
+          minLength: 0
+          type:
+          - "string"
+          - "null"
+        is_active:
+          description: "변경할 코드 활성 여부. 생략·null이면 유지하며 false도 실제 변경값으로 처리합니다."
+          example: true
+          type:
+          - "boolean"
+          - "null"
+        name:
+          description: "변경할 표시명. 생략·null이면 유지하며 빈 문자열·공백만 있는 값은 허용하지 않습니다."
+          example: "예시 편의시설"
+          maxLength: 100
+          minLength: 0
+          pattern: "(?sU).*\\S.*"
+          type:
+          - "string"
+          - "null"
+        sort_order:
+          description: "변경할 32비트 정렬 순서. 생략·null이면 유지하며 0과 음수도 허용합니다."
+          example: 1
+          format: "int32"
+          type:
+          - "integer"
+          - "null"
       type: "object"
     CouponRequestCreate:
       properties:
@@ -444,31 +611,6 @@ components:
           type: "integer"
       required:
       - "id"
-      type: "object"
-    Create:
-      properties:
-        code:
-          maxLength: 50
-          minLength: 0
-          pattern: "^[A-Za-z][A-Za-z0-9_]*$"
-          type: "string"
-        description:
-          maxLength: 255
-          minLength: 0
-          type: "string"
-        is_active:
-          type: "boolean"
-        name:
-          maxLength: 100
-          minLength: 0
-          pattern: "(?sU).*\\S.*"
-          type: "string"
-        sort_order:
-          format: "int32"
-          type: "integer"
-      required:
-      - "code"
-      - "name"
       type: "object"
     DailyRevenue:
       properties:
@@ -699,23 +841,6 @@ components:
       - "has_more"
       - "items"
       type: "object"
-    Update:
-      properties:
-        description:
-          maxLength: 255
-          minLength: 0
-          type: "string"
-        is_active:
-          type: "boolean"
-        name:
-          maxLength: 100
-          minLength: 0
-          pattern: "(?sU).*\\S.*"
-          type: "string"
-        sort_order:
-          format: "int32"
-          type: "integer"
-      type: "object"
   securitySchemes:
     sessionCookie:
       description: "같은 서버의 POST /api/v1/auth/login에 성공하면 브라우저가 자동 저장·전송하는 HttpOnly 세션 쿠키입니다. 이 입력란에 쿠키를 붙여 넣지 않습니다. 자물쇠 표시는 실제 세션 상태를 나타내지 않으며, GET /api/v1/auth/me의 200 응답으로 로그인 상태를 확인합니다."
@@ -730,15 +855,15 @@ openapi: "3.1.0"
 paths:
   /api/v1/admin/common-code-groups:
     get:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "getGroups"
+      description: "활성·비활성 그룹 전체를 group_code 오름차순으로 조회합니다. 페이지 구분과 조회 캐시가 없으며 데이터가 없으면 빈 배열입니다. 각 응답의 active는 그룹 자체의 활성 여부입니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "CommonCodeAdmin.getGroups"
       responses:
         "200":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseListCommonCodeGroupResponse"
-          description: "OK"
+          description: "성공"
         "401":
           content:
             application/json:
@@ -789,24 +914,41 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "공통 코드 그룹 조회"
       tags:
-      - "common-code-admin-controller"
+      - "공통 코드 관리"
     post:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "createGroup"
+      description: "group_code의 앞뒤 공백을 제거하고 대문자로 저장합니다. group_name은 필수, description은 선택이며 is_active를 생략하거나 null이면 true입니다. 같은 그룹은 동시 요청에서도 409/CC004로 거절합니다. 201 응답의 group_code를 이후 관리 경로에 사용하며 Location 헤더는 없습니다. 공개 조회에 캐시된 그룹 없음 상태는 최대 1분간 유지될 수 있습니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "CommonCodeAdmin.createGroup"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Create"
+              $ref: "#/components/schemas/CommonCodeGroupRequestCreate"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseCommonCodeGroupResponse"
-          description: "OK"
+          description: "생성 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -839,6 +981,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                CC004:
+                  summary: "이미 존재하는 공통 코드 그룹입니다."
+                  value:
+                    error:
+                      code: "CC004"
+                      errors: []
+                      message: "이미 존재하는 공통 코드 그룹입니다."
+                      status: 409
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -857,14 +1031,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "공통 코드 그룹 생성"
       tags:
-      - "common-code-admin-controller"
+      - "공통 코드 관리"
   /api/v1/admin/common-code-groups/{groupCode}:
     patch:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "updateGroup"
+      description: "그룹 이름·설명·활성 상태를 부분 수정하며 group_code는 변경하지 않습니다. 생략하거나 null인 필드는 유지하고 description을 빈 문자열로 보내면 내용을 비웁니다. 빈 객체도 허용합니다. is_active=false로 바꿔도 하위 코드 자체의 active는 변경하지 않으며 공개 목록에서 그룹 전체를 숨깁니다. 공개 조회 캐시는 즉시 무효화하지 않아 최대 1분 뒤 반영됩니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "CommonCodeAdmin.updateGroup"
       parameters:
-      - in: "path"
+      - description: "수정할 그룹 코드. 대문자로 정규화합니다."
+        example: "EXAMPLE_GROUP"
+        in: "path"
         name: "groupCode"
         required: true
         schema:
@@ -873,7 +1050,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Update"
+              $ref: "#/components/schemas/CommonCodeGroupRequestUpdate"
         required: true
       responses:
         "200":
@@ -881,7 +1058,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseCommonCodeGroupResponse"
-          description: "OK"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -914,6 +1107,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                CC001:
+                  summary: "존재하지 않는 공통 코드 그룹입니다."
+                  value:
+                    error:
+                      code: "CC001"
+                      errors: []
+                      message: "존재하지 않는 공통 코드 그룹입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -932,14 +1157,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "공통 코드 그룹 수정"
       tags:
-      - "common-code-admin-controller"
+      - "공통 코드 관리"
   /api/v1/admin/common-codes/{group}:
     get:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "getAll"
+      description: "그룹 자체의 활성 여부와 관계없이 활성·비활성 코드 전체를 sort_order 오름차순으로 조회합니다. 같은 순서 값 안의 순서는 보장하지 않습니다. 페이지 구분과 조회 캐시는 없습니다. 그룹은 있지만 코드가 없으면 빈 배열, 그룹이 없으면 404/CC001입니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "CommonCodeAdmin.getAll"
       parameters:
-      - in: "path"
+      - description: "조회할 그룹 코드. 비활성 그룹도 허용합니다."
+        example: "AMENITY_TYPE"
+        in: "path"
         name: "group"
         required: true
         schema:
@@ -950,7 +1178,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseListCommonCodeAdminResponse"
-          description: "OK"
+          description: "성공"
         "401":
           content:
             application/json:
@@ -983,6 +1211,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                CC001:
+                  summary: "존재하지 않는 공통 코드 그룹입니다."
+                  value:
+                    error:
+                      code: "CC001"
+                      errors: []
+                      message: "존재하지 않는 공통 코드 그룹입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -1001,13 +1245,16 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "공통 코드 전체 조회"
       tags:
-      - "common-code-admin-controller"
+      - "공통 코드 관리"
     post:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "create"
+      description: "기존 그룹에 코드를 생성합니다. 비활성 그룹에도 생성할 수 있습니다. code의 앞뒤 공백을 제거하고 대문자로 저장하며 같은 그룹 내에서 고유합니다. name은 필수, sort_order 생략·null은 0, is_active 생략·null은 true입니다. 201로 생성된 코드를 반환하며 Location 헤더는 없습니다. 공개 조회 반영에는 최대 1분이 걸릴 수 있습니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "CommonCodeAdmin.create"
       parameters:
-      - in: "path"
+      - description: "기존 그룹 코드. 대문자로 정규화하며 비활성 그룹도 허용합니다."
+        example: "AMENITY_TYPE"
+        in: "path"
         name: "group"
         required: true
         schema:
@@ -1016,15 +1263,31 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Create"
+              $ref: "#/components/schemas/CommonCodeRequestCreate"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseCommonCodeAdminResponse"
-          description: "OK"
+          description: "생성 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -1057,6 +1320,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                CC001:
+                  summary: "존재하지 않는 공통 코드 그룹입니다."
+                  value:
+                    error:
+                      code: "CC001"
+                      errors: []
+                      message: "존재하지 않는 공통 코드 그룹입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                CC003:
+                  summary: "이미 존재하는 공통 코드입니다."
+                  value:
+                    error:
+                      code: "CC003"
+                      errors: []
+                      message: "이미 존재하는 공통 코드입니다."
+                      status: 409
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -1075,19 +1386,24 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "공통 코드 생성"
       tags:
-      - "common-code-admin-controller"
+      - "공통 코드 관리"
   /api/v1/admin/common-codes/{group}/{code}:
     patch:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "update"
+      description: "이름·설명·정렬 순서·활성 상태를 부분 수정하며 그룹과 code 식별자는 변경하지 않습니다. 생략·null 필드는 유지하고 description의 빈 문자열은 내용을 비웁니다. 빈 객체도 허용합니다. 그룹이나 코드가 없어 해당 조합을 찾지 못하면 404/CC002입니다. 공개 조회 반영에는 최대 1분이 걸릴 수 있습니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "CommonCodeAdmin.update"
       parameters:
-      - in: "path"
+      - description: "기존 그룹 코드. 대문자로 정규화하며 비활성 그룹도 허용합니다."
+        example: "AMENITY_TYPE"
+        in: "path"
         name: "group"
         required: true
         schema:
           type: "string"
-      - in: "path"
+      - description: "그룹 내 수정할 코드. 대문자로 정규화합니다."
+        example: "EXAMPLE_AMENITY"
+        in: "path"
         name: "code"
         required: true
         schema:
@@ -1096,7 +1412,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Update"
+              $ref: "#/components/schemas/CommonCodeRequestUpdate"
         required: true
       responses:
         "200":
@@ -1104,7 +1420,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseCommonCodeAdminResponse"
-          description: "OK"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -1137,6 +1469,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                CC002:
+                  summary: "존재하지 않는 공통 코드입니다."
+                  value:
+                    error:
+                      code: "CC002"
+                      errors: []
+                      message: "존재하지 않는 공통 코드입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -1155,8 +1519,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "공통 코드 수정"
       tags:
-      - "common-code-admin-controller"
+      - "공통 코드 관리"
   /api/v1/admin/coupons:
     post:
       description: "미래에 발급을 시작하는 캠페인을 생성하고 data.id를 반환합니다. 이 ID로 재고 준비·수정·삭제 API를 호출합니다.\n생성만으로 재고가 준비되지는 않으며, 활성 캠페인을 발급 시작 전에 stock/prepare로 준비해야 사용자 목록에 표시됩니다.\n\n이름은 공백만으로 지정할 수 없고 이름·설명은 최대 255자입니다. 전체 수량과 할인 값은 양수이며 정률 할인은 1~100입니다.\n발급 시작 < 발급 종료, 사용 시작 < 사용 종료, 사용 종료 >= 발급 종료를 만족해야 합니다.\n시각은 Z 또는 +09:00처럼 오프셋이 있는 ISO 8601 문자열입니다. UTC 기준 1000~9999년 범위이며 마이크로초로 반올림한 값으로 기간을 검증·저장합니다.\n형식 오류는 400/C001, 누락·길이·수량·할인·기간 등 설정 오류는 400/CP013입니다.\n 관리자(ADMIN) 권한이 필요합니다."

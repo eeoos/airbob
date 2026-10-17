@@ -1142,12 +1142,22 @@ components:
     CommonCodeResponse:
       properties:
         code:
+          description: "그룹 내 고유 코드. 숙소 유형·편의시설 입력에는 표시명이 아닌 이 값을 사용합니다."
+          example: "WIFI"
           type: "string"
         name:
+          description: "화면에 표시할 이름"
+          example: "무선 인터넷"
           type: "string"
         sort_order:
+          description: "오름차순 정렬 값. 음수를 포함하며 같은 값 안의 순서는 보장하지 않습니다."
+          example: 1
           format: "int32"
           type: "integer"
+      required:
+      - "code"
+      - "name"
+      - "sort_order"
       type: "object"
     CouponResponseCouponInfo:
       properties:
@@ -4450,9 +4460,12 @@ paths:
       - "인증"
   /api/v1/common-codes/{group}:
     get:
-      operationId: "getCommonCodes"
+      description: "로그인 없이 그룹의 활성 코드 목록을 sort_order 오름차순으로 조회합니다. 그룹명은 대문자로 정규화하며 같은 sort_order 안의 순서는 보장하지 않습니다. 페이지 구분 없이 전체 목록을 반환합니다.\n\n비활성 그룹이거나 활성 코드가 없으면 200과 빈 배열입니다. 존재하지 않는 그룹은 404/CC001입니다. 결과와 그룹 없음 상태를 서버 인스턴스별로 1분간 캐시하므로 관리자 변경 직후에는 이전 목록이나 404가 잠시 유지될 수 있습니다.\n"
+      operationId: "CommonCode.getCommonCodes"
       parameters:
-      - in: "path"
+      - description: "조회할 그룹 코드. AMENITY_TYPE(편의시설), ACCOMMODATION_TYPE(숙소 유형) 또는 관리자가 등록한 그룹"
+        example: "AMENITY_TYPE"
+        in: "path"
         name: "group"
         required: true
         schema:
@@ -4463,7 +4476,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseListCommonCodeResponse"
-          description: "OK"
+          description: "성공"
+        "404":
+          content:
+            application/json:
+              examples:
+                CC001:
+                  summary: "존재하지 않는 공통 코드 그룹입니다."
+                  value:
+                    error:
+                      code: "CC001"
+                      errors: []
+                      message: "존재하지 않는 공통 코드 그룹입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -4481,8 +4510,9 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security: []
+      summary: "활성 공통 코드 조회"
       tags:
-      - "common-code-controller"
+      - "공통 코드"
   /api/v1/coupons:
     get:
       description: "활성 상태이고 재고 준비를 완료했으며 발급 종료 시각 전인 캠페인만 조회합니다. 발급 시작 전·품절·이미 본인이 발급받은 캠페인도 포함됩니다.\n발급 시작 시각·캠페인 ID 내림차순이며 cursor와 size(기본 20, 1~50)로 다음 페이지를 조회합니다.\n\nissuance_status는 시작 전 UPCOMING이 우선이고, 시작 후 유한 수량의 잔여 재고가 없으면 SOLD_OUT, 그 외 OPEN입니다.\n과거 total_quantity=null은 발급 시작 후 OPEN으로 읽지만 새 무제한 쿠폰을 만들거나 발급할 수 있다는 의미는 아닙니다.\n전체 수량은 잔여 수량이 아닙니다. 발급 시 조건을 다시 확인하므로 목록의 OPEN이 발급 성공을 보장하지 않습니다.\n"

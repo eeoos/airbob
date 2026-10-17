@@ -3,6 +3,16 @@ package kr.kro.airbob.domain.commoncode.service;
 import static org.assertj.core.api.Assertions.*;
 
 import java.util.List;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeAdminResponse;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -299,5 +309,91 @@ class CommonCodeAdminServiceIntegrationTest {
 			new CommonCodeRequest.Create("HIDDEN", "숨김 코드", null, 1, true));
 
 		assertThat(commonCodeService.getCodes("INACTIVE_DYNAMIC_GROUP")).isEmpty();
+	}
+
+	@Test
+	void concurrentCreatesKeepOneGroupAndOneCodeAndReturnDomainConflicts() throws Exception {
+		var groups = race(() -> adminService.createGroup(new CommonCodeGroupRequest.Create("DOC_RACE_GROUP", "동시 그룹", null, null)));
+		assertThat(groups.stream().filter(CommonCodeGroupResponse.class::isInstance)).hasSize(1);
+		assertThat(groups.stream().filter(CommonCodeGroupDuplicateException.class::isInstance)).hasSize(7);
+		var codes = race(() -> adminService.create("DOC_RACE_GROUP", new CommonCodeRequest.Create("RACE_CODE", "동시 코드", null, null, null)));
+		assertThat(codes.stream().filter(CommonCodeAdminResponse.class::isInstance)).hasSize(1);
+		assertThat(codes.stream().filter(CommonCodeDuplicateException.class::isInstance)).hasSize(7);
+		assertThat(adminService.getAll("DOC_RACE_GROUP")).hasSize(1);
+	}
+
+	@Test
+	void cacheRetainsMissingAndInactiveSnapshotsUntilOneMinuteThenReloadsMysql() {
+		AtomicLong nanos = new AtomicLong();
+		var cached = CommonCodeService.withTicker(groupRepository, commonCodeRepository, nanos::get);
+		assertThatThrownBy(() -> cached.getCodes("DOC_CACHE_GROUP")).isInstanceOf(CommonCodeGroupNotFoundException.class);
+		adminService.createGroup(new CommonCodeGroupRequest.Create("DOC_CACHE_GROUP", "캐시 그룹", null, false));
+		adminService.create("DOC_CACHE_GROUP", new CommonCodeRequest.Create("WIFI", "와이파이", null, 0, true));
+		assertThat(adminService.getAll("DOC_CACHE_GROUP")).hasSize(1);
+		nanos.addAndGet(Duration.ofSeconds(59).toNanos());
+		assertThatThrownBy(() -> cached.getCodes("DOC_CACHE_GROUP")).isInstanceOf(CommonCodeGroupNotFoundException.class);
+		nanos.addAndGet(Duration.ofSeconds(2).toNanos());
+		assertThat(cached.getCodes("DOC_CACHE_GROUP")).isEmpty();
+		adminService.updateGroup("DOC_CACHE_GROUP", new CommonCodeGroupRequest.Update(null, null, true));
+		assertThat(cached.getCodes("DOC_CACHE_GROUP")).isEmpty();
+		nanos.addAndGet(Duration.ofSeconds(61).toNanos());
+		assertThat(cached.getCodes("DOC_CACHE_GROUP")).extracting(CommonCodeResponse::code).containsExactly("WIFI");
+		adminService.update("DOC_CACHE_GROUP", "WIFI", new CommonCodeRequest.Update(null, null, null, false));
+		assertThat(cached.getCodes("DOC_CACHE_GROUP")).hasSize(1);
+		nanos.addAndGet(Duration.ofSeconds(61).toNanos());
+		assertThat(cached.getCodes("DOC_CACHE_GROUP")).isEmpty();
+	}
+
+	@Test
+	void createDefaultsAndPatchNullEmptyAndNegativeOrderMatchStoredValues() {
+		var group = adminService.createGroup(new CommonCodeGroupRequest.Create("DOC_PATCH_GROUP", "그룹", "설명", null));
+		assertThat(group.active()).isTrue();
+		var created = adminService.create("DOC_PATCH_GROUP", new CommonCodeRequest.Create("wifi", "와이파이", "설명", null, null));
+		assertThat(created.code()).isEqualTo("WIFI");
+		assertThat(created.sortOrder()).isZero();
+		assertThat(created.active()).isTrue();
+		assertThat(adminService.update("DOC_PATCH_GROUP", "wifi", new CommonCodeRequest.Update(null, null, null, null))).isEqualTo(created);
+		assertThat(adminService.updateGroup("DOC_PATCH_GROUP", new CommonCodeGroupRequest.Update(null, null, null))).isEqualTo(group);
+		var updated = adminService.update("DOC_PATCH_GROUP", "wifi", new CommonCodeRequest.Update(null, "", -1, false));
+		assertThat(updated.description()).isEmpty();
+		assertThat(updated.name()).isEqualTo("와이파이");
+		assertThat(updated.sortOrder()).isEqualTo(-1);
+		assertThat(updated.active()).isFalse();
+		assertThat(adminService.getAll("DOC_PATCH_GROUP")).containsExactly(updated);
+		assertThatThrownBy(() -> adminService.update("DOC_MISSING_GROUP", "WIFI", new CommonCodeRequest.Update(null, null, null, null)))
+			.isInstanceOf(CommonCodeNotFoundException.class);
+	}
+
+	@Test
+	void maximumLengthValuesPersistAndCodeOrderUsesSignedIntegerBoundaries() {
+		String groupCode = "G".repeat(50), name = "이".repeat(100), description = "설".repeat(255);
+		var group = adminService.createGroup(new CommonCodeGroupRequest.Create(groupCode, name, description, null));
+		assertThat(group.groupName()).isEqualTo(name);
+		assertThat(group.description()).isEqualTo(description);
+		adminService.create(groupCode, new CommonCodeRequest.Create("A".repeat(50), name, description, Integer.MAX_VALUE, true));
+		adminService.create(groupCode, new CommonCodeRequest.Create("FIRST", "첫 코드", null, Integer.MIN_VALUE, true));
+		assertThat(adminService.getAll(groupCode)).extracting(CommonCodeAdminResponse::code).containsExactly("FIRST", "A".repeat(50));
+		assertThat(commonCodeService.getCodes(groupCode)).extracting(CommonCodeResponse::sortOrder).containsExactly(Integer.MIN_VALUE, Integer.MAX_VALUE);
+	}
+
+	private List<Object> race(Supplier<?> action) throws Exception {
+		int workers = 8;
+		var ready = new CountDownLatch(workers);
+		var start = new CountDownLatch(1);
+		try (var executor = Executors.newFixedThreadPool(workers)) {
+			List<Future<Object>> futures = new ArrayList<>();
+			for (int i = 0; i < workers; i++) {
+				futures.add(executor.submit(() -> {
+					ready.countDown();
+					if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("race start timeout");
+					try { return action.get(); } catch (BaseException exception) { return exception; }
+				}));
+			}
+			assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+			start.countDown();
+			List<Object> results = new ArrayList<>();
+			for (var future : futures) results.add(future.get(20, TimeUnit.SECONDS));
+			return results;
+		}
 	}
 }
