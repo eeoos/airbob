@@ -23,6 +23,7 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberHistory;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
+import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
 import kr.kro.airbob.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.repository.projection.MemberProfileProjection;
@@ -33,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class MemberServiceTest {
@@ -58,7 +60,7 @@ class MemberServiceTest {
             .password("password1")
             .thumbnailImageUrl("https://img.example/guest.png")
             .build();
-        given(memberRepository.existsByEmailAndStatus(request.getEmail(), MemberStatus.ACTIVE)).willReturn(false);
+        given(memberRepository.existsByEmail(request.getEmail())).willReturn(false);
 
         memberService.createMember(request);
 
@@ -67,6 +69,34 @@ class MemberServiceTest {
         assertNotEquals("password1", savedMember.getPassword());
         assertTrue(BCrypt.checkpw("password1", savedMember.getPassword()));
         then(historyRepository).should().save(any(MemberHistory.class));
+    }
+
+    @Test
+    void duplicateEmailIsRejectedBeforeWritingMemberOrHistory() {
+        MemberService service = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
+        MemberRequest.Signup request = MemberRequest.Signup.builder()
+            .email("docs@example.invalid").nickname("여행자").password("example-password").build();
+        given(memberRepository.existsByEmail(request.getEmail())).willReturn(true);
+
+        assertThatThrownBy(() -> service.createMember(request)).isInstanceOf(DuplicatedEmailException.class);
+
+        then(memberRepository).should(org.mockito.Mockito.never()).save(any(Member.class));
+        then(historyRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void unrelatedIntegrityFailureIsNotReportedAsDuplicateEmail() {
+        MemberService service = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
+        MemberRequest.Signup request = MemberRequest.Signup.builder()
+            .email("docs@example.invalid").nickname("여행자").password("example-password").build();
+        DataIntegrityViolationException failure = new DataIntegrityViolationException("unrelated database constraint");
+        given(memberRepository.save(any(Member.class))).willThrow(failure);
+
+        assertThatThrownBy(() -> service.createMember(request)).isSameAs(failure);
+
+        then(historyRepository).shouldHaveNoInteractions();
     }
 
     @Test

@@ -311,6 +311,110 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(profile).at("/data/nickname").isNull()).isTrue();
 	}
 
+	@Test
+	void memberSignupDocumentsNullableThumbnailAndDoesNotCreateSession() throws Exception {
+		JsonNode spec = specification("client");
+		JsonNode operation = spec.path("paths").path("/api/v1/members").path("post");
+		assertThat(operation.path("security").isEmpty()).isTrue();
+		assertThat(spec.at("/components/schemas/MemberRequestSignup/properties/email/minLength").asInt()).isEqualTo(1);
+		String request = """
+			{"nickname":"여행자","email":"docs@example.invalid","password":"example-password","thumbnail_image_url":null}
+			""";
+		validateInstance(spec, spec.at("/components/schemas/MemberRequestSignup"), mapper.readTree(request));
+		var response = mvc.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isCreated()).andReturn().getResponse();
+		validateResponse(spec, "/api/v1/members", "post", "201", response.getContentAsString());
+		assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.readTree("{\"success\":true}"));
+		assertThat(response.getHeader("Set-Cookie")).isNull();
+		verify(context.getBean(MemberService.class)).createMember(argThat(signup ->
+			signup.getEmail().equals("docs@example.invalid") && signup.getThumbnailImageUrl() == null));
+	}
+
+	@Test
+	void memberSignupValidationAndDuplicateEmailMatchDocumentedErrors() throws Exception {
+		JsonNode spec = specification("client");
+		MemberService service = context.getBean(MemberService.class);
+		ObjectNode valid = mapper.createObjectNode().put("nickname", "여행자")
+			.put("email", "docs@example.invalid").put("password", "example-password");
+		String longEmail = "a".repeat(64) + "@" + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(63);
+		for (JsonNode invalid : List.of(mapper.createObjectNode(),
+			valid.deepCopy().put("nickname", "a".repeat(21)), valid.deepCopy().put("nickname", "   "),
+			valid.deepCopy().put("password", "short"), valid.deepCopy().put("password", "a".repeat(21)),
+			valid.deepCopy().put("email", ""), valid.deepCopy().put("email", "invalid-email"), valid.deepCopy().put("email", longEmail),
+			valid.deepCopy().put("thumbnail_image_url", "a".repeat(256)))) {
+			var response = mvc.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
+				.andExpect(status().isBadRequest()).andReturn().getResponse();
+			assertDocumentedError(spec, "/api/v1/members", "post", "400", "C001", response.getContentAsString());
+			for (JsonNode error : mapper.readTree(response.getContentAsString()).at("/error/errors")) {
+				if (error.path("field").asText().equals("password")) {
+					assertThat(error.path("value").asText()).isEqualTo("[REDACTED]");
+				}
+			}
+		}
+		verifyNoInteractions(service);
+		doThrow(new DuplicatedEmailException()).when(service).createMember(any());
+		var duplicate = mvc.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+			.andExpect(status().isConflict()).andReturn().getResponse();
+		assertDocumentedError(spec, "/api/v1/members", "post", "409", "M002", duplicate.getContentAsString());
+	}
+
+	@Test
+	void memberRoleChangeUsesSessionGuardsAndDocumentsOnlyTargetId() throws Exception {
+		JsonNode spec = specification("admin");
+		String path = "/api/v1/admin/members/{memberId}/role";
+		JsonNode operation = spec.path("paths").path(path).path("patch");
+		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("memberId");
+		assertThat(operation.path("parameters").path(0).path("in").asText()).isEqualTo("path");
+		assertThat(operation.path("security").path(0).has("sessionCookie")).isTrue();
+		String request = "{\"role\":\"ADMIN\",\"reason\":\"  운영 관리자 지정  \"}";
+		MemberAdminService service = context.getBean(MemberAdminService.class);
+		var unauthenticated = mvc.perform(patch(path, 20).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isUnauthorized()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "patch", "401", "M004", unauthenticated.getContentAsString());
+		var forbidden = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isForbidden()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "patch", "403", "M006", forbidden.getContentAsString());
+		verifyNoInteractions(service);
+
+		when(context.getBean(MemberRepository.class).existsByIdAndStatusAndRole(10L, MemberStatus.ACTIVE, MemberRole.ADMIN))
+			.thenReturn(true);
+		when(service.changeRole(10L, 20L, new MemberAdminRequest.ChangeRole(MemberRole.ADMIN, "운영 관리자 지정")))
+			.thenReturn(new MemberAdminResponse.RoleChanged(20L, MemberRole.ADMIN));
+		String body = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "patch", "200", body);
+		assertThat(mapper.readTree(body)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"member_id\":20,\"role\":\"ADMIN\"}}"));
+		verify(service).changeRole(10L, 20L, new MemberAdminRequest.ChangeRole(MemberRole.ADMIN, "운영 관리자 지정"));
+	}
+
+	@Test
+	void memberRoleChangeValidationAndBusinessErrorsMatchSpecification() throws Exception {
+		JsonNode spec = specification("admin");
+		String path = "/api/v1/admin/members/{memberId}/role";
+		when(context.getBean(MemberRepository.class).existsByIdAndStatusAndRole(10L, MemberStatus.ACTIVE, MemberRole.ADMIN))
+			.thenReturn(true);
+		for (String invalid : List.of("{}", "{\"role\":\"UNKNOWN\",\"reason\":\"역할 변경\"}",
+			"{\"role\":\"ADMIN\",\"reason\":\"   \"}", "{\"role\":\"ADMIN\",\"reason\":\"" + "a".repeat(256) + "\"}")) {
+			var response = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse();
+			assertDocumentedError(spec, path, "patch", "400", "C001", response.getContentAsString());
+		}
+		String request = "{\"role\":\"MEMBER\",\"reason\":\"관리자 권한 회수\"}";
+		var invalidId = mvc.perform(patch(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isBadRequest()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "patch", "400", "C004", invalidId.getContentAsString());
+		MemberAdminService service = context.getBean(MemberAdminService.class);
+		verifyNoInteractions(service);
+		doThrow(new MemberNotFoundException()).when(service).changeRole(anyLong(), anyLong(), any());
+		var missing = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isNotFound()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "patch", "404", "M001", missing.getContentAsString());
+		doThrow(new MemberRoleChangeNotAllowedException()).when(service).changeRole(anyLong(), anyLong(), any());
+		var selfDemotion = mvc.perform(patch(path, 10).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isConflict()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "patch", "409", "M007", selfDemotion.getContentAsString());
+	}
+
 	private JsonNode specification(String group) throws Exception {
 		return new ObjectMapper().readTree(mvc.perform(get("/v3/api-docs/" + group))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());

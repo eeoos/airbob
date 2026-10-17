@@ -1286,6 +1286,42 @@ components:
         thumbnail_image_url:
           type: "string"
       type: "object"
+    MemberRequestSignup:
+      properties:
+        email:
+          description: "가입할 이메일. 최대 255자이며 기존 회원의 이메일은 사용할 수 없습니다."
+          example: "docs@example.invalid"
+          format: "email"
+          maxLength: 255
+          minLength: 1
+          type: "string"
+        nickname:
+          description: "1~20자 회원 표시 이름. 공백만 있는 값은 허용하지 않습니다."
+          example: "여행자"
+          maxLength: 20
+          minLength: 1
+          type: "string"
+        password:
+          description: "8~20자 비밀번호. 공백만 있는 값은 허용하지 않습니다."
+          example: "example-password"
+          format: "password"
+          maxLength: 20
+          minLength: 8
+          type: "string"
+          writeOnly: true
+        thumbnail_image_url:
+          description: "회원 썸네일 URL. 선택 항목으로 생략하거나 null을 보낼 수 있으며 최대 255자입니다."
+          example: "https://example.invalid/profile.jpg"
+          maxLength: 255
+          minLength: 0
+          type:
+          - "string"
+          - "null"
+      required:
+      - "email"
+      - "nickname"
+      - "password"
+      type: "object"
     MemberResponseMeInfo:
       properties:
         email:
@@ -1607,27 +1643,6 @@ components:
           - "PENDING"
           - "PAID"
           type: "string"
-      type: "object"
-    Signup:
-      properties:
-        email:
-          format: "email"
-          minLength: 1
-          type: "string"
-        nickname:
-          maxLength: 20
-          minLength: 1
-          type: "string"
-        password:
-          maxLength: 20
-          minLength: 8
-          type: "string"
-        thumbnail_image_url:
-          type: "string"
-      required:
-      - "email"
-      - "nickname"
-      - "password"
       type: "object"
     UnavailableDateRange:
       properties:
@@ -2710,20 +2725,53 @@ paths:
       - "coupon-controller"
   /api/v1/members:
     post:
-      operationId: "signup"
+      description: "로그인 없이 활성 상태의 일반 회원(MEMBER)을 생성합니다. 닉네임·이메일·비밀번호는 필수이고 썸네일은 선택입니다.\n탈퇴·휴면 회원을 포함해 이미 등록된 이메일은 사용할 수 없습니다. 중복된 요청은 동시 가입 시에도 409/M002로 거절합니다.\n\n성공 응답은 201과 {\"success\":true}입니다. 회원 ID나 세션 쿠키를 반환하지 않으므로,\n가입 후 인증 → 로그인으로 세션을 발급받고 인증 → 로그인 회원 조회에서 회원 ID를 확인합니다.\n"
+      operationId: "Member.signup"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Signup"
+              $ref: "#/components/schemas/MemberRequestSignup"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "생성 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                M002:
+                  summary: "이미 존재하는 이메일입니다."
+                  value:
+                    error:
+                      code: "M002"
+                      errors: []
+                      message: "이미 존재하는 이메일입니다."
+                      status: 409
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -2741,8 +2789,9 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security: []
+      summary: "회원 가입"
       tags:
-      - "member-controller"
+      - "회원"
   /api/v1/members/me/coupons:
     get:
       operationId: "findMyCoupons"

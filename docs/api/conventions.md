@@ -31,6 +31,34 @@
 
 서버가 세션에서 구하는 `memberId`, `hostId`, `actorMemberId`는 요청에 전달하지 않는다. 관리자 회원 역할 변경 경로의 `{memberId}`처럼 명세에 나온 대상 식별자는 별도로 전달한다.
 
+## 회원가입과 회원 역할 관리
+
+`POST /api/v1/members`는 로그인 없이 호출한다. `nickname`은 공백만 있는 값을 제외한 1~20자, `email`은 이메일 형식의 최대 255자, `password`는 공백만 있는 값을 제외한 8~20자로 모두 필수다. 선택 항목 `thumbnail_image_url`은 최대 255자이며 생략하거나 null을 보낼 수 있다.
+
+```json
+{"nickname":"여행자","email":"docs@example.invalid","password":"example-password","thumbnail_image_url":null}
+```
+
+가입 시 역할은 MEMBER, 상태는 ACTIVE로 정해진다. 성공 응답은 201과 `{"success":true}`이며 회원 ID나 세션 쿠키를 반환하지 않는다. 로그인 후 `GET /api/v1/auth/me`에서 ID를 확인한다. 탈퇴·휴면 회원을 포함해 등록된 이메일은 재사용할 수 없다. 동일 이메일로 가입이 경합해도 한 요청만 생성에 성공하고 중복 요청은 409/M002를 받는다.
+
+`PATCH /api/v1/admin/members/{memberId}/role`은 활성 ADMIN 회원만 호출할 수 있다. Swagger에서는 client 그룹에서 관리자로 로그인한 뒤 admin 그룹의 회원 관리 API를 실행한다. 경로의 `memberId`에는 변경 대상의 ID를 넣고, 요청자의 ID나 세션 ID는 직접 입력하지 않는다.
+
+```json
+{"role":"ADMIN","reason":"운영 관리자 지정"}
+```
+
+`role`은 MEMBER 또는 ADMIN이며 `reason`은 앞뒤 공백 제거 후 1~255자로 필수다. 이미 같은 역할이어도 사유 검증은 수행하지만 변경 이력은 추가하지 않고 200을 반환한다. 성공 응답의 `data`는 `{"member_id":20,"role":"ADMIN"}`처럼 대상 ID와 처리 후 역할을 담는다. 기존 로그인 세션은 유지되며 권한 변경은 대상의 다음 관리자 API 요청부터 반영된다.
+
+| 회원 API 오류 | 의미 |
+|---|---|
+| 400/C001 | 가입 필수값·형식·길이 오류, 역할 또는 변경 사유 오류, 읽을 수 없는 JSON |
+| 400/C004 | 역할 변경 경로의 memberId를 숫자로 읽을 수 없음 |
+| 401/M004 | 역할 변경 요청에 유효한 세션이 없음 |
+| 403/M006 | 요청자가 활성 ADMIN이 아님 |
+| 404/M001 | 역할 변경 대상이 없거나 탈퇴·휴면 상태임 |
+| 409/M002 | 이미 등록된 이메일로 가입 요청 |
+| 409/M007 | 요청자가 자신의 ADMIN 역할을 MEMBER로 변경하려고 함 |
+
 ## 성공과 오류 응답
 
 데이터가 있는 성공 응답:

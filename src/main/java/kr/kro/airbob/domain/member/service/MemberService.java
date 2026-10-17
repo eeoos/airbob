@@ -17,7 +17,9 @@ import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.repository.MemberHistoryRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +34,21 @@ public class MemberService {
 
     @Transactional
     public void createMember(Signup request) {
-        if(memberRepository.existsByEmailAndStatus(request.getEmail(), MemberStatus.ACTIVE)){
+        if (memberRepository.existsByEmail(request.getEmail())) {
             throw new DuplicatedEmailException();
         }
 
         String hashedPassword = BCrypt.hashpw(request.getPassword(), BCrypt.gensalt());
         Member member = Member.createMember(request, hashedPassword);
-        memberRepository.save(member);
+        try {
+            // IDENTITY inserts immediately; the unique index also guards concurrent signups.
+            memberRepository.save(member);
+        } catch (DataIntegrityViolationException exception) {
+            if (isDuplicateEmail(exception)) {
+                throw new DuplicatedEmailException(exception);
+            }
+            throw exception;
+        }
 
         // 첫 데이터(CREATE)부터 이력 기록 — 가입은 비인증 컨텍스트라 source_system 명시
         historyRepository.save(MemberHistory.openSystem(
@@ -71,5 +81,15 @@ public class MemberService {
 
     private LocalDateTime utcNow() {
         return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+    }
+
+    private boolean isDuplicateEmail(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation && violation.getErrorCode() == 1062) {
+                String constraint = violation.getConstraintName();
+                return "uk_member_email".equals(constraint) || "member.uk_member_email".equals(constraint);
+            }
+        }
+        return false;
     }
 }
