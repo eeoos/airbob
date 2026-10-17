@@ -3,13 +3,14 @@ package kr.kro.airbob.domain.auth.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.core.MethodParameter;
+import org.springframework.core.annotation.AnnotatedMethod;
 
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
 import kr.kro.airbob.domain.accommodation.api.AccommodationHostController;
@@ -38,14 +39,14 @@ class CurrentMemberIdControllerContractTest {
 		assertThat(matchingMethods).hasSize(1);
 		Method method = matchingMethods.getFirst();
 
-		List<Parameter> currentMemberParameters = Arrays.stream(method.getParameters())
-			.filter(parameter -> parameter.isAnnotationPresent(CurrentMemberId.class))
+		List<MethodParameter> currentMemberParameters = Arrays.stream(new AnnotatedMethod(method).getMethodParameters())
+			.filter(parameter -> parameter.hasParameterAnnotation(CurrentMemberId.class))
 			.toList();
 
 		assertThat(currentMemberParameters).hasSize(1);
-		Parameter parameter = currentMemberParameters.getFirst();
-		assertThat(parameter.getType()).isEqualTo(Long.class);
-		assertThat(parameter.getAnnotation(CurrentMemberId.class).required())
+		MethodParameter parameter = currentMemberParameters.getFirst();
+		assertThat(parameter.getParameterType()).isEqualTo(Long.class);
+		assertThat(parameter.getParameterAnnotation(CurrentMemberId.class).required())
 			.isEqualTo(contract.required());
 	}
 

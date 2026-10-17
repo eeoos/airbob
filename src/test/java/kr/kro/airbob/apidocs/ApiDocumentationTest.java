@@ -11,6 +11,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -24,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.nio.file.Files;
@@ -82,8 +84,10 @@ import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
+import kr.kro.airbob.cursor.dto.CursorData;
 import kr.kro.airbob.cursor.resolver.*;
 import kr.kro.airbob.cursor.util.CursorDecoder;
+import kr.kro.airbob.cursor.util.CursorEncoder;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
@@ -621,7 +625,7 @@ class ApiDocumentationTest {
 	}
 
 	@Test
-	void accommodationDetailDocumentsUnsetCurrencyAndLegacyHostNickname() throws Exception {
+	void accommodationDetailPreservesNullableFieldsAndOptionalAuthentication() throws Exception {
 		var detail = mapper.readValue("""
 			{"id":101,"name":"가상 숙소","description":"숙소 설명","type":"APARTMENT","base_price":100000,
 			 "currency":null,"check_in_time":"15:00:00","check_out_time":"11:00:00","time_zone_id":"Asia/Seoul",
@@ -630,13 +634,21 @@ class ApiDocumentationTest {
 			 "policy":{"max_occupancy":4,"infant_occupancy":1,"pet_occupancy":0},"amenities":[],"images":[],
 			 "review_summary":{"total_count":0,"average_rating":0}}
 			""", AccommodationResponse.DetailInfo.class);
-		when(context.getBean(AccommodationQueryService.class).findAccommodation(101L, null)).thenReturn(detail);
+		var service = context.getBean(AccommodationQueryService.class);
+		when(service.findAccommodation(101L, null)).thenReturn(detail);
 		String body = mvc.perform(get("/api/v1/accommodations/101")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(specification("client"), "/api/v1/accommodations/{accommodationId}", "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/currency").isNull()).isTrue();
 		assertThat(mapper.readTree(body).at("/data/host/nickname").isNull()).isTrue();
 		assertThat(mapper.readTree(body).at("/data/is_in_wishlist").asBoolean()).isFalse();
+		verify(service).findAccommodation(101L, null);
+
+		when(service.findAccommodation(101L, 10L)).thenReturn(detail);
+		String authenticated = mvc.perform(get("/api/v1/accommodations/101").cookie(SESSION))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(specification("client"), "/api/v1/accommodations/{accommodationId}", "get", "200", authenticated);
+		verify(service).findAccommodation(101L, 10L);
 	}
 
 	@Test
@@ -652,9 +664,40 @@ class ApiDocumentationTest {
 		validateResponse(spec, path, "get", "200", body);
 		assertThat(spec.path("paths").path(path).path("get").path("parameters").findValuesAsText("name"))
 			.containsExactlyInAnyOrder("status", "cursor", "size");
+		verify(context.getBean(AccommodationQueryService.class)).findMyAccommodations(eq(10L),
+			argThat(request -> request.size() == 20 && request.lastId() == null && request.lastCreatedAt() == null),
+			eq(AccommodationStatus.DRAFT));
 		String invalid = mvc.perform(get(path).cookie(SESSION).param("status", "UNKNOWN"))
 			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "400", "C004", invalid);
+	}
+
+	@Test
+	void accommodationHostListBindsCursorAndRejectsInvalidInputs() throws Exception {
+		String path = "/api/v1/profile/host/accommodations";
+		JsonNode spec = specification("client");
+		var service = context.getBean(AccommodationQueryService.class);
+		when(service.findMyAccommodations(eq(10L), any(), eq(AccommodationStatus.DRAFT)))
+			.thenReturn(new AccommodationResponse.HostAccommodationInfos(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+		LocalDateTime createdAt = LocalDateTime.parse("2027-01-01T12:30:00");
+		String cursor = new CursorEncoder(mapper).encode(new CursorData(80L, createdAt));
+		String body = mvc.perform(get(path).cookie(SESSION).param("cursor", cursor).param("size", "7").param("status", "DRAFT"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", body);
+		verify(service).findMyAccommodations(eq(10L),
+			argThat(request -> request.size() == 7 && request.lastId() == 80L && createdAt.equals(request.lastCreatedAt())),
+			eq(AccommodationStatus.DRAFT));
+
+		String malformed = mvc.perform(get(path).cookie(SESSION).param("cursor", "%%%"))
+			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "400", "C010", malformed);
+		String oversized = mvc.perform(get(path).cookie(SESSION).param("size", "51"))
+			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "400", "C006", oversized);
+		String anonymous = mvc.perform(get(path)).andExpect(status().isUnauthorized())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "401", "M004", anonymous);
+		verifyNoMoreInteractions(service);
 	}
 
 	@Test
