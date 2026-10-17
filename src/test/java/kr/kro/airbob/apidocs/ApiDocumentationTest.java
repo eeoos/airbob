@@ -179,6 +179,7 @@ import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.exception.*;
 import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
+import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
@@ -2384,6 +2385,103 @@ class ApiDocumentationTest {
 		}
 	}
 
+
+	@Test
+	void revenueStatsRejectsReversedAndUnsupportedDateRangesBeforeCallingServices() throws Exception {
+		allowDocumentationAdmin();
+		for (var range : List.of(List.of("2027-02-01", "2027-01-01"), List.of("0999-12-31", "2027-01-01"),
+			List.of("2027-01-01", "+10000-01-01"))) {
+			mvc.perform(get("/api/v1/admin/stats/revenue").cookie(SESSION).param("from", range.get(0)).param("to", range.get(1)))
+				.andExpect(status().isBadRequest());
+			mvc.perform(post("/api/v1/admin/stats/revenue/recompute").cookie(SESSION).param("from", range.get(0)).param("to", range.get(1)))
+				.andExpect(status().isBadRequest());
+		}
+		verifyNoInteractions(context.getBean(RevenueStatsService.class));
+	}
+
+	@Test
+	void revenueStatsOperationsRequireActiveAdminAndOnlyDateQueryInputs() throws Exception {
+		JsonNode spec = specification("admin");
+		var paths = List.of("/api/v1/admin/stats/revenue", "/api/v1/admin/stats/revenue/recompute");
+		var methods = List.of("get", "post");
+		var requests = List.of(get(paths.get(0)), post(paths.get(1)));
+		for (int i = 0; i < requests.size(); i++) {
+			var request = requests.get(i).param("from", "2027-01-01").param("to", "2027-01-31");
+			String absent = mvc.perform(request).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths.get(i), methods.get(i), "401", "M004", absent);
+			String forbidden = mvc.perform(request.cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths.get(i), methods.get(i), "403", "M006", forbidden);
+			JsonNode operation = spec.path("paths").path(paths.get(i)).path(methods.get(i));
+			assertThat(operation.has("requestBody")).isFalse();
+			assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("from", "to");
+			for (JsonNode parameter : operation.path("parameters")) {
+				assertThat(parameter.path("in").asText()).isEqualTo("query");
+				assertThat(parameter.path("required").asBoolean()).isTrue();
+				assertThat(parameter.at("/schema/format").asText()).isEqualTo("date");
+				assertThat(parameter.path("description").asText()).contains("UTC");
+			}
+		}
+		verifyNoInteractions(context.getBean(RevenueStatsService.class));
+	}
+
+	@Test
+	void revenueStatsReadAndRecomputeMatchSparseNegativeAmountsAndBodylessSuccess() throws Exception {
+		allowDocumentationAdmin();
+		var service = context.getBean(RevenueStatsService.class);
+		JsonNode spec = specification("admin");
+		String path = "/api/v1/admin/stats/revenue";
+		LocalDate from = LocalDate.of(2027, 1, 1), to = LocalDate.of(2027, 1, 31);
+		when(service.getDailyRevenue(from, to)).thenReturn(new RevenueStatsResponse.DailyRevenues(from, to, "stats", List.of(
+			new RevenueStatsResponse.DailyRevenue(from, 150000, 20000, 130000, 2, 1),
+			new RevenueStatsResponse.DailyRevenue(from.plusDays(2), 0, 50, -50, 0, 2))));
+		String body = mvc.perform(get(path).cookie(SESSION).param("from", from.toString()).param("to", to.toString()))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", body);
+		assertThat(mapper.readTree(body).path("data")).isEqualTo(mapper.readTree("""
+			{"from":"2027-01-01","to":"2027-01-31","source":"stats","items":[
+			  {"date":"2027-01-01","gross_amount":150000,"refund_amount":20000,"net_amount":130000,"payment_count":2,"refund_count":1},
+			  {"date":"2027-01-03","gross_amount":0,"refund_amount":50,"net_amount":-50,"payment_count":0,"refund_count":2}]}
+			"""));
+		verify(service).getDailyRevenue(from, to);
+		when(service.getDailyRevenue(from, from)).thenReturn(new RevenueStatsResponse.DailyRevenues(from, from, "stats", List.of()));
+		String empty = mvc.perform(get(path).cookie(SESSION).param("from", from.toString()).param("to", from.toString()))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", empty);
+		assertThat(mapper.readTree(empty).at("/data/items").isEmpty()).isTrue();
+		for (String date : List.of("1000-01-01", "9999-12-31")) {
+			String success = mvc.perform(post(path + "/recompute").cookie(SESSION).param("from", date).param("to", date))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path + "/recompute", "post", "200", success);
+			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
+			verify(service).backfill(LocalDate.parse(date), LocalDate.parse(date));
+		}
+	}
+
+	@Test
+	void revenueStatsMissingMalformedAndReversedDatesMatchDocumentedErrors() throws Exception {
+		allowDocumentationAdmin();
+		JsonNode spec = specification("admin");
+		String path = "/api/v1/admin/stats/revenue";
+		for (String method : List.of("get", "post")) {
+			String endpoint = method.equals("get") ? path : path + "/recompute";
+			for (var values : List.of(List.of("2027-02-01", "2027-01-01", "C001"),
+				List.of("0999-12-31", "2027-01-01", "C001"), List.of("2027-01-01", "+10000-01-01", "C001"),
+				List.of("2027-02-30", "2027-03-01", "C004"), List.of("2027-1-1", "2027-03-01", "C004"),
+				List.of("", "2027-03-01", "C001"))) {
+				var request = method.equals("get") ? get(endpoint) : post(endpoint);
+				String body = mvc.perform(request.cookie(SESSION).param("from", values.get(0)).param("to", values.get(1)))
+					.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, endpoint, method, "400", values.get(2), body);
+			}
+			for (String present : List.of("from", "to")) {
+				var request = method.equals("get") ? get(endpoint) : post(endpoint);
+				String body = mvc.perform(request.cookie(SESSION).param(present, "2027-01-01"))
+					.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, endpoint, method, "400", "C001", body);
+			}
+		}
+		verifyNoInteractions(context.getBean(RevenueStatsService.class));
+	}
 
 	private Settlement documentationSettlement() {
 		return Settlement.builder().id(101L).hostId(10L).settlementMonth(LocalDate.parse("2027-01-01"))

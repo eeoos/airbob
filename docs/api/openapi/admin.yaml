@@ -76,18 +76,6 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseDailyRevenues:
-      properties:
-        data:
-          $ref: "#/components/schemas/DailyRevenues"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
     ApiResponseListCommonCodeAdminResponse:
       properties:
         data:
@@ -158,6 +146,18 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/PaymentOperationAdminResponseManualReviewQueue"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseRevenueStatsResponseDailyRevenues:
+      properties:
+        data:
+          $ref: "#/components/schemas/RevenueStatsResponseDailyRevenues"
         success:
           enum:
           - true
@@ -575,42 +575,6 @@ components:
       required:
       - "id"
       type: "object"
-    DailyRevenue:
-      properties:
-        date:
-          format: "date"
-          type: "string"
-        gross_amount:
-          format: "int64"
-          type: "integer"
-        net_amount:
-          format: "int64"
-          type: "integer"
-        payment_count:
-          format: "int64"
-          type: "integer"
-        refund_amount:
-          format: "int64"
-          type: "integer"
-        refund_count:
-          format: "int64"
-          type: "integer"
-      type: "object"
-    DailyRevenues:
-      properties:
-        from:
-          format: "date"
-          type: "string"
-        items:
-          items:
-            $ref: "#/components/schemas/DailyRevenue"
-          type: "array"
-        source:
-          type: "string"
-        to:
-          format: "date"
-          type: "string"
-      type: "object"
     ErrorResponse:
       properties:
         code:
@@ -803,6 +767,65 @@ components:
       required:
       - "has_more"
       - "items"
+      type: "object"
+    RevenueStatsResponseDailyRevenue:
+      description: "UTC 날짜별 전체 숙소의 사전 집계. 통화 구분·환산 없이 원장 금액을 합산합니다."
+      properties:
+        date:
+          description: "집계 기준 UTC 날짜"
+          example: "2027-01-01"
+          format: "date"
+          type: "string"
+        gross_amount:
+          description: "해당 UTC 날짜에 생성된 CONFIRM 원장 행의 amount 합계. 금액 null은 0으로 계산"
+          example: 150000
+          format: "int64"
+          type: "integer"
+        net_amount:
+          description: "gross_amount - refund_amount. 수수료 차감 전 차액이며 환불만 있으면 음수 가능"
+          example: 130000
+          format: "int64"
+          type: "integer"
+        payment_count:
+          description: "집계된 CONFIRM 원장 행 수. 고유 예약·회원 수가 아니며 금액이 0인 행도 포함"
+          example: 2
+          format: "int64"
+          type: "integer"
+        refund_amount:
+          description: "CANCEL·PARTIAL_CANCEL 원장 행의 cancel_amount 합계. canceled_at의 UTC 날짜, 없으면 created_at 기준. 금액 null은 0"
+          example: 20000
+          format: "int64"
+          type: "integer"
+        refund_count:
+          description: "집계된 CANCEL·PARTIAL_CANCEL 원장 행 수. 같은 예약의 여러 환불도 각각 계산"
+          example: 1
+          format: "int64"
+          type: "integer"
+      type: "object"
+    RevenueStatsResponseDailyRevenues:
+      description: "양 끝 날짜를 포함한 사전 집계 조회 결과. 실시간 원장 조회가 아닙니다."
+      properties:
+        from:
+          description: "요청한 조회 시작일, 포함"
+          example: "2027-01-01"
+          format: "date"
+          type: "string"
+        items:
+          description: "날짜 오름차순. 집계 행이 없는 날은 생략하며 결과가 없으면 빈 배열. 페이지네이션 없음"
+          items:
+            $ref: "#/components/schemas/RevenueStatsResponseDailyRevenue"
+          type: "array"
+        source:
+          description: "조회 출처. 항상 stats(사전 집계)"
+          enum:
+          - "stats"
+          example: "stats"
+          type: "string"
+        to:
+          description: "요청한 조회 종료일, 포함"
+          example: "2027-01-31"
+          format: "date"
+          type: "string"
       type: "object"
     SettlementResponseAdminSettlement:
       properties:
@@ -3252,16 +3275,20 @@ paths:
       - "정산"
   /api/v1/admin/stats/revenue:
     get:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "getDailyRevenue"
+      description: "from과 to를 포함하는 UTC 날짜 구간의 사전 집계 결과를 날짜 오름차순으로 조회합니다. 전체 숙소의 결제 승인액·환불액·차액과 거래 원장 행 수를 합산하며, 통화별 구분이나 환산은 하지 않습니다. 실시간 결제 조회가 아니므로 아직 집계하지 않은 거래는 반영되지 않습니다. 집계 행이 없는 날짜는 생략하며, 결과가 없으면 items는 빈 배열입니다. 페이지네이션은 없습니다. from ≤ to이고 양쪽 연도는 1000~9999여야 합니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "RevenueStats.getDailyRevenue"
       parameters:
-      - in: "query"
+      - description: "조회 시작일, 포함. UTC 날짜 YYYY-MM-DD"
+        example: "2027-01-01"
+        in: "query"
         name: "from"
         required: true
         schema:
           format: "date"
           type: "string"
-      - in: "query"
+      - description: "조회 종료일, 포함. 시작일 이상인 UTC 날짜 YYYY-MM-DD"
+        example: "2027-01-31"
+        in: "query"
         name: "to"
         required: true
         schema:
@@ -3272,8 +3299,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseDailyRevenues"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseRevenueStatsResponseDailyRevenues"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -3324,20 +3376,25 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "일별 매출 조회"
       tags:
-      - "revenue-stats-controller"
+      - "매출 통계"
   /api/v1/admin/stats/revenue/recompute:
     post:
-      description: "null 관리자(ADMIN) 권한이 필요합니다."
-      operationId: "recompute"
+      description: "from과 to를 포함하는 UTC 날짜 구간을 결제 거래 원장에서 동기 재집계합니다. 각 날짜의 기존 집계 행을 삭제한 뒤 다시 저장하며, 거래가 없는 날짜는 집계 행도 제거됩니다. 전체 구간이 한 트랜잭션이므로 중간 실패 시 이번 요청의 모든 변경이 롤백됩니다. 응답은 처리가 끝난 뒤 반환하며, data·처리 건수·작업 ID는 없습니다. 요청 본문 없이 from/to 쿼리만 전달합니다. from ≤ to이고 양쪽 연도는 1000~9999여야 합니다. 오늘·미래 날짜도 허용합니다. 자동 집계는 매일 04:00 UTC에 전일을 처리하므로 과거 날짜에 늦게 반영된 거래는 해당 날짜를 다시 집계해야 합니다. 관리자(ADMIN) 권한이 필요합니다."
+      operationId: "RevenueStats.recompute"
       parameters:
-      - in: "query"
+      - description: "재집계 시작일, 포함. UTC 날짜 YYYY-MM-DD"
+        example: "2027-01-01"
+        in: "query"
         name: "from"
         required: true
         schema:
           format: "date"
           type: "string"
-      - in: "query"
+      - description: "재집계 종료일, 포함. 시작일 이상인 UTC 날짜 YYYY-MM-DD"
+        example: "2027-01-31"
+        in: "query"
         name: "to"
         required: true
         schema:
@@ -3349,7 +3406,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "재집계 완료. success만 반환"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -3400,7 +3482,8 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "매출 통계 재집계"
       tags:
-      - "revenue-stats-controller"
+      - "매출 통계"
 servers:
 - url: "/"

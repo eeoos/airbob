@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -145,6 +146,79 @@ class DailyRevenueStatsIntegrationTest {
 			new RevenueStatsResponse.DailyRevenue(D1, 80000, 0, 80000, 3, 0),
 			new RevenueStatsResponse.DailyRevenue(D2, 7000, 5000, 2000, 1, 1)
 		);
+	}
+
+	@Test
+	@DisplayName("미집계·거래 없는 날은 생략하고 늦게 반영된 거래는 재집계 후 조회된다")
+	void sparseDatesAndLateTransactionsRequireRecomputation() {
+		assertThat(revenueStatsService.getDailyRevenue(D1.minusDays(1), D2.plusDays(1)).items()).isEmpty();
+		revenueStatsService.backfill(D1.minusDays(1), D2.plusDays(1));
+		assertThat(revenueStatsService.getDailyRevenue(D1.minusDays(1), D2.plusDays(1)).items())
+			.extracting(RevenueStatsResponse.DailyRevenue::date).containsExactly(D1, D2);
+
+		long reservation = insertReservation("LATE", acc1, jdbc.queryForObject("SELECT member_id FROM accommodation WHERE id = ?", Long.class, acc1));
+		insertConfirm(reservation, 123, D1);
+		assertThat(revenueStatsService.getDailyRevenue(D1, D1).items().getFirst().grossAmount()).isEqualTo(80000);
+		revenueStatsService.recompute(D1);
+		assertThat(revenueStatsService.getDailyRevenue(D1, D1).items().getFirst().grossAmount()).isEqualTo(80123);
+
+		// 원장 행이 없는 날짜를 재집계하면 과거 집계도 남지 않는다.
+		jdbc.update("DELETE FROM payment_transaction WHERE transaction_type = 'CONFIRM' AND DATE(created_at) = ?", D1);
+		revenueStatsService.recompute(D1);
+		assertThat(revenueStatsService.getDailyRevenue(D1, D1).items()).isEmpty();
+		assertThat(revenueStatsService.getDailyRevenue(D2, D2).items()).hasSize(1);
+	}
+
+	@Test
+	@DisplayName("UTC 자정·환불 시각 대체·같은 예약의 여러 환불·금액 null을 원장 행 단위로 집계한다")
+	void utcBoundariesRefundFallbackAndLedgerCountsMatchTheContract() {
+		LocalDate d3 = D2.plusDays(1);
+		long reservation = jdbc.queryForObject("SELECT id FROM reservation WHERE reservation_code = 'R1'", Long.class);
+		jdbc.update("""
+			INSERT INTO payment_transaction (reservation_id, transaction_type, amount, cancel_amount, canceled_at, created_at, updated_at)
+			VALUES (?, 'CONFIRM', 100, NULL, NULL, ?, NOW(6)),
+			       (?, 'CONFIRM', NULL, NULL, NULL, ?, NOW(6)),
+			       (?, 'PARTIAL_CANCEL', NULL, 20, ?, ?, NOW(6)),
+			       (?, 'CANCEL', NULL, 30, NULL, ?, NOW(6)),
+			       (?, 'CANCEL', NULL, NULL, NULL, ?, NOW(6)),
+			       (?, 'FAIL', 900000, NULL, NULL, ?, NOW(6)),
+			       (?, 'CANCEL_FAIL', NULL, 800000, NULL, ?, NOW(6)),
+			       (?, 'VIRTUAL_ISSUED', 700000, NULL, NULL, ?, NOW(6))
+			""", reservation, D2.atTime(23, 59, 59, 999_999_000),
+			reservation, d3.atStartOfDay(),
+			reservation, d3.atStartOfDay(), d3.plusDays(2).atTime(9, 0),
+			reservation, d3.atStartOfDay(), reservation, d3.atStartOfDay(),
+			reservation, d3.atStartOfDay(), reservation, d3.atStartOfDay(), reservation, d3.atStartOfDay());
+
+		revenueStatsService.backfill(D2, d3.plusDays(2));
+		assertThat(revenueStatsService.getDailyRevenue(D2, d3.plusDays(2)).items()).containsExactly(
+			new RevenueStatsResponse.DailyRevenue(D2, 7100, 5000, 2100, 2, 1),
+			new RevenueStatsResponse.DailyRevenue(d3, 0, 50, -50, 1, 3));
+	}
+
+	@Test
+	@DisplayName("구간 후반의 집계 실패는 앞 날짜 삭제·재생성까지 모두 롤백한다")
+	void backfillFailureRollsBackEveryDateInTheRequestedRange() {
+		revenueStatsService.backfill(D1, D2);
+		var original = revenueStatsService.getDailyRevenue(D1, D2);
+		long r1 = jdbc.queryForObject("SELECT id FROM reservation WHERE reservation_code = 'R1'", Long.class);
+		long r4 = jdbc.queryForObject("SELECT id FROM reservation WHERE reservation_code = 'R4'", Long.class);
+		insertConfirm(r1, 123, D1);
+		// D2/acc2 합계가 BIGINT를 넘도록 만들어 실제 MySQL INSERT 실패를 유도한다.
+		insertConfirm(r4, Long.MAX_VALUE, D2);
+
+		assertThatThrownBy(() -> revenueStatsService.backfill(D1, D2)).isInstanceOf(DataAccessException.class);
+		assertThat(revenueStatsService.getDailyRevenue(D1, D2)).isEqualTo(original);
+	}
+
+	@Test
+	@DisplayName("MySQL DATE의 양 끝 날짜를 포함해 거래 없는 미래 날짜도 재집계할 수 있다")
+	void supportedDateBoundariesAllowEmptyResults() {
+		for (LocalDate date : List.of(LocalDate.of(1000, 1, 1), LocalDate.of(9999, 12, 31))) {
+			revenueStatsService.backfill(date, date);
+			assertThat(revenueStatsService.getDailyRevenue(date, date))
+				.isEqualTo(new RevenueStatsResponse.DailyRevenues(date, date, "stats", List.of()));
+		}
 	}
 
 	// ===== helpers =====
