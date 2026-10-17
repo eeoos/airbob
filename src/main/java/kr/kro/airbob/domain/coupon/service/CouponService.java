@@ -25,11 +25,11 @@ public class CouponService {
 	private final CouponIssueUnitStore units;
 
 	@Transactional
-	public void createCoupon(CouponRequest.Create dto) {
+	public Long createCoupon(CouponRequest.Create dto) {
 		var coupon = Coupon.of(dto);
 		coupon.validateConfiguration();
 		if (!units.databaseNow().isBefore(coupon.getIssueStartAt())) throw new CouponInvalidConfigurationException();
-		couponRepository.save(coupon);
+		return couponRepository.save(coupon).getId();
 	}
 
 	@Transactional

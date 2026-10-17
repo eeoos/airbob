@@ -2,6 +2,8 @@ package kr.kro.airbob.domain.coupon.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -75,12 +77,13 @@ class CouponAdminControllerTest {
 
 	@Test
 	void acceptsExplicitOffsetsAsInstantsBeforeCallingTheService() throws Exception {
+		when(couponService.createCoupon(any())).thenReturn(101L);
 		mockMvc.perform(post("/api/v1/admin/coupons").contentType("application/json").content("""
 			{"name":"new year","discount_type":"FIXED_AMOUNT","discount_value":1000,
 			 "issue_start_at":"2027-01-01T00:30:00.123456+09:00","issue_end_at":"2027-01-01T01:30:00.123456+09:00",
 			 "usable_from":"2027-01-01T00:30:00.123456+09:00","usable_until":"2027-02-01T00:30:00.123456+09:00",
 			 "is_active":true,"total_quantity":100}
-			""")).andExpect(status().isCreated());
+			""")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value(101));
 		var command = ArgumentCaptor.forClass(CouponRequest.Create.class);
 		verify(couponService).createCoupon(command.capture());
 		assertThat(command.getValue().issueStartAt()).isEqualTo(Instant.parse("2026-12-31T15:30:00.123456Z"));

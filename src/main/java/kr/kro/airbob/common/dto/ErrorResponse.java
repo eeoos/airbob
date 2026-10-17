@@ -6,6 +6,7 @@ import java.util.Locale;
 
 import org.springframework.validation.BindingResult;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.common.exception.ErrorCode;
 import lombok.Getter;
 
@@ -46,6 +47,7 @@ public class ErrorResponse {
 		FieldError fieldError = new FieldError(field, "N/A", reason);
 		return new ErrorResponse(code, fieldError);
 	}
+	@Schema(name = "ErrorResponseFieldError")
 	public record FieldError(
 		String field,
 		String value,

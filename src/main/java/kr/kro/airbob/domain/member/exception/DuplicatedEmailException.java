@@ -8,4 +8,8 @@ public class DuplicatedEmailException extends BaseException {
 	public DuplicatedEmailException() {
 		super(ErrorCode.EMAIL_DUPLICATION);
 	}
+
+	public DuplicatedEmailException(Throwable cause) {
+		super(cause, ErrorCode.EMAIL_DUPLICATION);
+	}
 }

@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import static kr.kro.airbob.geo.dto.GoogleGeocodeResponse.Geometry.*;
+import static kr.kro.airbob.search.dto.AccommodationSearchRequest.MAX_PAGE_NUMBER;
 
 @Service
 @Slf4j
@@ -51,6 +52,11 @@ public class AccommodationSearchService {
 
         if (!req.isValidOccupancy()) {
             req.setDefaultOccupancy();
+        }
+
+        // 색인의 maxGuests는 32비트 정수이므로 이보다 큰 합계는 수용 가능한 숙소가 없다.
+        if (req.getTotalGuests() > Integer.MAX_VALUE) {
+            return createEmpty(pageable);
         }
 
         Viewport viewport = determineViewport(mapBounds);
@@ -86,7 +92,13 @@ public class AccommodationSearchService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        if (docs.isEmpty()) return createEmpty(pageable);
+        long total = res.hits().total() != null ? res.hits().total().value() : docs.size();
+        if (docs.isEmpty()) {
+            return AccommodationSearchResponse.AccommodationSearchInfos.builder()
+                    .staySearchResultListing(List.of())
+                    .pageInfo(pageInfo(pageable, total))
+                    .build();
+        }
 
         List<Long> ids = docs.stream().map(AccommodationDocument::accommodationId).toList();
         Set<Long> wishlistIds = getWishlist(ids, memberId);
@@ -98,8 +110,6 @@ public class AccommodationSearchService {
                                 wishlistIds.contains(d.accommodationId())
                         ))
                         .toList();
-
-        long total = res.hits().total() != null ? res.hits().total().value() : docs.size();
 
         return AccommodationSearchResponse.AccommodationSearchInfos.builder()
                 .staySearchResultListing(list)
@@ -265,6 +275,7 @@ public class AccommodationSearchService {
         int size = pageable.getPageSize();
         int page = pageable.getPageNumber();
         int pages = (int) Math.ceil((double) total / size);
+        boolean hasNext = page < Math.min(pages - 1, MAX_PAGE_NUMBER);
 
         return AccommodationSearchResponse.PageInfo.builder()
                 .pageSize(size)
@@ -272,8 +283,8 @@ public class AccommodationSearchService {
                 .totalPages(pages)
                 .totalElements(total)
                 .isFirst(page == 0)
-                .isLast(page >= pages - 1)
-                .hasNext(page < pages - 1)
+                .isLast(!hasNext)
+                .hasNext(hasNext)
                 .hasPrevious(page > 0)
                 .build();
     }

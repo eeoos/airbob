@@ -66,7 +66,7 @@ class SettlementServiceTest {
 			0L,
 			new BigDecimal("0.03")
 		);
-		when(settlementRepository.findById(1L)).thenReturn(Optional.of(settlement));
+		when(settlementRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
 
 		settlementService.markPaid(1L);
 
@@ -84,7 +84,7 @@ class SettlementServiceTest {
 			0L,
 			new BigDecimal("0.03")
 		);
-		when(settlementRepository.findById(1L)).thenReturn(Optional.of(settlement));
+		when(settlementRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
 
 		assertThatThrownBy(() -> settlementService.markPaid(1L))
 			.isInstanceOf(SettlementMonthNotClosedException.class);

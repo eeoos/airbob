@@ -2,6 +2,9 @@ package kr.kro.airbob.domain.settlement;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -45,6 +48,8 @@ class SettlementGenerationConcurrencyTest {
 
 	@Autowired private SettlementService settlementService;
 	@Autowired private JdbcTemplate jdbc;
+	@Autowired private org.springframework.transaction.PlatformTransactionManager transactionManager;
+	@Autowired private jakarta.persistence.EntityManager entityManager;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
@@ -132,6 +137,105 @@ class SettlementGenerationConcurrencyTest {
 			"SELECT s.net_amount FROM settlement s JOIN member m ON m.id = s.host_id "
 				+ "WHERE m.nickname = 'host1' AND s.settlement_month = ?", Long.class, MAY_1);
 		assertThat(host1Net).isEqualTo(100000);
+	}
+
+
+	@Test
+	void simultaneousPaymentsRecordExactlyOnePaidTransition() throws Exception {
+		settlementService.generateMonth(MAY);
+		long id = host1SettlementId();
+		try (var blocker = jdbc.getDataSource().getConnection(); var pool = Executors.newFixedThreadPool(2)) {
+			blocker.setAutoCommit(false);
+			try (var statement = blocker.prepareStatement("SELECT id FROM settlement WHERE id = ? FOR UPDATE")) {
+				statement.setLong(1, id);
+				statement.executeQuery().close();
+			}
+			try {
+				var first = pool.submit(() -> payOutcome(id));
+				var second = pool.submit(() -> payOutcome(id));
+				awaitSettlementWaiters(2);
+				blocker.commit();
+				assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+					.containsExactlyInAnyOrder("PAID", "ALREADY_PAID");
+			} finally {
+				blocker.rollback();
+			}
+		}
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM settlement_history WHERE settlement_id = ? AND change_type = 'STATUS_CHANGE'", Integer.class, id))
+			.isEqualTo(1);
+	}
+
+	@Test
+	void regenerationWaitsForPaymentCommitAndPreservesPaidAmountsAndHistory() throws Exception {
+		settlementService.generateMonth(MAY);
+		long id = host1SettlementId();
+		jdbc.update("UPDATE payment_transaction SET amount = amount + 1000 WHERE transaction_type = 'CONFIRM'");
+		var paidButNotCommitted = new CountDownLatch(1);
+		var releasePayment = new CountDownLatch(1);
+		try (var pool = Executors.newFixedThreadPool(2)) {
+			var payment = pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+				.executeWithoutResult(status -> {
+					settlementService.markPaid(id);
+					entityManager.flush();
+					paidButNotCommitted.countDown();
+					try {
+						if (!releasePayment.await(15, TimeUnit.SECONDS)) throw new IllegalStateException("payment release timeout");
+					} catch (InterruptedException interrupted) {
+						Thread.currentThread().interrupt();
+						throw new IllegalStateException(interrupted);
+					}
+				}));
+			try {
+				assertThat(paidButNotCommitted.await(10, TimeUnit.SECONDS)).isTrue();
+				var generation = pool.submit(() -> settlementService.generateMonth(MAY));
+				awaitSettlementWaiters(1);
+				releasePayment.countDown();
+				payment.get(10, TimeUnit.SECONDS);
+				generation.get(10, TimeUnit.SECONDS);
+			} finally {
+				releasePayment.countDown();
+			}
+		}
+		var row = jdbc.queryForMap("SELECT status, gross_amount, settled_at FROM settlement WHERE id = ?", id);
+		assertThat(row.get("status")).isEqualTo("PAID");
+		assertThat(((Number)row.get("gross_amount")).longValue()).isEqualTo(100000);
+		assertThat(row.get("settled_at")).isNotNull();
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM settlement_history WHERE settlement_id = ?", Integer.class, id)).isEqualTo(2);
+	}
+
+	private String payOutcome(long id) {
+		try {
+			settlementService.markPaid(id);
+			return "PAID";
+		} catch (kr.kro.airbob.domain.settlement.exception.SettlementAlreadyPaidException duplicate) {
+			return "ALREADY_PAID";
+		}
+	}
+
+	private long host1SettlementId() {
+		return jdbc.queryForObject("SELECT s.id FROM settlement s JOIN member m ON m.id = s.host_id WHERE m.nickname = 'host1' AND s.settlement_month = ?",
+			Long.class, MAY_1);
+	}
+
+	private void awaitSettlementWaiters(int count) throws Exception {
+		// 별도 테스트 컨테이너의 잠금 대기를 관찰해, 실제 SELECT/UPDATE 경쟁이 시작된 후 차단을 해제한다.
+		try (Connection observer = DriverManager.getConnection(mySQLContainer.getJdbcUrl(), "root", mySQLContainer.getPassword());
+			 var statement = observer.createStatement()) {
+			long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+			while (System.nanoTime() < deadline) {
+				try (var result = statement.executeQuery("""
+					SELECT COUNT(DISTINCT w.REQUESTING_ENGINE_TRANSACTION_ID)
+					FROM performance_schema.data_lock_waits w
+					JOIN performance_schema.data_locks l ON l.ENGINE_LOCK_ID = w.REQUESTING_ENGINE_LOCK_ID
+					WHERE l.OBJECT_SCHEMA = 'airbobdb_test' AND l.OBJECT_NAME = 'settlement'
+					""")) {
+					result.next();
+					if (result.getInt(1) >= count) return;
+				}
+				Thread.sleep(25);
+			}
+			throw new AssertionError("Expected settlement lock waiters: " + count);
+		}
 	}
 
 	// ===== helpers =====

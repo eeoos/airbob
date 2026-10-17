@@ -16,7 +16,7 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.projection.MemberProfileProjection;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
-    boolean existsByEmailAndStatus(String email, MemberStatus status);
+    boolean existsByEmail(String email);
 
     Optional<Member> findByEmailAndStatus(String email, MemberStatus status);
 

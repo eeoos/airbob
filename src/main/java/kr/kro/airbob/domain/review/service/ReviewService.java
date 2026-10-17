@@ -78,7 +78,8 @@ public class ReviewService {
 	@Transactional
 	public ReviewResponse.Create createReview(Long accommodationId, ReviewRequest.Create request, Long memberId) {
 
-		Member author = findMemberById(memberId);
+		// Serialize this author's duplicate check and insertion before any consistent read.
+		Member author = lockActiveMember(memberId);
 		Accommodation accommodation = findAccommodationById(accommodationId);
 
 		validateReviewCreation(accommodationId, memberId);
@@ -101,7 +102,7 @@ public class ReviewService {
 
 	@Transactional
 	public ReviewResponse.Update updateReviewContent(Long reviewId, ReviewRequest.Update request, Long memberId) {
-		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
+		Review review = lockReviewByIdAndAuthorId(reviewId, memberId);
 
 		if (review.getStatus() != ReviewStatus.PUBLISHED) {
 			throw new ReviewUpdateForbiddenException();
@@ -125,7 +126,7 @@ public class ReviewService {
 
 	@Transactional
 	public void deleteReview(Long reviewId, Long memberId) {
-		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
+		Review review = lockReviewByIdAndAuthorId(reviewId, memberId);
 
 		// 이미 삭제/숨김된 리뷰는 삭제 대상이 아니다.
 		// 가드가 없으면 재요청 시 removeReview 가 중복 호출되어 요약 집계가 어긋남
@@ -210,13 +211,12 @@ public class ReviewService {
 		Long memberId) {
 
 		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
+		images.forEach(this::validateImageFile);
 
 		List<ImageResponse.ImageInfo> imageInfos = new ArrayList<>();
 		List<ReviewImage> savedImages = new ArrayList<>();
 
 		for (MultipartFile image : images) {
-			validateImageFile(image);
-
 			String imageUrl;
 			try {
 				String dirName = "reviews/" + reviewId;
@@ -289,8 +289,8 @@ public class ReviewService {
 		}
 	}
 
-	private Member findMemberById(Long memberId) {
-		return memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
+	private Member lockActiveMember(Long memberId) {
+		return memberRepository.findByIdAndStatusForUpdate(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {
@@ -299,6 +299,11 @@ public class ReviewService {
 
 	private Review findReviewByIdAndAuthorId(Long reviewId, Long memberId) {
 		return reviewRepository.findByIdAndAuthorId(reviewId, memberId).orElseThrow(ReviewNotFoundException::new);
+	}
+
+	private Review lockReviewByIdAndAuthorId(Long reviewId, Long memberId) {
+		// Read the current status/rating under the same lock held until the summary commits.
+		return reviewRepository.findByIdAndAuthorIdForUpdate(reviewId, memberId).orElseThrow(ReviewNotFoundException::new);
 	}
 
 	private void updateReviewSummaryOnCreate(Accommodation accommodation, int rating) {

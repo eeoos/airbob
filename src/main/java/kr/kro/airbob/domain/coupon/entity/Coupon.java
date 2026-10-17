@@ -27,6 +27,8 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Coupon extends BaseEntity {
 
+	public static final int TEXT_MAX_LENGTH = 255;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -147,7 +149,8 @@ public class Coupon extends BaseEntity {
 
 	public void validateConfiguration() {
 		validateQuantity(totalQuantity);
-		if (name == null || name.isBlank() || discountType == null || discountValue == null
+		if (name == null || name.isBlank() || exceedsTextLimit(name) || exceedsTextLimit(description)
+			|| discountType == null || discountValue == null
 			|| discountValue <= 0 || (discountType == DiscountType.PERCENTAGE && discountValue > 100)
 			|| (minPaymentPrice != null && minPaymentPrice < 0)
 			|| (maxDiscountAmount != null && maxDiscountAmount < 0)
@@ -199,6 +202,10 @@ public class Coupon extends BaseEntity {
 			discount = discountValue;
 		}
 		return Math.min(discount, amount);
+	}
+
+	private static boolean exceedsTextLimit(String value) {
+		return value != null && value.codePointCount(0, value.length()) > TEXT_MAX_LENGTH;
 	}
 
 	private boolean differs(Object requested, Object current) {

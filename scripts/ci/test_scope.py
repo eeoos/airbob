@@ -11,13 +11,24 @@ class ScopeTests(unittest.TestCase):
     def test_docs_and_archived_measurements_do_not_run_or_deploy_application(self):
         self.assertEqual(scope.classify(['docs/performance/cache.md', 'README.md',
             'load-test/k6/cache/comparison.js', 'scripts/archive/bootstrap.py']),
-            dict(app=False, infrastructure=False, data=False, oci=False))
+            dict(app=False, infrastructure=False, data=False, oci=False, api_docs=False))
+
+    def test_api_docs_run_contract_checks_without_application_tests_or_deployment(self):
+        for path in ('docs/api/README.md', 'docs/api/openapi/client.yaml',
+                     'src/test/java/kr/kro/airbob/apidocs/ApiDocumentationTest.java',
+                     'src/test/resources/apidocs/openapi-3.1-schema.json'):
+            with self.subTest(path=path):
+                self.assertEqual(scope.classify([path]),
+                    dict(app=False, infrastructure=False, data=False, oci=False, api_docs=True))
+        selected = scope.classify(['docs/api/openapi/client.yaml', 'src/main/java/example/Controller.java'])
+        self.assertTrue(selected['app'])
+        self.assertFalse(selected['api_docs'])  # build/check already verifies the contract
 
     def test_application_change_does_not_wait_for_unrelated_aws_tools(self):
         self.assertEqual(scope.classify(['src/main/java/example/Service.java']),
-            dict(app=True, infrastructure=False, data=False, oci=True))
+            dict(app=True, infrastructure=False, data=False, oci=True, api_docs=False))
         self.assertEqual(scope.classify(['src/test/java/example/ServiceTest.java']),
-            dict(app=True, infrastructure=False, data=False, oci=False))
+            dict(app=True, infrastructure=False, data=False, oci=False, api_docs=False))
 
     def test_shared_schema_configuration_and_workflow_inputs_run_all_checks(self):
         for path in ['src/main/resources/db/migration/V32__example.sql',
@@ -29,17 +40,17 @@ class ScopeTests(unittest.TestCase):
 
     def test_aws_and_dataset_tools_do_not_deploy_oci(self):
         self.assertEqual(scope.classify(['infra/aws/lab/main.tf']),
-            dict(app=False, infrastructure=True, data=True, oci=False))
+            dict(app=False, infrastructure=True, data=True, oci=False, api_docs=False))
         self.assertEqual(scope.classify(['scripts/restore-growth-b-local.py']),
-            dict(app=False, infrastructure=False, data=True, oci=False))
+            dict(app=False, infrastructure=False, data=True, oci=False, api_docs=False))
         self.assertTrue(scope.classify(['infra/aws/images/release.json'])['app'])
 
     def test_deployment_scripts_and_unknown_code_are_not_silently_skipped(self):
         for path in scope.DEPLOYMENT_SCRIPTS:
             with self.subTest(path=path):
-                self.assertTrue(all(scope.classify([path]).values()))
+                self.assertTrue(all(scope.classify([path])[key] for key in ('app', 'infrastructure', 'data', 'oci')))
         self.assertEqual(scope.classify(['new-runtime/tool.py']),
-            dict(app=True, infrastructure=True, data=True, oci=False))
+            dict(app=True, infrastructure=True, data=True, oci=False, api_docs=False))
 
     def test_real_git_diff_detects_deleted_runtime_files_and_more_than_300_changes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -83,14 +94,23 @@ class ScopeTests(unittest.TestCase):
 
 class ResultTests(unittest.TestCase):
     def needs(self):
-        return {'scope': {'result': 'success', 'outputs': {'app': 'true', 'infrastructure': 'false', 'data': 'false'}},
-                'app': {'result': 'success'}, 'infrastructure': {'result': 'skipped'}, 'data': {'result': 'skipped'}}
+        return {'scope': {'result': 'success', 'outputs': {'app': 'true', 'infrastructure': 'false', 'data': 'false', 'api_docs': 'false'}},
+                'app': {'result': 'success'}, 'infrastructure': {'result': 'skipped'}, 'data': {'result': 'skipped'}, 'api_docs': {'result': 'skipped'}}
 
     def test_only_intentionally_unselected_checks_may_be_skipped(self):
         check_result.verify(self.needs())
         for result in ('failure', 'cancelled', 'skipped'):
             needs = self.needs(); needs['app']['result'] = result
             with self.assertRaises(ValueError): check_result.verify(needs)
+
+    def test_documentation_failure_cannot_report_success(self):
+        for result in ('failure', 'cancelled', 'skipped'):
+            needs = self.needs()
+            needs['scope']['outputs']['api_docs'] = 'true'
+            needs['api_docs']['result'] = result
+            with self.assertRaises(ValueError): check_result.verify(needs)
+        needs['api_docs']['result'] = 'success'
+        check_result.verify(needs)
 
     def test_scope_failure_or_missing_output_cannot_report_success(self):
         needs = self.needs(); needs['scope']['result'] = 'failure'

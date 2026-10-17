@@ -9,7 +9,10 @@
 | 캠페인·보유 쿠폰 응답 | UTC `Instant` | `2026-12-31T15:30:00Z` |
 | 프론트 표시 | 명시적인 `Asia/Seoul` | `2027-01-01 00:30` |
 
-시간대 없는 관리자 요청은 400이다. `CouponTime`은 API instant와 UTC 엔티티 값을 변환한다.
+시간대 없는 관리자 요청은 400/C001이다. `CouponTime`은 API instant를 UTC로 변환하고
+`DATETIME(6)`과 같은 마이크로초 반올림을 적용한 뒤 기간·기존 설정과 비교한다. UTC 기준
+1000~9999년 범위를 벗어나거나 반올림으로 범위를 넘는 입력은 400/CP013이다. 반올림 후
+발급 또는 사용 시작·종료가 같아지는 기간도 거부한다. 저장된 과거 시각은 변경하지 않는다.
 `CouponTimeProvider`는 주입한 `Clock`의 instant를 UTC로 해석하며, 재고 경로의 DB 현재 시각은
 `UTC_TIMESTAMP(6)` 그대로 사용한다. 발급·사용 기간은 시작 포함, 종료 제외다.
 기존 JPA `hibernate.jdbc.time_zone=UTC` 설정과 테스트·실험 실행기의 JVM

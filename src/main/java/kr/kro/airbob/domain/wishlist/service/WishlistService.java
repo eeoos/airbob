@@ -256,7 +256,8 @@ public class WishlistService {
 	}
 
 	private Wishlist findWishlistByIdAndMemberId(Long wishlistId, Long memberId) {
-		Wishlist wishlist = wishlistRepository.findByIdAndStatus(wishlistId, WishlistStatus.ACTIVE)
+		// 모든 변경은 부모 목록을 먼저 잠가 이름·개수·대표 숙소와 연결 삭제를 함께 직렬화한다.
+		Wishlist wishlist = wishlistRepository.findByIdAndStatusForUpdate(wishlistId, WishlistStatus.ACTIVE)
 			.orElseThrow(WishlistNotFoundException::new);
 
 		if (!wishlist.getMember().getId().equals(memberId)) {
@@ -266,7 +267,13 @@ public class WishlistService {
 	}
 
 	private WishlistAccommodation findWishlistAccommodationForMember(Long wishlistAccommodationId, Long memberId) {
-		return wishlistAccommodationRepository.findByIdAndWishlistMemberId(wishlistAccommodationId, memberId)
+		Long wishlistId = wishlistAccommodationRepository.findWishlistIdByIdAndMemberId(wishlistAccommodationId, memberId)
+			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
+		wishlistRepository.findByIdAndStatusForUpdate(wishlistId, WishlistStatus.ACTIVE)
+			.filter(wishlist -> wishlist.getMember().getId().equals(memberId))
+			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
+		// 앞선 ID 조회가 만든 RR 스냅샷 대신 잠금 대기 후의 현재 연결을 다시 확인한다.
+		return wishlistAccommodationRepository.findByIdForUpdate(wishlistAccommodationId)
 			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
 	}
 

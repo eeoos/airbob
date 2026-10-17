@@ -221,7 +221,7 @@ ci_workflow="$repo_root/.github/workflows/ci.yml"
 cd_workflow="$repo_root/.github/workflows/cd.yml"
 assert_contains "$ci_workflow" 'name: CI result'
 assert_contains "$ci_workflow" 'if: always()'
-assert_contains "$ci_workflow" 'needs: [scope, app, infrastructure, data]'
+assert_contains "$ci_workflow" 'needs: [scope, app, infrastructure, data, api_docs]'
 assert_contains "$ci_workflow" 'name: app-jar-${{ github.sha }}'
 assert_contains "$cd_workflow" 'uses: ./.github/workflows/ci.yml'
 assert_contains "$cd_workflow" 'needs: verify'

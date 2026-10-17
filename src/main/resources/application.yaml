@@ -103,9 +103,16 @@ cloud:
 
 springdoc:
   api-docs:
+    enabled: false
     path: /v3/api-docs
+    version: OPENAPI_3_1
   swagger-ui:
+    enabled: false
     path: /swagger-ui.html
+    validator-url: none
+  override-with-generic-response: false
+  default-produces-media-type: application/json
+  writer-with-order-by-keys: true
 
 settlement:
   commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨
@@ -187,3 +194,15 @@ management:
       group:
         readiness:
           include: accommodationInventory
+
+# Serve the deployed API contract on the same origin as the application.
+---
+spring:
+  config:
+    activate:
+      on-profile: "(dev | aws | oci) & !test"
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

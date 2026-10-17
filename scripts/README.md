@@ -33,7 +33,7 @@
 
 ## CI 검사 선택과 결과
 
-- [ci/scope.py](ci/scope.py): 정확한 Git 변경 범위에서 앱·인프라·데이터 검사와 OCI 배포 여부를 고른다.
+- [ci/scope.py](ci/scope.py): 정확한 Git 변경 범위에서 앱·API 문서·인프라·데이터 검사와 OCI 배포 여부를 고른다.
 - [ci/check_result.py](ci/check_result.py): 선택한 모든 검사가 성공했는지 확인하는 필수 `CI result` 검사다.
 
 PR과 main 배포는 같은 CI 정의를 사용한다. 전체 흐름은 [CI·CD 안내](../docs/operations/oci-deployment-runbook.md#ci와-cd의-역할)를 따른다.

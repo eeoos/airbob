@@ -252,6 +252,19 @@ class RecentlyViewedQueryIntegrationTest {
 		assertThat(statistics.getPrepareStatementCount()).isZero();
 	}
 
+	@Test
+	@DisplayName("삭제된 위시리스트의 과거 연결이 남아 있어도 찜 상태로 표시하지 않는다")
+	void ignoresResidualMembershipsOfDeletedWishlists() {
+		insertMixedHistory();
+		jdbc.update("UPDATE wishlist SET status = 'DELETED' WHERE id IN (51, 52)");
+		Statistics statistics = prepareMeasurement();
+
+		var result = service.getRecentlyViewed(MEMBER_ID);
+
+		assertThat(result.accommodations()).allSatisfy(card -> assertThat(card.isInWishlist()).isFalse());
+		assertCardRead(statistics);
+	}
+
 	private void insertMixedHistory() {
 		insertAccommodation(31, "PUBLISHED", 21L);
 		insertAccommodation(32, "PUBLISHED", 21L);

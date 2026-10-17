@@ -5,8 +5,10 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 
 import kr.kro.airbob.domain.settlement.dto.HostMonthlyAggregate;
 import kr.kro.airbob.domain.settlement.dto.SettlementLineItem;
@@ -17,6 +19,15 @@ import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 
 	Optional<Settlement> findByHostIdAndSettlementMonth(Long hostId, LocalDate settlementMonth);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select s from Settlement s where s.id = :id")
+	Optional<Settlement> findByIdForUpdate(@Param("id") Long id);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select s from Settlement s where s.hostId = :hostId and s.settlementMonth = :month")
+	Optional<Settlement> findByHostIdAndSettlementMonthForUpdate(@Param("hostId") Long hostId,
+		@Param("month") LocalDate month);
 
 	List<Settlement> findByHostIdAndSettlementMonthBetweenOrderBySettlementMonthAsc(
 		Long hostId, LocalDate from, LocalDate to);

@@ -104,7 +104,7 @@ public class SettlementService {
 	// 정산 지급 처리: PENDING -> PAID (이미 PAID거나 아직 마감 안 된 달이면 거부)
 	@Transactional
 	public void markPaid(Long settlementId) {
-		Settlement settlement = settlementRepository.findById(settlementId)
+		Settlement settlement = settlementRepository.findByIdForUpdate(settlementId)
 			.orElseThrow(SettlementNotFoundException::new);
 		if (settlement.isPaid()) {
 			throw new SettlementAlreadyPaidException();
@@ -188,7 +188,7 @@ public class SettlementService {
 		long refund = nz(aggregate.getRefundAmount());
 
 		Optional<Settlement> existing =
-			settlementRepository.findByHostIdAndSettlementMonth(aggregate.getHostId(), monthStart);
+			settlementRepository.findByHostIdAndSettlementMonthForUpdate(aggregate.getHostId(), monthStart);
 
 		if (existing.isPresent()) {
 			Settlement settlement = existing.get();

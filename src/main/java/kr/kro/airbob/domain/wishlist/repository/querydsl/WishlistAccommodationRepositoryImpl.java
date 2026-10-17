@@ -20,9 +20,12 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.jpa.impl.JPAQuery;
 
+import jakarta.persistence.LockModeType;
+
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.wishlist.dto.QWishlistAccommodationResponse_WishlistAccommodationInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -81,6 +84,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.join(wishlistAccommodation.accommodation, accommodation)
 			.where(
 				member.id.eq(memberId),
+				wishlist.status.eq(WishlistStatus.ACTIVE),
 				accommodation.id.in(accommodationIds),
 				accommodation.status.eq(AccommodationStatus.PUBLISHED)
 			)
@@ -96,6 +100,8 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.from(wishlistAccommodation)
 			.where(wishlistAccommodation.wishlist.id.eq(wishlistId))
 			.orderBy(wishlistAccommodation.createdAt.desc(), wishlistAccommodation.id.desc())
+			// 부모 목록 잠금 이후 현재 남은 연결로 대표를 선정한다(RR의 이전 스냅샷 재사용 방지).
+			.setLockMode(LockModeType.PESSIMISTIC_WRITE)
 			.fetchFirst();
 	}
 

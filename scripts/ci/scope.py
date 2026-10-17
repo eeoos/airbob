@@ -18,10 +18,13 @@ OCI_FILES = BUILD_FILES | DEPLOYMENT_SCRIPTS | {'docker-compose.oci.yml', 'infra
 
 
 def classify(paths, force_app=False):
-    selected = dict(app=force_app, infrastructure=False, data=False, oci=False)
+    selected = dict(app=force_app, infrastructure=False, data=False, oci=False, api_docs=False)
     for path in paths:
         oci = path in OCI_FILES or path.startswith(OCI_PREFIXES)
         selected['oci'] |= oci
+        if path.startswith(('docs/api/', 'src/test/java/kr/kro/airbob/apidocs/', 'src/test/resources/apidocs/')):
+            selected['api_docs'] = True
+            continue
         if path.startswith(('docs/', 'load-test/', 'scripts/archive/')) or path in {
             'README.md', 'AGENTS.md', 'scripts/README.md', '.gitattributes', '.gitignore', 'LICENSE',
         }:
@@ -42,6 +45,9 @@ def classify(paths, force_app=False):
             # New code locations are checked until their dependencies are classified.
             selected.update(app=True, infrastructure=True, data=True)
         selected['app'] |= oci
+    # Application builds already run verifyOpenApi through check; avoid running it twice.
+    if selected['app']:
+        selected['api_docs'] = False
     return selected
 
 
@@ -83,7 +89,7 @@ def main():
         expected = require_sha(event['inputs']['expected_execution_commit'])
         if not force or os.environ['GITHUB_REF'] != 'refs/heads/main' or git('rev-parse', 'HEAD') != sha or expected != sha:
             raise ValueError('manual publication requires the reviewed main commit')
-        selected = dict(app=True, infrastructure=True, data=True, oci=False)
+        selected = dict(app=True, infrastructure=True, data=True, oci=False, api_docs=False)
     else:
         selected = classify(changed_paths(name, event, sha), force)
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
