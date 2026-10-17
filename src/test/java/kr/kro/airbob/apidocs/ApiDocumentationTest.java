@@ -246,6 +246,71 @@ class ApiDocumentationTest {
 		assertThat(documented).containsExactlyInAnyOrderElementsOf(actual);
 	}
 
+	@Test
+	void loginAndAuthorizationUseRealCookiesAndGuards() throws Exception {
+		AuthService authService = context.getBean(AuthService.class);
+		when(authService.login("docs@example.invalid", "example-password"))
+			.thenReturn("documentation-session");
+		var login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"email\":\"docs@example.invalid\",\"password\":\"example-password\"}"))
+			.andExpect(status().isOk()).andReturn().getResponse();
+		assertThat(login.getCookie("SESSION_ID").isHttpOnly()).isTrue();
+		assertThat(login.getCookie("SESSION_ID").getMaxAge()).isEqualTo(3600);
+		JsonNode client = specification("client");
+		JsonNode logoutContract = client.path("paths").path("/api/v1/auth/logout").path("post");
+		assertThat(logoutContract.path("parameters").isEmpty()).isTrue();
+		assertThat(logoutContract.has("requestBody")).isFalse();
+		assertThat(logoutContract.path("security").path(0).has("sessionCookie")).isTrue();
+		mvc.perform(post("/api/v1/auth/logout")).andExpect(status().isUnauthorized());
+		String logout = mvc.perform(post("/api/v1/auth/logout").cookie(login.getCookie("SESSION_ID")))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(client, "/api/v1/auth/logout", "post", "200", logout);
+		verify(authService).logout("documentation-session");
+		String denied = mvc.perform(get("/api/v1/coupons")).andExpect(status().isUnauthorized())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(specification("client"), "/api/v1/coupons", "get", "401", denied);
+		String forbidden = mvc.perform(get("/api/v1/admin/common-code-groups").cookie(SESSION))
+			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		validateResponse(specification("admin"), "/api/v1/admin/common-code-groups", "get", "403", forbidden);
+		mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
+	}
+
+	@Test
+	void authenticationErrorsMatchDocumentedCodesAndStatuses() throws Exception {
+		JsonNode client = specification("client");
+		AuthService authService = context.getBean(AuthService.class);
+		when(authService.login("docs@example.invalid", "wrong-password")).thenThrow(new InvalidPasswordException());
+		String wrongPassword = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"email\":\"docs@example.invalid\",\"password\":\"wrong-password\"}"))
+			.andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+		validateResponse(client, "/api/v1/auth/login", "post", "401", wrongPassword);
+		assertThat(mapper.readTree(wrongPassword).at("/error/code").asText()).isEqualTo("M003");
+
+		when(authService.login("missing@example.invalid", "example-password")).thenThrow(new MemberNotFoundException());
+		String missingMember = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"email\":\"missing@example.invalid\",\"password\":\"example-password\"}"))
+			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		validateResponse(client, "/api/v1/auth/login", "post", "404", missingMember);
+		assertThat(mapper.readTree(missingMember).at("/error/code").asText()).isEqualTo("M001");
+
+		when(context.getBean(MemberService.class).getMemberInfo(10L)).thenThrow(new MemberNotFoundException());
+		String missingProfile = mvc.perform(get("/api/v1/auth/me").cookie(SESSION))
+			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		validateResponse(client, "/api/v1/auth/me", "get", "404", missingProfile);
+		assertThat(mapper.readTree(missingProfile).at("/error/code").asText()).isEqualTo("M001");
+	}
+
+	@Test
+	void authenticationProfileDocumentsNullableLegacyFields() throws Exception {
+		when(context.getBean(MemberService.class).getMemberInfo(10L))
+			.thenReturn(new MemberResponse.MeInfo(10L, null, null));
+		String profile = mvc.perform(get("/api/v1/auth/me").cookie(SESSION))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(specification("client"), "/api/v1/auth/me", "get", "200", profile);
+		assertThat(mapper.readTree(profile).at("/data/email").isNull()).isTrue();
+		assertThat(mapper.readTree(profile).at("/data/nickname").isNull()).isTrue();
+	}
+
 	private JsonNode specification(String group) throws Exception {
 		return new ObjectMapper().readTree(mvc.perform(get("/v3/api-docs/" + group))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());

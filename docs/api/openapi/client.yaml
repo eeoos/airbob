@@ -406,10 +406,10 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseMeInfo:
+    ApiResponseMemberCouponInfos:
       properties:
         data:
-          $ref: "#/components/schemas/MeInfo"
+          $ref: "#/components/schemas/MemberCouponInfos"
         success:
           enum:
           - true
@@ -418,10 +418,10 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseMemberCouponInfos:
+    ApiResponseMemberResponseMeInfo:
       properties:
         data:
-          $ref: "#/components/schemas/MemberCouponInfos"
+          $ref: "#/components/schemas/MemberResponseMeInfo"
         success:
           enum:
           - true
@@ -570,6 +570,24 @@ components:
       required:
       - "data"
       - "success"
+      type: "object"
+    AuthRequestLogin:
+      properties:
+        email:
+          description: "가입된 활성 회원의 이메일. 빈 값이나 공백만 있는 값은 허용하지 않습니다."
+          example: "docs@example.invalid"
+          minLength: 1
+          type: "string"
+        password:
+          description: "회원 비밀번호. 빈 값이나 공백만 있는 값은 허용하지 않습니다."
+          example: "example-password"
+          format: "password"
+          minLength: 1
+          type: "string"
+          writeOnly: true
+      required:
+      - "email"
+      - "password"
       type: "object"
     Availability:
       properties:
@@ -1194,18 +1212,6 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
-    Login:
-      properties:
-        email:
-          minLength: 1
-          type: "string"
-        password:
-          minLength: 1
-          type: "string"
-      required:
-      - "email"
-      - "password"
-      type: "object"
     MapBoundsDto:
       properties:
         bottom_right_lat:
@@ -1222,16 +1228,6 @@ components:
           type: "number"
         valid:
           type: "boolean"
-      type: "object"
-    MeInfo:
-      properties:
-        email:
-          type: "string"
-        id:
-          format: "int64"
-          type: "integer"
-        nickname:
-          type: "string"
       type: "object"
     MemberCouponInfo:
       properties:
@@ -1289,6 +1285,30 @@ components:
           type: "string"
         thumbnail_image_url:
           type: "string"
+      type: "object"
+    MemberResponseMeInfo:
+      properties:
+        email:
+          description: "회원 이메일. 과거 데이터는 null일 수 있습니다."
+          example: "docs@example.invalid"
+          type:
+          - "string"
+          - "null"
+        id:
+          description: "현재 로그인한 회원의 ID"
+          example: 10
+          format: "int64"
+          type: "integer"
+        nickname:
+          description: "회원 닉네임. 과거 데이터는 null일 수 있습니다."
+          example: "여행자"
+          type:
+          - "string"
+          - "null"
+      required:
+      - "email"
+      - "id"
+      - "nickname"
       type: "object"
     Membership:
       properties:
@@ -2311,12 +2331,13 @@ paths:
       - "accommodation-controller"
   /api/v1/auth/login:
     post:
-      operationId: "login"
+      description: "가입된 활성 회원의 이메일과 비밀번호로 로그인합니다. 두 필드는 필수이며 빈 값이나 공백만 있는 값은 허용하지 않습니다.\n예시 값은 요청 형식을 보여 주며, 실행할 때는 실제 가입한 계정으로 바꿉니다.\n\n성공하면 Set-Cookie로 HttpOnly SESSION_ID 쿠키를 발급합니다. 쿠키와 서버 세션의 유효 시간은 발급 후 최대 1시간입니다.\n응답 본문은 {\"success\":true}이며 세션 ID는 포함하지 않습니다.\n\n같은 서버의 Swagger UI에서는 브라우저가 쿠키를 자동 저장·전송하므로 Authorize에 값을 입력하지 않습니다.\n브라우저 정책상 Swagger의 Response headers에는 Set-Cookie가 표시되지 않습니다.\n로그인 성공 후 GET /api/v1/auth/me의 200 응답으로 세션을 확인합니다.\n"
+      operationId: "Auth.login"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Login"
+              $ref: "#/components/schemas/AuthRequestLogin"
         required: true
       responses:
         "200":
@@ -2324,7 +2345,61 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "성공"
+          headers:
+            Set-Cookie:
+              description: "SESSION_ID 세션 쿠키; HttpOnly; Path=/; Max-Age=3600"
+              schema:
+                type: "string"
+              style: "simple"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "401":
+          content:
+            application/json:
+              examples:
+                M003:
+                  summary: "비밀번호가 일치하지 않습니다."
+                  value:
+                    error:
+                      code: "M003"
+                      errors: []
+                      message: "비밀번호가 일치하지 않습니다."
+                      status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                M001:
+                  summary: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                  value:
+                    error:
+                      code: "M001"
+                      errors: []
+                      message: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -2342,24 +2417,20 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security: []
+      summary: "로그인"
       tags:
-      - "auth-controller"
+      - "인증"
   /api/v1/auth/logout:
     post:
-      operationId: "logout"
-      parameters:
-      - in: "cookie"
-        name: "SESSION_ID"
-        required: true
-        schema:
-          type: "string"
+      description: "브라우저가 자동 전송하는 SESSION_ID에 해당하는 서버 세션 한 개를 무효화합니다. 다른 로그인 세션은 유지됩니다.\n같은 서버에서 로그인한 뒤 별도 매개변수나 본문 입력 없이 실행합니다. 성공 응답은 {\"success\":true}입니다.\n\n브라우저의 쿠키를 지우는 Set-Cookie는 내려주지 않습니다. 쿠키가 남아 있어도 서버 세션은 무효화되어 이후 인증 요청은 401입니다.\n쿠키가 없거나 이미 만료·무효화된 세션으로 로그아웃을 요청해도 401/M004를 반환합니다.\n"
+      operationId: "Auth.logout"
       responses:
         "200":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "성공"
         "401":
           content:
             application/json:
@@ -2394,18 +2465,20 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "로그아웃"
       tags:
-      - "auth-controller"
+      - "인증"
   /api/v1/auth/me:
     get:
-      operationId: "getMyInfo"
+      description: "현재 세션의 활성 회원 ID, 이메일, 닉네임을 조회합니다. memberId를 직접 입력하지 않습니다. 쿠키가 없거나 세션이 유효하지 않으면 401/M004, 세션 확인 후 활성 회원을 찾지 못하면 404/M001을 반환합니다."
+      operationId: "Auth.getMyInfo"
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseMeInfo"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseMemberResponseMeInfo"
+          description: "성공"
         "401":
           content:
             application/json:
@@ -2418,6 +2491,22 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                M001:
+                  summary: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                  value:
+                    error:
+                      code: "M001"
+                      errors: []
+                      message: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                      status: 404
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -2440,8 +2529,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "로그인 회원 조회"
       tags:
-      - "auth-controller"
+      - "인증"
   /api/v1/common-codes/{group}:
     get:
       operationId: "getCommonCodes"
