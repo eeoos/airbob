@@ -104,6 +104,22 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse;
+import kr.kro.airbob.domain.payment.dto.PaymentResponse;
+import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
+import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
+import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnavailableException;
+import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
+import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -185,6 +201,8 @@ class ApiDocumentationTest {
 	@Autowired SessionAuthFilter authFilter;
 	@MockitoBean RedisTemplate<String, Object> redis;
 
+	private static final UUID DOCUMENTATION_OPERATION_ID = UUID.fromString("00000000-0000-0000-0000-000000000040");
+	private static final UUID DOCUMENTATION_ORDER_ID = UUID.fromString("00000000-0000-0000-0000-000000000020");
 	private static final Cookie SESSION = new Cookie("SESSION_ID", "documentation-session");
 
 	@BeforeEach
@@ -775,6 +793,275 @@ class ApiDocumentationTest {
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C004", invalid);
 		}
+	}
+
+	@Test
+	void paymentConfirmationDocumentsValidationReplayAndActualAccessError() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/payments/confirm";
+		PaymentOperationCommandService service = context.getBean(PaymentOperationCommandService.class);
+		ObjectNode valid = (ObjectNode)mapper.readTree("""
+			{"payment_key":"example-payment-key","order_id":"00000000-0000-0000-0000-000000000020",
+			 "amount":10000,"payment_attempt_id":"00000000-0000-0000-0000-000000000030"}
+			""");
+		JsonNode schema = spec.at("/components/schemas/PaymentRequestConfirm");
+		assertThat(schema.path("required").toString()).contains("payment_key", "order_id", "amount", "payment_attempt_id");
+		assertThat(schema.at("/properties/amount/minimum").asInt()).isEqualTo(1);
+		assertThat(schema.at("/properties/payment_key/minLength").asInt()).isEqualTo(1);
+		assertThat(schema.at("/properties/amount/maximum").asLong()).isEqualTo(Integer.MAX_VALUE);
+		validateInstance(spec, schema, valid);
+		String unauthenticated = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+			.andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "401", "M004", unauthenticated);
+		for (String field : List.of("payment_key", "order_id", "amount", "payment_attempt_id")) {
+			ObjectNode missing = valid.deepCopy();
+			missing.remove(field);
+			String invalid = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(missing.toString()))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "post", "400", "C001", invalid);
+		}
+		for (ObjectNode invalid : List.of(valid.deepCopy().put("amount", 0), valid.deepCopy().put("amount", -1),
+			valid.deepCopy().put("amount", 2147483648L), valid.deepCopy().put("payment_key", " "),
+			valid.deepCopy().put("payment_key", "p".repeat(201)), valid.deepCopy().put("order_id", " "),
+			valid.deepCopy().put("payment_attempt_id", "invalid"))) {
+			String body = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "post", "400", "C001", body);
+		}
+		String unsupported = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(valid.toString()))
+			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
+		verifyNoInteractions(service);
+
+		for (PaymentOperationStatus state : List.of(PaymentOperationStatus.QUEUED, PaymentOperationStatus.APPLIED)) {
+			PaymentOperation operation = PaymentOperation.builder().operationUid(DOCUMENTATION_OPERATION_ID).status(state).build();
+			when(service.requestConfirmation(any(), eq(10L))).thenReturn(PaymentOperationResponse.Accepted.from(operation));
+			String body = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+				.andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "post", "202", body);
+			assertThat(mapper.readTree(body).at("/data/status").asText()).isEqualTo(state == PaymentOperationStatus.QUEUED ? "PENDING" : "SUCCEEDED");
+			assertThat(mapper.readTree(body).at("/data/status_url").asText()).isEqualTo("/api/v1/payment-operations/" + DOCUMENTATION_OPERATION_ID);
+		}
+		for (kr.kro.airbob.common.exception.BaseException error : List.of(new PaymentAccessDeniedException(),
+			new ReservationNotFoundException(), new kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException(),
+			new kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException(),
+			new PaymentOperationConflictException(), new kr.kro.airbob.common.exception.InvalidInputException("mismatch"))) {
+			doThrow(error).when(service).requestConfirmation(any(), eq(10L));
+			var response = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
+		assertThat(spec.path("paths").path(path).path("post").at("/responses/403/content/application~1json/examples").has("R008")).isFalse();
+	}
+
+	@Test
+	void paymentLookupSchemasAcceptStoredTimesAndNullableHistoricalCancellationFields() throws Exception {
+		JsonNode spec = specification("client");
+		var payment = Payment.builder().orderId(DOCUMENTATION_ORDER_ID.toString()).paymentKey("example-payment-key")
+			.method(PaymentMethod.CARD).amount(10000L).balanceAmount(10000L).status(PaymentStatus.DONE)
+			.createdAt(java.time.LocalDateTime.parse("2027-01-01T00:00:01"))
+			.approvedAt(Instant.parse("2027-01-01T00:00:00Z")).build();
+		var current = PaymentResponse.PaymentInfo.from(payment, List.of());
+		var legacy = PaymentResponse.PaymentInfo.from(Payment.builder().orderId(DOCUMENTATION_ORDER_ID.toString())
+			.paymentKey("example-payment-key").method(PaymentMethod.CARD).amount(10000L).balanceAmount(0L)
+			.status(PaymentStatus.CANCELED).build(), List.of(PaymentTransaction.builder().build()));
+		PaymentQueryService service = context.getBean(PaymentQueryService.class);
+		when(service.findPaymentByPaymentKey("example-payment-key", 10L)).thenReturn(current);
+		when(service.findPaymentByOrderId(DOCUMENTATION_ORDER_ID.toString(), 10L)).thenReturn(legacy);
+		String keyPath = "/api/v1/payments/{paymentKey}";
+		String orderPath = "/api/v1/payments/orders/{orderId}";
+		String body = mvc.perform(get(keyPath, "example-payment-key").cookie(SESSION)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, keyPath, "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/requested_at").asText()).isEqualTo("2027-01-01T00:00:01Z");
+		assertThat(mapper.readTree(body).at("/data/cancels").isEmpty()).isTrue();
+		String historical = mvc.perform(get(orderPath, DOCUMENTATION_ORDER_ID).cookie(SESSION)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, orderPath, "get", "200", historical);
+		assertThat(mapper.readTree(historical).path("data").has("requested_at")).isFalse();
+		assertThat(mapper.readTree(historical).path("data").has("approved_at")).isFalse();
+		assertThat(mapper.readTree(historical).at("/data/cancels/0/canceled_at").isNull()).isTrue();
+		assertThat(spec.at("/components/schemas/PaymentResponsePaymentInfo/example/status").asText()).isEqualTo("DONE");
+		assertThat(spec.at("/components/schemas/PaymentResponsePaymentInfo/example/cancels").isEmpty()).isTrue();
+	}
+
+	@Test
+	void paymentOperationSchemaAcceptsEveryPublicStateAndManualReviewDelay() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/payment-operations/{operationId}";
+		Instant now = Instant.parse("2027-01-01T00:00:00Z");
+		for (PaymentOperationStatus state : PaymentOperationStatus.values()) {
+			var row = new PaymentOperationDetailRow(DOCUMENTATION_OPERATION_ID, 10L, PaymentOperationType.CONFIRM,
+				state, "PROVIDER_RESULT", java.time.LocalDateTime.ofInstant(now, java.time.ZoneOffset.UTC),
+				now.plusSeconds(5).plusNanos(1), DOCUMENTATION_ORDER_ID, ReservationStatus.EXPIRED,
+				now.plusSeconds(86400), now.minusSeconds(1));
+			when(context.getBean(PaymentOperationQueryService.class).find(DOCUMENTATION_OPERATION_ID, 10L))
+				.thenReturn(PaymentOperationResponse.Detail.from(row, now));
+			String body = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION)).andExpect(status().isOk())
+				.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "get", "200", body);
+			JsonNode data = mapper.readTree(body).path("data");
+			assertThat(data.size()).isEqualTo(10);
+			assertThat(data.has("payment_key")).isFalse();
+			if (state == PaymentOperationStatus.MANUAL_REVIEW) {
+				assertThat(data.path("status").asText()).isEqualTo("REQUIRES_REVIEW");
+				assertThat(data.path("next_action").asText()).isEqualTo("CONTACT_SUPPORT");
+				assertThat(data.path("retry_after_seconds").asInt()).isEqualTo(30);
+			} else if (state == PaymentOperationStatus.WAITING_RETRY) {
+				assertThat(data.path("retry_after_seconds").asInt()).isEqualTo(6);
+				assertThat(data.path("failure_code").isNull()).isTrue();
+				assertThat(data.path("user_failure_code").isNull()).isTrue();
+			}
+		}
+		assertThat(spec.path("paths").path(path).path("get").path("parameters").findValuesAsText("name"))
+			.containsExactly("operationId");
+	}
+
+	@Test
+	void paymentReadErrorsDistinguishMissingDataOwnerAndMalformedOperationId() throws Exception {
+		JsonNode spec = specification("client");
+		String operationPath = "/api/v1/payment-operations/{operationId}";
+		String invalid = mvc.perform(get(operationPath, "invalid").cookie(SESSION)).andExpect(status().isBadRequest())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, operationPath, "get", "400", "C004", invalid);
+		PaymentOperationQueryService operationService = context.getBean(PaymentOperationQueryService.class);
+		PaymentQueryService paymentService = context.getBean(PaymentQueryService.class);
+		for (String path : List.of(operationPath, "/api/v1/payments/{paymentKey}", "/api/v1/payments/orders/{orderId}")) {
+			String noSession = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID)).andExpect(status().isUnauthorized())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "401", "M004", noSession);
+		}
+		verifyNoInteractions(operationService, paymentService);
+		for (boolean forbidden : List.of(false, true)) {
+			doThrow(forbidden ? new PaymentAccessDeniedException() : new PaymentOperationNotFoundException())
+				.when(operationService).find(any(), eq(10L));
+			doThrow(forbidden ? new PaymentAccessDeniedException() : new PaymentNotFoundException())
+				.when(paymentService).findPaymentByPaymentKey(any(), eq(10L));
+			doThrow(forbidden ? new PaymentAccessDeniedException() : new PaymentNotFoundException())
+				.when(paymentService).findPaymentByOrderId(any(), eq(10L));
+			for (String path : List.of(operationPath, "/api/v1/payments/{paymentKey}", "/api/v1/payments/orders/{orderId}")) {
+				var response = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION))
+					.andExpect(status().is(forbidden ? 403 : 404)).andReturn().getResponse();
+				assertDocumentedError(spec, path, "get", Integer.toString(response.getStatus()), forbidden ? "P004" : path.equals(operationPath) ? "P005" : "P001", response.getContentAsString());
+			}
+		}
+	}
+
+	@Test
+	void paymentAdminQueueDocumentsBoundsSafeFieldsAndRealGuards() throws Exception {
+		JsonNode spec = specification("admin");
+		String path = "/api/v1/admin/payment-operations/manual-review";
+		JsonNode limit = spec.path("paths").path(path).path("get").path("parameters").path(0);
+		assertThat(limit.path("name").asText()).isEqualTo("limit");
+		assertThat(limit.at("/schema/type").asText()).isEqualTo("integer");
+		assertThat(limit.at("/schema/minimum").asInt()).isEqualTo(1);
+		assertThat(limit.at("/schema/maximum").asInt()).isEqualTo(100);
+		assertThat(limit.at("/schema/default").asInt()).isEqualTo(50);
+		String noSession = mvc.perform(get(path)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "401", "M004", noSession);
+		String forbidden = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "403", "M006", forbidden);
+		PaymentOperationManualReviewQueryService service = context.getBean(PaymentOperationManualReviewQueryService.class);
+		verifyNoInteractions(service);
+		allowDocumentationAdmin();
+		var item = PaymentOperationAdminResponse.ManualReviewItem.from(new PaymentOperationManualReviewQueueItem(
+			DOCUMENTATION_OPERATION_ID, PaymentOperationType.CONFIRM, 5, 1, Instant.parse("2027-01-01T00:00:00Z"), 7L, true));
+		when(service.findManualReviewQueue(50)).thenReturn(new PaymentOperationAdminResponse.ManualReviewQueue(List.of(item), false));
+		String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/items/0").size()).isEqualTo(7);
+		assertThat(body).doesNotContain("payment_key", "evidence_reference", "failure_code");
+		verify(service).findManualReviewQueue(50);
+		for (int invalidLimit : List.of(0, 101)) {
+			doThrow(new kr.kro.airbob.common.exception.InvalidInputException("limit")).when(service).findManualReviewQueue(invalidLimit);
+			String invalid = mvc.perform(get(path).cookie(SESSION).param("limit", Integer.toString(invalidLimit)))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "400", "C001", invalid);
+		}
+		String wrongType = mvc.perform(get(path).cookie(SESSION).param("limit", "invalid"))
+			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "400", "C004", wrongType);
+	}
+
+	@Test
+	void paymentAdminActionsDocumentValidatedRequestsAndDifferentCompletionStates() throws Exception {
+		JsonNode spec = specification("admin");
+		allowDocumentationAdmin();
+		PaymentOperationManualReviewCommandService service = context.getBean(PaymentOperationManualReviewCommandService.class);
+		for (String action : List.of("reconciliation", "mark-not-paid")) {
+			String path = "/api/v1/admin/payment-operations/{operationId}/" + action;
+			String valid = action.equals("reconciliation") ? "{\"expected_version\":7}" : """
+				{"expected_version":7,"reason_code":"PROVIDER_PAYMENT_NOT_FOUND","evidence_reference":"incident/ABC-123"}
+				""";
+			for (String invalid : List.of("{}", valid.replace("\"expected_version\":7", "\"expected_version\":-1"))) {
+				String body = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+					.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, path, "post", "400", "C001", body);
+			}
+			String wrongType = mvc.perform(post(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "post", "400", "C004", wrongType);
+			String unsupported = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(valid))
+				.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
+			if (action.equals("mark-not-paid")) {
+				for (String invalid : List.of(valid.replace("PROVIDER_PAYMENT_NOT_FOUND", "UNKNOWN"),
+					valid.replace("incident/ABC-123", "secret?query=value"), valid.replace("incident/ABC-123", "x".repeat(257)))) {
+					String body = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+						.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+					assertDocumentedError(spec, path, "post", "400", "C001", body);
+					assertThat(body).doesNotContain("secret?query=value");
+				}
+			}
+		}
+		verifyNoInteractions(service);
+		when(service.requestReconciliation(DOCUMENTATION_OPERATION_ID, 10L, 7L)).thenReturn(
+			new PaymentOperationManualReviewResult(DOCUMENTATION_OPERATION_ID, PaymentOperationStatus.QUEUED, 8));
+		when(service.markNotPaid(eq(DOCUMENTATION_OPERATION_ID), eq(10L), eq(7L), any(), any())).thenReturn(
+			new PaymentOperationManualReviewResult(DOCUMENTATION_OPERATION_ID, PaymentOperationStatus.DECLINED, 8));
+		for (String action : List.of("reconciliation", "mark-not-paid")) {
+			String path = "/api/v1/admin/payment-operations/{operationId}/" + action;
+			String request = action.equals("reconciliation") ? "{\"expected_version\":7}" : """
+				{"expected_version":7,"reason_code":"PROVIDER_PAYMENT_NOT_FOUND","evidence_reference":"incident/ABC-123"}
+				""";
+			String body = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "post", "202", body);
+			assertThat(mapper.readTree(body).at("/data/status").asText()).isEqualTo(action.equals("reconciliation") ? "QUEUED" : "DECLINED");
+			JsonNode example = spec.path("paths").path(path).path("post").at("/responses/202/content/application~1json/example");
+			assertThat(example).isEqualTo(mapper.readTree(body));
+		}
+	}
+
+	@Test
+	void paymentAdminActionErrorsMatchConflictNotFoundAndFenceOutcomes() throws Exception {
+		JsonNode spec = specification("admin");
+		allowDocumentationAdmin();
+		PaymentOperationManualReviewCommandService service = context.getBean(PaymentOperationManualReviewCommandService.class);
+		String request = "{\"expected_version\":7,\"reason_code\":\"PROVIDER_PAYMENT_NOT_FOUND\",\"evidence_reference\":\"incident/ABC-123\"}";
+		for (String action : List.of("reconciliation", "mark-not-paid")) {
+			String path = "/api/v1/admin/payment-operations/{operationId}/" + action;
+			for (kr.kro.airbob.common.exception.BaseException error : List.of(new PaymentOperationNotFoundException(), new PaymentOperationConflictException())) {
+				if (action.equals("reconciliation")) {
+					doThrow(error).when(service).requestReconciliation(any(), eq(10L), anyLong());
+				} else {
+					doThrow(error).when(service).markNotPaid(any(), eq(10L), anyLong(), any(), any());
+				}
+				var response = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+					.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+				assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			}
+		}
+		doThrow(new PaymentOperationExecutionFenceUnavailableException()).when(service).markNotPaid(any(), eq(10L), anyLong(), any(), any());
+		String path = "/api/v1/admin/payment-operations/{operationId}/mark-not-paid";
+		var response = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isServiceUnavailable()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "post", "503", "P007", response.getContentAsString());
+		assertThat(response.getHeader("Retry-After")).isNull();
+	}
+
+	private void allowDocumentationAdmin() {
+		when(context.getBean(MemberRepository.class).existsByIdAndStatusAndRole(10L, MemberStatus.ACTIVE, MemberRole.ADMIN)).thenReturn(true);
 	}
 
 	private Reservation documentationPendingReservation(Instant expiresAt) {

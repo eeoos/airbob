@@ -14,10 +14,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaymentRequest {
 
+	@Schema(name = "PaymentRequestConfirm")
 	public record Confirm(
-		@NotBlank @Size(max = 200) String paymentKey,
+		@Schema(description = "결제창에서 받은 결제 키. 빈 값·공백만 있는 값 불가, 최대 200자", example = "example-payment-key")
+		@NotBlank @Size(min = 1, max = 200) String paymentKey,
+		@Schema(description = "결제 시도 발급 응답의 order_id(예약 UID) 문자열을 그대로 전달합니다.", format = "uuid", example = "00000000-0000-0000-0000-000000000020")
 		@NotBlank String orderId,
+		@Schema(description = "결제 시도 발급 응답의 amount와 같은 금액. 0원 예약은 결제 확인을 요청하지 않습니다.", example = "10000", minimum = "1", maximum = "2147483647")
 		@NotNull @Positive Integer amount,
+		@Schema(description = "결제 시도 발급 응답의 payment_attempt_id", example = "00000000-0000-0000-0000-000000000030")
 		@NotNull UUID paymentAttemptId
 	) {}
 
@@ -25,6 +30,7 @@ public class PaymentRequest {
 	public record Cancel(
 		@NotBlank(message = "취소 사유는 필수입니다.")
 		@Size(
+			min = 1,
 			max = PaymentOperation.CANCELLATION_REASON_MAX_LENGTH,
 			message = "취소 사유는 200자 이하여야 합니다."
 		)

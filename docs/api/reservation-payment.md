@@ -75,7 +75,9 @@ sequenceDiagram
 {"payment_key":"example-payment-key","order_id":"00000000-0000-0000-0000-000000000020","amount":10000,"payment_attempt_id":"00000000-0000-0000-0000-000000000030"}
 ```
 
-202 응답은 처리 접수다. `data.status_url`로 작업 상태를 조회한다. 결제 키나 성공 리다이렉트만으로 예약 완료 화면을 확정하지 않는다. 실제 요청에서는 예시 식별자를 서버와 결제창에서 받은 값으로 대체한다.
+최초 결제 확인 요청은 보유 기한이 남은 PAYMENT_PENDING 예약에만 가능하다. 같은 예약·시도 ID·결제 키·금액으로 재요청하면 기존 작업의 **현재 상태**를 반환하며, 이미 사용한 시도나 보유 기한이 지난 후에도 같은 작업을 조회할 수 있다. 다른 결제 키는 409/P006, 예약과 다른 금액·주문 문자열은 400/C001, 발급된 시도 ID와 다르면 409/R024다. 기존 작업이 없고 보유가 만료되었거나 결제 대기 상태가 아니면 409/R011이다. 다른 게스트의 예약은 403/P004다.
+
+202 응답은 처리 접수다. `data.status_url`은 같은 API 서버의 상대 경로다. 작업 상태를 조회한다. 결제 키나 성공 리다이렉트만으로 예약 완료 화면을 확정하지 않는다. 실제 요청에서는 예시 식별자를 서버와 결제창에서 받은 값으로 대체한다.
 
 ## 4 상태 조회와 다음 행동
 
@@ -86,7 +88,7 @@ sequenceDiagram
 | PENDING | 접수 또는 재시도 대기 |
 | PROCESSING | 처리 중 |
 | SUCCEEDED | 결제 확인 또는 취소가 적용됨 |
-| FAILED | 최종 거절 |
+| FAILED | 승인·취소 실패 또는 미결제 확정 |
 | REQUIRES_REVIEW | 운영자의 확인이 필요함 |
 
 | next_action | 처리 |
@@ -97,7 +99,19 @@ sequenceDiagram
 | CONTACT_SUPPORT | `user_message`를 표시하고 고객센터 안내로 연결한다. |
 | NONE | 자동 재시도를 종료하고 예약 상세를 확인한다. |
 
-API의 상태 문자열을 그대로 사용한다. DB 내부 작업 상태 이름을 클라이언트에 사용하는 계약으로 옮기지 않는다. `failure_code`와 사용자용 `user_failure_code`는 서로 다른 필드다.
+`retry_after_seconds`는 진행 중에는 2~30초, REQUIRES_REVIEW에는 30초, SUCCEEDED·FAILED에는 null이다. REQUIRES_REVIEW에서 값이 있더라도 `next_action=CONTACT_SUPPORT`가 우선이며 승인·취소 요청을 자동으로 다시 보내지 않는다. 실패한 승인도 현재 예약이 EXPIRED이고 체크인 전일 때만 START_NEW_CHECKOUT을 반환한다. 실패한 취소는 현재 예약이 CANCELLATION_FAILED일 때 체크인 전에는 RETRY_CANCELLATION, 체크인 시각부터는 CONTACT_SUPPORT다.
+
+상태 조회는 해당 작업을 요청한 회원에게만 허용한다. 없는 작업은 404/P005, 다른 회원의 작업은 403/P004, 경로 UUID 해석 실패는 400/C004다. 작업 ID는 예약 UID·결제 시도 ID와 구분한다.
+
+API의 상태 문자열을 그대로 사용한다. 관리자 API의 내부 작업 상태와 회원 상태를 구분한다. `failure_code`는 FAILED·REQUIRES_REVIEW에서 제공할 수 있는 내부 진단 코드다. 사용자 안내에는 `user_message`와 `user_failure_code`를 사용한다. 사용자 실패 코드는 PAYMENT_DECLINED, PAYMENT_CANCELLATION_DECLINED, PAYMENT_REVIEW_REQUIRED이며 그 외 상태에서는 null이다.
+
+### 저장된 결제와 취소 이력 조회
+
+`GET /api/v1/payments/{paymentKey}` 또는 `GET /api/v1/payments/orders/{orderId}`로 예약 게스트 본인의 결제 기록을 조회한다. 호스트·관리자 역할만으로 다른 게스트의 기록에 접근할 수 없다. 결제 반영 전이나 0원 예약처럼 기록이 없으면 404/P001, 다른 게스트의 기록이면 403/P004다. 주문 조회는 문자열로 검색하므로 잘못된 주문 문자열도 일치하는 기록이 없으면 404/P001이다.
+
+이 응답의 `status`는 저장된 결제 상태(DONE·CANCELED 등)이며 작업 상태와 다르다. `cancels`는 성공한 취소 원장의 생성 시각 오름차순이며 이력이 없으면 빈 배열이다. 진행 중이거나 실패한 취소는 포함하지 않는다. 현재 요청 API는 전액 취소만 지원하지만 과거 부분 취소 원장도 읽는다.
+
+`requested_at`은 Airbob 결제 기록 생성 시각, `approved_at`은 결제사의 승인 시각이다. 값이 없으면 해당 필드는 생략된다. 취소 이력의 `canceled_at`은 결제사 취소 시각이며, 과거 원장에 금액·사유·취소 시각이 없으면 해당 필드는 null이다. 모든 시각은 UTC `Z` 문자열이다.
 
 ## 5 보유 해제와 예약 취소
 
@@ -146,3 +160,18 @@ API의 상태 문자열을 그대로 사용한다. DB 내부 작업 상태 이�
 | 예약 취소 | 없음 404/R001, 다른 게스트 403/P004, UID 해석 실패 400/C001 |
 
 로그인하지 않은 요청은 위 업무 검사 전에 401/M004를 받는다. 유료 결제가 없는 예약을 취소 API로 처리하려 하면 404/P001을 받을 수 있으므로 결제 대기 해제에는 보유 해제 API를 사용한다.
+
+## 7 관리자 수동 확인
+
+`GET /api/v1/admin/payment-operations/manual-review?limit=50`은 수동 확인 진입 시각·내부 ID 오름차순으로 대기 작업을 반환한다. `limit`은 1~100, 기본 50이며 범위 밖은 400/C001, 정수 해석 실패는 400/C004다. `has_more`는 추가 대상 존재 여부로, 커서 페이지 이동 기능은 없다. 앞선 작업을 처리하고 다시 조회한다. 대사 중인 작업은 목록에서 빠지고, 수동 확인이 다시 필요해지면 재등장한다.
+
+목록의 `operation_uid`를 관리 API의 경로 `operationId`에, `version`을 본문의 `expected_version`에 사용한다. `available_actions`에 표시된 작업도 요청 시점에 다시 검증하며 버전·상태가 바뀌면 409/P006이다.
+
+| 요청 | 입력 예시 | 202 응답의 의미 |
+|---|---|---|
+| `POST /api/v1/admin/payment-operations/{operationId}/reconciliation` | `{"expected_version":7}` | 결제사 상태 조회 접수. 관리자 상태 QUEUED |
+| `POST /api/v1/admin/payment-operations/{operationId}/mark-not-paid` | `{"expected_version":7,"reason_code":"PROVIDER_PAYMENT_NOT_FOUND","evidence_reference":"incident/ABC-123"}` | 미결제 확정 반영 완료. 관리자 상태 DECLINED, 회원 상태 FAILED |
+
+대사는 승인·취소를 다시 요청하지 않는다. 미결제 확정은 MARK_NOT_PAID가 허용된 CONFIRM 작업에만 가능하며 응답 전에 예약 만료와 재고·쿠폰 복구가 반영된다. `reason_code`는 PROVIDER_PAYMENT_NOT_FOUND, PROVIDER_DASHBOARD_VERIFIED_NOT_PAID, SETTLEMENT_REPORT_VERIFIED_NOT_PAID 중 하나다. 증거 참조는 공백 없이 최대 256자이며 영문자·숫자와 `_ - / : . ,`만 허용한다. 결제 키·개인정보·결제사 응답 본문을 넣지 않는다.
+
+미결제 확정의 503/P007은 작업을 시작하지 못했다는 의미다. 상태와 버전을 다시 확인한 뒤 재시도한다. 관리자 API는 로그인하지 않으면 401/M004, 활성 ADMIN이 아니면 403/M006이다. 상세 운영 절차는 [결제 운영 안내](../operations/payment-operation-runbook.md)를 따른다.

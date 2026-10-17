@@ -68,7 +68,7 @@ public class OpenApiConfiguration {
 			.info(new Info().title("Airbob API").version("v1")
 				.description("예약·숙소·쿠폰·결제 API. JSON 필드는 snake_case이며 쿼리 매개변수는 명세의 이름을 사용합니다. "
 					+ "client 그룹의 인증 → 로그인에 성공하면 브라우저가 SESSION_ID 쿠키를 자동 저장·전송합니다. Authorize에 쿠키를 입력하지 않습니다. "
-					+ "202 응답은 요청 접수를 뜻합니다."))
+					+ "202 응답의 처리 완료 여부는 각 API 설명을 따릅니다."))
 			.servers(List.of(new Server().url("/")))
 			.components(new Components()
 				.addSecuritySchemes(SESSION_AUTH, new SecurityScheme().type(SecurityScheme.Type.APIKEY)
