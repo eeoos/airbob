@@ -217,7 +217,9 @@ public class AccommodationResponse {
 	@Builder
 	@Schema(name = "AccommodationResponseRecentlyViewedAccommodationInfos")
 	public record RecentlyViewedAccommodationInfos(
+		@Schema(description = "현재 공개된 최근 본 숙소. 최대 100개이며 없으면 빈 배열", requiredMode = Schema.RequiredMode.REQUIRED)
 		List<RecentlyViewedAccommodationInfo> accommodations,
+		@Schema(description = "이번 응답 accommodations의 항목 수. 제외된 기록은 세지 않습니다.", example = "1", minimum = "0", maximum = "100", requiredMode = Schema.RequiredMode.REQUIRED)
 		int totalCount
 	) {
 		public static RecentlyViewedAccommodationInfos from(List<RecentlyViewedAccommodationInfo> accommodationInfos) {
@@ -231,13 +233,19 @@ public class AccommodationResponse {
 	@Builder
 	@Schema(name = "AccommodationResponseRecentlyViewedAccommodationInfo")
 	public record RecentlyViewedAccommodationInfo(
+		@Schema(description = "이 회원이 마지막으로 기록 API를 호출한 서버 UTC 시각. 밀리초 정밀도이며 재기록 시 갱신됩니다.", example = "2027-01-10T02:00:00.123Z", requiredMode = Schema.RequiredMode.REQUIRED)
 		Instant viewedAt,
+		@Schema(description = "숙소 ID. 상세 조회와 기록 삭제에 사용합니다.", example = "101", requiredMode = Schema.RequiredMode.REQUIRED)
 		Long accommodationId,
+		@Schema(description = "현재 숙소 이름. 과거 데이터는 null일 수 있습니다.", example = "서울 하우스", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
 		String accommodationName,
-		@Schema(nullable = true)
+		@Schema(description = "현재 대표 사진 URL. 없으면 null", example = "https://example.invalid/stay.jpg", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
 		String thumbnailUrl,
+		@Schema(description = "현재 주소 요약. 주소가 없는 과거 숙소도 각 필드가 null인 객체로 반환합니다.", requiredMode = Schema.RequiredMode.REQUIRED)
 		AddressResponse.AddressSummaryInfo addressSummary,
+		@Schema(description = "현재 게시된 리뷰 수와 평균 평점. 없으면 0건·0점", requiredMode = Schema.RequiredMode.REQUIRED)
 		ReviewResponse.ReviewSummary reviewSummary,
+		@Schema(description = "본인의 활성 위시리스트 중 하나라도 이 숙소를 포함하는지 여부", example = "false", requiredMode = Schema.RequiredMode.REQUIRED)
 		Boolean isInWishlist
 	) {
 		public RecentlyViewedAccommodationInfo {

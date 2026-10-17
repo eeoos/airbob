@@ -25,6 +25,7 @@ import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.wishlist.dto.QWishlistAccommodationResponse_WishlistAccommodationInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -83,6 +84,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.join(wishlistAccommodation.accommodation, accommodation)
 			.where(
 				member.id.eq(memberId),
+				wishlist.status.eq(WishlistStatus.ACTIVE),
 				accommodation.id.in(accommodationIds),
 				accommodation.status.eq(AccommodationStatus.PUBLISHED)
 			)

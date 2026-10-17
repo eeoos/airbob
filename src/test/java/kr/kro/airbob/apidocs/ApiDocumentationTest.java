@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -1848,6 +1849,81 @@ class ApiDocumentationTest {
 			assertDocumentedError(spec, paths[index], methods[index], "415", "C011", body);
 		}
 		verifyNoInteractions(context.getBean(WishlistService.class));
+	}
+
+	@Test
+	void everyRecentlyViewedOperationRequiresTheSessionWithoutManualIdentityInputs() throws Exception {
+		JsonNode spec = specification("client");
+		String list = "/api/v1/members/recently-viewed", item = list + "/{accommodationId}";
+		var requests = List.of(get(list), post(item, 101), delete(item, 101));
+		String[] paths = {list, item, item};
+		String[] methods = {"get", "post", "delete"};
+		for (int index = 0; index < requests.size(); index++) {
+			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths[index], methods[index], "401", "M004", body);
+			JsonNode operation = spec.path("paths").path(paths[index]).path(methods[index]);
+			assertThat(operation.has("requestBody")).isFalse();
+			assertThat(operation.path("parameters").findValuesAsText("name"))
+				.doesNotContain("memberId", "member_id", "SESSION_ID", "page", "size", "cursor");
+		}
+		verifyNoInteractions(context.getBean(RecentlyViewedService.class));
+	}
+
+	@Test
+	void recentlyViewedRecordAndDeleteUseAccommodationIdAndReturnBodylessSuccessData() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/members/recently-viewed/{accommodationId}";
+		RecentlyViewedService service = context.getBean(RecentlyViewedService.class);
+		for (String method : List.of("post", "delete")) {
+			JsonNode operation = spec.path("paths").path(path).path(method);
+			assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("accommodationId");
+			assertThat(operation.path("responses").has("404")).isFalse();
+			var request = method.equals("post") ? post(path, 999) : delete(path, 999);
+			String body = mvc.perform(request.cookie(SESSION).param("memberId", "777"))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, method, "200", body);
+			assertThat(mapper.readTree(body)).isEqualTo(mapper.readTree("{\"success\":true}"));
+			for (String id : List.of("invalid", "9223372036854775808")) {
+				var invalid = method.equals("post") ? post(path, id) : delete(path, id);
+				String failed = mvc.perform(invalid.cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, path, method, "400", "C004", failed);
+			}
+		}
+		verify(service).addRecentlyViewed(999L, 10L);
+		verify(service).removeRecentlyViewed(999L, 10L);
+	}
+
+	@Test
+	void recentlyViewedCardsMatchNullableCurrentFieldsUtcTimesAndEmptyHistory() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/members/recently-viewed";
+		RecentlyViewedService service = context.getBean(RecentlyViewedService.class);
+		var cards = List.of(
+			new AccommodationResponse.RecentlyViewedAccommodationInfo(Instant.parse("2027-01-10T02:00:00.123Z"),
+				101L, "서울 하우스", "https://example.invalid/stay.jpg", new AddressResponse.AddressSummaryInfo("대한민국", null, "서울", null),
+				ReviewResponse.ReviewSummary.of(2, new BigDecimal("4.50")), true),
+			new AccommodationResponse.RecentlyViewedAccommodationInfo(Instant.parse("2027-01-09T00:00:00Z"),
+				102L, null, null, new AddressResponse.AddressSummaryInfo(null, null, null, null), null, false));
+		when(service.getRecentlyViewed(10L)).thenReturn(AccommodationResponse.RecentlyViewedAccommodationInfos.from(cards));
+		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", response);
+		JsonNode data = mapper.readTree(response).path("data");
+		assertThat(data.path("total_count").asInt()).isEqualTo(2);
+		assertThat(data.at("/accommodations/0/viewed_at").asText()).isEqualTo("2027-01-10T02:00:00.123Z");
+		assertThat(data.at("/accommodations/1/accommodation_name").isNull()).isTrue();
+		assertThat(data.at("/accommodations/1/thumbnail_url").isNull()).isTrue();
+		assertThat(data.at("/accommodations/1/address_summary/country").isNull()).isTrue();
+		assertThat(data.at("/accommodations/1/review_summary/total_count").asInt()).isZero();
+		assertThat(data.at("/accommodations/1/review_summary/average_rating").decimalValue()).isZero();
+		assertThat(data.at("/accommodations/1/is_in_wishlist").asBoolean()).isFalse();
+		assertThat(spec.path("paths").path(path).path("get").path("parameters").isEmpty()).isTrue();
+		JsonNode fields = spec.at("/components/schemas/AccommodationResponseRecentlyViewedAccommodationInfo/required");
+		assertThat(fields.toString()).contains("viewed_at", "accommodation_id", "accommodation_name", "thumbnail_url",
+			"address_summary", "review_summary", "is_in_wishlist");
+		when(service.getRecentlyViewed(10L)).thenReturn(AccommodationResponse.RecentlyViewedAccommodationInfos.from(List.of()));
+		String empty = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", empty);
+		assertThat(mapper.readTree(empty)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"accommodations\":[],\"total_count\":0}}"));
 	}
 
 	private void allowDocumentationAdmin() {

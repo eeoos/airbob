@@ -285,33 +285,63 @@ components:
     AccommodationResponseRecentlyViewedAccommodationInfo:
       properties:
         accommodation_id:
+          description: "숙소 ID. 상세 조회와 기록 삭제에 사용합니다."
+          example: 101
           format: "int64"
           type: "integer"
         accommodation_name:
-          type: "string"
+          description: "현재 숙소 이름. 과거 데이터는 null일 수 있습니다."
+          example: "서울 하우스"
+          type:
+          - "string"
+          - "null"
         address_summary:
           $ref: "#/components/schemas/AddressResponseAddressSummaryInfo"
+          description: "현재 주소 요약. 주소가 없는 과거 숙소도 각 필드가 null인 객체로 반환합니다."
         is_in_wishlist:
+          description: "본인의 활성 위시리스트 중 하나라도 이 숙소를 포함하는지 여부"
+          example: false
           type: "boolean"
         review_summary:
           $ref: "#/components/schemas/ReviewResponseReviewSummary"
+          description: "현재 게시된 리뷰 수와 평균 평점. 없으면 0건·0점"
         thumbnail_url:
+          description: "현재 대표 사진 URL. 없으면 null"
+          example: "https://example.invalid/stay.jpg"
           type:
           - "string"
           - "null"
         viewed_at:
+          description: "이 회원이 마지막으로 기록 API를 호출한 서버 UTC 시각. 밀리초 정밀도이며 재기록 시 갱신됩니다."
+          example: "2027-01-10T02:00:00.123Z"
           format: "date-time"
           type: "string"
+      required:
+      - "accommodation_id"
+      - "accommodation_name"
+      - "address_summary"
+      - "is_in_wishlist"
+      - "review_summary"
+      - "thumbnail_url"
+      - "viewed_at"
       type: "object"
     AccommodationResponseRecentlyViewedAccommodationInfos:
       properties:
         accommodations:
+          description: "현재 공개된 최근 본 숙소. 최대 100개이며 없으면 빈 배열"
           items:
             $ref: "#/components/schemas/AccommodationResponseRecentlyViewedAccommodationInfo"
           type: "array"
         total_count:
+          description: "이번 응답 accommodations의 항목 수. 제외된 기록은 세지 않습니다."
+          example: 1
           format: "int32"
+          maximum: 100
+          minimum: 0
           type: "integer"
+      required:
+      - "accommodations"
+      - "total_count"
       type: "object"
     AccommodationResponseUnavailableDateRange:
       properties:
@@ -4860,14 +4890,15 @@ paths:
       - "쿠폰"
   /api/v1/members/recently-viewed:
     get:
-      operationId: "getRecentlyViewed"
+      description: "로그인 회원이 기록한 숙소 중 현재 공개된 숙소를 최근 기록 시각 내림차순으로 최대 100개 반환합니다. 같은 밀리초의 기록은 숙소 ID 문자열 내림차순입니다. 페이지·커서 매개변수는 없습니다. 없는 숙소·초안·비공개·삭제된 숙소는 응답에서 제외하고 기록에서도 제거합니다. 숙소·주소·리뷰 요약·본인의 활성 위시리스트 저장 여부는 현재 값입니다. 리뷰가 없으면 0건·0점이며 주소가 없는 과거 숙소도 주소 필드가 null인 객체로 반환합니다. 빈 기록은 accommodations=[], total_count=0입니다. 조회는 기록 시각과 목록 만료 시각을 갱신하지 않습니다."
+      operationId: "RecentlyViewed.getRecentlyViewed"
       responses:
         "200":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseAccommodationResponseRecentlyViewedAccommodationInfos"
-          description: "OK"
+          description: "처리 완료"
         "401":
           content:
             application/json:
@@ -4902,13 +4933,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "최근 본 숙소 조회"
       tags:
-      - "recently-viewed-controller"
+      - "최근 본 숙소"
   /api/v1/members/recently-viewed/{accommodationId}:
     delete:
-      operationId: "removeRecentlyViewed"
+      description: "로그인 회원의 기록에서 해당 숙소를 제거합니다. 숙소 자체나 다른 회원의 기록은 삭제하지 않습니다. 기록이 없거나 이미 삭제했어도 200이며 요청 본문은 없습니다. 남은 목록의 만료 시각은 연장하지 않습니다."
+      operationId: "RecentlyViewed.removeRecentlyViewed"
       parameters:
-      - in: "path"
+      - description: "숙소 ID. 기록 ID나 위시리스트 연결 ID가 아닙니다."
+        example: 101
+        in: "path"
         name: "accommodationId"
         required: true
         schema:
@@ -4920,7 +4955,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "처리 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -4955,12 +5006,16 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "최근 본 숙소 삭제"
       tags:
-      - "recently-viewed-controller"
+      - "최근 본 숙소"
     post:
-      operationId: "addRecentlyViewed"
+      description: "로그인 회원의 최근 본 숙소에 서버 현재 시각으로 기록합니다. 같은 숙소를 다시 기록하면 기존 항목의 시각을 갱신합니다. 회원별 최대 100개를 유지하며 초과하면 오래된 기록부터 제거합니다. 기록할 때마다 목록 전체의 만료가 7일 뒤로 연장됩니다. 숙소의 존재·공개 여부는 여기서 확인하지 않으며 조회 시 유효하지 않은 기록을 정리합니다. 요청 본문은 없습니다. 숙소 상세 조회만으로 자동 기록되지 않으므로 이 API를 별도로 호출합니다."
+      operationId: "RecentlyViewed.addRecentlyViewed"
       parameters:
-      - in: "path"
+      - description: "숙소 ID. 기록 ID나 위시리스트 연결 ID가 아닙니다."
+        example: 101
+        in: "path"
         name: "accommodationId"
         required: true
         schema:
@@ -4972,7 +5027,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "처리 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5007,8 +5078,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "최근 본 숙소 기록"
       tags:
-      - "recently-viewed-controller"
+      - "최근 본 숙소"
   /api/v1/members/wishlists:
     get:
       description: "본인의 활성 위시리스트를 생성 시각·목록 ID 내림차순으로 조회합니다. 기본 20개, 최대 50개입니다. accommodationId는 목록 필터가 아니라 각 목록의 저장 여부와 연결 ID를 함께 받기 위한 선택값입니다. 생략하면 is_contained와 wishlist_accommodation_id는 null입니다. 숙소 수·대표 사진·저장 여부에는 비공개 숙소도 포함되므로 공개 숙소만 반환하는 상세 목록과 개수가 다를 수 있습니다."
