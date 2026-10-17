@@ -14,7 +14,7 @@ echo ""
 
 # 1. 초기 nginx 설정 사용
 echo "[1/5] 초기 nginx 설정 적용..."
-cp nginx/conf.d/default.conf.init nginx/conf.d/default.conf
+cp docker/nginx/conf.d/default.conf.init docker/nginx/conf.d/default.conf
 
 # 2. 볼륨 생성
 echo "[2/5] Docker 볼륨 생성..."
@@ -25,8 +25,8 @@ docker volume create --name airbob_certbot-certs 2>/dev/null || true
 echo "[3/5] nginx 컨테이너 시작..."
 docker run -d --name nginx-init \
     -p 80:80 \
-    -v $(pwd)/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
-    -v $(pwd)/nginx/conf.d:/etc/nginx/conf.d:ro \
+    -v $(pwd)/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+    -v $(pwd)/docker/nginx/conf.d:/etc/nginx/conf.d:ro \
     -v airbob_certbot-www:/var/www/certbot \
     nginx:1.25-alpine
 
@@ -50,7 +50,7 @@ echo "[5/5] 정리 중..."
 docker stop nginx-init && docker rm nginx-init
 
 # SSL 설정 복원
-cat > nginx/conf.d/default.conf << 'NGINX_CONF'
+cat > docker/nginx/conf.d/default.conf << 'NGINX_CONF'
 # Upstream for Spring Boot App
 upstream app {
     server app:8080;

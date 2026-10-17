@@ -35,14 +35,13 @@ docker-compose.oci.yml
 
 managed_directories="
 src/main/resources/db/migration
-debezium-config
 docker/debezium
 docker/elasticsearch
 docker/kafka
 docker/mysql/init
-logstash
+docker/logstash
 monitoring
-nginx
+docker/nginx
 scripts
 "
 

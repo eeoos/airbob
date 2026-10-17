@@ -149,7 +149,7 @@ services:
       CONNECT_URL: http://debezium:8083
       CONNECTOR_NAME: airbob-outbox-connector
     volumes:
-      - ./debezium-config/outbox-connector.json:/config/outbox-connector.json:ro
+      - ./docker/debezium/outbox-connector.json:/config/outbox-connector.json:ro
       - ./docker/debezium/register-connector.sh:/opt/airbob/register-connector.sh:ro
     entrypoint: ["/bin/sh", "/opt/airbob/register-connector.sh"]
     restart: "no"
@@ -240,9 +240,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
-      - ./logstash/config/jdbc:/usr/share/logstash/config/jdbc:ro
+      - ./docker/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./docker/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./docker/logstash/config/jdbc:/usr/share/logstash/config/jdbc:ro
     command: ["logstash", "-f", "/usr/share/logstash/pipeline/airbob.conf"]
     networks:
       - local-infra

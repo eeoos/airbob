@@ -45,13 +45,13 @@ class OciDeploymentContractTest {
 		assertThat(script)
 			.contains("docker-compose.oci.yml")
 			.contains("src/main/resources/db/migration")
-			.contains("debezium-config")
 			.contains("docker/debezium")
 			.contains("docker/elasticsearch")
 			.contains("docker/kafka")
 			.contains("docker/mysql/init")
+			.contains("docker/logstash")
 			.contains("monitoring")
-			.contains("nginx")
+			.contains("docker/nginx")
 			.contains("scripts")
 			.contains("--delete");
 		assertThat(managedAssetLines)
@@ -68,14 +68,13 @@ class OciDeploymentContractTest {
 		Files.writeString(source.resolve("docker-compose.oci.yml"), "services: {}\n");
 		for (String directory : List.of(
 			"src/main/resources/db/migration",
-			"debezium-config",
 			"docker/debezium",
 			"docker/elasticsearch",
 			"docker/kafka",
 			"docker/mysql/init",
-			"logstash",
+			"docker/logstash",
 			"monitoring",
-			"nginx",
+			"docker/nginx",
 			"scripts"
 		)) {
 			Path assetDirectory = source.resolve(directory);
@@ -108,7 +107,10 @@ class OciDeploymentContractTest {
 		assertThat(completed).withFailMessage(output).isTrue();
 		assertThat(process.exitValue()).withFailMessage(output).isZero();
 		assertThat(target.resolve("scripts/reviewed")).hasContent("scripts");
+		assertThat(target.resolve("docker/debezium/reviewed")).hasContent("docker/debezium");
 		assertThat(target.resolve("docker/elasticsearch/reviewed")).hasContent("docker/elasticsearch");
+		assertThat(target.resolve("docker/logstash/reviewed")).hasContent("docker/logstash");
+		assertThat(target.resolve("docker/nginx/reviewed")).hasContent("docker/nginx");
 		assertThat(target.resolve("scripts/stale")).doesNotExist();
 		assertThat(target.resolve(".env.oci")).hasContent("SERVER_SECRET=preserve");
 		assertThat(target.resolve("logs/app.log")).hasContent("preserve");

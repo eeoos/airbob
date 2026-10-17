@@ -227,14 +227,13 @@ gradle.properties
 docker/app/**
 infra/aws/images/release.json
 docker-compose.oci.yml
-debezium-config/**
 docker/debezium/**
 docker/elasticsearch/**
 docker/kafka/**
 docker/mysql/init/**
-logstash/**
+docker/logstash/**
 monitoring/**
-nginx/**
+docker/nginx/**
 scripts/**
 EOF
 sed -n '/^          scope_paths=(/,/^          )/p' "$cd_workflow" \

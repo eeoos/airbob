@@ -13,7 +13,7 @@ signal을 처리할 수 있어야 한다.
 
 - 이벤트 계약: [`messaging/event`](../src/main/java/kr/kro/airbob/messaging/event)
 - outbox 구현: [`messaging/outbox`](../src/main/java/kr/kro/airbob/messaging/outbox)
-- connector 설정: [`debezium-config/outbox-connector.json`](../debezium-config/outbox-connector.json)
+- connector 설정: [`docker/debezium/outbox-connector.json`](../docker/debezium/outbox-connector.json)
 
 ## Connect와 topic bootstrap
 

@@ -35,10 +35,9 @@ CD는 deploy job에서도 commit을 checkout한 다음
 경로만 $HOME/airbob의 managed deployment asset으로 동기화한다.
 
 - docker-compose.oci.yml
-- debezium-config/
 - src/main/resources/db/migration/
 - docker/debezium/, docker/elasticsearch/, docker/kafka/, docker/mysql/init/
-- logstash/, monitoring/, nginx/, scripts/
+- docker/logstash/, docker/nginx/, monitoring/, scripts/
 
 managed directory 안에서 저장소에서 삭제된 파일은 서버에서도 삭제한다. 반면 서버가
 소유하는 root secret, application log, Docker named volume은 동기화 대상이 아니므로
