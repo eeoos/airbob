@@ -26,7 +26,7 @@
 | 쿠폰 발급·재고·스키마 전환 | [쿠폰 운영](operations/coupon-issuance-operations.md), [UTC 시간 계약](operations/coupon-time-contract.md) |
 | 변경 전달·운영자 알림 | [Outbox·Debezium](operations/outbox-operations.md), [알림](operations/operator-alert-operations.md) |
 | 검색 갱신·전체 재색인 | [색인 운영](operations/accommodation-indexing-operations.md), [Logstash 재색인](operations/logstash-reindex.md) |
-| 운영 배포 | [OCI 배포](operations/oci-deployment-runbook.md) |
+| 운영 배포 | [OCI 배포](operations/oci-deployment-runbook.md), [실행 도구 안내](../scripts/README.md) |
 | AWS 자원 기동·정지 | [빠른 실행 안내](operations/aws-lab-quickstart.md), [고정 이미지·리소스 계약](operations/aws-performance-lab.md) |
 | B 데이터셋 복원·검증 | [복원 도구](operations/global-b-operations.md), [Mac → RDS 적재](operations/global-b-mac-import.md), [기록된 검증 결과](operations/global-b-verification.md) |
 

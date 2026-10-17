@@ -28,6 +28,21 @@ MySQL 8.4는 `airbob_mysql84-data` 볼륨을 사용한다. 기존 `airbob_mysql-
 서버 기본 시간대와 JDBC 시간대는 UTC다. MySQL health는 TCP 연결과 인증된 `SELECT 1`,
 Elasticsearch health는 single-node에서 허용되는 yellow 이상 상태로 확인한다.
 
+## 최초 인증서 발급
+
+DNS가 OCI 서버를 가리키고 80번 포트를 사용할 수 있는 상태에서 실행한다.
+Compose 프로젝트 이름은 `airbob`이며 인증서는 기존 `airbob_certbot-certs`,
+인증 확인 파일은 `airbob_certbot-www` 볼륨을 사용한다.
+
+```sh
+bash scripts/init-ssl.sh admin@airbob.cloud
+```
+
+앱 연결이 없는 임시 Nginx에서 인증 확인 요청만 처리한다. 운영
+`docker/nginx/conf.d/default.conf`는 수정하지 않으며, 성공·실패·중단 시 이번 실행에서
+생성한 컨테이너를 정리한다. 이미 실행 중인 Nginx를 자동 중지하지 않는다.
+인증서 발급 후에는 아래 정상 배포 절차로 앱을 기동한다.
+
 ## Reviewed asset 동기화
 
 CD는 deploy job에서도 commit을 checkout한 다음
@@ -37,11 +52,19 @@ CD는 deploy job에서도 commit을 checkout한 다음
 - docker-compose.oci.yml
 - src/main/resources/db/migration/
 - docker/debezium/, docker/elasticsearch/, docker/kafka/, docker/mysql/init/
-- docker/logstash/, docker/nginx/, monitoring/, scripts/
+- docker/logstash/, docker/nginx/, monitoring/
+- scripts/ 안의 deploy-oci.sh, sync-oci-deployment-assets.sh,
+  preflight-reservation-inventory-cutover.sh, reindex-accommodations.sh, init-ssl.sh
 
 managed directory 안에서 저장소에서 삭제된 파일은 서버에서도 삭제한다. 반면 서버가
 소유하는 root secret, application log, Docker named volume은 동기화 대상이 아니므로
 삭제하지 않는다. 배포 디렉터리 전체에 rsync --delete를 사용하지 않는다.
+
+배포 디렉터리의 `scripts/`는 위 5개 파일로 맞춘다. 이전에 복사된 CodeDeploy·데이터셋·
+보관용 도구도 이 디렉터리에서는 제거되므로, 개인 도구는 managed directory 밖에 둔다.
+데이터셋 도구는 필요한 모듈이 포함된 별도 저장소에서 사용한다.
+CD의 변경 감지도 같은 5개 스크립트만 포함하며, 데이터셋 도구나 안내 문서 변경은
+OCI 앱 빌드·배포를 유발하지 않는다. 전체 역할은 [실행 도구 안내](../../scripts/README.md)에 있다.
 
 ## 정상 배포 순서
 

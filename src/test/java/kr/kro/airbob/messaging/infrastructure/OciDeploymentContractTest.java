@@ -15,6 +15,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 class OciDeploymentContractTest {
 
+	private static final List<String> DEPLOYMENT_SCRIPTS = List.of(
+		"deploy-oci.sh", "sync-oci-deployment-assets.sh", "preflight-reservation-inventory-cutover.sh",
+		"reindex-accommodations.sh", "init-ssl.sh"
+	);
+
 	@TempDir
 	Path tempDir;
 
@@ -74,13 +79,19 @@ class OciDeploymentContractTest {
 			"docker/mysql/init",
 			"docker/logstash",
 			"monitoring",
-			"docker/nginx",
-			"scripts"
+			"docker/nginx"
 		)) {
 			Path assetDirectory = source.resolve(directory);
 			Files.createDirectories(assetDirectory);
 			Files.writeString(assetDirectory.resolve("reviewed"), directory);
 		}
+		Files.createDirectories(source.resolve("scripts/archive"));
+		for (String script : DEPLOYMENT_SCRIPTS) {
+			Files.writeString(source.resolve("scripts/" + script), script);
+		}
+		Files.writeString(source.resolve("scripts/restore-growth-b-local.py"), "local tool\n");
+		Files.writeString(source.resolve("scripts/archive/bootstrap.py"), "archived tool\n");
+		Files.writeString(source.resolve("scripts/README.md"), "guide\n");
 
 		Files.writeString(target.resolve(".env.oci"), "SERVER_SECRET=preserve\n");
 		Files.createDirectories(target.resolve("logs"));
@@ -89,6 +100,7 @@ class OciDeploymentContractTest {
 		Files.writeString(target.resolve("generated-certs/cert.pem"), "preserve\n");
 		Files.createDirectories(target.resolve("scripts"));
 		Files.writeString(target.resolve("scripts/stale"), "delete\n");
+		Files.writeString(target.resolve("scripts/restore-growth-b-local.py"), "old local tool\n");
 
 		Process process = new ProcessBuilder(
 			"/bin/sh",
@@ -106,7 +118,13 @@ class OciDeploymentContractTest {
 
 		assertThat(completed).withFailMessage(output).isTrue();
 		assertThat(process.exitValue()).withFailMessage(output).isZero();
-		assertThat(target.resolve("scripts/reviewed")).hasContent("scripts");
+		for (String script : DEPLOYMENT_SCRIPTS) {
+			assertThat(target.resolve("scripts/" + script)).hasContent(script);
+		}
+		try (var scripts = Files.list(target.resolve("scripts"))) {
+			assertThat(scripts.map(path -> path.getFileName().toString()).toList())
+				.containsExactlyInAnyOrderElementsOf(DEPLOYMENT_SCRIPTS);
+		}
 		assertThat(target.resolve("docker/debezium/reviewed")).hasContent("docker/debezium");
 		assertThat(target.resolve("docker/elasticsearch/reviewed")).hasContent("docker/elasticsearch");
 		assertThat(target.resolve("docker/logstash/reviewed")).hasContent("docker/logstash");
@@ -115,6 +133,22 @@ class OciDeploymentContractTest {
 		assertThat(target.resolve(".env.oci")).hasContent("SERVER_SECRET=preserve");
 		assertThat(target.resolve("logs/app.log")).hasContent("preserve");
 		assertThat(target.resolve("generated-certs/cert.pem")).hasContent("preserve");
+	}
+
+	@Test
+	@DisplayName("필수 배포 입력이 빠졌으면 기존 자산을 일부만 덮어쓰지 않는다")
+	void validatesAllAssetsBeforeSynchronizing() throws Exception {
+		Path source = Files.createDirectory(tempDir.resolve("incomplete-source"));
+		Path target = Files.createDirectory(tempDir.resolve("existing-target"));
+		Files.writeString(source.resolve("docker-compose.oci.yml"), "new\n");
+		Files.writeString(target.resolve("docker-compose.oci.yml"), "existing\n");
+		Process process = new ProcessBuilder(
+			"/bin/sh", Path.of("scripts/sync-oci-deployment-assets.sh").toAbsolutePath().toString(),
+			source.toString(), target.toString()
+		).redirectErrorStream(true).start();
+		assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+		assertThat(process.exitValue()).isNotZero();
+		assertThat(target.resolve("docker-compose.oci.yml")).hasContent("existing\n");
 	}
 
 	@Test

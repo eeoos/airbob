@@ -18,7 +18,6 @@ This file provides repository-specific guidance to coding agents.
 # Build or run
 ./gradlew build -x test
 ./gradlew bootRun
-./gradlew packageZip
 ```
 
 The application requires external infrastructure. Integration tests use Testcontainers where
@@ -185,6 +184,9 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   publication authenticated through GitHub OIDC.
 - OCI deployment remains independent from the AWS experiment and retains the messaging,
   migration, and connector gates in `scripts/deploy-oci.sh`.
+- `scripts/README.md` identifies deployment, dataset, and archived tools. OCI CD and asset sync
+  include only the five named deployment/operations scripts; local dataset and archived tools
+  must not trigger an OCI deployment or be copied to its deployment directory.
 - See `docs/operations/aws-performance-lab.md` and `infra/aws/bundles/README.md` before changing
   experiment topology or image publication.
 

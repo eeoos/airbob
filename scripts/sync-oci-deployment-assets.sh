@@ -42,16 +42,22 @@ docker/mysql/init
 docker/logstash
 monitoring
 docker/nginx
-scripts
 "
 
+managed_scripts="
+deploy-oci.sh
+sync-oci-deployment-assets.sh
+preflight-reservation-inventory-cutover.sh
+reindex-accommodations.sh
+init-ssl.sh
+"
+
+# Check the complete input before changing any deployed asset.
 for asset in $managed_files; do
   if [ ! -f "$source_repository/$asset" ]; then
     echo "required deployment asset is missing: $asset" >&2
     exit 1
   fi
-  mkdir -p "$target_directory/$(dirname "$asset")"
-  rsync --archive --checksum "$source_repository/$asset" "$target_directory/$asset"
 done
 
 for asset in $managed_directories; do
@@ -59,10 +65,31 @@ for asset in $managed_directories; do
     echo "required deployment asset directory is missing: $asset" >&2
     exit 1
   fi
+done
+for script in $managed_scripts; do
+  if [ ! -f "$source_repository/scripts/$script" ]; then
+    echo "required deployment script is missing: $script" >&2
+    exit 1
+  fi
+done
+
+for asset in $managed_files; do
+  mkdir -p "$target_directory/$(dirname "$asset")"
+  rsync --archive --checksum "$source_repository/$asset" "$target_directory/$asset"
+done
+for asset in $managed_directories; do
   mkdir -p "$target_directory/$asset"
   rsync --archive --checksum --delete \
     "$source_repository/$asset/" \
     "$target_directory/$asset/"
 done
+
+# scripts/ remains managed: remove old copies of retired/local tools as well.
+mkdir -p "$target_directory/scripts"
+set -- --archive --checksum --delete --delete-excluded
+for script in $managed_scripts; do
+  set -- "$@" "--include=/$script"
+done
+rsync "$@" --exclude='*' "$source_repository/scripts/" "$target_directory/scripts/"
 
 echo "reviewed OCI deployment assets synchronized"

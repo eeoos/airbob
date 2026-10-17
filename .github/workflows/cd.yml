@@ -77,7 +77,11 @@ jobs:
             'docker/logstash/**'
             'monitoring/**'
             'docker/nginx/**'
-            'scripts/**'
+            'scripts/deploy-oci.sh'
+            'scripts/sync-oci-deployment-assets.sh'
+            'scripts/preflight-reservation-inventory-cutover.sh'
+            'scripts/reindex-accommodations.sh'
+            'scripts/init-ssl.sh'
           )
 
           if git diff --quiet "$BEFORE_SHA" "$AFTER_SHA" -- "${scope_paths[@]}"; then

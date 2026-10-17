@@ -234,7 +234,11 @@ docker/mysql/init/**
 docker/logstash/**
 monitoring/**
 docker/nginx/**
-scripts/**
+scripts/deploy-oci.sh
+scripts/sync-oci-deployment-assets.sh
+scripts/preflight-reservation-inventory-cutover.sh
+scripts/reindex-accommodations.sh
+scripts/init-ssl.sh
 EOF
 sed -n '/^          scope_paths=(/,/^          )/p' "$cd_workflow" \
   | sed -n "s/^            '\(.*\)'$/\1/p" > "$temp_dir/classifier-oci-paths"
@@ -334,6 +338,22 @@ printf '%s\n' 'FROM scratch' > "$scope_repo/docker/elasticsearch/Dockerfile"
 git -C "$scope_repo" add docker/elasticsearch/Dockerfile
 git -C "$scope_repo" commit -q -m elasticsearch-build
 scope_elasticsearch=$(git -C "$scope_repo" rev-parse HEAD)
+
+mkdir -p "$scope_repo/scripts/archive"
+for script in restore-growth-b-local.py verify-growth-b-dev.py README.md archive/bootstrap-oci-b-host-runtime.py; do
+  printf '%s\n' local-only > "$scope_repo/scripts/$script"
+done
+git -C "$scope_repo" add scripts
+git -C "$scope_repo" commit -q -m local-scripts
+scope_local_scripts=$(git -C "$scope_repo" rev-parse HEAD)
+
+scope_deployment_scripts=()
+for script in deploy-oci.sh sync-oci-deployment-assets.sh preflight-reservation-inventory-cutover.sh reindex-accommodations.sh init-ssl.sh; do
+  printf '%s\n' deployment > "$scope_repo/scripts/$script"
+  git -C "$scope_repo" add "scripts/$script"
+  git -C "$scope_repo" commit -q -m "deployment $script"
+  scope_deployment_scripts+=("$(git -C "$scope_repo" rev-parse HEAD)")
+done
 git -C "$scope_repo" push -q origin HEAD:refs/heads/main
 
 run_scope_success() {
@@ -384,6 +404,12 @@ run_scope_success "$scope_aws" "$scope_tests" false
 run_scope_success "$scope_tests" "$scope_release" true
 run_scope_success "$scope_release" "$scope_oci" true
 run_scope_success "$scope_oci" "$scope_elasticsearch" true
+run_scope_success "$scope_elasticsearch" "$scope_local_scripts" false
+previous_script_commit="$scope_local_scripts"
+for script_commit in "${scope_deployment_scripts[@]}"; do
+  run_scope_success "$previous_script_commit" "$script_commit" true
+  previous_script_commit="$script_commit"
+done
 run_scope_failure '' "$scope_release" 'missing before SHA'
 run_scope_failure 0000000000000000000000000000000000000000 "$scope_release" 'zero before SHA'
 run_scope_failure '$(touch unsafe)' "$scope_release" 'unsafe before SHA'
