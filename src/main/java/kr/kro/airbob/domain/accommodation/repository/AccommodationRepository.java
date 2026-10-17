@@ -57,8 +57,6 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 
 	Optional<Accommodation> findByIdAndMemberIdAndStatus(Long id, Long memberId, AccommodationStatus status);
 
-	List<Accommodation> findByIdInAndStatus(List<Long> accommodationIds, AccommodationStatus status);
-
 	@Query("""
 		SELECT a.id AS accommodationId, a.timeZoneId AS timeZoneId
 		FROM Accommodation a

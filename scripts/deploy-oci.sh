@@ -7,6 +7,7 @@ ENV_FILE="${ENV_FILE:-$DEPLOY_DIR/.env.oci}"
 COMPOSE_FILE="${COMPOSE_FILE:-$DEPLOY_DIR/docker-compose.oci.yml}"
 IMAGE_REPO="${IMAGE_REPO:-ghcr.io/eeoos/airbob}"
 IMAGE_TAG="${IMAGE_TAG:-${IMAGE_SHA7:-}}"
+IMAGE_DIGEST="${IMAGE_DIGEST:-}"
 DOCKER_BIN="${DOCKER_BIN:-docker}"
 HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-42}"
 HEALTH_DELAY_SECONDS="${HEALTH_DELAY_SECONDS:-10}"
@@ -40,17 +41,26 @@ if [ ! -r "$COMPOSE_FILE" ]; then
   echo "OCI compose file is not readable" >&2
   exit 1
 fi
-if [ -z "$IMAGE_TAG" ]; then
-  echo "IMAGE_TAG or IMAGE_SHA7 is required" >&2
-  exit 1
-fi
-case "$IMAGE_TAG" in
-  *[!a-zA-Z0-9_.-]*)
-    echo "image tag contains unsupported characters" >&2
+if [ -n "$IMAGE_DIGEST" ]; then
+  digest_hex=${IMAGE_DIGEST#sha256:}
+  if [ "$digest_hex" = "$IMAGE_DIGEST" ] || [ "${#digest_hex}" -ne 64 ]; then
+    echo "IMAGE_DIGEST must be a sha256 digest" >&2
     exit 1
-    ;;
-esac
-APP_IMAGE="$IMAGE_REPO:$IMAGE_TAG"
+  fi
+  case "$digest_hex" in
+    *[!0-9a-f]*) echo "IMAGE_DIGEST must be a lowercase sha256 digest" >&2; exit 1 ;;
+  esac
+  APP_IMAGE="$IMAGE_REPO@$IMAGE_DIGEST"
+else
+  if [ -z "$IMAGE_TAG" ]; then
+    echo "IMAGE_DIGEST or IMAGE_TAG is required" >&2
+    exit 1
+  fi
+  case "$IMAGE_TAG" in
+    *[!a-zA-Z0-9_.-]*) echo "image tag contains unsupported characters" >&2; exit 1 ;;
+  esac
+  APP_IMAGE="$IMAGE_REPO:$IMAGE_TAG"
+fi
 export APP_IMAGE
 if ! command -v "$DOCKER_BIN" >/dev/null 2>&1; then
   echo "docker executable not found" >&2
@@ -206,4 +216,4 @@ if ! "$DOCKER_BIN" exec nginx \
   stop_admission_and_require_roll_forward
 fi
 
-echo "OCI deployment is healthy: $IMAGE_REPO:$IMAGE_TAG"
+echo "OCI deployment is healthy: $APP_IMAGE"

@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 
-import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
@@ -26,7 +25,6 @@ import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.DatabaseResult;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.IssueResult;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
-import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.Strategy;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricResultResolver;
 import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
@@ -62,23 +60,13 @@ public class CouponSkipLockedIssueService {
 	}
 
 	public void issue(Long couponId, Long memberId) {
-		// End routing before an attempt begins. A query in NOT_SUPPORTED synchronization
-		// can retain an EntityManager connection while REQUIRES_NEW requests a second one.
-		CouponIssueStrategy strategy = transaction(TransactionDefinition.ISOLATION_REPEATABLE_READ, true)
-			.execute(status -> units.strategy(couponId));
-		issue(couponId, memberId, strategy);
-	}
-
-	public void issue(Long couponId, Long memberId, CouponIssueStrategy strategy) {
-		if (strategy == CouponIssueStrategy.DB) throw new CouponNotIssuableException();
 		long started = System.nanoTime();
-		Strategy metricStrategy = Strategy.valueOf(strategy.name());
 		IssueResult result = IssueResult.ERROR;
 		try {
 			for (int attempt = 1; attempt <= maxAttempts; attempt++) {
 				RetryReason retry;
 				try {
-					attempt(couponId, memberId, strategy, metricStrategy);
+					attempt(couponId, memberId);
 					result = IssueResult.SUCCESS;
 					return;
 				} catch (NoAvailableUnitException busy) {
@@ -89,8 +77,8 @@ public class CouponSkipLockedIssueService {
 					if (retry == null) throw failure;
 				}
 				// executeWithoutResult has rolled the entire attempt back before this fresh snapshot.
-				metrics.recordRetry(metricStrategy, retry);
-				classifyEmptyOrContended(couponId, memberId, strategy);
+				metrics.recordRetry(retry);
+				classifyEmptyOrContended(couponId, memberId);
 				long remaining = retryBudgetNanos - (System.nanoTime() - started);
 				if (attempt == maxAttempts || remaining <= 0) throw new CouponIssueContendedException();
 				LockSupport.parkNanos(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(ThreadLocalRandom.current().nextLong(1, 6))));
@@ -102,23 +90,23 @@ public class CouponSkipLockedIssueService {
 			result = CouponIssueMetricResultResolver.issueResult(failure);
 			throw failure;
 		} finally {
-			metrics.recordIssue(metricStrategy, result, System.nanoTime() - started);
+			metrics.recordIssue(result, System.nanoTime() - started);
 		}
 	}
 
-	private void attempt(Long couponId, Long memberId, CouponIssueStrategy strategy, Strategy metricStrategy) {
+	private void attempt(Long couponId, Long memberId) {
 		long started = System.nanoTime();
 		DatabaseResult result = DatabaseResult.ERROR;
 		try {
-			transaction(strategy.isolation(), false).executeWithoutResult(status -> {
+			transaction(false).executeWithoutResult(status -> {
 				// OSIV can retain first-level entities even across newly started transactions.
 				// The locked policy read must reflect this attempt's database state.
 				units.clearPersistenceContext();
 				Coupon coupon = coupons.findByIdForShareNowait(couponId).orElseThrow(CouponNotFoundException::new);
-				validate(coupon, strategy);
+				validate(coupon);
 				if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId)) throw new CouponAlreadyIssuedException();
-				var unit = units.lockAvailable(couponId, strategy).orElseThrow(NoAvailableUnitException::new);
-				units.consume(couponId, strategy, unit);
+				var unit = units.lockAvailable(couponId).orElseThrow(NoAvailableUnitException::new);
+				units.consume(couponId, unit);
 				memberCoupons.saveAndFlush(MemberCoupon.issue(members.getReferenceById(memberId), coupon));
 			});
 			result = DatabaseResult.SUCCESS;
@@ -127,32 +115,32 @@ public class CouponSkipLockedIssueService {
 				? DatabaseResult.RETRY : CouponIssueMetricResultResolver.databaseResult(failure);
 			throw failure;
 		} finally {
-			metrics.recordDatabase(metricStrategy, result, System.nanoTime() - started);
+			metrics.recordDatabase(result, System.nanoTime() - started);
 		}
 	}
 
-	private void classifyEmptyOrContended(Long couponId, Long memberId, CouponIssueStrategy strategy) {
-		transaction(TransactionDefinition.ISOLATION_REPEATABLE_READ, true).executeWithoutResult(status -> {
+	private void classifyEmptyOrContended(Long couponId, Long memberId) {
+		transaction(true).executeWithoutResult(status -> {
 			units.clearPersistenceContext();
 			if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId)) throw new CouponAlreadyIssuedException();
 			Coupon coupon = coupons.findById(couponId).orElseThrow(CouponNotFoundException::new);
-			validate(coupon, strategy);
-			if (!units.hasRemaining(couponId, strategy)) throw new CouponSoldOutException();
+			validate(coupon);
+			if (!units.hasRemaining(couponId)) throw new CouponSoldOutException();
 		});
 	}
 
-	private void validate(Coupon coupon, CouponIssueStrategy strategy) {
-		if (coupon.getIssueStrategy() != strategy || coupon.getTotalQuantity() == null || coupon.getTotalQuantity() < 1
+	private void validate(Coupon coupon) {
+		if (coupon.getTotalQuantity() == null || coupon.getTotalQuantity() < 1
 			|| !Boolean.TRUE.equals(coupon.getIsActive()) || !coupon.isIssueOpen(units.databaseNow())) {
 			throw new CouponNotIssuableException();
 		}
 		if (!coupon.isStockPrepared()) throw new CouponStockNotPreparedException();
 	}
 
-	private TransactionTemplate transaction(int isolation, boolean readOnly) {
+	private TransactionTemplate transaction(boolean readOnly) {
 		var template = new TransactionTemplate(transactionManager);
 		template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-		template.setIsolationLevel(isolation);
+		template.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
 		template.setReadOnly(readOnly);
 		template.setTimeout(1);
 		return template;

@@ -91,6 +91,7 @@ trap 'exit 143' TERM
 chmod 600 "$runtime_env_tmp"
 {
   printf 'SPRING_PROFILES_ACTIVE=%s\n' "$spring_profiles"
+  printf '%s\n' 'SPRING_FLYWAY_TARGET=27'
   printf 'SPRING_KAFKA_LISTENER_AUTO_STARTUP=%s\n' "$listener_auto_startup"
   printf 'OPERATOR_ALERT_KAFKA_AUTO_STARTUP=%s\n' "$listener_auto_startup"
   printf 'ACCOMMODATION_INDEXING_AUTO_STARTUP=%s\n' "$listener_auto_startup"

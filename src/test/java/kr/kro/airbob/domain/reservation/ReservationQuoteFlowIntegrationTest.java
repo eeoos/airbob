@@ -559,7 +559,6 @@ class ReservationQuoteFlowIntegrationTest {
 			.usableFrom(LocalDateTime.of(2025, 1, 1, 0, 0))
 			.usableUntil(LocalDateTime.of(2030, 1, 1, 0, 0))
 			.isActive(true)
-			.issuedQuantity(1)
 			.build());
 		memberCouponRepository.save(MemberCoupon.issue(guest, coupon));
 		return coupon;

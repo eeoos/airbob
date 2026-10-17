@@ -80,8 +80,8 @@ case "$MYSQL_SOURCE_MODE" in
 			fail "external dataset reindex must run from REINDEX_SOURCE_COMMIT"
 		"$GIT_BIN" -C "$PROJECT_DIR" diff --quiet "$REINDEX_SOURCE_COMMIT" -- \
 			scripts/reindex-accommodations.sh docker-compose.yml \
-			logstash/pipeline/airbob.conf logstash/config/logstash.yml \
-			logstash/config/jdbc/mysql-connector-j-8.0.33.jar \
+			docker/logstash/pipeline/airbob.conf docker/logstash/config/logstash.yml \
+			docker/logstash/config/jdbc/mysql-connector-j-8.0.33.jar \
 			src/main/resources/elasticsearch/accommodations-index.json ||
 			fail "external dataset reindex inputs differ from REINDEX_SOURCE_COMMIT"
 		;;

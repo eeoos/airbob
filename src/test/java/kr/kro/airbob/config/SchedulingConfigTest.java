@@ -9,8 +9,10 @@ import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerConta
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
+import kr.kro.airbob.AirbobApplication;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
 import kr.kro.airbob.search.messaging.kafka.AccommodationSearchKafkaConsumerConfiguration;
@@ -28,7 +30,7 @@ class SchedulingConfigTest {
 		new ApplicationContextRunner()
 			.withInitializer(new ConfigDataApplicationContextInitializer())
 			.withPropertyValues(
-				"spring.profiles.active=aws,performance-lab,test",
+				"spring.profiles.active=aws,test",
 				"spring.kafka.listener.auto-startup=true",
 				"operator-alert.kafka.auto-startup=true",
 				"accommodation.indexing.kafka.auto-startup=true",
@@ -47,17 +49,26 @@ class SchedulingConfigTest {
 			.withBean(IntegrationEventCodec.class, () -> mock(IntegrationEventCodec.class));
 
 	@Test
-	@DisplayName("test 프로필에서는 스케줄러를 활성화하지 않는다")
-	void doesNotEnableSchedulingInTestProfile() {
-		contextRunner.run(context -> assertThat(context).doesNotHaveBean(SchedulingConfig.class));
+	@DisplayName("일반 프로필에서는 스케줄러를 활성화한다")
+	void defaultProfileEnablesScheduling() {
+		new ApplicationContextRunner()
+			.withUserConfiguration(SchedulingConfig.class)
+			.run(context -> {
+				assertThat(context).hasSingleBean(SchedulingConfig.class);
+				assertThat(context).hasBean("org.springframework.context.annotation.internalScheduledAnnotationProcessor");
+			});
 	}
 
 	@Test
-	@DisplayName("traffic-benchmark 프로필에서는 스케줄러를 활성화하지 않는다")
-	void doesNotEnableSchedulingInTrafficBenchmarkProfile() {
-		profileContextRunner
-			.withPropertyValues("spring.profiles.active=traffic-benchmark")
-			.run(context -> assertThat(context).doesNotHaveBean(SchedulingConfig.class));
+	@DisplayName("애플리케이션 진입점은 스케줄러를 전역 활성화하지 않는다")
+	void applicationEntryPointDoesNotEnableScheduling() {
+		assertThat(AirbobApplication.class.isAnnotationPresent(EnableScheduling.class)).isFalse();
+	}
+
+	@Test
+	@DisplayName("test 프로필에서는 스케줄러를 활성화하지 않는다")
+	void doesNotEnableSchedulingInTestProfile() {
+		contextRunner.run(context -> assertThat(context).doesNotHaveBean(SchedulingConfig.class));
 	}
 
 	@Test
@@ -66,7 +77,7 @@ class SchedulingConfigTest {
 		integratedSmokeContextRunner.run(context -> {
 			assertThat(context).hasNotFailed();
 			assertThat(context.getEnvironment().getActiveProfiles())
-				.containsExactly("aws", "performance-lab", "test");
+				.containsExactly("aws", "test");
 			assertThat(context.getEnvironment().getProperty(
 				"spring.kafka.listener.auto-startup", Boolean.class)).isTrue();
 			assertThat(context.getEnvironment().getProperty(
@@ -86,10 +97,10 @@ class SchedulingConfigTest {
 	}
 
 	@Test
-	@DisplayName("performance-lab 프로필만 활성화하면 스케줄러를 유지한다")
-	void enablesSchedulingInPerformanceLabProfile() {
+	@DisplayName("운영 프로필에서는 스케줄러와 작업별 풀을 유지한다")
+	void enablesSchedulingInProductionProfile() {
 		profileContextRunner
-			.withPropertyValues("spring.profiles.active=performance-lab")
+			.withPropertyValues("spring.profiles.active=aws")
 			.run(context -> {
 				assertThat(context).hasSingleBean(SchedulingConfig.class);
 				assertThat(context).hasBean(SchedulingConfig.DEFAULT_TASK_SCHEDULER);

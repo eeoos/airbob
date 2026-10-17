@@ -4,7 +4,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -28,7 +27,6 @@ import kr.kro.airbob.search.service.AccommodationIndexingService;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@Profile("!traffic-benchmark & !cache-benchmark")
 @RequiredArgsConstructor
 public class AccommodationSearchRefreshListener {
 

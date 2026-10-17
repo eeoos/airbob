@@ -50,19 +50,10 @@ class MessagingKafkaConfigurationTest {
 	}
 
 	@Test
-	void excludesSharedKafkaInfrastructureFromTrafficBenchmark() {
+	void retainsSharedKafkaInfrastructureInProduction() {
 		profileContextRunner
 			.withInitializer(context -> context.getEnvironment()
-				.setActiveProfiles("traffic-benchmark"))
-			.run(context -> assertThat(context)
-				.doesNotHaveBean(MessagingKafkaConfiguration.class));
-	}
-
-	@Test
-	void retainsSharedKafkaInfrastructureInPerformanceLab() {
-		profileContextRunner
-			.withInitializer(context -> context.getEnvironment()
-				.setActiveProfiles("performance-lab"))
+				.setActiveProfiles("aws"))
 			.run(context -> {
 				assertThat(context).hasNotFailed();
 				assertThat(context).hasSingleBean(MessagingKafkaConfiguration.class);

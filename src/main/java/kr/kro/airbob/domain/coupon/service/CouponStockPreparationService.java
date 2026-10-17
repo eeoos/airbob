@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.coupon.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyPreparedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
 import kr.kro.airbob.domain.coupon.exception.CouponStockPreparationNotAllowedException;
@@ -24,13 +23,12 @@ public class CouponStockPreparationService {
 		var coupon = couponRepository.findByIdForUpdate(couponId).orElseThrow(CouponNotFoundException::new);
 		var now = units.databaseNow();
 		if (coupon.isStockPrepared()) throw new CouponAlreadyPreparedException();
-		if (coupon.getIssueStrategy() == CouponIssueStrategy.DB
-			|| !Boolean.TRUE.equals(coupon.getIsActive()) || !now.isBefore(coupon.getIssueStartAt())
-			|| coupon.getIssuedQuantity() != 0 || memberCouponRepository.countByCouponId(couponId) != 0) {
+		if (!Boolean.TRUE.equals(coupon.getIsActive()) || !now.isBefore(coupon.getIssueStartAt())
+			|| memberCouponRepository.countByCouponId(couponId) != 0) {
 			throw new CouponStockPreparationNotAllowedException();
 		}
 		coupon.validateConfiguration();
-		units.insertRange(couponId, coupon.getIssueStrategy(), 1, coupon.getTotalQuantity());
+		units.insertRange(couponId, 1, coupon.getTotalQuantity());
 		coupon.markStockPrepared(now);
 	}
 }

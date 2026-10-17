@@ -34,10 +34,6 @@ public enum ErrorCode {
 	HOST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M005", "숙소에 대한 수정/삭제 권한이 없는 호스트입니다."),
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
 	MEMBER_ROLE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "M007", "자신의 관리자 권한은 회수할 수 없습니다."),
-	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 접근 권한이 필요합니다."),
-	BENCHMARK_RECENTLY_VIEWED_FIXTURE_INVALID(HttpStatus.BAD_REQUEST, "B002",
-		"N+1 측정에는 서로 다른 주소가 있는 공개 숙소가 필요합니다. 데이터와 manifest를 확인해 주세요."),
-
 
 	// accommodation
 	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않거나 삭제된 숙소입니다."),
@@ -49,7 +45,6 @@ public enum ErrorCode {
 	ACCOMMODATION_INVALID_AMENITY(HttpStatus.BAD_REQUEST, "A007", "편의시설 코드가 유효하지 않습니다."),
 	ACCOMMODATION_LOCATION_RESOLUTION_FAILED(HttpStatus.BAD_REQUEST, "A008", "숙소 위치의 좌표 또는 시간대를 확인할 수 없습니다."),
 	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A009", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
-
 
 	// reservation
 	RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R001", "존재하지 않는 예약입니다."),
@@ -84,7 +79,6 @@ public enum ErrorCode {
 		"R026",
 		"예약 가능한 날짜 정보를 준비하고 있습니다. 잠시 후 다시 시도해 주세요."),
 
-
 	// payment
 	PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "존재하지 않는 결제 정보입니다."),
 	TOSS_PAYMENT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 예외"),
@@ -104,7 +98,6 @@ public enum ErrorCode {
 	WISHLIST_ACCOMMODATION_DUPLICATE(HttpStatus.CONFLICT, "W004", "이미 위시리스트에 추가된 숙소입니다."),
 	WISHLIST_ACCOMMODATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "W005", "위시리스트 항목에 대한 접근 권한이 없습니다."),
 
-
 	// review
 	REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "V001", "존재하지 않는 리뷰입니다."),
 	REVIEW_SUMMARY_NOT_FOUND(HttpStatus.NOT_FOUND, "V002", "리뷰 요약 정보를 찾을 수 없습니다."),
@@ -112,7 +105,6 @@ public enum ErrorCode {
 	REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "V004", "이미 리뷰를 작성했습니다."),
 	REVIEW_UPDATE_FORBIDDEN(HttpStatus.FORBIDDEN, "V005", "게시된 리뷰만 수정할 수 있습니다."),
 	REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "V006", "해당 리뷰에 대한 권한이 없습니다."),
-
 
 	// coupon
 	COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "존재하지 않는 쿠폰입니다."),

@@ -13,7 +13,7 @@ import com.p6spy.engine.spy.P6SpyFactory;
 import com.zaxxer.hikari.HikariDataSource;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("dev & sql-trace & !aws & !oci & !performance-lab")
+@Profile("dev & !aws & !oci & !test")
 @ConditionalOnClass(P6SpyDriver.class)
 public class LocalSqlTraceConfiguration {
 

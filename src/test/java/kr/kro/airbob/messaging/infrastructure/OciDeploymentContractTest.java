@@ -15,6 +15,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 class OciDeploymentContractTest {
 
+	private static final List<String> DEPLOYMENT_SCRIPTS = List.of(
+		"deploy-oci.sh", "sync-oci-deployment-assets.sh", "preflight-reservation-inventory-cutover.sh",
+		"reindex-accommodations.sh", "init-ssl.sh"
+	);
+
 	@TempDir
 	Path tempDir;
 
@@ -45,13 +50,13 @@ class OciDeploymentContractTest {
 		assertThat(script)
 			.contains("docker-compose.oci.yml")
 			.contains("src/main/resources/db/migration")
-			.contains("debezium-config")
 			.contains("docker/debezium")
 			.contains("docker/elasticsearch")
 			.contains("docker/kafka")
 			.contains("docker/mysql/init")
+			.contains("docker/logstash")
 			.contains("monitoring")
-			.contains("nginx")
+			.contains("docker/nginx")
 			.contains("scripts")
 			.contains("--delete");
 		assertThat(managedAssetLines)
@@ -68,20 +73,25 @@ class OciDeploymentContractTest {
 		Files.writeString(source.resolve("docker-compose.oci.yml"), "services: {}\n");
 		for (String directory : List.of(
 			"src/main/resources/db/migration",
-			"debezium-config",
 			"docker/debezium",
 			"docker/elasticsearch",
 			"docker/kafka",
 			"docker/mysql/init",
-			"logstash",
+			"docker/logstash",
 			"monitoring",
-			"nginx",
-			"scripts"
+			"docker/nginx"
 		)) {
 			Path assetDirectory = source.resolve(directory);
 			Files.createDirectories(assetDirectory);
 			Files.writeString(assetDirectory.resolve("reviewed"), directory);
 		}
+		Files.createDirectories(source.resolve("scripts/archive"));
+		for (String script : DEPLOYMENT_SCRIPTS) {
+			Files.writeString(source.resolve("scripts/" + script), script);
+		}
+		Files.writeString(source.resolve("scripts/restore-growth-b-local.py"), "local tool\n");
+		Files.writeString(source.resolve("scripts/archive/bootstrap.py"), "archived tool\n");
+		Files.writeString(source.resolve("scripts/README.md"), "guide\n");
 
 		Files.writeString(target.resolve(".env.oci"), "SERVER_SECRET=preserve\n");
 		Files.createDirectories(target.resolve("logs"));
@@ -90,6 +100,7 @@ class OciDeploymentContractTest {
 		Files.writeString(target.resolve("generated-certs/cert.pem"), "preserve\n");
 		Files.createDirectories(target.resolve("scripts"));
 		Files.writeString(target.resolve("scripts/stale"), "delete\n");
+		Files.writeString(target.resolve("scripts/restore-growth-b-local.py"), "old local tool\n");
 
 		Process process = new ProcessBuilder(
 			"/bin/sh",
@@ -107,12 +118,37 @@ class OciDeploymentContractTest {
 
 		assertThat(completed).withFailMessage(output).isTrue();
 		assertThat(process.exitValue()).withFailMessage(output).isZero();
-		assertThat(target.resolve("scripts/reviewed")).hasContent("scripts");
+		for (String script : DEPLOYMENT_SCRIPTS) {
+			assertThat(target.resolve("scripts/" + script)).hasContent(script);
+		}
+		try (var scripts = Files.list(target.resolve("scripts"))) {
+			assertThat(scripts.map(path -> path.getFileName().toString()).toList())
+				.containsExactlyInAnyOrderElementsOf(DEPLOYMENT_SCRIPTS);
+		}
+		assertThat(target.resolve("docker/debezium/reviewed")).hasContent("docker/debezium");
 		assertThat(target.resolve("docker/elasticsearch/reviewed")).hasContent("docker/elasticsearch");
+		assertThat(target.resolve("docker/logstash/reviewed")).hasContent("docker/logstash");
+		assertThat(target.resolve("docker/nginx/reviewed")).hasContent("docker/nginx");
 		assertThat(target.resolve("scripts/stale")).doesNotExist();
 		assertThat(target.resolve(".env.oci")).hasContent("SERVER_SECRET=preserve");
 		assertThat(target.resolve("logs/app.log")).hasContent("preserve");
 		assertThat(target.resolve("generated-certs/cert.pem")).hasContent("preserve");
+	}
+
+	@Test
+	@DisplayName("필수 배포 입력이 빠졌으면 기존 자산을 일부만 덮어쓰지 않는다")
+	void validatesAllAssetsBeforeSynchronizing() throws Exception {
+		Path source = Files.createDirectory(tempDir.resolve("incomplete-source"));
+		Path target = Files.createDirectory(tempDir.resolve("existing-target"));
+		Files.writeString(source.resolve("docker-compose.oci.yml"), "new\n");
+		Files.writeString(target.resolve("docker-compose.oci.yml"), "existing\n");
+		Process process = new ProcessBuilder(
+			"/bin/sh", Path.of("scripts/sync-oci-deployment-assets.sh").toAbsolutePath().toString(),
+			source.toString(), target.toString()
+		).redirectErrorStream(true).start();
+		assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+		assertThat(process.exitValue()).isNotZero();
+		assertThat(target.resolve("docker-compose.oci.yml")).hasContent("existing\n");
 	}
 
 	@Test
@@ -186,6 +222,27 @@ class OciDeploymentContractTest {
 			.contains("image inspect ghcr.io/eeoos/airbob:reviewed-sha")
 			.contains("build --pull elasticsearch debezium")
 			.doesNotContain("pull ghcr.io/eeoos/airbob", "image tag", "stop nginx app");
+	}
+
+	@Test
+	@DisplayName("CI가 게시한 digest를 tag나 이전 환경값보다 우선해서 배포한다")
+	void deploysTheExactPublishedDigest() throws Exception {
+		String digest = "sha256:" + "a".repeat(64);
+		DeploymentAttempt attempt = failDeploymentAt("build --pull elasticsearch debezium", false, digest);
+
+		assertThat(attempt.commands()).contains("APP_IMAGE=ghcr.io/eeoos/airbob@" + digest)
+			.contains("pull ghcr.io/eeoos/airbob@" + digest)
+			.doesNotContain("airbob:reviewed-sha", "stale-image:latest");
+	}
+
+	@Test
+	@DisplayName("잘못된 digest는 기존 컨테이너를 건드리기 전에 거부한다")
+	void rejectsInvalidImageDigestBeforeDocker() throws Exception {
+		DeploymentAttempt attempt = failDeploymentAt("build", false, "sha256:not-a-digest");
+
+		assertThat(attempt.exitCode()).isNotZero();
+		assertThat(attempt.commands()).isEmpty();
+		assertThat(attempt.output()).contains("IMAGE_DIGEST must be a sha256 digest");
 	}
 
 	@Test
@@ -485,6 +542,11 @@ class OciDeploymentContractTest {
 	}
 
 	private DeploymentAttempt failDeploymentAt(String failureMarker, boolean cachedAppImage) throws Exception {
+		return failDeploymentAt(failureMarker, cachedAppImage, "");
+	}
+
+	private DeploymentAttempt failDeploymentAt(String failureMarker, boolean cachedAppImage, String digest)
+		throws Exception {
 		Path deployment = tempDir.resolve("failed-deployment");
 		Files.createDirectories(deployment);
 		Files.writeString(deployment.resolve(".env.oci"), "DB_ROOT_PASSWORD=test\n");
@@ -509,6 +571,7 @@ class OciDeploymentContractTest {
 		builder.environment().put("DOCKER_BIN", fakeDocker.toString());
 		builder.environment().put("IMAGE_REPO", "ghcr.io/eeoos/airbob");
 		builder.environment().put("IMAGE_TAG", "reviewed-sha");
+		builder.environment().put("IMAGE_DIGEST", digest);
 		builder.environment().put("APP_IMAGE", "stale-image:latest");
 		builder.environment().put("FAKE_DOCKER_LOG", dockerLog.toString());
 		builder.environment().put("FAKE_DOCKER_FAILURE", failureMarker);
@@ -522,7 +585,7 @@ class OciDeploymentContractTest {
 		}
 		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 		assertThat(completed).withFailMessage(output).isTrue();
-		return new DeploymentAttempt(process.exitValue(), Files.readString(dockerLog), output);
+		return new DeploymentAttempt(process.exitValue(), Files.exists(dockerLog) ? Files.readString(dockerLog) : "", output);
 	}
 
 	private record DeploymentAttempt(int exitCode, String commands, String output) {

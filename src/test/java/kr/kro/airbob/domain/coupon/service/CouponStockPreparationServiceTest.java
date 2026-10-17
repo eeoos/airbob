@@ -16,13 +16,13 @@ class CouponStockPreparationServiceTest {
 		var service = new CouponStockPreparationService(coupons, members, units);
 		var now = LocalDateTime.of(2026, 10, 9, 10, 0);
 		when(units.databaseNow()).thenReturn(now);
-		var coupon = Coupon.builder().id(1L).name("coupon").totalQuantity(10).issuedQuantity(0)
+		var coupon = Coupon.builder().id(1L).name("coupon").totalQuantity(10)
 			.isActive(false).issueStartAt(now.plusHours(1)).issueEndAt(now.plusHours(2)).build();
 		when(coupons.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
 		assertThatThrownBy(() -> service.prepare(1L)).isInstanceOf(CouponStockPreparationNotAllowedException.class);
 		coupon.activate();
 		when(members.countByCouponId(1L)).thenReturn(1L);
 		assertThatThrownBy(() -> service.prepare(1L)).isInstanceOf(CouponStockPreparationNotAllowedException.class);
-		verify(units, never()).insertRange(anyLong(), any(), anyInt(), anyInt());
+		verify(units, never()).insertRange(anyLong(), anyInt(), anyInt());
 	}
 }

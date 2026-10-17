@@ -7,11 +7,11 @@ class FailSafeCouponIssueMetricRecorderTest {
 	@Test void swallowsEveryMetricFailure() {
 		var delegate = mock(MicrometerCouponIssueMetricRecorder.class);
 		var recorder = new FailSafeCouponIssueMetricRecorder(delegate);
-		doThrow(new IllegalStateException()).when(delegate).recordIssue(Strategy.SKIP_SURROGATE_RR,IssueResult.SUCCESS,1);
-		doThrow(new IllegalStateException()).when(delegate).recordDatabase(Strategy.SKIP_SURROGATE_RR,DatabaseResult.SUCCESS,1);
-		doThrow(new IllegalStateException()).when(delegate).recordRetry(Strategy.SKIP_SURROGATE_RR,RetryReason.DEADLOCK);
-		assertThatCode(() -> recorder.recordIssue(Strategy.SKIP_SURROGATE_RR,IssueResult.SUCCESS,1)).doesNotThrowAnyException();
-		assertThatCode(() -> recorder.recordDatabase(Strategy.SKIP_SURROGATE_RR,DatabaseResult.SUCCESS,1)).doesNotThrowAnyException();
-		assertThatCode(() -> recorder.recordRetry(Strategy.SKIP_SURROGATE_RR,RetryReason.DEADLOCK)).doesNotThrowAnyException();
+		doThrow(new IllegalStateException()).when(delegate).recordIssue(IssueResult.SUCCESS,1);
+		doThrow(new IllegalStateException()).when(delegate).recordDatabase(DatabaseResult.SUCCESS,1);
+		doThrow(new IllegalStateException()).when(delegate).recordRetry(RetryReason.DEADLOCK);
+		assertThatCode(() -> recorder.recordIssue(IssueResult.SUCCESS,1)).doesNotThrowAnyException();
+		assertThatCode(() -> recorder.recordDatabase(DatabaseResult.SUCCESS,1)).doesNotThrowAnyException();
+		assertThatCode(() -> recorder.recordRetry(RetryReason.DEADLOCK)).doesNotThrowAnyException();
 	}
 }

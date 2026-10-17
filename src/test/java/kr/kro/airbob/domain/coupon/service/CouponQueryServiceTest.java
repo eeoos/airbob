@@ -55,8 +55,8 @@ class CouponQueryServiceTest {
 	@Test
 	@DisplayName("쿠폰 캠페인 상태는 발급과 동일한 MySQL 시각으로 계산한다")
 	void findsCouponCampaignsWithIssuanceStatus() {
-		CouponCampaignProjection upcoming = campaign(coupon(2L, NOW.plusDays(1), 100, 0));
-		CouponCampaignProjection open = campaign(coupon(1L, NOW.minusMinutes(30), 100, 10));
+		CouponCampaignProjection upcoming = campaign(coupon(2L, NOW.plusDays(1), 100), 0);
+		CouponCampaignProjection open = campaign(coupon(1L, NOW.minusMinutes(30), 100), 10);
 		when(units.databaseNow()).thenReturn(NOW);
 
 		when(couponRepository.findCampaigns(NOW)).thenReturn(List.of(upcoming, open));
@@ -77,8 +77,8 @@ class CouponQueryServiceTest {
 	@Test
 	@DisplayName("회원이 발급받은 쿠폰을 최신 발급순과 보유 상태로 조회한다")
 	void findsMyCouponsWithMemberCouponStatus() {
-		MemberCouponProjection used = memberCoupon(coupon(2L, NOW.minusDays(2), 100, 1), true);
-		MemberCouponProjection available = memberCoupon(coupon(1L, NOW.minusDays(3), 100, 1), false);
+		MemberCouponProjection used = memberCoupon(coupon(2L, NOW.minusDays(2), 100), true);
+		MemberCouponProjection available = memberCoupon(coupon(1L, NOW.minusDays(3), 100), false);
 		when(timeProvider.now()).thenReturn(NOW);
 		when(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(10L))
 			.thenReturn(List.of(used, available));
@@ -94,7 +94,7 @@ class CouponQueryServiceTest {
 		verifyNoInteractions(couponRepository, units);
 	}
 
-	private Coupon coupon(Long id, LocalDateTime issueStartAt, int totalQuantity, int issuedQuantity) {
+	private Coupon coupon(Long id, LocalDateTime issueStartAt, int totalQuantity) {
 		return Coupon.builder()
 			.id(id)
 			.name("오전 10시 선착순 쿠폰")
@@ -107,7 +107,6 @@ class CouponQueryServiceTest {
 			.usableUntil(issueStartAt.plusDays(30))
 			.isActive(true)
 			.totalQuantity(totalQuantity)
-			.issuedQuantity(issuedQuantity)
 			.build();
 	}
 
@@ -117,10 +116,10 @@ class CouponQueryServiceTest {
 			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
 	}
 
-	private CouponCampaignProjection campaign(Coupon coupon) {
+	private CouponCampaignProjection campaign(Coupon coupon, long issuedQuantity) {
 		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
-			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity().longValue());
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), issuedQuantity);
 	}
 }

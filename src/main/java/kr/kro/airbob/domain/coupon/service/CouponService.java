@@ -60,7 +60,7 @@ public class CouponService {
 	public void deleteCoupon(Long couponId) {
 		var coupon = lock(couponId);
 		requireBeforeStart(coupon, units.databaseNow());
-		if (coupon.isStockPrepared()) units.removeAbove(couponId, coupon.getIssueStrategy(), 0);
+		if (coupon.isStockPrepared()) units.removeAbove(couponId, 0);
 		// Only an unstarted, never-issued campaign may be discarded.
 		couponRepository.delete(coupon);
 	}
@@ -70,7 +70,7 @@ public class CouponService {
 	}
 
 	private void requireBeforeStart(Coupon coupon, LocalDateTime now) {
-		if (!now.isBefore(coupon.getIssueStartAt()) || coupon.getIssuedQuantity() != 0
+		if (!now.isBefore(coupon.getIssueStartAt())
 			|| memberCouponRepository.countByCouponId(coupon.getId()) != 0) {
 			throw new CouponConfigurationLockedException();
 		}
@@ -81,8 +81,8 @@ public class CouponService {
 		Coupon.validateQuantity(previous);
 		int target = coupon.getTotalQuantity();
 		if (target > previous) {
-			units.insertRange(coupon.getId(), coupon.getIssueStrategy(), previous + 1, target);
-		} else if (units.removeAbove(coupon.getId(), coupon.getIssueStrategy(), target) != previous - target) {
+			units.insertRange(coupon.getId(), previous + 1, target);
+		} else if (units.removeAbove(coupon.getId(), target) != previous - target) {
 			throw new IllegalStateException("쿠폰 감량 건수가 저장된 총수량과 일치하지 않습니다.");
 		}
 	}

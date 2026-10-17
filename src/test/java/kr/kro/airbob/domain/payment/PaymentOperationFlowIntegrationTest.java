@@ -1082,11 +1082,11 @@ class PaymentOperationFlowIntegrationTest {
 			INSERT INTO coupon (
 			  discount_value, is_active, min_payment_price, usable_from, usable_until,
 			  issue_start_at, issue_end_at, name, discount_type, total_quantity,
-			  issued_quantity, updated_at
+			  updated_at
 			) VALUES (
 			  10000, true, 0, '2026-01-01', '2027-01-01',
 			  '2026-01-01', '2027-01-01', 'task10 coupon', 'FIXED_AMOUNT', 1,
-			  1, NOW(6)
+			  NOW(6)
 			)
 			""");
 		long couponId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);

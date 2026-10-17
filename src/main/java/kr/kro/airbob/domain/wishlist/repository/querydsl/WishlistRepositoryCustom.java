@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
-import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import kr.kro.airbob.domain.wishlist.repository.projection.WishlistSummaryProjection;
 
@@ -17,14 +16,6 @@ public interface WishlistRepositoryCustom {
 		Long lastId,
 		LocalDateTime lastCreatedAt,
 		Long accommodationId,
-		Pageable pageable
-	);
-
-	Slice<Wishlist> findByMemberIdAndStatusWithCursor(
-		Long memberId,
-		WishlistStatus status,
-		Long lastId,
-		LocalDateTime lastCreatedAt,
 		Pageable pageable
 	);
 

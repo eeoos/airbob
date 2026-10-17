@@ -470,6 +470,8 @@ class Host:
             'RAMP_SECONDS': str(ramp_seconds),
             'VUS': str(c['clientVUs']), 'DISTRIBUTION': args['distribution'], 'K6_NO_USAGE_REPORT': 'true',
             'EXPERIMENT_RESPONSE_CHECK': c.get('responseCheck', 'canonical')}
+        environment['EXPERIMENT_BURST_CONNECTION_WARMUP'] = str(
+            c.get('burstConnectionWarmup', False) and args['kind'] == 'burst').lower()
         samples, stop = [], threading.Event()
 
         def resources():

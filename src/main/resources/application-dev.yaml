@@ -15,10 +15,11 @@ spring:
         rewriteBatchedStatements: ${JDBC_REWRITE_BATCHED_STATEMENTS:true}
 
   jpa:
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
-        show_sql: true
+        format_sql: false
+        show_sql: false
         default_batch_fetch_size: 100
 
   flyway:
@@ -58,8 +59,10 @@ cloud:
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.SQL: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"
+    org.hibernate.type.descriptor.sql: "OFF"
+    airbob.sql.trace: INFO
 
 management:
   endpoints:

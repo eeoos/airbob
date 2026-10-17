@@ -278,11 +278,8 @@ global_b_import_from_mac=${B_IMPORT_FROM_MAC:-false}
 global_b_services=false
 cache_benchmark_enabled=${B_CACHE_BENCHMARK_ENABLED:-false}
 cache_benchmark_app_count=${B_CACHE_BENCHMARK_APPS:-1}
-cache_benchmark_existing_app_handoff=${B_CACHE_BENCHMARK_EXISTING_APP_HANDOFF:-false}
 [[ "$cache_benchmark_enabled" == true || "$cache_benchmark_enabled" == false ]] || fail "B_CACHE_BENCHMARK_ENABLED must be true or false"
 [[ "$cache_benchmark_app_count" =~ ^[1-4]$ ]] || fail "B_CACHE_BENCHMARK_APPS must be 1-4"
-[[ "$cache_benchmark_existing_app_handoff" == false || ( "$cache_benchmark_existing_app_handoff" == true && "$cache_benchmark_enabled" == true ) ]] \
-  || fail "Existing-app handoff requires the explicit cache benchmark topology"
 if [[ "$cache_benchmark_enabled" == true ]]; then
   [[ "$action" == services && "${B_SERVICE_STAGE:-dependencies}" == application ]] \
     || fail "Cache measurement topology is only enabled through the admitted B application stage"
@@ -984,8 +981,7 @@ canonical_operator_tree_sha256() {
   if [[ "$global_b_services" == true ]]; then
     for relative in infra/aws/scripts/growth_b_service.py infra/aws/scripts/growth_b_search.py infra/aws/scripts/growth_b_app_runtime.py \
       infra/aws/scripts/growth_b_mac_service.py infra/aws/scripts/growth_b_mac_downsize.py \
-      infra/aws/scripts/bootstrap-growth-b-services.sh infra/aws/lab/templates/start-growth-b-app.sh.tftpl \
-      infra/aws/lab/templates/prepare-cache-benchmark-app.sh; do
+      infra/aws/scripts/bootstrap-growth-b-services.sh infra/aws/lab/templates/start-growth-b-app.sh.tftpl; do
       [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "B service identity file is unavailable"
       printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
     done
@@ -2273,14 +2269,13 @@ write_tfvars() {
       --arg owner "${lease_owner:-}" --argjson services "$global_b_services" --arg serviceRelease "$global_b_service_release" \
       --argjson bootstrap "$global_b_service_bootstrap_enabled" --argjson readiness "$global_b_readiness_receipt" \
       --argjson cacheBenchmark "$cache_benchmark_enabled" --argjson cacheApps "$cache_benchmark_app_count" \
-      --argjson cacheHandoff "$cache_benchmark_existing_app_handoff" \
       --argjson snapshotOnly "$global_b_snapshot_restore_only" --argjson provenance "$global_b_snapshot_provenance" \
       --arg sourceMode "$global_b_snapshot_source_mode" --argjson power "$lab_power_request" \
       --argjson operationFence "$fencing_token" --argjson resourceFence "${resource_fencing_token:-$fencing_token}" \
       '. + {global_b_prepare_only:$selected,global_b_import_from_mac:$macImport,global_b_services:$services,global_b_service_release:$serviceRelease,
         global_b_service_bootstrap_enabled:$bootstrap,global_b_readiness_receipt:$readiness,
         global_b_snapshot_restore_only:$snapshotOnly,global_b_snapshot_provenance:$provenance,global_b_snapshot_source_mode:$sourceMode,
-        lab_power:$power,cache_benchmark_enabled:$cacheBenchmark,cache_benchmark_app_count:$cacheApps,cache_benchmark_existing_app_handoff:$cacheHandoff,
+        lab_power:$power,cache_benchmark_enabled:$cacheBenchmark,cache_benchmark_app_count:$cacheApps,
         global_b_manifest_version_id:(if $selected or $services then $version else "" end),
         global_b_lease_owner:(if $selected or $services then $owner else "" end),
         global_b_lease_fencing_token:(if $services then $operationFence else 0 end),
@@ -4037,15 +4032,6 @@ AIRBOB_MAC_SERVICE_SOURCE
       --argjson bytes "$(wc -c < "$receipt" | tr -d ' ')" '{key:$key,version_id:$version,sha256:$sha,bytes:$bytes}')
   fi
   current_stage=b-services-$stage
-  if [[ "$cache_benchmark_existing_app_handoff" == true ]]; then
-    # A handoff may reuse existing runtimes, never create unprepared app hosts.
-    aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "airbob-$run_id-app" \
-      --region "$AWS_REGION" --no-cli-pager | jq -e --argjson n "$cache_benchmark_app_count" '
-        .AutoScalingGroups as $g | ($g|length)==1 and ($g[0] |
-        .MinSize==$n and .DesiredCapacity==$n and .MaxSize==$n and (.Instances|length)==$n and
-        all(.Instances[]; .LifecycleState=="InService"))' >/dev/null \
-      || fail "Cache handoff requires the same fixed existing app set"
-  fi
   if [[ "$stage" == application ]]; then
     write_tfvars data-ready true "$probe_instance_id"
   else
@@ -4071,7 +4057,7 @@ AIRBOB_MAC_SERVICE_SOURCE
       --argjson bytes "$(wc -c < "$receipt" | tr -d ' ')" '{key:$key,version_id:$version,sha256:$sha,bytes:$bytes}')
     printf 'B_READINESS_VERSION_ID=%s\nB_READINESS_SHA256=%s\n' "$receipt_version" "$receipt_sha"
   fi
-  if [[ "$stage" == application && "$cache_benchmark_existing_app_handoff" != true ]]; then
+  if [[ "$stage" == application ]]; then
     phase4=$(run_terraform_command "Terraform B application output" -chdir="$lab_root" output -json phase4_contract)
     asg_name=$(jq -er '.auto_scaling_group_name' <<<"$phase4")
     target_group_arn=$(jq -er '.target_group_arn' <<<"$phase4")
@@ -4088,12 +4074,10 @@ AIRBOB_MAC_SERVICE_SOURCE
     --arg sha "$dataset_manifest_sha256" --arg version "$dataset_manifest_version_id" --argjson readiness "$global_b_readiness_receipt" \
     --argjson resourceFence "$resource_fencing_token" --argjson leaseFence "$fencing_token" --argjson expires "$expires_at" \
     --arg ingress "$alb_ingress_cidr" --argjson approvedDeadline "$approved_execution_deadline_epoch" \
-    --argjson cacheHandoff "$cache_benchmark_existing_app_handoff" \
     '{schemaVersion:1,kind:"global-growth-b-service-transition",runId:$run,stage:$stage,serviceRelease:$release,
       manifestSha256:$sha,manifestVersionId:$version,readinessReceipt:$readiness,resourceFencingToken:$resourceFence,leaseFencingToken:$leaseFence,
       originalExpiresAt:$expires,approvedExecutionDeadlineEpoch:$approvedDeadline,albIngressCidr:$ingress,
-      applicationAlbReadinessVerified:($stage=="application" and ($cacheHandoff|not)),
-      cacheBenchmarkHandoffVerified:($stage=="application" and $cacheHandoff),businessCycleVerified:false}' \
+      applicationAlbReadinessVerified:($stage=="application"),businessCycleVerified:false}' \
     > "$temp_dir/b-service-transition.json"
   publish_immutable_json "data-bootstrap/$run_id/b-service-transition-$global_b_service_release-$stage-$fencing_token.json" "$temp_dir/b-service-transition.json"
   printf 'run_id=%s\nb_service_stage=%s\nexpires_at=%s\nbusiness_cycle_verified=false\n' "$run_id" "$stage" "$expires_at"

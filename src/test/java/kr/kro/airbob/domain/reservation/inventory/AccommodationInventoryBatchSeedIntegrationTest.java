@@ -7,16 +7,12 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryType;
 import java.sql.Date;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -47,7 +43,7 @@ import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepos
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
 @Testcontainers
-@DisplayName("MySQL 8.4 bounded inventory batch seed and throughput")
+@DisplayName("MySQL 8.4 inventory batch seed and retention")
 class AccommodationInventoryBatchSeedIntegrationTest {
 
 	private static final int HOSTS = 1_000;
@@ -103,37 +99,22 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("cold/warm 1000-host measurements compare the old per-host path with bounded SQL")
-	void measuresColdAndWarmPathsWithoutATimingThreshold() {
-		LegacyBatchRepository legacyRepository = new LegacyBatchRepository(jdbc);
-		ReservationInventoryService legacy = new ReservationInventoryService(legacyRepository);
-		measure("legacy-cold", legacyRepository, () -> {
-			for (Long id : IDS) {
-				transaction().executeWithoutResult(status -> legacy.seed(
-					id, RANGE.startInclusive(), RANGE.endExclusive()));
-			}
-		});
-		measure("legacy-warm", legacyRepository, () -> {
-			for (Long id : IDS) {
-				transaction().executeWithoutResult(status -> legacy.seed(
-					id, RANGE.startInclusive(), RANGE.endExclusive()));
-			}
-		});
-		jdbc.update("DELETE FROM accommodation_inventory_day");
+	@DisplayName("batch seed bounds each INSERT and skips existing inventory on repeated calls")
+	void seedsMissingInventoryInBoundedBatchesWithoutDuplicateWrites() {
 		CountingRepository repository = new CountingRepository(jdbc);
 		AccommodationInventorySeedService seed = service(repository, IDS);
-		measure("batch-cold", repository, () -> {
-			AccommodationInventorySeedService.SeedBatch batch = seed.seedNextPublishedBatch(0, HOSTS);
-			assertThat(batch.missingDaysSubmitted()).isEqualTo(batch.expectedDays());
-			assertThat(batch.insertStatements()).isEqualTo(
-				(int)((batch.expectedDays() + 999) / 1000));
-		});
+
+		AccommodationInventorySeedService.SeedBatch initial = seed.seedNextPublishedBatch(0, HOSTS);
+
+		assertThat(initial.missingDaysSubmitted()).isEqualTo(initial.expectedDays());
+		assertThat(initial.insertStatements()).isEqualTo((int)((initial.expectedDays() + 999) / 1000));
 		assertThat(repository.largestInsert).isEqualTo(1000);
-		measure("batch-warm", repository, () -> {
-			AccommodationInventorySeedService.SeedBatch batch = seed.seedNextPublishedBatch(0, HOSTS);
-			assertThat(batch.missingDaysSubmitted()).isZero();
-			assertThat(batch.insertStatements()).isZero();
-		});
+
+		repository.resetCounts();
+		AccommodationInventorySeedService.SeedBatch repeated = seed.seedNextPublishedBatch(0, HOSTS);
+
+		assertThat(repeated.missingDaysSubmitted()).isZero();
+		assertThat(repeated.insertStatements()).isZero();
 		assertThat(repository.returnedRows).isEqualTo(HOSTS);
 		assertThat(repository.queries).isOne();
 		assertThat(repository.countSeedDays(IDS, RANGE.startInclusive(), RANGE.endExclusive()))
@@ -142,8 +123,8 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("10000 past FREE rows compare retention transaction sizes without a timing threshold")
-	void measuresRetentionBatches() {
+	@DisplayName("retention deletes every past FREE row without exceeding the batch limit")
+	void deletesPastFreeRowsInBoundedBatches() {
 		AccommodationInventoryDayRepository repository = new AccommodationInventoryDayRepository(jdbc);
 		AccommodationInventoryRetentionService retention = new AccommodationInventoryRetentionService(repository);
 		LocalDate start = RANGE.startInclusive().minusDays(60);
@@ -152,21 +133,17 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 				LocalDate date = start.plusDays(day);
 				repository.seedMissingDayBatch(IDS.stream().map(id -> new SeedDay(id, date)).toList());
 			}
-			long startedAt = System.nanoTime();
 			long deletedRows = 0;
-			int batches = 0;
 			int deleted;
 			do {
 				deleted = transaction().execute(status -> retention.deleteNextPastFreeBatch(
 					start.plusDays(10), batchSize));
 				deletedRows += deleted;
-				batches++;
+				assertThat(deleted).isBetween(0, batchSize);
 			} while (deleted == batchSize);
-			long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
 			assertThat(deletedRows).isEqualTo(10_000);
-			System.out.printf(Locale.ROOT,
-				"INVENTORY_RETENTION_BENCHMARK {\"batchSize\":%d,\"deletedRows\":%d,"
-					+ "\"batches\":%d,\"elapsedMs\":%d}%n", batchSize, deletedRows, batches, elapsedMs);
+			assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM accommodation_inventory_day", Long.class))
+				.isZero();
 		}
 	}
 
@@ -260,21 +237,6 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 			new ReservationInventoryService(repository), repository, POLICY, CLOCK);
 	}
 
-	private void measure(String path, CountingRepository repository, Runnable operation) {
-		repository.resetCounts();
-		ManagementFactory.getMemoryPoolMXBeans().forEach(pool -> pool.resetPeakUsage());
-		long startedAt = System.nanoTime();
-		operation.run();
-		long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
-		long heapPoolPeakBytes = ManagementFactory.getMemoryPoolMXBeans().stream()
-			.filter(pool -> pool.getType() == MemoryType.HEAP)
-			.mapToLong(pool -> pool.getPeakUsage().getUsed()).sum();
-		System.out.printf(Locale.ROOT,
-			"INVENTORY_BENCHMARK {\"path\":\"%s\",\"accommodations\":%d,\"elapsedMs\":%d,"
-				+ "\"inventoryReadQueries\":%d,\"returnedRows\":%d,\"heapPoolPeakBytes\":%d}%n",
-			path, HOSTS, elapsedMs, repository.queries, repository.returnedRows, heapPoolPeakBytes);
-	}
-
 	private static class CountingRepository extends AccommodationInventoryDayRepository {
 		private long queries;
 		private long returnedRows;
@@ -283,14 +245,6 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 		CountingRepository(JdbcTemplate jdbcTemplate) { super(jdbcTemplate); }
 
 		void resetCounts() { queries = 0; returnedRows = 0; largestInsert = 0; }
-
-		@Override
-		public List<AccommodationInventoryDay> findSnapshot(Long id, LocalDate start, LocalDate end) {
-			List<AccommodationInventoryDay> result = super.findSnapshot(id, start, end);
-			queries++;
-			returnedRows += result.size();
-			return result;
-		}
 
 		@Override
 		public Map<Long, Integer> countSeedDays(List<Long> ids, LocalDate start, LocalDate end) {
@@ -315,27 +269,4 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 		}
 	}
 
-	/** The pre-change JDBC batch path, retained only for a comparable small pilot measurement. */
-	private static final class LegacyBatchRepository extends CountingRepository {
-		private final JdbcTemplate jdbcTemplate;
-
-		LegacyBatchRepository(JdbcTemplate jdbcTemplate) {
-			super(jdbcTemplate);
-			this.jdbcTemplate = jdbcTemplate;
-		}
-
-		@Override
-		public void seedMissingDays(Long id, List<LocalDate> days) {
-			List<Object[]> arguments = new ArrayList<>();
-			for (LocalDate day : days) {
-				arguments.add(new Object[] {id, Date.valueOf(day)});
-			}
-			jdbcTemplate.batchUpdate("""
-				INSERT INTO accommodation_inventory_day
-				(accommodation_id, stay_date, state, reservation_id, hold_expires_at)
-				VALUES (?, ?, 'FREE', NULL, NULL)
-				ON DUPLICATE KEY UPDATE stay_date = accommodation_inventory_day.stay_date
-				""", arguments);
-		}
-	}
 }

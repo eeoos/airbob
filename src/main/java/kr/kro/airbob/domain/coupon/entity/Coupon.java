@@ -10,8 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
-import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.common.CouponTime;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.dto.CouponRequest;
@@ -19,7 +17,6 @@ import kr.kro.airbob.domain.coupon.exception.CouponInvalidConfigurationException
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
@@ -73,16 +70,7 @@ public class Coupon extends BaseEntity {
 	// 신규 생성은 양수만 허용한다. 과거 NULL 데이터의 이관 전까지 DB nullable은 유지한다.
 	private Integer totalQuantity;
 
-	// 조건부 UPDATE 비교군 전용. SKIP LOCKED 경로는 갱신하거나 재고 판단에 사용하지 않는다.
-	@Column(nullable = false)
-	private Integer issuedQuantity;
-
 	private LocalDateTime stockPreparedAt;
-
-	@Builder.Default
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, updatable = false, length = 32)
-	private CouponIssueStrategy issueStrategy = CouponIssueStrategy.SKIP_SURROGATE_RR;
 
 	public static Coupon of(CouponRequest.Create dto) {
 		validateQuantity(dto.totalQuantity());
@@ -99,7 +87,6 @@ public class Coupon extends BaseEntity {
 			.usableUntil(CouponTime.toUtc(dto.usableUntil()))
 			.isActive(dto.isActive())
 			.totalQuantity(dto.totalQuantity())
-			.issuedQuantity(0)
 			.build();
 	}
 
@@ -179,21 +166,8 @@ public class Coupon extends BaseEntity {
 		this.issueEndAt = end;
 	}
 
-	// 발급 한도 소진 여부 (totalQuantity 가 null 이면 무제한)
-	public boolean isSoldOut() {
-		return totalQuantity != null && issuedQuantity >= totalQuantity;
-	}
-
 	public boolean isIssueOpen(LocalDateTime now) {
 		return !now.isBefore(issueStartAt) && now.isBefore(issueEndAt);
-	}
-
-	public boolean isIssuable(LocalDateTime now) {
-		return Boolean.TRUE.equals(isActive) && isIssueOpen(now) && !isSoldOut();
-	}
-
-	public CouponIssuanceStatus issuanceStatus(LocalDateTime now) {
-		return CouponIssuanceStatus.resolve(issueStartAt, totalQuantity, issuedQuantity, now);
 	}
 
 	// 발급된 쿠폰을 사용할 수 있는지 (활성·기간만 확인, 재고는 무관)
@@ -225,11 +199,6 @@ public class Coupon extends BaseEntity {
 			discount = discountValue;
 		}
 		return Math.min(discount, amount);
-	}
-
-	// 발급 가능 재고 (무제한이면 null)
-	public Integer remainingQuantity() {
-		return totalQuantity == null ? null : Math.max(0, totalQuantity - issuedQuantity);
 	}
 
 	private boolean differs(Object requested, Object current) {

@@ -3,8 +3,6 @@ package kr.kro.airbob.domain.reservation.inventory;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,26 +15,19 @@ public class AccommodationInventoryProductionProfileGuard implements Initializin
 	private static final String ERROR_MESSAGE =
 		"AWS/OCI reservation deployments require inventory startup and rolling seed";
 
-	private final Environment environment;
 	private final boolean startupEnabled;
 	private final boolean seedEnabled;
 
 	public AccommodationInventoryProductionProfileGuard(
-		Environment environment,
 		@Value("${reservation.inventory.startup.enabled:true}") boolean startupEnabled,
 		@Value("${reservation.inventory.seed.enabled:true}") boolean seedEnabled
 	) {
-		this.environment = environment;
 		this.startupEnabled = startupEnabled;
 		this.seedEnabled = seedEnabled;
 	}
 
 	@Override
 	public void afterPropertiesSet() {
-		if (environment.acceptsProfiles(Profiles.of("performance-lab", "cache-benchmark", "coupon-performance",
-			"bulk-delete-benchmark"))) {
-			return;
-		}
 		if (!startupEnabled || !seedEnabled) {
 			throw new IllegalStateException(ERROR_MESSAGE);
 		}

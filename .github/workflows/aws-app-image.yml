@@ -1,0 +1,87 @@
+name: Publish AWS application image
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_execution_commit:
+        description: Exact reviewed main commit to test and publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aws-app-image
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the reviewed main commit
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_execution_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ && "$EXPECTED_COMMIT" == "$GITHUB_SHA" ]]
+
+  verify:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      build_app: true
+
+  publish-ecr-image:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: aws-image-publisher
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Download application JAR
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: app-jar-${{ github.sha }}
+          path: build/libs
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_IMAGE_PUBLISHER_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          role-session-name: airbob-app-image-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64
+
+      - name: Publish immutable app image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          output_dir="$RUNNER_TEMP/app-image"
+          infra/aws/scripts/publish-ecr-image.sh APP_IMAGE "$GITHUB_SHA" "$output_dir"
+          infra/aws/scripts/assemble-image-release.sh app "$GITHUB_SHA" "$output_dir" "$RUNNER_TEMP/app-image-release.json"
+
+      - name: Upload immutable app release manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: app-image-release-${{ github.sha }}
+          path: ${{ runner.temp }}/app-image-release.json
+          if-no-files-found: error
+          retention-days: 30
+

@@ -9,11 +9,11 @@ class MicrometerCouponIssueMetricRecorderTest {
 	@Test void recordsClosedStrategyOutcomesAndRetryReasonsWithoutIdentifiers() {
 		var registry = new SimpleMeterRegistry();
 		var recorder = new MicrometerCouponIssueMetricRecorder(registry);
-		recorder.recordIssue(Strategy.DB,IssueResult.SUCCESS,120_000_000);
-		recorder.recordDatabase(Strategy.SKIP_SURROGATE_RR,DatabaseResult.RETRY,80_000_000);
-		recorder.recordRetry(Strategy.SKIP_SURROGATE_RR,RetryReason.DEADLOCK);
+		recorder.recordIssue(IssueResult.SUCCESS,120_000_000);
+		recorder.recordDatabase(DatabaseResult.RETRY,80_000_000);
+		recorder.recordRetry(RetryReason.DEADLOCK);
 		assertThat(registry.get(MicrometerCouponIssueMetricRecorder.ISSUE_DURATION)
-			.tags("strategy","db","result","success").timer().totalTime(TimeUnit.MILLISECONDS)).isEqualTo(120);
+			.tags("strategy","skip_surrogate_rr","result","success").timer().totalTime(TimeUnit.MILLISECONDS)).isEqualTo(120);
 		assertThat(registry.get(MicrometerCouponIssueMetricRecorder.DATABASE_DURATION)
 			.tags("strategy","skip_surrogate_rr","result","retry").timer().count()).isEqualTo(1);
 		assertThat(registry.get(MicrometerCouponIssueMetricRecorder.RETRY_TOTAL)

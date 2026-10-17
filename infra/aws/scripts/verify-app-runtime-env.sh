@@ -35,6 +35,7 @@ esac
 
 expected_keys=(
   SPRING_PROFILES_ACTIVE
+  SPRING_FLYWAY_TARGET
   SPRING_KAFKA_LISTENER_AUTO_STARTUP
   OPERATOR_ALERT_KAFKA_AUTO_STARTUP
   ACCOMMODATION_INDEXING_AUTO_STARTUP
@@ -202,6 +203,12 @@ done
 
 [[ "$(value_for SPRING_PROFILES_ACTIVE)" == "$required_profile" ]] || {
   printf 'runtime env profile does not match the selected policy\n' >&2
+  exit 1
+}
+
+# Keep the immutable V27 dataset pinned independently of retired app profiles.
+[[ "$(value_for SPRING_FLYWAY_TARGET)" == 27 ]] || {
+  printf 'runtime env must preserve the V27 dataset schema\n' >&2
   exit 1
 }
 

@@ -7,7 +7,6 @@ import static kr.kro.airbob.domain.member.entity.QMember.*;
 import static kr.kro.airbob.domain.review.entity.QAccommodationReviewSummary.*;
 
 import java.time.LocalDateTime;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,13 +18,11 @@ import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.support.PageableExecutionUtils;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.entity.QAddress;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QRecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
@@ -34,7 +31,6 @@ import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodatio
 import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationDetailProjection;
-import kr.kro.airbob.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -60,19 +56,6 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
         Long accommodationId,
         AccommodationStatus status
     ) {
-        return findPublicDetail(accommodationId, status, true);
-    }
-
-    @Override
-    public Optional<PublicAccommodationDetailProjection> findWithDetailsWithoutReviewSummaryByAccommodationIdAndStatus(
-        Long accommodationId, AccommodationStatus status
-    ) {
-        return findPublicDetail(accommodationId, status, false);
-    }
-
-    private Optional<PublicAccommodationDetailProjection> findPublicDetail(
-        Long accommodationId, AccommodationStatus status, boolean includeReviewSummary
-    ) {
         JPAQuery<PublicAccommodationDetailProjection> query = jpaQueryFactory
             .select(new QPublicAccommodationDetailProjection(
                 accommodation.id, accommodation.name, accommodation.description, accommodation.type,
@@ -81,17 +64,15 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
                 address.country, address.state, address.city, address.district, address.latitude, address.longitude,
                 member.id, member.nickname, member.thumbnailImageUrl,
                 occupancyPolicy.maxOccupancy, occupancyPolicy.infantOccupancy, occupancyPolicy.petOccupancy,
-                includeReviewSummary ? accommodationReviewSummary.totalReviewCount : Expressions.nullExpression(Integer.class),
-                includeReviewSummary ? accommodationReviewSummary.averageRating : Expressions.nullExpression(BigDecimal.class)
+                accommodationReviewSummary.totalReviewCount,
+                accommodationReviewSummary.averageRating
             ))
             .from(accommodation)
             .leftJoin(accommodation.address, address)
             .leftJoin(accommodation.occupancyPolicy, occupancyPolicy)
-            .leftJoin(accommodation.member, member);
-        if (includeReviewSummary) {
-            query.leftJoin(accommodationReviewSummary)
+            .leftJoin(accommodation.member, member)
+            .leftJoin(accommodationReviewSummary)
                 .on(accommodationReviewSummary.accommodationId.eq(accommodation.id));
-        }
         return Optional.ofNullable(query.where(accommodation.id.eq(accommodationId)
                 .and(accommodation.status.eq(status)))
             .fetchOne());
@@ -161,32 +142,17 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     public List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
         List<Long> accommodationIds, AccommodationStatus status
     ) {
-        return findRecentlyViewedAccommodations(accommodationIds, status, true);
-    }
-
-    @Override
-    public List<RecentlyViewedAccommodationProjection> findWithAddressWithoutReviewSummaryByIdInAndStatus(
-        List<Long> accommodationIds, AccommodationStatus status
-    ) {
-        return findRecentlyViewedAccommodations(accommodationIds, status, false);
-    }
-
-    private List<RecentlyViewedAccommodationProjection> findRecentlyViewedAccommodations(
-        List<Long> accommodationIds, AccommodationStatus status, boolean includeReviewSummary
-    ) {
         JPAQuery<RecentlyViewedAccommodationProjection> query = jpaQueryFactory
             .select(new QRecentlyViewedAccommodationProjection(
                 accommodation.id, accommodation.name, accommodation.thumbnailUrl,
                 address.country, address.state, address.city, address.district,
-                includeReviewSummary ? accommodationReviewSummary.totalReviewCount : Expressions.nullExpression(Integer.class),
-                includeReviewSummary ? accommodationReviewSummary.averageRating : Expressions.nullExpression(BigDecimal.class)
+                accommodationReviewSummary.totalReviewCount,
+                accommodationReviewSummary.averageRating
             ))
             .from(accommodation)
-            .leftJoin(accommodation.address, address);
-        if (includeReviewSummary) {
-            query.leftJoin(accommodationReviewSummary)
+            .leftJoin(accommodation.address, address)
+            .leftJoin(accommodationReviewSummary)
                 .on(accommodationReviewSummary.accommodationId.eq(accommodation.id));
-        }
         return query.where(
                 accommodation.id.in(accommodationIds),
                 accommodation.status.eq(status)

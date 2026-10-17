@@ -362,17 +362,3 @@ asciidoctor {
 			'highlightjs-theme': 'github'
 	)
 }
-
-tasks.register('packageZip', Zip) {
-	dependsOn build
-	archiveFileName = 'airbob-deploy.zip'
-	destinationDirectory = file("$buildDir/distributions")
-
-	from('build/libs') {
-		include '*.jar'
-	}
-	from('scripts') {
-		into 'scripts'
-	}
-	from('appspec.yml')
-}

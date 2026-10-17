@@ -77,7 +77,7 @@ class CouponQueryRepositoryTest {
 	void soldOutAndEndedCampaignsDoNotEraseOwnedCoupons() {
 		long memberId = insertMember("sold-out-owner");
 		long soldOut = insertCoupon("매진", true, NOW.minusHours(1), NOW.plusHours(1));
-		jdbc.update("UPDATE coupon SET issued_quantity = total_quantity WHERE id = ?", soldOut);
+		jdbc.update("UPDATE coupon SET total_quantity = 1 WHERE id = ?", soldOut);
 		long ended = insertCoupon("발급 종료", true, NOW.minusDays(1), NOW);
 		insertMemberCoupon(memberId, soldOut, NOW.minusMinutes(2));
 		insertMemberCoupon(memberId, ended, NOW.minusMinutes(1));
@@ -141,9 +141,9 @@ class CouponQueryRepositoryTest {
 			INSERT INTO coupon (
 			  name, discount_type, discount_value,
 			  issue_start_at, issue_end_at, usable_from, usable_until,
-			  is_active, total_quantity, issued_quantity, stock_prepared_at,
+			  is_active, total_quantity, stock_prepared_at,
 			  created_at, updated_at
-			) VALUES (?, 'FIXED_AMOUNT', 10000, ?, ?, ?, ?, ?, 100, 0, ?, NOW(6), NOW(6))
+			) VALUES (?, 'FIXED_AMOUNT', 10000, ?, ?, ?, ?, ?, 100, ?, NOW(6), NOW(6))
 			""",
 			name,
 			issueStartAt,

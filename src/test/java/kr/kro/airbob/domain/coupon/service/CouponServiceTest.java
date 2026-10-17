@@ -18,12 +18,12 @@ class CouponServiceTest {
 		var service = new CouponService(coupons, members, units);
 		var now = LocalDateTime.of(2026, 10, 9, 10, 0);
 		var coupon = Coupon.builder().id(1L).issueStartAt(now.minusMinutes(1)).issueEndAt(now.plusHours(1))
-			.totalQuantity(10).issuedQuantity(0).isActive(true).build();
+			.totalQuantity(10).isActive(true).build();
 		when(coupons.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
 		when(units.databaseNow()).thenReturn(now);
 		var request = new CouponRequest.Update(null,null,null,null,null,null,now.plusDays(1).toInstant(ZoneOffset.UTC),null,null,null,null,20);
 		assertThatThrownBy(() -> service.updateCoupon(request, 1L)).isInstanceOf(CouponConfigurationLockedException.class);
 		assertThat(coupon.getTotalQuantity()).isEqualTo(10);
-		verify(units, never()).insertRange(anyLong(), any(), anyInt(), anyInt());
+		verify(units, never()).insertRange(anyLong(), anyInt(), anyInt());
 	}
 }

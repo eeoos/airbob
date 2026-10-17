@@ -65,7 +65,6 @@ class MemberCouponTest {
 			.usableUntil(USABLE_UNTIL)
 			.isActive(active)
 			.totalQuantity(100)
-			.issuedQuantity(1)
 			.build();
 		return MemberCoupon.builder()
 			.coupon(coupon)

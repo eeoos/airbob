@@ -16,8 +16,6 @@ import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationContext;
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationContextHolder;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 
 @Repository
@@ -57,7 +55,7 @@ public class ReservationHistoryBatchWriter {
 				INSERT_SQL,
 				batchSetter(chunk, historyCreatedAt)
 			);
-			recordSuccessfulBatch(chunk.size(), affectedRows(updateCounts, chunk.size()));
+			validateBatchResult(updateCounts, chunk.size());
 		}
 	}
 
@@ -153,31 +151,17 @@ public class ReservationHistoryBatchWriter {
 		return LocalDateTime.ofInstant(value, ZoneOffset.UTC);
 	}
 
-	private Long affectedRows(int[] updateCounts, int submittedRows) {
+	private void validateBatchResult(int[] updateCounts, int submittedRows) {
 		if (updateCounts.length != submittedRows) {
 			throw new DataIntegrityViolationException("JDBC batch result count does not match submitted rows");
 		}
-		boolean unknown = false;
-		long affectedRows = 0;
 		for (int updateCount : updateCounts) {
 			if (updateCount == Statement.EXECUTE_FAILED) {
 				throw new DataIntegrityViolationException("reservation history batch failed");
 			}
-			if (updateCount == Statement.SUCCESS_NO_INFO) {
-				unknown = true;
-			} else if (updateCount < 0) {
+			if (updateCount < 0 && updateCount != Statement.SUCCESS_NO_INFO) {
 				throw new DataIntegrityViolationException("unknown JDBC batch result: " + updateCount);
-			} else {
-				affectedRows = Math.addExact(affectedRows, updateCount);
 			}
-		}
-		return unknown ? null : affectedRows;
-	}
-
-	private void recordSuccessfulBatch(int submittedRows, Long affectedRows) {
-		BulkOperationContext context = BulkOperationContextHolder.getContext();
-		if (context != null) {
-			context.recordJdbcBatch(submittedRows, batchSize, affectedRows);
 		}
 	}
 }

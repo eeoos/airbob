@@ -1,0 +1,24 @@
+# 초기 인증서 발급 컨테이너 전용. 운영 default.conf는 수정하지 않는다.
+
+server {
+    listen 80;
+    server_name api.airbob.cloud;
+
+    # Let's Encrypt 인증서 발급용
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location ^~ /actuator {
+        return 404;
+    }
+
+    location = /health {
+        access_log off;
+        return 200 "ready\n";
+    }
+
+    location / {
+        return 404;
+    }
+}

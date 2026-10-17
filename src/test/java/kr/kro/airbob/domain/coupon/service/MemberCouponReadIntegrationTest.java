@@ -108,7 +108,7 @@ class MemberCouponReadIntegrationTest {
 				couponId == 15 ? NOW : NOW.plusMonths(1));
 			insertOwned(101L + index, MEMBER_ID, couponId, couponId == 14, NOW.minusMinutes(index));
 		}
-		jdbc.update("UPDATE coupon SET issued_quantity = total_quantity WHERE id = 12");
+		jdbc.update("UPDATE coupon SET total_quantity = 2 WHERE id = 12");
 		jdbc.update("UPDATE coupon SET issue_end_at = ? WHERE id = 17", NOW);
 		insertOwned(201, 8L, 12, true, NOW.plusMinutes(1));
 		Statistics statistics = prepareMeasurement();
@@ -225,8 +225,8 @@ class MemberCouponReadIntegrationTest {
 		jdbc.update("""
 			INSERT INTO coupon (id, name, discount_type, discount_value, min_payment_price,
 				issue_start_at, issue_end_at, usable_from, usable_until, is_active, total_quantity,
-				issued_quantity, created_at, updated_at)
-			VALUES (?, ?, 'FIXED_AMOUNT', 10000, 50000, ?, ?, ?, ?, ?, 10, 0, ?, ?)
+				created_at, updated_at)
+			VALUES (?, ?, 'FIXED_AMOUNT', 10000, 50000, ?, ?, ?, ?, ?, 10, ?, ?)
 			""", id, name, NOW.minusDays(1), NOW.plusDays(1), usableFrom, usableUntil, active, NOW, NOW);
 	}
 
@@ -253,7 +253,7 @@ class MemberCouponReadIntegrationTest {
 		String sql = sqlCapture.statements.getFirst();
 		String selected = sql.substring("select ".length(), sql.indexOf(" from "));
 		assertThat(selected).doesNotContain(".member_id", ".reservation_id", ".used_at", ".issue_start_at",
-			".issue_end_at", ".total_quantity", ".issued_quantity", ".stock_prepared_at", ".created_at",
+			".issue_end_at", ".total_quantity", ".stock_prepared_at", ".created_at",
 			".updated_at", ".created_by", ".updated_by");
 		assertThat(sql).contains(" join coupon ").doesNotContain(" join member ", " for update", " for share");
 		verifyNoInteractions(stockManager);

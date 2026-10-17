@@ -26,7 +26,7 @@ import kr.kro.airbob.search.messaging.kafka.AccommodationSearchRefreshListener;
 
 class MessagingDeploymentContractTest {
 
-	private static final Path CONNECTOR_CONFIG = Path.of("debezium-config/outbox-connector.json");
+	private static final Path CONNECTOR_CONFIG = Path.of("docker/debezium/outbox-connector.json");
 	private static final List<String> BUSINESS_TOPICS = List.of(
 		"PAYMENT_OPERATION.events",
 		"PAYMENT_OPERATION.events.RETRY",
@@ -81,14 +81,14 @@ class MessagingDeploymentContractTest {
 	@Test
 	@DisplayName("connector 설정은 drift 가능한 local과 OCI 복사본 없이 하나만 존재한다")
 	void keepsSingleConnectorConfig() throws IOException {
-		try (var configs = Files.walk(Path.of("debezium-config"))) {
+		try (var configs = Files.walk(Path.of("docker/debezium"))) {
 			assertThat(configs.filter(path -> path.toString().endsWith(".json")))
 				.containsExactly(CONNECTOR_CONFIG);
 		}
 
 		assertThat(Path.of("docker/debezium/connector-local.json")).doesNotExist();
 		assertThat(Path.of("docker/debezium/connector-oci.json")).doesNotExist();
-		assertThat(Path.of("debezium-config/register-mysql-connector.json")).doesNotExist();
+		assertThat(Path.of("docker/debezium/register-mysql-connector.json")).doesNotExist();
 	}
 
 	@Test

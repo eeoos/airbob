@@ -3,28 +3,21 @@ package kr.kro.airbob.domain.recentlyViewed.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.springframework.data.redis.core.DefaultTypedTuple;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
-import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,10 +29,7 @@ public class RecentlyViewedService {
 
 	private final RedisTemplate<String, String> redisTemplate;
 	private final AccommodationRepository accommodationRepository;
-	private final AccommodationReviewSummaryRepository summaryRepository;
-	private final ReviewRepository reviewRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
-
 
 	private static final String RECENTLY_VIEWED_KEY_PREFIX = "recently_viewed:";
 	private static final int MAX_COUNT = 100;
@@ -63,37 +53,8 @@ public class RecentlyViewedService {
 		redisTemplate.opsForZSet().remove(key, accommodationId.toString());
 	}
 
-	/**
-	 * 요청 목록의 첫 항목이 가장 최근 조회가 되도록 전체 fixture를 교체한다.
-	 */
-	void replaceRecentlyViewed(Long memberId, List<Long> accommodationIds) {
-		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
-		long latestViewedAt = System.currentTimeMillis();
-		Set<ZSetOperations.TypedTuple<String>> tuples = new LinkedHashSet<>();
-
-		for (int index = 0; index < accommodationIds.size(); index++) {
-			tuples.add(new DefaultTypedTuple<>(
-				accommodationIds.get(index).toString(),
-				(double)(latestViewedAt - index)
-			));
-		}
-
-		redisTemplate.delete(key);
-		redisTemplate.opsForZSet().add(key, tuples);
-		redisTemplate.expire(key, Duration.ofDays(TTL_DAYS));
-	}
-
 	@Transactional(readOnly = true)
 	public AccommodationResponse.RecentlyViewedAccommodationInfos getRecentlyViewed(Long memberId) {
-		return findRecentlyViewed(memberId, false);
-	}
-
-	@Transactional(readOnly = true)
-	public AccommodationResponse.RecentlyViewedAccommodationInfos getRecentlyViewedBeforeReviewSummary(Long memberId) {
-		return findRecentlyViewed(memberId, true);
-	}
-
-	private AccommodationResponse.RecentlyViewedAccommodationInfos findRecentlyViewed(Long memberId, boolean rawReviewSummary) {
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 
 		Set<ZSetOperations.TypedTuple<String>> recentlyViewedWithScores = redisTemplate.opsForZSet()
@@ -112,8 +73,8 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<RecentlyViewedAccommodationProjection> accommodationsInDb = loadAccommodations(
-			new ArrayList<>(accommodationIdsFromRedis), rawReviewSummary);
+		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationRepository.findWithAddressAndReviewSummaryByIdInAndStatus(
+			new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
 		Map<Long, RecentlyViewedAccommodationProjection> accommodationMap = accommodationsInDb.stream()
 			.collect(Collectors.toMap(RecentlyViewedAccommodationProjection::accommodationId, projection -> projection));
 
@@ -154,85 +115,6 @@ public class RecentlyViewedService {
 		return AccommodationResponse.RecentlyViewedAccommodationInfos.from(recentlyViewedAccommodationInfos);
 	}
 
-	private List<RecentlyViewedAccommodationProjection> loadAccommodations(List<Long> accommodationIds, boolean rawReviewSummary) {
-		if (!rawReviewSummary) {
-			return accommodationRepository.findWithAddressAndReviewSummaryByIdInAndStatus(
-				accommodationIds, AccommodationStatus.PUBLISHED);
-		}
-		var accommodations = accommodationRepository.findWithAddressWithoutReviewSummaryByIdInAndStatus(
-			accommodationIds, AccommodationStatus.PUBLISHED);
-		var summaries = reviewRepository.findPublishedSummaryMap(accommodations.stream()
-			.map(RecentlyViewedAccommodationProjection::accommodationId).toList());
-		return accommodations.stream().map(accommodation -> {
-			var summary = summaries.getOrDefault(accommodation.accommodationId(), ReviewResponse.ReviewSummary.of(null, null));
-			return new RecentlyViewedAccommodationProjection(accommodation.accommodationId(), accommodation.name(),
-				accommodation.thumbnailUrl(), accommodation.country(), accommodation.state(), accommodation.city(),
-				accommodation.district(), summary.totalCount(), summary.averageRating());
-		}).toList();
-	}
-
-	/**
-	 * 숙소 엔티티의 주소를 DTO 변환 시 지연 로딩해 N+1 기준선을 재현
-	 * 실제 N회 조회는 nplus1-benchmark 프로필에서 batch fetch를 끈 상태로 측정
-	 */
-	@Transactional(readOnly = true)
-	public AccommodationResponse.RecentlyViewedAccommodationInfos getRecentlyViewedBefore(Long memberId) {
-		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
-		Set<ZSetOperations.TypedTuple<String>> recentlyViewedWithScores = redisTemplate.opsForZSet()
-			.reverseRangeWithScores(key, 0, -1);
-
-		if (recentlyViewedWithScores == null || recentlyViewedWithScores.isEmpty()) {
-			return AccommodationResponse.RecentlyViewedAccommodationInfos.builder()
-				.accommodations(new ArrayList<>())
-				.totalCount(0)
-				.build();
-		}
-
-		Set<Long> accommodationIdsFromRedis = recentlyViewedWithScores.stream()
-			.map(tuple -> Long.parseLong(tuple.getValue()))
-			.collect(Collectors.toSet());
-		List<Accommodation> accommodationsInDb = accommodationRepository.findByIdInAndStatus(
-			new ArrayList<>(accommodationIdsFromRedis),
-			AccommodationStatus.PUBLISHED
-		);
-		Map<Long, Accommodation> accommodationMap = accommodationsInDb.stream()
-			.collect(Collectors.toMap(Accommodation::getId, accommodation -> accommodation));
-
-		Set<Long> existingIdsInDb = accommodationMap.keySet();
-		List<String> idsToDeleteFromRedis = accommodationIdsFromRedis.stream()
-			.filter(id -> !existingIdsInDb.contains(id))
-			.map(String::valueOf)
-			.toList();
-		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
-		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = getReviewSummaryMap(existingIdList);
-		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
-
-		List<AccommodationResponse.RecentlyViewedAccommodationInfo> accommodationInfos = recentlyViewedWithScores.stream()
-			.map(tuple -> {
-				Long accommodationId = Long.parseLong(tuple.getValue());
-				Accommodation accommodation = accommodationMap.get(accommodationId);
-				if (accommodation == null) {
-					return null;
-				}
-
-				Instant viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue());
-				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(
-					viewedAt,
-					accommodation,
-					reviewSummaryMap.get(accommodationId),
-					wishlistMap.getOrDefault(accommodationId, false)
-				);
-			})
-			.filter(Objects::nonNull)
-			.toList();
-
-		if (!idsToDeleteFromRedis.isEmpty()) {
-			redisTemplate.opsForZSet().remove(key, idsToDeleteFromRedis.toArray(new Object[0]));
-		}
-
-		return AccommodationResponse.RecentlyViewedAccommodationInfos.from(accommodationInfos);
-	}
-
 	private Map<Long, Boolean> getWishlistMap(Long memberId, List<Long> accommodationIds) {
 		Set<Long> wishlistAccommodationIds = wishlistAccommodationRepository
 			.findAccommodationIdsByMemberIdAndAccommodationIds(memberId, accommodationIds);
@@ -244,14 +126,4 @@ public class RecentlyViewedService {
 			));
 	}
 
-	private Map<Long, ReviewResponse.ReviewSummary> getReviewSummaryMap(List<Long> accommodationIds) {
-		List<AccommodationReviewSummary> summaries = summaryRepository.findByAccommodationIdIn(
-			accommodationIds);
-
-		return summaries.stream()
-			.collect(Collectors.toMap(
-				AccommodationReviewSummary::getAccommodationId,
-				ReviewResponse.ReviewSummary::of
-			));
-	}
 }

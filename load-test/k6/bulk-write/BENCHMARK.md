@@ -1,3 +1,7 @@
+> 과거 부하 테스트를 설명하기 위한 보관 문서다. 기준 소스는 `8b3cc82b`이며, 현재 앱에서는 비교 API와 실험 프로필을 제거했다.
+> 아래 명령과 조건은 측정 당시 버전에 해당한다. 재현할 때는 결과에 기록된 앱 커밋·이미지·데이터셋을 함께 사용한다.
+> [당시 문서 원문](https://github.com/eeoos/airbob/blob/8b3cc82b923347a0c6d781e3f0f755eb177e8b14/load-test/k6/bulk-write/BENCHMARK.md) · [전체 보관 안내](../../README.md)
+
 # 벌크 삭제 로컬·AWS 비교
 
 위시리스트 삭제와 편의시설 삭제를 같은 앱에서 Before/After로 비교한다.

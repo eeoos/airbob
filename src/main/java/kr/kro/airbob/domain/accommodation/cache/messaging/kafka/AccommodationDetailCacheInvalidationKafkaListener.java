@@ -1,7 +1,6 @@
 package kr.kro.airbob.domain.accommodation.cache.messaging.kafka;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -24,7 +23,6 @@ import kr.kro.airbob.messaging.infrastructure.kafka.KafkaRetryHeaders;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@Profile("!traffic-benchmark & !cache-benchmark")
 @RequiredArgsConstructor
 public class AccommodationDetailCacheInvalidationKafkaListener {
 

@@ -24,7 +24,7 @@ class ScopeTests(unittest.TestCase):
             '.github/workflows/aws-growth-b-images.yml', 'infra/aws/images/global-b-runtime.json',
             'docker/aws-global-b-debezium/Dockerfile', 'infra/aws/bundles/debezium/compose.yml',
             'monitoring/prometheus/prometheus.aws.yml', 'infra/aws/scripts/growth_b_images.py',
-            'infra/aws/scripts/publish-ecr-image.sh', 'docs/performance/aws-performance-lab.md',
+            'infra/aws/scripts/publish-ecr-image.sh', 'docs/operations/aws-performance-lab.md',
             'docker/kafka/init-topics.sh', 'docker/debezium/register-connector.sh',
             'docker/debezium/monitor-connector.sh']))
 
@@ -89,10 +89,11 @@ class ScopeTests(unittest.TestCase):
 
     def test_all_legacy_write_jobs_consume_gate(self):
         workflow = (ROOT / '.github/workflows/infra-images.yml').read_text()
-        for name in ('publish-ecr-images', 'publish-oci-compat-images', 'publish-service-bundles'):
+        for name in ('publish-ecr-images', 'publish-service-bundles'):
             job = re.split(r'\n  \S', workflow.split('  ' + name + ':\n', 1)[1], maxsplit=1)[0]
             self.assertIn("needs.prepare.outputs.images_required == 'true'", job)
         self.assertIn('images_required: ${{ steps.scope.outputs.images_required }}', workflow)
+        self.assertNotIn('publish-oci-compat-images', workflow)
 
 
 if __name__ == '__main__':

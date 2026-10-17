@@ -36,6 +36,25 @@ def row(rate, passed=True, **changes):
 
 
 class PlanTest(unittest.TestCase):
+    def test_connection_warmup_is_explicit_and_requires_complete_reused_connections(self):
+        c = config() | {'scenarios': ['stampede'], 'burstConnectionWarmup': True}
+        contract.validate(c)
+        with self.assertRaises(RuntimeError):
+            contract.validate(c | {'burstConnectionWarmup': 'true'})
+        good = {'requests': c['burst'], 'errors': 0, 'late': 0, 'reused': c['burst']}
+        for changes, reason in [({}, None), ({'requests': c['burst'] - 1}, 'burst-connection-warmup-incomplete'),
+                ({'errors': 1}, 'burst-connection-warmup-incomplete'),
+                ({'late': 1}, 'burst-connection-warmup-incomplete'),
+                ({'reused': c['burst'] - 1}, 'burst-connection-not-reused')]:
+            with self.subTest(changes=changes), \
+                    patch.object(contract.local, 'server_observation', return_value={}), \
+                    patch.object(contract.local, 'aggregate_observations', return_value={}), \
+                    patch.object(contract.local, 'evidence_reasons', return_value=[]):
+                raw = {'kind': 'burst', 'completed': c['burst'], 'burstConnectionWarmup': good | changes,
+                       'generator': {'maxCpuPercent': 10, 'minAvailableMemoryPercent': 80}}
+                measured = contract.evaluate(raw, [''], [''], 'lock-on', 'stampede', c)
+                self.assertEqual(measured['evidenceReasons'], [reason] if reason else [])
+
     def test_stampede_scenario_prepares_offline(self):
         c = config() | {'scenarios': ['stampede'], 'rounds': 3}
         with tempfile.TemporaryDirectory() as tmp, patch.object(runner.Aws, 'call', side_effect=AssertionError('No AWS')):

@@ -18,7 +18,6 @@ This file provides repository-specific guidance to coding agents.
 # Build or run
 ./gradlew build -x test
 ./gradlew bootRun
-./gradlew packageZip
 ```
 
 The application requires external infrastructure. Integration tests use Testcontainers where
@@ -88,20 +87,24 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ### Coupon issuance
 
 - New coupons have positive finite quantities, validated in the application. Historical nullable
-  quantity and issued_quantity remain for migration compatibility and the conditional-UPDATE benchmark.
+  quantity remains readable; V31 removes the experimental issued_quantity and issue_strategy columns.
 - Coupon business timestamps are stored/compared as UTC. API dates are `Instant` values with `Z`;
   the frontend formats them in `Asia/Seoul`. V30 converts legacy Seoul business values only; audit
   timestamps were already UTC. Stop pre-V30 readers/writers before cutover and roll forward only.
-- Default issuance uses surrogate-key MySQL units and REPEATABLE_READ. A unit DELETE and member_coupon
+- Issuance uses only surrogate-key MySQL units and REPEATABLE_READ. A unit DELETE and member_coupon
   INSERT commit in one transaction. Never update the shared coupon counter on a SKIP LOCKED path.
 - Empty SKIP LOCKED results require a fresh-snapshot check: CP002 is sold out, CP012 is retryable contention.
 - Before issue_start_at only, preparation/quantity changes/discard lock the coupon first. After start,
   no quantity changes or restocking. UNIQUE(member_id,coupon_id) and whole-transaction rollback prevent duplicates.
-- The protected coupon-benchmark profile supports immutable db and surrogate/composite RR/RC variants.
-  Each variant has a fixed `/api/v2/coupons/{couponId}/issue/{strategy}` endpoint. Validate the stored
-  strategy inside the issuance transaction without a separate benchmark routing query. Unit reads and
-  deletes use Spring Data JPA native queries; preparation retains bounded JDBC multi-row inserts.
-  See docs/performance/coupon-skip-locked-benchmark-plan.md and load-test/k6/coupon/README.md.
+- The only issuance endpoint is `/api/v1/coupons/{couponId}/issue`. There is no strategy lookup,
+  conditional-UPDATE issuance, RC issuance, or composite unit table. Unit reads and deletes use
+  Spring Data JPA native queries; preparation retains bounded JDBC multi-row inserts.
+- Before V31, stop old application readers/writers and close active conditional-UPDATE campaigns.
+  V31 copies only remaining composite units into the surrogate table, preserves member coupons,
+  and drops the composite table and experiment columns. Never regenerate consumed stock.
+  See docs/operations/coupon-issuance-operations.md. Roll forward only after this schema cutover.
+- Retired coupon experiment endpoints and application profiles are removed. Historical measurements
+  require their recorded source/image and dataset, not the current application.
 - Stop old Lua writers and reconcile/archive preparation evidence before V29; do not reuse Redis timestamps
   as proof of MySQL stock, auto-reseed an issued campaign, or roll back to a Lua binary after V29.
 
@@ -126,7 +129,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   must commit while holding the same execution fence.
 - `P007` means fence-protected work never started. Post-action lock/connection cleanup failures are
   logged with stable metadata and must not replace a committed result.
-- See `docs/payment-operation-runbook.md` before changing failure or rollback behavior.
+- See `docs/operations/payment-operation-runbook.md` before changing failure or rollback behavior.
 
 ### Messaging and outbox
 
@@ -157,24 +160,38 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   it deletes the document.
 - The `accommodations` alias must point to exactly one versioned write index. Alias bootstrap gates
   consumer startup; full reindex builds a new version index and atomically swaps the alias.
-- See `docs/accommodation-indexing-operations.md` and `docs/logstash-reindex.md`.
+- See `docs/operations/accommodation-indexing-operations.md` and `docs/operations/logstash-reindex.md`.
 
 ### Accommodation detail cache and AWS performance lab
 
 - Accommodation-detail cache code is isolated under
   `domain/accommodation/cache/{config,invalidation,messaging,monitoring,redis}`.
-- General Redis and the dedicated accommodation-cache Redis are separate dependencies. The
-  `performance-lab` profile must fail when they resolve to the same endpoint, and experiments may
-  flush only the dedicated cache Redis.
-- Same-image experiments toggle the accommodation-detail cache through configuration. Durable
-  invalidation must use the domain-owned canonical messaging adapter and
+- General Redis and the dedicated accommodation-cache Redis remain separate dependencies.
+  Durable invalidation uses the domain-owned canonical messaging adapter and
   `ACCOMMODATION_CACHE.events`; do not recreate root outbox or Kafka-consumer packages.
+- Application experiment profiles and comparison APIs are retired. Preserve historical load-test
+  scripts, fixtures and guides under `load-test/` as evidence of measurement methodology; their
+  original versions and hashes are recorded in `load-test/archive-source.json`. Reproduction needs
+  the app/image/dataset recorded in each result. Do not restore runtime comparison APIs or add
+  archived runners back to CI. Local P6Spy read tracing runs with `dev` only, excluding `aws`,
+  `oci` and `test`.
+- Preserved AWS resource-management tools target their compatible digest-pinned historical images
+  and immutable datasets. The V27 launcher pins Flyway explicitly; do not substitute the current
+  application image or silently migrate a recorded dataset. Application startup always verifies
+  ordinary readiness; the retired measurement handoff must not bypass it.
 - AWS performance-lab infrastructure and immutable image assets live under `infra/aws/`. Keep
   image references digest-pinned, secrets out of the repository and rendered bundles, and ECR
   publication authenticated through GitHub OIDC.
 - OCI deployment remains independent from the AWS experiment and retains the messaging,
   migration, and connector gates in `scripts/deploy-oci.sh`.
-- See `docs/performance/aws-performance-lab.md` and `infra/aws/bundles/README.md` before changing
+- PR CI and main CD reuse `ci.yml`. Keep the required `CI result` job unconditional and reject
+  failed, cancelled, or unexpectedly skipped checks. CD must use the tested JAR from that exact
+  main run and deploy the resulting image digest. AWS app publication is an explicit manual
+  workflow; do not add it back to the OCI deployment path.
+- `scripts/README.md` identifies deployment, dataset, and archived tools. OCI CD and asset sync
+  include only the five named deployment/operations scripts; local dataset and archived tools
+  must not trigger an OCI deployment or be copied to its deployment directory.
+- See `docs/operations/aws-performance-lab.md` and `infra/aws/bundles/README.md` before changing
   experiment topology or image publication.
 
 ### Durable operator alerts
@@ -188,9 +205,9 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V30. V29 introduces coupon issue units and immutable issue strategy,
+- Current schema history is V1 through V31. V29 introduces coupon issue units and immutable issue strategy,
   renames stock_prepared_at, and blocks unreconciled Redis coupon preparation. V30 normalizes
-  coupon business timestamps to UTC; see docs/coupon-time-contract.md for the coordinated API cutover.
+  coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance; see docs/operations/coupon-time-contract.md for the coordinated API cutover.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.

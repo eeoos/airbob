@@ -73,6 +73,65 @@ class K6ClientTest(unittest.TestCase):
         self.assertEqual(options['scenarios']['measure']['rate'], 5000)
         self.assertFalse(options.get('insecureSkipTLSVerify', False))
 
+    def test_burst_connection_warmup_reuses_connections_and_excludes_health_requests(self):
+        received = []
+        mode = ['reuse']
+        data = self.data
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
+            def do_GET(self):
+                received.append((self.path, self.client_address[1]))
+                health = self.path == '/actuator/health/liveness'
+                if not health and (self.path != '/api/v1/accommodations/1'
+                        or self.headers.get('X-Benchmark-Token') != 'offline-test-token'):
+                    self.send_error(403); return
+                failed = health and mode[0] == 'unhealthy'
+                body = json.dumps({'status': 'DOWN' if failed else 'UP'} if health
+                                  else {'success': True, 'data': data}).encode()
+                self.send_response(503 if failed else 200)
+                self.send_header('Content-Length', str(len(body)))
+                if mode[0] == 'close':
+                    self.send_header('Connection', 'close'); self.close_connection = True
+                self.end_headers(); self.wfile.write(body)
+            def log_message(self, *args): pass
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True); worker.start()
+        env = self.env | {'EXPERIMENT_KIND': 'burst', 'EXPERIMENT_BURST_CONNECTION_WARMUP': 'true',
+                          'EXPERIMENT_ORIGINS': json.dumps(['http://127.0.0.1:' + str(server.server_port)])}
+        try:
+            for setting in ('reuse', 'close', 'unhealthy'):
+                with self.subTest(setting=setting):
+                    received.clear(); mode[0] = setting
+                    process = subprocess.run(['k6', 'run', '--quiet', str(SCRIPT)], env=env,
+                                             capture_output=True, text=True, timeout=15)
+                    result = json.loads((self.directory / 'result.json').read_text())
+                    warm = result['burstConnectionWarmup']
+                    self.assertEqual(warm['requests'], 2)
+                    health = [port for path, port in received if path == '/actuator/health/liveness']
+                    detail = [port for path, port in received if path == '/api/v1/accommodations/1']
+                    self.assertEqual(len(health), 2)
+                    if setting == 'unhealthy':
+                        self.assertNotEqual(process.returncode, 0)
+                        self.assertEqual(warm['errors'], 2)
+                        self.assertEqual(result['completed'], 0)
+                        self.assertEqual(detail, [])
+                    else:
+                        self.assertEqual(result['completed'], 2)
+                        self.assertEqual(result['errorRate'], 0)
+                        self.assertEqual(len(detail), 2)
+                        self.assertEqual(warm['errors'], 0)
+                        self.assertEqual(warm['late'], 0)
+                        if setting == 'reuse':
+                            self.assertEqual(process.returncode, 0, process.stderr)
+                            self.assertEqual(warm['reused'], 2)
+                            self.assertEqual(sorted(health), sorted(detail))
+                            self.assertEqual(warm['measuredTimingsMs']['connecting']['max'], 0)
+                        else:
+                            self.assertNotEqual(process.returncode, 0)
+                            self.assertEqual(warm['reused'], 0)
+        finally:
+            server.shutdown(); server.server_close(); worker.join(timeout=3)
+
     def test_exact_body_mode_checks_every_response_and_rejects_changed_payload(self):
         expected_body = json.dumps({'success': True, 'data': self.data})
         fixture = {'schemaVersion': 1, 'datasetId': 'body-client-test',

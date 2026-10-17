@@ -54,12 +54,13 @@ this method accurately. The operator's separate read-only audit should also read
 the explicit VersionIds and complete prefix history before infrastructure use.
 
 `infra-images.yml` still accepts its original explicit manual dispatch. On push,
-its existing ECR/GHCR jobs now require a change to actual legacy Dockerfile input:
+its ECR jobs require a change to actual legacy Dockerfile input:
 the four Dockerfiles, their Docker ignore files, the copied Connect properties,
 or the legacy release JSON. Config-only, packager, workflow-gate, topic-admin,
 and new B files do not publish legacy images. Tests fail if future local COPY/ADD
-inputs are missing from this classification. `cd.yml` retains its existing scope;
-the AWS-only change must be reviewed separately from OCI operational changes.
+inputs are missing from this classification. The unused GHCR infrastructure
+publication has been removed. Current application images use the separate manual
+`aws-app-image.yml` workflow, while `cd.yml` verifies and deploys OCI runtime changes.
 
 Local verification:
 

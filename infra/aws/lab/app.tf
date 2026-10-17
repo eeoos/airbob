@@ -63,7 +63,7 @@ locals {
     runtime_contract       = local.app_runtime_contract
   }) : ""
 
-  start_app_document = var.global_b_services ? file(var.cache_benchmark_existing_app_handoff ? "${path.module}/templates/prepare-cache-benchmark-app.sh" : "${path.module}/templates/start-growth-b-app.sh.tftpl") : (local.application_infrastructure_enabled ? join("\n", [
+  start_app_document = var.global_b_services ? file("${path.module}/templates/start-growth-b-app.sh.tftpl") : (local.application_infrastructure_enabled ? join("\n", [
     "install -d -m 700 /opt/airbob/release/infra/aws/scripts",
     "cat > /opt/airbob/release/infra/aws/scripts/verify-app-runtime-env.sh <<'AIRBOB_APP_ENV_VALIDATOR'",
     file("${path.module}/../scripts/verify-app-runtime-env.sh"),
@@ -148,7 +148,6 @@ resource "aws_ssm_association" "app" {
 
   name                             = aws_ssm_document.start_app[0].name
   association_name                 = "airbob-${var.run_id}-app-${substr(local.app_runtime_revision, 0, 12)}"
-  document_version                 = var.cache_benchmark_existing_app_handoff ? aws_ssm_document.start_app[0].latest_version : null
   wait_for_success_timeout_seconds = var.global_b_services ? 18600 : 1200
   apply_only_at_cron_interval      = false
   max_concurrency                  = "100%"

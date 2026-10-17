@@ -29,7 +29,7 @@ def validate(c, *, executing=False):
               'clientVUs', 'deadlineSeconds', 'capacity'}
     need(isinstance(c, dict) and fields <= set(c) <= fields | {
              'originalApplication', 'responseCheck', 'capacityVariants', 'capacityCriterion', 'allowInitializingOriginal',
-             'hikariMaximumPoolSize', 'capacityProbeRates'}
+             'hikariMaximumPoolSize', 'capacityProbeRates', 'burstConnectionWarmup'}
          and c['schemaVersion'] == 1, 'Invalid AWS cache contract fields')
     need(type(c['example']) is bool and (not executing or not c['example']), 'Replace the example contract before execution')
     need(re.fullmatch(r'lab-[a-z0-9][a-z0-9-]{0,27}', c['runId']) is not None, 'Invalid lab run ID')
@@ -46,6 +46,7 @@ def validate(c, *, executing=False):
                           + r'\.amazonaws\.com/airbob-repo@sha256:[0-9a-f]{64}', original['appImage'])
          and re.fullmatch(r'[0-9a-f]{40}', original['appCommit']), 'Exact original application identity required')
     need(c.get('responseCheck', 'canonical') in ('canonical', 'body'), 'Invalid responseCheck')
+    need(type(c.get('burstConnectionWarmup', False)) is bool, 'Invalid burstConnectionWarmup')
     need(type(c.get('allowInitializingOriginal', False)) is bool
          and (not c.get('allowInitializingOriginal') or 'originalApplication' in c),
          'Initializing handoff requires an explicit original application')
@@ -203,6 +204,15 @@ def evaluate(result, before, after, variant, scenario, config):
     elif result.get('ramp'):
         ramp_reasons.append('unexpected-ramp-evidence')
     result['evidenceReasons'] = local.evidence_reasons(evidence_result, observed, variant, scenario) + ramp_reasons
+    if result.get('kind') == 'burst' and config.get('burstConnectionWarmup', False):
+        warmup = result.get('burstConnectionWarmup', {})
+        if (not isinstance(warmup, dict) or warmup.get('requests') != config['burst']
+                or warmup.get('errors') != 0 or warmup.get('late') != 0):
+            result['evidenceReasons'].append('burst-connection-warmup-incomplete')
+        if not isinstance(warmup, dict) or warmup.get('reused') != result['completed']:
+            result['evidenceReasons'].append('burst-connection-not-reused')
+    elif result.get('burstConnectionWarmup'):
+        result['evidenceReasons'].append('unexpected-burst-connection-warmup')
     result['generatorHealthy'] = (result['generator']['maxCpuPercent'] < 90
                                   and result['generator']['minAvailableMemoryPercent'] >= 15)
     if scenario == 'capacity' and not result['generatorHealthy']:

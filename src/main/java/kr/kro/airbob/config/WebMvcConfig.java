@@ -55,7 +55,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			);
 
 		registry.addInterceptor(adminAuthInterceptor)
-			.addPathPatterns("/api/v1/admin/**", "/api/v2/admin/**");
+			.addPathPatterns("/api/v1/admin/**");
 	}
 
 	@Bean
@@ -63,13 +63,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		log.info("sessionFilter");
 		FilterRegistrationBean<SessionAuthFilter> bean = new FilterRegistrationBean<>(sessionAuthFilter);
 
-		bean.addUrlPatterns(
-			"/api/v1/*",
-			"/api/v2/accommodations/*",
-			"/api/v2/members/*",
-			"/api/v2/admin/*",
-			"/api/v2/coupons/*"
-		);
+		bean.addUrlPatterns("/api/v1/*");
 
 		bean.setOrder(1);
 		return bean;
@@ -77,7 +71,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
 	@Bean
 	public FilterRegistrationBean<CorsFilter> corsFilter() {
-		CorsConfiguration bulkWriteBenchmarkConfig = new CorsConfiguration();
 		CorsConfiguration config = new CorsConfiguration();
 
 		// 자격 증명 허용
@@ -102,10 +95,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		config.setMaxAge(3600L);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-		source.registerCorsConfiguration(
-			"/api/v2/admin/benchmarks/bulk-write/**",
-			bulkWriteBenchmarkConfig
-		);
 		source.registerCorsConfiguration("/**", config);
 
 		FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));

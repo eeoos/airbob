@@ -25,7 +25,7 @@ class AccommodationReindexContractTest {
 
 	private static final Path INDEX_DEFINITION = Path.of(
 		"src/main/resources/elasticsearch/accommodations-index.json");
-	private static final Path LOGSTASH_PIPELINE = Path.of("logstash/pipeline/airbob.conf");
+	private static final Path LOGSTASH_PIPELINE = Path.of("docker/logstash/pipeline/airbob.conf");
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -43,7 +43,7 @@ class AccommodationReindexContractTest {
 		assertThat(listener.autoStartup())
 			.isEqualTo("#{@accommodationIndexAliasReadiness.shouldAutoStart()}");
 		assertThat(Files.exists(Path.of(
-			"logstash/config/elasticsearch/accommodations-index.json"))).isFalse();
+			"docker/logstash/config/elasticsearch/accommodations-index.json"))).isFalse();
 		assertThat(Files.readString(Path.of("docker-compose.yml")))
 			.contains("action.auto_create_index=false");
 		assertThat(Files.readString(Path.of("docker-compose.oci.yml")))
