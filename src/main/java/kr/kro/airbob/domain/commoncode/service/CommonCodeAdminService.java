@@ -75,7 +75,7 @@ public class CommonCodeAdminService {
 	@Transactional(readOnly = true)
 	public List<CommonCodeAdminResponse> getAll(String groupCode) {
 		requireGroup(groupCode);
-		return commonCodeRepository.findByGroupCodeOrderBySortOrderAsc(groupCode).stream()
+		return commonCodeRepository.findByGroupCodeOrderBySortOrderAscCodeAsc(groupCode).stream()
 			.map(CommonCodeAdminResponse::from)
 			.toList();
 	}

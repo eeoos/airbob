@@ -3,23 +3,28 @@ package kr.kro.airbob.domain.auth.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.core.MethodParameter;
+import org.springframework.core.annotation.AnnotatedMethod;
 
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
+import kr.kro.airbob.domain.accommodation.api.AccommodationHostController;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;
-import kr.kro.airbob.domain.recentlyViewed.api.RecentlyViewedController;
-import kr.kro.airbob.domain.reservation.api.ReservationController;
+import kr.kro.airbob.domain.recentlyviewed.api.RecentlyViewedController;
+import kr.kro.airbob.domain.reservation.api.ReservationCommandController;
+import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
+import kr.kro.airbob.domain.reservation.api.ReservationHostController;
 import kr.kro.airbob.domain.review.api.ReviewController;
 import kr.kro.airbob.domain.settlement.api.SettlementController;
+import kr.kro.airbob.domain.wishlist.api.WishlistAccommodationController;
 import kr.kro.airbob.domain.wishlist.api.WishlistController;
 import kr.kro.airbob.search.api.AccommodationSearchController;
 
@@ -34,29 +39,29 @@ class CurrentMemberIdControllerContractTest {
 		assertThat(matchingMethods).hasSize(1);
 		Method method = matchingMethods.getFirst();
 
-		List<Parameter> currentMemberParameters = Arrays.stream(method.getParameters())
-			.filter(parameter -> parameter.isAnnotationPresent(CurrentMemberId.class))
+		List<MethodParameter> currentMemberParameters = Arrays.stream(new AnnotatedMethod(method).getMethodParameters())
+			.filter(parameter -> parameter.hasParameterAnnotation(CurrentMemberId.class))
 			.toList();
 
 		assertThat(currentMemberParameters).hasSize(1);
-		Parameter parameter = currentMemberParameters.getFirst();
-		assertThat(parameter.getType()).isEqualTo(Long.class);
-		assertThat(parameter.getAnnotation(CurrentMemberId.class).required())
+		MethodParameter parameter = currentMemberParameters.getFirst();
+		assertThat(parameter.getParameterType()).isEqualTo(Long.class);
+		assertThat(parameter.getParameterAnnotation(CurrentMemberId.class).required())
 			.isEqualTo(contract.required());
 	}
 
 	private static Stream<HandlerContract> currentMemberHandlers() {
 		return Stream.of(
-			required(AccommodationController.class, "registerAccommodation"),
-			required(AccommodationController.class, "updateAccommodation"),
-			required(AccommodationController.class, "publishAccommodation"),
-			required(AccommodationController.class, "unpublishAccommodation"),
-			required(AccommodationController.class, "deleteAccommodation"),
-			required(AccommodationController.class, "uploadAccommodationImages"),
-			required(AccommodationController.class, "deleteAccommodationImage"),
+			required(AccommodationHostController.class, "registerAccommodation"),
+			required(AccommodationHostController.class, "updateAccommodation"),
+			required(AccommodationHostController.class, "publishAccommodation"),
+			required(AccommodationHostController.class, "unpublishAccommodation"),
+			required(AccommodationHostController.class, "deleteAccommodation"),
+			required(AccommodationHostController.class, "uploadAccommodationImages"),
+			required(AccommodationHostController.class, "deleteAccommodationImage"),
 			optional(AccommodationController.class, "getAccommodation"),
-			required(AccommodationController.class, "getHostAccommodations"),
-			required(AccommodationController.class, "getHostAccommodationDetail"),
+			required(AccommodationHostController.class, "getHostAccommodations"),
+			required(AccommodationHostController.class, "getHostAccommodationDetail"),
 			required(AuthController.class, "getMyInfo"),
 			required(CouponController.class, "issueCoupon"),
 			required(CouponController.class, "findMyCoupons"),
@@ -67,15 +72,15 @@ class CurrentMemberIdControllerContractTest {
 			required(RecentlyViewedController.class, "addRecentlyViewed"),
 			required(RecentlyViewedController.class, "removeRecentlyViewed"),
 			required(RecentlyViewedController.class, "getRecentlyViewed"),
-			required(ReservationController.class, "createQuote"),
-			required(ReservationController.class, "checkout"),
-			required(ReservationController.class, "releaseHold"),
-			required(ReservationController.class, "beginPaymentAttempt"),
-			required(ReservationController.class, "cancelReservation"),
-			required(ReservationController.class, "getGuestReservationDetail"),
-			required(ReservationController.class, "getGuestReservations"),
-			required(ReservationController.class, "getHostReservations"),
-			required(ReservationController.class, "getHostReservationDetail"),
+			required(ReservationCommandController.class, "createQuote"),
+			required(ReservationCommandController.class, "checkout"),
+			required(ReservationCommandController.class, "releaseHold"),
+			required(ReservationCommandController.class, "beginPaymentAttempt"),
+			required(ReservationCommandController.class, "cancelReservation"),
+			required(ReservationGuestController.class, "getGuestReservationDetail"),
+			required(ReservationGuestController.class, "getGuestReservations"),
+			required(ReservationHostController.class, "getHostReservations"),
+			required(ReservationHostController.class, "getHostReservationDetail"),
 			required(ReviewController.class, "createReview"),
 			required(ReviewController.class, "updateReview"),
 			required(ReviewController.class, "deleteReview"),
@@ -88,10 +93,10 @@ class CurrentMemberIdControllerContractTest {
 			required(WishlistController.class, "updateWishlist"),
 			required(WishlistController.class, "deleteWishlist"),
 			required(WishlistController.class, "findWishlists"),
-			required(WishlistController.class, "createWishlistAccommodation"),
-			required(WishlistController.class, "updateWishlistAccommodation"),
-			required(WishlistController.class, "deleteWishlistAccommodation"),
-			required(WishlistController.class, "findWishlistAccommodations"),
+			required(WishlistAccommodationController.class, "createWishlistAccommodation"),
+			required(WishlistAccommodationController.class, "updateWishlistAccommodation"),
+			required(WishlistAccommodationController.class, "deleteWishlistAccommodation"),
+			required(WishlistAccommodationController.class, "findWishlistAccommodations"),
 			optional(AccommodationSearchController.class, "searchAccommodations")
 		);
 	}

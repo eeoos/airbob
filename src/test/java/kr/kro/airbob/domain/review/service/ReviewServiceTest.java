@@ -4,10 +4,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,7 +18,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockMultipartFile;
 
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
@@ -29,8 +26,6 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.image.entity.ReviewImage;
-import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
@@ -57,7 +52,6 @@ class ReviewServiceTest {
 	@Mock private AccommodationReviewSummaryRepository summaryRepository;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Mock private S3ImageUploader s3ImageUploader;
 	@Mock private Clock clock;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 
@@ -182,56 +176,6 @@ class ReviewServiceTest {
 			1L, AccommodationDetailCacheInvalidationReason.REVIEW);
 		verify(searchRefreshPublisher).requestRefresh(
 			review.getAccommodation().getAccommodationUid());
-	}
-
-	@Test
-	@DisplayName("리뷰 이미지를 추가해도 숙소 상세 캐시는 무효화하지 않는다")
-	void keepDetailCacheWhenReviewImageIsUploaded() throws IOException {
-		Review review = review(10L, 4, accommodation(), member());
-		MockMultipartFile image = new MockMultipartFile(
-			"images", "review.jpg", "image/jpeg", new byte[] {1});
-		ReviewImage savedImage = ReviewImage.builder()
-			.id(20L)
-			.review(review)
-			.imageUrl("https://cdn.example.com/review.jpg")
-			.build();
-		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
-		when(s3ImageUploader.upload(image, "reviews/10"))
-			.thenReturn(savedImage.getImageUrl());
-		when(reviewImageRepository.saveAll(anyList())).thenReturn(List.of(savedImage));
-
-		reviewService.uploadReviewImages(10L, List.of(image), 2L);
-
-		verifyNoInteractions(cacheInvalidationPublisher);
-	}
-
-	@Test
-	@DisplayName("리뷰 이미지를 삭제해도 숙소 상세 캐시는 무효화하지 않는다")
-	void keepDetailCacheWhenReviewImageIsDeleted() {
-		Review review = review(10L, 4, accommodation(), member());
-		ReviewImage image = ReviewImage.builder()
-			.id(20L)
-			.review(review)
-			.imageUrl("https://cdn.example.com/review.jpg")
-			.build();
-		when(reviewImageRepository.findByIdAndReviewAuthorId(20L, 2L))
-			.thenReturn(Optional.of(image));
-
-		reviewService.deleteReviewImage(10L, 20L, 2L);
-
-		verifyNoInteractions(cacheInvalidationPublisher);
-	}
-
-	@Test
-	@DisplayName("뒤쪽 파일이 유효하지 않으면 앞쪽 파일도 저장소에 업로드하지 않는다")
-	void validatesEveryFileBeforeUploadingAnyFile() throws IOException {
-		Review review = review(10L, 4, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
-		var valid = new MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
-		var invalid = new MockMultipartFile("images", "invalid.txt", "text/plain", new byte[] {1});
-		assertThatThrownBy(() -> reviewService.uploadReviewImages(10L, List.of(valid, invalid), 2L))
-			.isInstanceOf(kr.kro.airbob.domain.image.exception.InvalidImageFormatException.class);
-		verifyNoInteractions(s3ImageUploader, reviewImageRepository);
 	}
 
 	private Accommodation accommodation() {

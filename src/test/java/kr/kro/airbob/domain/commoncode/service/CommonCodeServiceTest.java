@@ -59,7 +59,7 @@ class CommonCodeServiceTest {
 			.active(true)
 			.build();
 		when(groupRepository.findById("PAYMENT_METHOD")).thenReturn(Optional.of(group));
-		when(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAsc("PAYMENT_METHOD"))
+		when(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAscCodeAsc("PAYMENT_METHOD"))
 			.thenReturn(List.of(code));
 
 		assertThat(commonCodeService.getCodes("PAYMENT_METHOD"))
@@ -99,7 +99,7 @@ class CommonCodeServiceTest {
 		when(groupRepository.findById("TTL_GROUP"))
 			.thenReturn(Optional.empty())
 			.thenReturn(Optional.of(group));
-		when(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAsc("TTL_GROUP"))
+		when(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAscCodeAsc("TTL_GROUP"))
 			.thenReturn(List.of(code));
 
 		assertThatThrownBy(() -> commonCodeService.getCodes("TTL_GROUP"))

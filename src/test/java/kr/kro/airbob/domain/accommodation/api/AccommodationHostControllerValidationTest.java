@@ -54,7 +54,7 @@ import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
-class AccommodationControllerValidationTest {
+class AccommodationHostControllerValidationTest {
 
 	@Mock AccommodationRepository accommodations;
 	@Mock AccommodationAmenityRepository amenities;
@@ -84,7 +84,7 @@ class AccommodationControllerValidationTest {
 	@BeforeEach
 	void setUp() {
 		mapper = new ObjectMapper().findAndRegisterModules().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
-		mvc = MockMvcBuilders.standaloneSetup(new AccommodationController(commandService, imageService, queryService))
+		mvc = MockMvcBuilders.standaloneSetup(new AccommodationHostController(commandService, imageService, queryService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))

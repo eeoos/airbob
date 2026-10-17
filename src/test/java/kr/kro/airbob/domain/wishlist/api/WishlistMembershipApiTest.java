@@ -41,7 +41,7 @@ class WishlistMembershipApiTest {
 	void setUp() {
 		ObjectMapper objectMapper = new ObjectMapper()
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
-		mockMvc = MockMvcBuilders.standaloneSetup(new WishlistController(service))
+		mockMvc = MockMvcBuilders.standaloneSetup(new WishlistAccommodationController(service))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))

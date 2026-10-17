@@ -159,7 +159,7 @@ class AccommodationUploadHttpTest {
 	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class, ServletWebServerFactoryAutoConfiguration.class,
 		DispatcherServletAutoConfiguration.class, WebMvcAutoConfiguration.class, MultipartAutoConfiguration.class,
 		JacksonAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class})
-	@Import({AccommodationController.class, GlobalExceptionHandler.class, SessionAuthFilter.class, CurrentMemberIdArgumentResolver.class})
+	@Import({AccommodationHostController.class, GlobalExceptionHandler.class, SessionAuthFilter.class, CurrentMemberIdArgumentResolver.class})
 	static class Application {
 		@Bean
 		WebMvcConfigurer memberIdResolver(CurrentMemberIdArgumentResolver resolver) {
