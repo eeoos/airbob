@@ -244,6 +244,25 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   implementation.
 - Do not weaken `test`-profile Kafka/scheduling isolation to make a focused test pass.
 
+## API documentation
+
+- Controller/DTO annotations and `config/apidocs/` are the source of the V1 OpenAPI contracts.
+  Keep summaries, success statuses, headers, examples, `@ApiErrors`, and unique nested DTO schema
+  names aligned with actual behavior. Do not infer authentication from `@CurrentMemberId` alone.
+- Update `docs/api/` guides when authentication, pagination, time semantics, or workflows change.
+  Use synthetic examples and keep API-facing payment states distinct from internal operation states.
+- Run `./gradlew updateOpenApi verifyOpenApi` after API changes and include generated YAML snapshots
+  in the same change. Never hand-edit `docs/api/openapi/*.yaml`; ordinary builds only verify them.
+- `generateOpenApi` uses isolated MVC tests with real controllers, Jackson, resolvers and auth guards,
+  and mocked service/infrastructure dependencies. Preserve normal `test` profile isolation.
+- Swagger UI and live OpenAPI endpoints are enabled for `dev`, `aws`, and `oci` on the API origin.
+  Keep them disabled when `test` is active unless documentation tests explicitly enable them.
+  The shared documentation URL is `https://api.airbob.cloud/swagger-ui/index.html`.
+- API-documentation-only CI must validate contracts without requesting OCI deployment. Required
+  `CI result` includes documentation job outcomes; app builds already validate contracts via `check`.
+- Coupon issuance status keeps UPCOMING precedence, then SOLD_OUT only when `totalQuantity != null`
+  and no stock remains, otherwise OPEN. Historical nullable quantity is a read compatibility rule.
+
 ## External integrations
 
 - Toss Payments gateway: `domain/payment/service/gateway/`

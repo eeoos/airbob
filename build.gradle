@@ -2,7 +2,6 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.8'
 	id 'io.spring.dependency-management' version '1.1.7'
-	id 'org.asciidoctor.jvm.convert' version '3.3.2'
 }
 
 group = 'kr.kro'
@@ -18,7 +17,6 @@ configurations {
 	compileOnly {
 		extendsFrom annotationProcessor
 	}
-	asciidoctorExt
 	// Resolve only the library used by the offline Python/Java credential contract.
 	growthBContractTestRuntime {
 		canBeConsumed = false
@@ -29,10 +27,6 @@ configurations {
 
 repositories {
 	mavenCentral()
-}
-
-ext {
-	snippetsDir = layout.buildDirectory.dir("generated-snippets").get().asFile
 }
 
 dependencyManagement {
@@ -46,6 +40,7 @@ dependencies {
 
 	// Spring Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
 
 	//Spring Validation
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -129,7 +124,7 @@ dependencies {
 
 	// 테스트
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-//	testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
+	testImplementation 'com.networknt:json-schema-validator:1.5.9'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 	//test container
@@ -150,215 +145,57 @@ tasks.register('prepareGrowthBContractTestRuntime', Sync) {
 
 
 tasks.named('test') {
-	outputs.dir snippetsDir
 	useJUnitPlatform()
 	systemProperty 'user.timezone', 'UTC'
-}
-
-
-tasks.register('copyDocument', Copy) {
-	dependsOn asciidoctor
-
-	from file("build/docs/asciidoc/")
-	into file("build/resources/main/static/docs")
+	// The same tests run in isolation through the OpenAPI tasks below.
+	exclude '**/apidocs/**'
 }
 
 tasks.named('bootJar') {
-	dependsOn tasks.named('copyDocument')
 	archiveFileName = "airbob.jar"
 }
 
-tasks.named('jar') {
-	dependsOn tasks.named('copyDocument')
+// Generate with real MVC controllers and mocked services, without application infrastructure.
+tasks.register('generateOpenApi', Test) {
+	group = 'documentation'
+	description = 'Generate and validate API contracts in build/openapi without changing source files.'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	include '**/apidocs/**'
+	useJUnitPlatform()
+	systemProperty 'user.timezone', 'UTC'
+	systemProperty 'airbob.openapi.output', layout.buildDirectory.dir('openapi').get().asFile.absolutePath
+	outputs.dir layout.buildDirectory.dir('openapi')
 }
 
-tasks.named('resolveMainClassName') {
-	// Preserve packaging order without pulling documentation and tests into bootRun.
-	mustRunAfter tasks.named('copyDocument')
+tasks.register('updateOpenApi', Sync) {
+	group = 'documentation'
+	description = 'Explicitly replace the versioned OpenAPI snapshots with validated generated contracts.'
+	dependsOn tasks.named('generateOpenApi')
+	from layout.buildDirectory.dir('openapi')
+	into layout.projectDirectory.dir('docs/api/openapi')
 }
 
-build {
-	dependsOn copyDocument
-	dependsOn asciidoctor
-}
-
-tasks.register('generateAdoc') {
-	dependsOn test
+tasks.register('verifyOpenApi') {
+	mustRunAfter tasks.named('updateOpenApi')
+	group = 'verification'
+	description = 'Reject stale, missing, or unexpected versioned OpenAPI contracts.'
+	dependsOn tasks.named('generateOpenApi')
+	inputs.dir layout.projectDirectory.dir('docs/api/openapi')
+	inputs.dir layout.buildDirectory.dir('openapi')
 	doLast {
-		def dir = layout.buildDirectory.dir("generated-snippets").get().asFile
-		def adocDir = file("src/docs/asciidoc/generated")
-
-		if (!adocDir.exists()) {
-			adocDir.mkdirs()
+		def generated = layout.buildDirectory.dir('openapi').get().asFile
+		def versioned = layout.projectDirectory.dir('docs/api/openapi').asFile
+		def names = generated.listFiles().findAll { it.isFile() }.collect { it.name }.toSet()
+		def savedNames = versioned.listFiles()?.findAll { it.isFile() }?.collect { it.name }?.toSet() ?: [] as Set
+		if (names.isEmpty() || names != savedNames || names.any {
+			!java.util.Arrays.equals(new File(generated, it).bytes, new File(versioned, it).bytes)
+		}) {
+			throw new GradleException('OpenAPI snapshots are stale. Run ./gradlew updateOpenApi and commit docs/api/openapi/.')
 		}
-
-		def indexFile = file("src/docs/asciidoc/index.adoc")
-		def content = new StringBuilder()
-
-		// 헤더 개선
-		content << "= Airbob REST API 문서\n"
-		content << ":doctype: book\n"
-		content << ":toc: left\n"
-		content << ":toclevels: 3\n"
-		content << ":sectlinks:\n"
-		content << ":sectnums:\n"
-		content << ":icons: font\n"
-		content << ":source-highlighter: highlightjs\n"
-		content << ":highlightjs-theme: github\n"
-		content << ":docinfo1:\n\n"
-
-		// API 개요 추가
-		content << "== 개요\n\n"
-		content << "이 문서는 Airbob 서비스의 REST API에 대한 명세를 제공합니다.\n\n"
-		content << "=== 기본 정보\n"
-		content << "* Base URL: `http://localhost:8080/api`\n"
-		content << "* Content-Type: `application/json`\n"
-		content << "* 인증 방식: Bearer Token\n\n"
-
-		// 공통 응답 코드
-		content << "=== 공통 응답 코드\n"
-		content << "|===\n"
-		content << "|상태 코드|설명\n\n"
-		content << "|200|성공\n"
-		content << "|201|생성 성공\n"
-		content << "|400|잘못된 요청\n"
-		content << "|401|인증 실패\n"
-		content << "|403|권한 없음\n"
-		content << "|404|리소스 없음\n"
-		content << "|500|서버 오류\n"
-		content << "|===\n\n"
-
-		// 카테고리별 그룹화를 위한 맵
-		def apiGroups = [:]
-
-		dir.listFiles()?.each { snippetDir ->
-			def snippetName = snippetDir.name
-
-			// 카테고리 분류 로직 개선
-			def category = categorizeApi(snippetName)
-
-			if (!apiGroups.containsKey(category)) {
-				apiGroups[category] = []
-			}
-			apiGroups[category].add(snippetName)
-		}
-
-		// 카테고리별로 문서 생성
-		def categoryOrder = ["위시리스트", "숙소", "할인", "회원", "기타"]
-
-		categoryOrder.each { category ->
-			if (apiGroups.containsKey(category)) {
-				content << "== ${category} API\n\n"
-
-				apiGroups[category].sort().each { snippetName ->
-					generateApiSection(content, snippetName, adocDir, dir)
-				}
-			}
-		}
-
-		indexFile.text = content.toString()
 	}
 }
 
-// API 카테고리 분류 함수
-def categorizeApi(String snippetName) {
-	def name = snippetName.toLowerCase()
-
-	if (name.contains("위시리스트") || name.contains("wishlist")) {
-		return "위시리스트"
-	} else if (name.contains("숙소") || name.contains("accommodation")) {
-		return "숙소"
-	} else if (name.contains("할인") || name.contains("discount")) {
-		return "할인"
-	} else if (name.contains("회원") || name.contains("member")) {
-		return "회원"
-	} else {
-		return "기타"
-	}
-}
-
-// 개별 API 섹션 생성 함수
-def generateApiSection(StringBuilder content, String snippetName, File adocDir, File snippetsDir) {
-	def adocFile = new File(adocDir, "${snippetName}.adoc")
-	def includes = new StringBuilder()
-
-	// 제목 개선 - 테스트 이름을 사용자 친화적으로 변환
-	def friendlyTitle = makeFriendlyTitle(snippetName)
-	includes << "=== ${friendlyTitle}\n\n"
-
-	// 설명 부분들을 순서대로 배치
-	def sections = [
-			"http-request": "요청",
-			"path-parameters": "경로 변수",
-			"query-parameters": "쿼리 파라미터",
-			"request-fields": "요청 필드",
-			"http-response": "응답",
-			"response-fields": "응답 필드",
-			"response-headers": "응답 헤더"
-	]
-
-	sections.each { part, desc ->
-		def fileToInclude = new File(snippetsDir, "${snippetName}/${part}.adoc")
-		if (fileToInclude.exists()) {
-			includes << "==== ${desc}\n"
-			includes << "include::{snippets}/${snippetName}/${part}.adoc[]\n\n"
-		}
-	}
-
-	adocFile.text = includes.toString()
-
-	// index.adoc에 포함
-	content << "include::{generated}/${snippetName}.adoc[]\n\n"
-}
-
-// 테스트 이름을 사용자 친화적인 제목으로 변환
-def makeFriendlyTitle(String snippetName) {
-	// 하이픈을 기준으로 분리하고 의미있는 제목 생성
-	def parts = snippetName.split('-')
-
-	// 공통 패턴 매핑
-	def actionMap = [
-			"생성": "생성",
-			"수정": "수정",
-			"삭제": "삭제",
-			"조회": "조회",
-			"목록": "목록 조회",
-			"추가": "추가",
-			"제거": "제거",
-			"성공": "",
-			"실패": "(실패)",
-			"오류": "(오류)"
-	]
-
-	def result = []
-	parts.each { part ->
-		if (actionMap.containsKey(part)) {
-			def mapped = actionMap[part]
-			if (mapped) result.add(mapped)
-		} else if (!part.matches(".*test.*|.*Test.*")) {
-			result.add(part)
-		}
-	}
-
-	return result.join(" ").trim()
-}
-
-asciidoctor {
-	dependsOn generateAdoc
-	sourceDir = file('src/docs/asciidoc')
-	sources {
-		include 'index.adoc'
-	}
-	outputDir = layout.buildDirectory.dir("docs/asciidoc").get().asFile
-	attributes(
-			'snippets': snippetsDir,
-			'generated': file('src/docs/asciidoc/generated'),
-			'toc': 'left',
-			'toclevels': '3',
-			'sectlinks': '',
-			'sectnums': '',
-			'icons': 'font',
-			'source-highlighter': 'highlightjs',
-			'highlightjs-theme': 'github'
-	)
+tasks.named('check') {
+	dependsOn tasks.named('verifyOpenApi')
 }

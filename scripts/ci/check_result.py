@@ -7,7 +7,7 @@ def verify(needs):
     if needs['scope']['result'] != 'success':
         raise ValueError('change selection did not succeed')
     scopes = needs['scope']['outputs']
-    for job in ('app', 'infrastructure', 'data'):
+    for job in ('app', 'infrastructure', 'data', 'api_docs'):
         selected = scopes[job]
         if selected not in ('true', 'false'):
             raise ValueError(f'{job} selection is missing')
