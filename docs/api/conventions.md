@@ -59,6 +59,48 @@
 | 409/M002 | 이미 등록된 이메일로 가입 요청 |
 | 409/M007 | 요청자가 자신의 ADMIN 역할을 MEMBER로 변경하려고 함 |
 
+## 숙소 작성과 게시
+
+1. 로그인 후 `POST /api/v1/accommodations`를 본문 없이 호출한다. 응답 `data.id`가 숙소 ID이며 DRAFT 상태로 생성된다. 별도 호스트 역할은 없다.
+2. `PATCH /api/v1/accommodations/{accommodationId}`로 숙소 정보를 채운다. 숙소 유형은 `GET /api/v1/common-codes/ACCOMMODATION_TYPE`, 편의시설은 `GET /api/v1/common-codes/AMENITY_TYPE`에서 받은 활성 `code`를 사용한다.
+3. `POST /api/v1/accommodations/{accommodationId}/images`로 이미지를 추가한다.
+4. `PATCH /api/v1/accommodations/{accommodationId}/publish`를 본문 없이 호출한다. 이름·설명·주소와 좌표·양수 요금·유형·시간대·인원 정책·체크인/체크아웃 시간과 이미지 1장 이상이 필요하다. 주소의 좌표와 시간대는 수정 API가 계산한다.
+
+초안의 기본 체크인/체크아웃 시간은 15:00/11:00이다. 시간 입력은 숙소 현지 `HH:mm` 또는 `HH:mm:ss`이고, 응답은 `HH:mm:ss`이다. 체크아웃 시간이 체크인 시간보다 늦으면 400/C001이다. 미래 재고를 점유하는 예약이 있으면 체크인·체크아웃 시간과 시간대를 바꿀 수 없다. 주소가 달라도 계산된 시간대가 같다면 이 시간대 변경 제한에는 걸리지 않는다.
+
+부분 수정 예시:
+
+```json
+{"name":"도심 속 작은 숙소","base_price":100000,"currency":"KRW","amenity_infos":[{"name":"WIFI","count":1}],"occupancy_policy_info":{"max_occupancy":4,"infant_occupancy":1,"pet_occupancy":0}}
+```
+
+| 수정 항목 | 처리 규칙 |
+|---|---|
+| 생략 또는 null | 기존 값 유지. null로 값을 삭제하지 않음 |
+| name / description | 각각 1~50자 / 1~5000자. 공백만 있는 값은 거절 |
+| base_price / currency | 양수 원 단위 요금 / KRW만 지원 |
+| address_info | 주소 전체 교체. postal_code·country·city·street 필수. 우편번호 최대 12자, 나머지 항목 최대 255자 |
+| occupancy_policy_info | 세 항목 모두 필수. max_occupancy ≥ 1, infant_occupancy·pet_occupancy ≥ 0 |
+| amenity_infos | 전체 교체. []는 모두 삭제. null 항목 거절, 코드 대문자 정규화 후 개수 합산, 0개 항목 제외. 합계가 정수 범위를 넘으면 400/C001 |
+
+편의시설 요청의 `name`은 표시명이 아닌 공통 코드이고, 조회 응답에서는 같은 값을 `amenities[].type`으로 돌려준다. 주소와 인원 정책을 아직 설정하지 않은 초안은 관리 상세의 `address`·`policy` 객체 내부 값이 null이며 이미지·편의시설은 빈 배열이다. 통화가 저장되지 않은 숙소의 조회 응답 `currency`는 null일 수 있고 예약 계산에서는 KRW를 사용한다.
+
+수정·게시·이미지 변경은 삭제되지 않은 본인 소유 숙소에만 가능하다. 소유권이 없는 숙소도 403이 아닌 404/A001을 반환한다. `/unpublish`는 PUBLISHED → UNPUBLISHED이며 다른 상태에서 호출하면 400/A003이다. 삭제는 DELETED로 바꾸는 논리 삭제이며 게시 중단·삭제가 기존 예약을 자동 취소하지 않는다. 검색과 공개 상세 캐시에는 상태 변경이 비동기로 반영된다.
+
+`GET /api/v1/profile/host/accommodations`는 생성 시각·ID 내림차순이며 삭제된 숙소를 항상 제외한다. status를 생략하면 삭제를 제외한 모든 상태를 조회하고, DELETED로 조회하면 빈 목록이다. 반면 `GET /api/v1/profile/host/accommodations/{accommodationId}`는 소유자라면 삭제된 숙소도 조회할 수 있다.
+
+게시 필수 정보가 부족하면 400/A009의 `error.errors`에서 `field`와 `reason`을 확인한다. 예를 들어 `field: "addressInfo"`는 요청의 `address_info`에 해당한다. 이미지 부족은 400/A006이다. 이미 게시된 숙소에 게시를 다시 요청해도 조건을 재검사한 뒤 200을 반환한다.
+
+## 숙소 예약 달력
+
+`GET /api/v1/accommodations/{accommodationId}/availability`는 공개 API이며 날짜 입력을 받지 않는다. 숙소 현지 오늘부터 3개월 뒤까지 `[booking_window_start_inclusive, booking_window_end_exclusive)` 구간을 반환한다. 종료 경계 날짜의 밤은 예약할 수 없지만 체크아웃 날짜로는 사용할 수 있다.
+
+```json
+{"booking_window_start_inclusive":"2027-01-01","booking_window_end_exclusive":"2027-04-01","unavailable_ranges":[{"start_date":"2027-01-10","end_date_exclusive":"2027-01-12"}]}
+```
+
+예시의 예약 불가 구간은 1월 10일·11일 밤이며 12일 밤은 포함하지 않는다. 점유 중이거나 아직 만료되지 않은 임시 확보 구간을 반환하고, 만료된 임시 확보 구간은 제외한다. 조회는 재고 확보가 아니므로 실제 체크아웃에서 다시 검사한다.
+
 ## 성공과 오류 응답
 
 데이터가 있는 성공 응답:
@@ -109,3 +151,13 @@
 - 예약 상세의 `check_in_date_time`, `check_out_date_time`은 오프셋 없는 숙소 현지 일시다. `time_zone_id`와 함께 해석한다. 서버의 `server_time`을 기준으로 보유 만료와 남은 시간을 표시한다.
 - 정산의 월 매개변수는 `YYYY-MM`, 날짜 범위는 해당 API가 명시한 `YYYY-MM-DD` 형식을 사용한다.
 - 결제 금액은 서버 응답의 정수 값과 통화를 그대로 사용한다. 프런트엔드에서 다시 계산한 값으로 덮어쓰지 않는다.
+
+## 이미지 업로드
+
+숙소 이미지 업로드는 요청 Content-Type이 `multipart/form-data`가 아니면 415/C011로 거절한다.
+
+숙소와 리뷰의 이미지 API는 `multipart/form-data`의 `images` 필드에 파일을 여러 개 전달한다. 파일 파트의 Content-Type은 `image/jpeg` 또는 `image/png`이다. 파일당 10MiB(10 × 1024 × 1024바이트), 요청 전체 20MiB 제한을 적용하며 전체 크기에는 multipart 구분자와 헤더도 포함된다. 파일 목록을 JSON이나 쿼리 문자열로 보내지 않는다.
+
+`images`가 없으면 400/C001, 빈 파일은 400/I007, 형식 오류는 400/I003이다. 서버의 multipart 크기 제한에 걸리면 413/I009이며, 애플리케이션의 개별 파일 검사에서 초과를 발견하면 400/I008이다. 큰 요청은 웹서버가 오류 응답 전달 전에 연결을 종료할 수도 있으므로 클라이언트에서도 전송 전 크기를 확인한다.
+
+숙소 업로드 응답의 `data.uploaded_images`는 이번에 추가한 이미지의 `id`와 `image_url`이다. 삭제 경로의 `imageId`에는 이 ID를 사용한다. 이미지가 다른 숙소에 속하면 400/C009, 이미지가 없으면 404/I004이다. 대표 사진은 가장 작은 ID의 이미지이며 이를 삭제하면 다음 이미지로 바뀐다. 마지막 이미지를 삭제하면 대표 사진은 null이지만 숙소 게시 상태가 자동으로 바뀌지는 않는다.

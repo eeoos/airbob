@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.accommodation.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.AccessLevel;
@@ -9,14 +10,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AddressResponse {
 	@Builder
+	@Schema(name = "AddressResponseAddressInfo")
 	public record AddressInfo(
-		String country,
-		String state,
-		String city,
-		String district,
-		String street,
-		String detail,
-		String postalCode
+		@Schema(nullable = true) String country,
+		@Schema(nullable = true) String state,
+		@Schema(nullable = true) String city,
+		@Schema(nullable = true) String district,
+		@Schema(nullable = true) String street,
+		@Schema(nullable = true) String detail,
+		@Schema(nullable = true) String postalCode
 	) {
 		public static AddressInfo from(Address address) {
 			if(address == null) return AddressInfo.builder().build();
@@ -33,11 +35,12 @@ public class AddressResponse {
 	}
 
 	@Builder
+	@Schema(name = "AddressResponseAddressSummaryInfo")
 	public record AddressSummaryInfo(
-		String country,
-		String state,
-		String city,
-		String district
+		@Schema(nullable = true) String country,
+		@Schema(nullable = true) String state,
+		@Schema(nullable = true) String city,
+		@Schema(nullable = true) String district
 	) {
 		public static AddressSummaryInfo from(Address address) {
 			if(address == null) return AddressSummaryInfo.builder().build();
@@ -60,9 +63,10 @@ public class AddressResponse {
 	}
 
 	@Builder
+	@Schema(name = "AddressResponseCoordinate")
 	public record Coordinate(
-		Double latitude,
-		Double longitude
+		@Schema(nullable = true) Double latitude,
+		@Schema(nullable = true) Double longitude
 	) {
 		public static Coordinate from(Address address) {
 			if(address == null) return Coordinate.builder().build();

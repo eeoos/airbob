@@ -11,6 +11,9 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -42,6 +45,24 @@ public class GlobalExceptionHandler {
 		log.warn("handleHttpMessageNotReadableException: malformed request body");
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
+	}
+
+	@ExceptionHandler(MissingServletRequestPartException.class)
+	protected ResponseEntity<ApiResponse<?>> handleMissingRequestPart(MissingServletRequestPartException exception) {
+		log.warn("Missing multipart request part: {}", exception.getRequestPartName());
+		return ResponseEntity.badRequest().body(ApiResponse.error(ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE)));
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	protected ResponseEntity<ApiResponse<?>> handleUploadSizeExceeded() {
+		ErrorCode error = ErrorCode.UPLOAD_SIZE_EXCEEDED;
+		return ResponseEntity.status(error.getStatus()).body(ApiResponse.error(ErrorResponse.of(error)));
+	}
+
+	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+	protected ResponseEntity<ApiResponse<?>> handleUnsupportedMediaType() {
+		ErrorCode error = ErrorCode.UNSUPPORTED_MEDIA_TYPE;
+		return ResponseEntity.status(error.getStatus()).body(ApiResponse.error(ErrorResponse.of(error)));
 	}
 
 	@ExceptionHandler(TossPaymentException.class)

@@ -18,6 +18,7 @@ public enum ErrorCode {
 	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "유효하지 않은 커서 페이지 크기입니다."),
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "C009", "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."),
 	CURSOR_DECODING_ERROR(HttpStatus.BAD_REQUEST, "C010", "유효하지 않은 커서입니다."),
+	UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "C011", "지원하지 않는 요청 Content-Type입니다."),
 	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "R000", "리소스를 찾을 수 없습니다."),
 	SEARCH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "SE001", "검색 서비스를 일시적으로 사용할 수 없습니다."),
 
@@ -129,6 +130,7 @@ public enum ErrorCode {
 	IMAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "I005", "해당 이미지에 대한 권한이 없습니다."),
 	EMPTY_IMAGE_FILE(HttpStatus.BAD_REQUEST, "I007", "이미지 파일이 비어 있습니다."),
 	IMAGE_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "I008", "이미지 파일 크기는 10MB를 초과할 수 없습니다."),
+	UPLOAD_SIZE_EXCEEDED(HttpStatus.PAYLOAD_TOO_LARGE, "I009", "파일 또는 요청 전체의 업로드 허용 크기를 초과했습니다."),
 
 	// settlement
 	SETTLEMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "존재하지 않는 정산 내역입니다."),

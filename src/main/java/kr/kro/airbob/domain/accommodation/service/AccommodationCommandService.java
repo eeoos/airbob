@@ -296,7 +296,7 @@ public class AccommodationCommandService {
 			.collect(Collectors.toMap(
 				Map.Entry::getKey,
 				Map.Entry::getValue,
-				Integer::sum
+				this::sumAmenityCounts
 			));
 
 		boolean hasInvalidCode = amenityCountMap.keySet().stream()
@@ -306,6 +306,14 @@ public class AccommodationCommandService {
 		}
 
 		return amenityCountMap;
+	}
+
+	private int sumAmenityCounts(int first, int second) {
+		try {
+			return Math.addExact(first, second);
+		} catch (ArithmeticException exception) {
+			throw new InvalidInputException("같은 편의시설의 개수 합계는 2147483647 이하여야 합니다.");
+		}
 	}
 
 	private void validateAccommodationType(String type) {

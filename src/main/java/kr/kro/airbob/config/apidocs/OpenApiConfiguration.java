@@ -109,6 +109,8 @@ public class OpenApiConfiguration {
 				if (MultipartFile.class.equals(parameter.getParameterType())
 					|| MultipartFile.class.equals(ResolvableType.forMethodParameter(parameter).getGeneric(0).resolve())) {
 					RequestParam form = parameter.getParameterAnnotation(RequestParam.class);
+					errors.add(ErrorCode.INVALID_INPUT_VALUE);
+					errors.add(ErrorCode.UPLOAD_SIZE_EXCEEDED);
 					String name = form != null && !form.value().isEmpty() ? form.value() : parameter.getParameterName();
 					if (operation.getParameters() != null) {
 						operation.getParameters().removeIf(p -> p.getName().equals(name));

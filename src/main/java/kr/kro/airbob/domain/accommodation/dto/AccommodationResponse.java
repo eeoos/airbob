@@ -7,11 +7,12 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
@@ -23,19 +24,30 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AccommodationResponse {
 
-	public record Create(long id) {
+	@Schema(name = "AccommodationResponseCreate")
+	public record Create(
+		@Schema(description = "생성한 숙소 ID. 이후 수정·이미지·게시 API의 accommodationId로 사용합니다.", example = "101", requiredMode = Schema.RequiredMode.REQUIRED)
+		long id
+	) {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseHostAccommodationInfo")
 	public record HostAccommodationInfo(
+		@Schema(description = "숙소 ID", example = "101")
 		Long id,
+		@Schema(nullable = true)
 		String name,
+		@Schema(nullable = true)
 		String thumbnailUrl,
+		@Schema(description = "숙소 상태. 목록에서는 DELETED를 제외합니다.", example = "DRAFT")
 		AccommodationStatus status,
+		@Schema(nullable = true)
 		String type,
 		AddressResponse.AddressSummaryInfo addressSummary,
 		// Integer basePrice,
 		// ReviewResponse.ReviewSummary reviewSummary,
+		@Schema(description = "UTC 생성 시각. 생성 시각이 없는 과거 데이터는 null입니다.", nullable = true, example = "2027-01-01T00:00:00Z")
 		Instant createdAt
 	) {
 		public static HostAccommodationInfo from(HostAccommodationProjection accommodation) {
@@ -53,6 +65,7 @@ public class AccommodationResponse {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseHostAccommodationInfos")
 	public record HostAccommodationInfos(
 		List<HostAccommodationInfo> accommodations,
 		CursorResponse.PageInfo pageInfo
@@ -66,32 +79,45 @@ public class AccommodationResponse {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseUnavailableDateRange")
 	public record UnavailableDateRange(
+		@Schema(description = "예약 불가 구간의 첫 숙박 날짜(포함)", example = "2027-01-10", requiredMode = Schema.RequiredMode.REQUIRED)
 		LocalDate startDate,
+		@Schema(description = "예약 불가 구간의 종료 경계. 이 날짜의 밤은 포함하지 않습니다.", example = "2027-01-12", requiredMode = Schema.RequiredMode.REQUIRED)
 		LocalDate endDateExclusive
 	) {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseAvailability")
 	public record Availability(
+		@Schema(description = "숙소 현지 오늘. 예약 가능 기간의 시작(포함)", example = "2027-01-01", requiredMode = Schema.RequiredMode.REQUIRED)
 		LocalDate bookingWindowStartInclusive,
+		@Schema(description = "시작일의 3개월 뒤. 이 날짜의 밤은 예약 범위에서 제외되며 체크아웃 날짜로는 사용할 수 있습니다.", example = "2027-04-01", requiredMode = Schema.RequiredMode.REQUIRED)
 		LocalDate bookingWindowEndExclusive,
+		@Schema(description = "조회 시점에 점유 중인 연속 숙박 구간. 없으면 빈 배열입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
 		List<UnavailableDateRange> unavailableRanges
 	) {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseDetailInfo")
 	public record DetailInfo(
 		long id,
 		String name,
 		String description,
 		String type,
 		Long basePrice,
+		@Schema(description = "저장된 통화. 미설정이면 null이며 예약 계산에서는 KRW를 사용합니다.", example = "KRW", nullable = true)
 		String currency,
+		@Schema(description = "숙소 현지 체크인 시간", example = "15:00:00")
 		LocalTime checkInTime,
+		@Schema(description = "숙소 현지 체크아웃 시간", example = "11:00:00")
 		LocalTime checkOutTime,
+		@Schema(description = "주소에서 계산한 IANA 시간대", example = "Asia/Seoul")
 		String timeZoneId,
 
+		@Schema(description = "현재 로그인 회원의 찜 여부. 비로그인이면 false입니다.", example = "false")
 		Boolean isInWishlist,
 		AddressResponse.AddressSummaryInfo addressSummary,
 		AddressResponse.Coordinate coordinate,
@@ -132,23 +158,36 @@ public class AccommodationResponse {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseHostDetail")
 	public record HostDetail(
 		long id,
+		@Schema(nullable = true)
 		String name,
+		@Schema(nullable = true)
 		String description,
+		@Schema(nullable = true)
 		String type,
+		@Schema(nullable = true)
 		Long basePrice,
+		@Schema(nullable = true)
 		String currency,
+		@Schema(nullable = true, example = "15:00:00", description = "숙소 현지 체크인 시간")
 		LocalTime checkInTime,
+		@Schema(nullable = true, example = "11:00:00", description = "숙소 현지 체크아웃 시간")
 		LocalTime checkOutTime,
+		@Schema(nullable = true, example = "Asia/Seoul", description = "주소에서 계산한 시간대. 주소 미설정 초안이면 null입니다.")
 		String timeZoneId,
 
+		@Schema(description = "전체 주소. 주소 미설정 초안은 객체 내부 항목들이 null입니다.")
 		AddressResponse.AddressInfo address,
 
+		@Schema(description = "수용 인원 정책. 미설정 초안은 객체 내부 항목들이 null입니다.")
 		PolicyResponse.PolicyInfo policy,
 
+		@Schema(description = "편의시설 목록. 없으면 빈 배열이며 type은 공통 코드입니다.")
 		List<AmenityResponse.AmenityInfo> amenities,
 
+		@Schema(description = "이미지 ID 오름차순 목록. 없으면 빈 배열입니다.")
 		List<ImageResponse.ImageInfo> images
 	) {
 		public static HostDetail from(HostAccommodationDetailProjection accommodation,
@@ -176,6 +215,7 @@ public class AccommodationResponse {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseRecentlyViewedAccommodationInfos")
 	public record RecentlyViewedAccommodationInfos(
 		List<RecentlyViewedAccommodationInfo> accommodations,
 		int totalCount
@@ -189,10 +229,12 @@ public class AccommodationResponse {
 	}
 
 	@Builder
+	@Schema(name = "AccommodationResponseRecentlyViewedAccommodationInfo")
 	public record RecentlyViewedAccommodationInfo(
 		Instant viewedAt,
 		Long accommodationId,
 		String accommodationName,
+		@Schema(nullable = true)
 		String thumbnailUrl,
 		AddressResponse.AddressSummaryInfo addressSummary,
 		ReviewResponse.ReviewSummary reviewSummary,
@@ -227,9 +269,11 @@ public class AccommodationResponse {
 	 * 예약
 	 */
 	@Builder
+	@Schema(name = "AccommodationResponseAccommodationBasicInfo")
 	public record AccommodationBasicInfo(
 		long id,
 		String name,
+		@Schema(nullable = true)
 		String thumbnailUrl
 	) {
 		public static AccommodationBasicInfo from(Accommodation accommodation) {

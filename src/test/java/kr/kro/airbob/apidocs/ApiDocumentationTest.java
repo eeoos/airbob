@@ -247,6 +247,17 @@ class ApiDocumentationTest {
 	}
 
 	@Test
+	void draftAccommodationPreservesNullableAddressAndPolicyFields() throws Exception {
+		AccommodationResponse.HostDetail draft = mapper.readValue(
+			"{\"id\":101,\"address\":{},\"policy\":{},\"amenities\":[],\"images\":[]}", AccommodationResponse.HostDetail.class);
+		when(context.getBean(AccommodationQueryService.class).findHostAccommodationDetail(101L, 10L)).thenReturn(draft);
+		String body = mvc.perform(get("/api/v1/profile/host/accommodations/101").cookie(SESSION))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(specification("client"), "/api/v1/profile/host/accommodations/{accommodationId}", "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/address/city").isNull()).isTrue();
+	}
+
+	@Test
 	void loginAndAuthorizationUseRealCookiesAndGuards() throws Exception {
 		AuthService authService = context.getBean(AuthService.class);
 		when(authService.login("docs@example.invalid", "example-password"))
@@ -413,6 +424,144 @@ class ApiDocumentationTest {
 		var selfDemotion = mvc.perform(patch(path, 10).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isConflict()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "409", "M007", selfDemotion.getContentAsString());
+	}
+
+	@Test
+	void accommodationPatchContractAcceptsNullFieldsAndLocalTimes() throws Exception {
+		JsonNode spec = specification("client");
+		JsonNode schema = spec.at("/components/schemas/AccommodationRequestUpdate");
+		ObjectNode omitted = mapper.createObjectNode();
+		schema.path("properties").fieldNames().forEachRemaining(omitted::putNull);
+		validateInstance(spec, schema, omitted);
+		for (String invalid : List.of("{\"base_price\":0}", "{\"amenity_infos\":[{\"name\":\"WIFI\",\"count\":-1}]}",
+			"{\"occupancy_policy_info\":{\"max_occupancy\":0,\"infant_occupancy\":0,\"pet_occupancy\":0}}",
+			"{\"occupancy_policy_info\":{\"max_occupancy\":1,\"infant_occupancy\":-1,\"pet_occupancy\":0}}",
+			"{\"occupancy_policy_info\":{\"max_occupancy\":1,\"infant_occupancy\":0,\"pet_occupancy\":-1}}")) {
+			ObjectNode root = ((ObjectNode)schema).deepCopy();
+			root.set("components", spec.path("components"));
+			assertThat(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(root)
+				.validate(mapper.readTree(invalid))).as(invalid).isNotEmpty();
+		}
+		String path = "/api/v1/accommodations/{accommodationId}";
+		String unchanged = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(omitted.toString()))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "patch", "200", unchanged);
+		String times = """
+			{"name":"가상 숙소","description":"첫째 줄\\n둘째 줄","currency":"KRW","check_in_time":"15:00","check_out_time":"11:00:00"}
+			""";
+		validateInstance(spec, schema, mapper.readTree(times));
+		mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(times)).andExpect(status().isOk());
+		verify(context.getBean(AccommodationCommandService.class)).updateAccommodation(eq(101L), argThat(request ->
+			java.time.LocalTime.of(15, 0).equals(request.checkInTime()) && java.time.LocalTime.of(11, 0).equals(request.checkOutTime())), eq(10L));
+	}
+
+	@Test
+	void accommodationAvailabilityHasOnlyIdAndReturnsExclusiveDateBoundaries() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/accommodations/{accommodationId}/availability";
+		JsonNode operation = spec.path("paths").path(path).path("get");
+		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("accommodationId");
+		assertThat(operation.has("requestBody")).isFalse();
+		assertThat(operation.path("security").isEmpty()).isTrue();
+		when(context.getBean(AccommodationQueryService.class).findAccommodationAvailability(101L))
+			.thenReturn(new AccommodationResponse.Availability(LocalDate.parse("2027-01-01"), LocalDate.parse("2027-04-01"),
+				List.of(new AccommodationResponse.UnavailableDateRange(LocalDate.parse("2027-01-10"), LocalDate.parse("2027-01-12")))));
+		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/unavailable_ranges/0/end_date_exclusive").asText()).isEqualTo("2027-01-12");
+		assertThat(mapper.readTree(body).at("/data/booking_window_end_exclusive").asText()).isEqualTo("2027-04-01");
+	}
+
+	@Test
+	void accommodationDetailDocumentsUnsetCurrencyAndLegacyHostNickname() throws Exception {
+		var detail = mapper.readValue("""
+			{"id":101,"name":"가상 숙소","description":"숙소 설명","type":"APARTMENT","base_price":100000,
+			 "currency":null,"check_in_time":"15:00:00","check_out_time":"11:00:00","time_zone_id":"Asia/Seoul",
+			 "is_in_wishlist":false,"address_summary":{"country":"대한민국","city":"서울","state":null,"district":null},
+			 "coordinate":{"latitude":37.5,"longitude":127.0},"host":{"id":10,"nickname":null,"thumbnail_image_url":null},
+			 "policy":{"max_occupancy":4,"infant_occupancy":1,"pet_occupancy":0},"amenities":[],"images":[],
+			 "review_summary":{"total_count":0,"average_rating":0}}
+			""", AccommodationResponse.DetailInfo.class);
+		when(context.getBean(AccommodationQueryService.class).findAccommodation(101L, null)).thenReturn(detail);
+		String body = mvc.perform(get("/api/v1/accommodations/101")).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(specification("client"), "/api/v1/accommodations/{accommodationId}", "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/currency").isNull()).isTrue();
+		assertThat(mapper.readTree(body).at("/data/host/nickname").isNull()).isTrue();
+		assertThat(mapper.readTree(body).at("/data/is_in_wishlist").asBoolean()).isFalse();
+	}
+
+	@Test
+	void accommodationHostListDocumentsDraftNullsAndOnlyUserSuppliedFilters() throws Exception {
+		var draft = new AccommodationResponse.HostAccommodationInfo(101L, null, null, AccommodationStatus.DRAFT, null,
+			new AddressResponse.AddressSummaryInfo(null, null, null, null), null);
+		when(context.getBean(AccommodationQueryService.class).findMyAccommodations(eq(10L), any(), eq(AccommodationStatus.DRAFT)))
+			.thenReturn(new AccommodationResponse.HostAccommodationInfos(List.of(draft), new CursorResponse.PageInfo(false, null, 1)));
+		String path = "/api/v1/profile/host/accommodations";
+		String body = mvc.perform(get(path).cookie(SESSION).param("status", "DRAFT")).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		JsonNode spec = specification("client");
+		validateResponse(spec, path, "get", "200", body);
+		assertThat(spec.path("paths").path(path).path("get").path("parameters").findValuesAsText("name"))
+			.containsExactlyInAnyOrder("status", "cursor", "size");
+		String invalid = mvc.perform(get(path).cookie(SESSION).param("status", "UNKNOWN"))
+			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "400", "C004", invalid);
+	}
+
+	@Test
+	void accommodationCreationAndPublishingDocumentActualInputsAndErrors() throws Exception {
+		JsonNode spec = specification("client");
+		AccommodationCommandService service = context.getBean(AccommodationCommandService.class);
+		when(service.createAccommodation(10L)).thenReturn(new AccommodationResponse.Create(101L));
+		String created = mvc.perform(post("/api/v1/accommodations").cookie(SESSION)).andExpect(status().isCreated())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/accommodations", "post", "201", created);
+		assertThat(spec.path("paths").path("/api/v1/accommodations").path("post").has("requestBody")).isFalse();
+		String publishPath = "/api/v1/accommodations/{accommodationId}/publish";
+		assertThat(spec.path("paths").path(publishPath).path("patch").has("requestBody")).isFalse();
+		doThrow(new PublishingFieldRequiredException("addressInfo", "주소 정보가 누락되었습니다."))
+			.when(service).publishAccommodation(101L, 10L);
+		String missingFields = mvc.perform(patch(publishPath, 101).cookie(SESSION)).andExpect(status().isBadRequest())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, publishPath, "patch", "400", "A009", missingFields);
+		assertThat(mapper.readTree(missingFields).at("/error/errors/0/field").asText()).isEqualTo("addressInfo");
+		assertThat(mapper.readTree(missingFields).at("/error/errors/0/reason").asText()).isEqualTo("주소 정보가 누락되었습니다.");
+		doThrow(new InsufficientImageCountException("이미지가 최소 1장 필요합니다."))
+			.when(service).publishAccommodation(101L, 10L);
+		String noImages = mvc.perform(patch(publishPath, 101).cookie(SESSION)).andExpect(status().isBadRequest())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, publishPath, "patch", "400", "A006", noImages);
+		doThrow(new AccommodationNotFoundException()).when(service).updateAccommodation(eq(101L), any(), eq(10L));
+		String inaccessible = mvc.perform(patch("/api/v1/accommodations/101").cookie(SESSION)
+			.contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, "/api/v1/accommodations/{accommodationId}", "patch", "404", "A001", inaccessible);
+	}
+
+	@Test
+	void accommodationMultipartResponsesIncludeFileIdsAndParserErrors() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/accommodations/{accommodationId}/images";
+		AccommodationImageService service = context.getBean(AccommodationImageService.class);
+		var missing = mvc.perform(multipart(path, 101).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "post", "400", "C001", missing.getContentAsString());
+		var unsupported = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "post", "415", "C011", unsupported.getContentAsString());
+		verifyNoInteractions(service);
+		when(service.uploadImages(eq(101L), anyList(), eq(10L)))
+			.thenReturn(new ImageResponse.ImageUploadResult(List.of(new ImageResponse.ImageInfo(301L, "https://example.invalid/room.png"))));
+		var file = new MockMultipartFile("images", "room.png", "image/png", new byte[] {1});
+		String uploaded = mvc.perform(multipart(path, 101).file(file).cookie(SESSION)).andExpect(status().isCreated())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "post", "201", uploaded);
+		assertThat(mapper.readTree(uploaded).at("/data/uploaded_images/0/id").asLong()).isEqualTo(301L);
+		doThrow(new org.springframework.web.multipart.MaxUploadSizeExceededException(10 * 1024 * 1024))
+			.when(service).uploadImages(eq(101L), anyList(), eq(10L));
+		String oversized = mvc.perform(multipart(path, 101).file(file).cookie(SESSION)).andExpect(status().isPayloadTooLarge())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "413", "I009", oversized);
 	}
 
 	private JsonNode specification(String group) throws Exception {

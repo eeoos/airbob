@@ -10,10 +10,12 @@ import lombok.NoArgsConstructor;
 public class MemberResponse {
 
 	@Builder
+	@Schema(name = "MemberResponseMemberInfo")
 	public record MemberInfo(
 		long id,
+		@Schema(description = "회원 닉네임. 과거 데이터는 null일 수 있습니다.", example = "여행자", nullable = true)
 		String nickname,
-		String thumbnailImageUrl
+		@Schema(nullable = true) String thumbnailImageUrl
 	) {
 		public static MemberInfo from(Member member) {
 			if(member == null) return MemberInfo.builder().build();
