@@ -162,6 +162,11 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
+      - name: Set up Terraform 1.15.5
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
       - name: Verify AWS dataset release production contracts
         run: |
           bash infra/aws/tests/target-fingerprint-test.sh
