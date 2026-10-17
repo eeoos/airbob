@@ -12,13 +12,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -92,6 +95,14 @@ import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.exception.MemberRoleChangeNotAllowedException;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
+import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
+import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
+import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.member.entity.Member;
+import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
@@ -244,6 +255,17 @@ class ApiDocumentationTest {
 				+ yaml.writeValueAsString(sorted(spec)));
 		}
 		assertThat(documented).containsExactlyInAnyOrderElementsOf(actual);
+	}
+
+	@Test
+	void reservationPaymentReferencesAcceptBothPendingAndPaidShapes() throws Exception {
+		JsonNode spec = specification("client");
+		JsonNode guestPayment = spec.at("/components/schemas/ReservationResponseGuestDetail/properties/payment");
+		JsonNode hostPayment = spec.at("/components/schemas/ReservationResponseHostDetail/properties/payment");
+		validateInstance(spec, guestPayment, mapper.readTree("null"));
+		validateInstance(spec, hostPayment, mapper.readTree("null"));
+		validateInstance(spec, guestPayment, mapper.readTree("{\"method\":\"카드\",\"total_amount\":10000,\"status\":\"DONE\",\"approved_at\":\"2027-01-01T00:00:00Z\"}"));
+		validateInstance(spec, hostPayment, mapper.readTree("{\"total_amount\":10000}"));
 	}
 
 	@Test
@@ -562,6 +584,209 @@ class ApiDocumentationTest {
 		String oversized = mvc.perform(multipart(path, 101).file(file).cookie(SESSION)).andExpect(status().isPayloadTooLarge())
 			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "413", "I009", oversized);
+	}
+
+	@Test
+	void reservationQuoteSchemaAcceptsOptionalCouponAndRejectsNonPositiveInputs() throws Exception {
+		JsonNode spec = specification("client");
+		JsonNode request = spec.at("/components/schemas/ReservationRequestQuote");
+		validateInstance(spec, request, mapper.readTree("""
+			{"accommodation_id":101,"check_in_date":"2027-01-10","check_out_date":"2027-01-12","guest_count":2,"coupon_id":null}
+			"""));
+		for (String field : List.of("accommodation_id", "guest_count", "coupon_id")) {
+			ObjectNode fieldSchema = ((ObjectNode)request.path("properties").path(field)).deepCopy();
+			assertThat(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+				.getSchema(fieldSchema).validate(mapper.readTree("0"))).isNotEmpty();
+		}
+		Instant now = Instant.parse("2027-01-01T00:00:00Z");
+		when(context.getBean(ReservationQuoteService.class).createQuote(any(), anyLong()))
+			.thenReturn(new ReservationResponse.Quote(UUID.fromString("00000000-0000-0000-0000-000000000010"),
+				101L, "숙소", LocalDate.parse("2027-01-10"), LocalDate.parse("2027-01-12"),
+				2, 100000L, 2L, 200000L, 0L, 200000L, "KRW", true, false, now));
+		String body = mvc.perform(post("/api/v1/reservation-quotes").cookie(SESSION)
+			.contentType(MediaType.APPLICATION_JSON).content("""
+				{"accommodation_id":101,"check_in_date":"2027-01-10","check_out_date":"2027-01-12","guest_count":2}
+				""")).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, "/api/v1/reservation-quotes", "post", "201", body);
+		assertThat(mapper.readTree(body).at("/data/inventory_held").asBoolean()).isFalse();
+		assertThat(body).doesNotContain("quote_expires_at");
+	}
+
+	@Test
+	void checkoutDocumentsIdempotencyHeaderCurrentStateAndRetryAfter() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/reservations";
+		JsonNode operation = spec.path("paths").path(path).path("post");
+		JsonNode key = operation.path("parameters").path(0);
+		assertThat(key.path("name").asText()).isEqualTo("Idempotency-Key");
+		assertThat(key.path("required").asBoolean()).isTrue();
+		assertThat(key.at("/schema/minLength").asInt()).isEqualTo(8);
+		assertThat(key.at("/schema/maxLength").asInt()).isEqualTo(128);
+		String request = "{\"quote_uid\":\"00000000-0000-0000-0000-000000000010\",\"request_message\":null}";
+		validateInstance(spec, spec.at("/components/schemas/ReservationRequestCheckout"), mapper.readTree(request));
+		String missingHeader = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+			.content(request)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "400", "C001", missingHeader);
+
+		Instant now = Instant.parse("2027-01-01T00:00:00Z");
+		Reservation expired = documentationPendingReservation(now.minusSeconds(1));
+		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
+			.thenReturn(ReservationResponse.Ready.from(expired, now));
+		String replay = mvc.perform(post(path).cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
+			.contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "post", "200", replay);
+		assertThat(mapper.readTree(replay).at("/data/status").asText()).isEqualTo("EXPIRED");
+		assertThat(mapper.readTree(replay).at("/data/payment_allowed").asBoolean()).isFalse();
+		assertThat(mapper.readTree(replay).at("/data/hold_expires_at").asText()).isEqualTo("2026-12-31T23:59:59Z");
+		assertThat(mapper.readTree(replay).at("/data/customer_email").isNull()).isTrue();
+
+		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
+			.thenThrow(new ReservationInventoryBusyException(new IllegalStateException("test contention")));
+		String busy = mvc.perform(post(path).cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
+			.contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isServiceUnavailable())
+			.andExpect(header().string("Retry-After", "1")).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "503", "R025", busy);
+		assertThat(operation.at("/responses/503/headers/Retry-After").isMissingNode()).isFalse();
+	}
+
+	@Test
+	void holdAndPaymentAttemptHaveNoBodyAndReturnUncachedReservationState() throws Exception {
+		JsonNode spec = specification("client");
+		String uid = "00000000-0000-0000-0000-000000000020";
+		Instant now = Instant.parse("2027-01-01T00:00:00Z");
+		String holdPath = "/api/v1/reservations/{reservationUid}/hold";
+		String attemptPath = "/api/v1/reservations/{reservationUid}/payment-attempts";
+		for (var entry : Map.of(holdPath, "delete", attemptPath, "post").entrySet()) {
+			JsonNode operation = spec.path("paths").path(entry.getKey()).path(entry.getValue());
+			assertThat(operation.has("requestBody")).isFalse();
+			assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("reservationUid");
+			assertThat(operation.path("responses").has("403")).isFalse();
+		}
+		when(context.getBean(ReservationHoldCommandService.class).releaseHold(uid, 10L))
+			.thenReturn(new ReservationResponse.HoldRelease(uid, ReservationStatus.EXPIRED, false, now));
+		String released = mvc.perform(delete(holdPath, uid).cookie(SESSION)).andExpect(status().isOk())
+			.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, holdPath, "delete", "200", released);
+		when(context.getBean(ReservationHoldCommandService.class).beginPaymentAttempt(uid, 10L))
+			.thenReturn(new ReservationResponse.PaymentAttemptReady(UUID.fromString("00000000-0000-0000-0000-000000000030"),
+				uid, 200000L, "KRW", now.plusSeconds(30), 30, now));
+		String attempt = mvc.perform(post(attemptPath, uid).cookie(SESSION)).andExpect(status().isOk())
+			.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, attemptPath, "post", "200", attempt);
+		when(context.getBean(ReservationHoldCommandService.class).beginPaymentAttempt(uid, 10L))
+			.thenThrow(new ReservationPaymentAttemptTooLateException());
+		String tooLate = mvc.perform(post(attemptPath, uid).cookie(SESSION)).andExpect(status().isConflict())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, attemptPath, "post", "409", "R022", tooLate);
+	}
+
+	@Test
+	void cancellationDocumentsNullableAmountLocationAndActualOwnershipError() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/reservations/{reservationUid}";
+		String uid = "00000000-0000-0000-0000-000000000020";
+		String request = "{\"cancel_reason\":\"일정 변경\",\"cancel_amount\":null}";
+		validateInstance(spec, spec.at("/components/schemas/PaymentRequestCancel"), mapper.readTree(request));
+		assertThat(spec.at("/components/schemas/PaymentRequestCancel/example").has("cancel_amount")).isFalse();
+		UUID operationId = UUID.fromString("00000000-0000-0000-0000-000000000040");
+		String url = "/api/v1/payment-operations/" + operationId;
+		ReservationService service = context.getBean(ReservationService.class);
+		when(service.cancelReservation(eq(uid), any(), eq(10L)))
+			.thenReturn(new PaymentOperationResponse.Cancellation(operationId, PaymentOperationResponse.Status.PENDING, url, false));
+		String paid = mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isAccepted()).andExpect(header().string("Location", url))
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "post", "202", paid);
+		assertThat(mapper.readTree(paid)).isEqualTo(mapper.readTree("{\"success\":true}"));
+		when(service.cancelReservation(eq(uid), any(), eq(10L))).thenReturn(PaymentOperationResponse.Cancellation.completed());
+		mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isAccepted()).andExpect(header().doesNotExist("Location"));
+		when(service.cancelReservation(eq(uid), any(), eq(10L))).thenThrow(new PaymentAccessDeniedException());
+		String denied = mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "403", "P004", denied);
+	}
+
+	@Test
+	void reservationDetailsMatchLocalTimeNullableFieldsAndNotFoundErrors() throws Exception {
+		JsonNode spec = specification("client");
+		Instant now = Instant.parse("2027-01-01T00:00:00Z");
+		Reservation pending = documentationPendingReservation(now.minusSeconds(1));
+		String uid = pending.getReservationUid().toString();
+		String guestPath = "/api/v1/profile/guest/reservations/{reservationUid}";
+		String hostPath = "/api/v1/profile/host/reservations/{reservationUid}";
+		JsonNode example = spec.at("/components/schemas/ReservationResponseGuestDetail/example");
+		assertThat(example.path("status").asText()).isEqualTo("PAYMENT_PENDING");
+		assertThat(example.path("payment").isNull()).isTrue();
+		when(context.getBean(ReservationService.class).findMyReservationDetail(uid, 10L))
+			.thenReturn(ReservationResponse.GuestDetail.from(guestDetail(pending), false, now));
+		String detail = mvc.perform(get(guestPath, uid).cookie(SESSION)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, guestPath, "get", "200", detail);
+		assertThat(mapper.readTree(detail).at("/data/check_in_time").asText()).isEqualTo("15:00:00");
+		assertThat(mapper.readTree(detail).at("/data/check_out_date_time").asText()).isEqualTo("2027-01-12T11:00:00");
+		assertThat(mapper.readTree(detail).at("/data/status").asText()).isEqualTo("EXPIRED");
+		assertThat(mapper.readTree(detail).at("/data/payment").isNull()).isTrue();
+		var guest = ReservationResponse.GuestDetail.from(guestDetail(pending), false, now);
+		when(context.getBean(ReservationService.class).findHostReservationDetail(uid, 10L))
+			.thenReturn(ReservationResponse.HostDetail.builder().reservationUid(uid).reservationCode("AB12CD")
+				.status(ReservationStatus.PAYMENT_PENDING).createdAt(guest.createdAt()).guestCount(2)
+				.checkInDateTime(guest.checkInDateTime()).checkOutDateTime(guest.checkOutDateTime())
+				.timeZoneId("Asia/Seoul").accommodation(guest.accommodation()).address(guest.address())
+				.guest(guest.host()).build());
+		String host = mvc.perform(get(hostPath, uid).cookie(SESSION)).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
+		validateResponse(spec, hostPath, "get", "200", host);
+		assertThat(mapper.readTree(host).at("/data/status").asText()).isEqualTo("PAYMENT_PENDING");
+		when(context.getBean(ReservationService.class).findMyReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
+		when(context.getBean(ReservationService.class).findHostReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
+		for (String path : List.of(guestPath, hostPath)) {
+			String missing = mvc.perform(get(path, uid).cookie(SESSION)).andExpect(status().isNotFound())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "404", "R001", missing);
+			assertThat(spec.path("paths").path(path).path("get").path("responses").has("403")).isFalse();
+		}
+	}
+
+	@Test
+	void reservationListsExposeOnlyFiltersAndAcceptLegacyDisplayFields() throws Exception {
+		JsonNode spec = specification("client");
+		String uid = "00000000-0000-0000-0000-000000000020";
+		var accommodation = new AccommodationResponse.AccommodationBasicInfo(101L, "숙소", null);
+		var page = new CursorResponse.PageInfo(false, null, 1);
+		LocalDate checkIn = LocalDate.parse("2027-01-10");
+		LocalDate checkOut = LocalDate.parse("2027-01-12");
+		when(context.getBean(ReservationService.class).findMyReservations(eq(10L), any(), any()))
+			.thenReturn(new ReservationResponse.GuestReservationInfos(List.of(new ReservationResponse.GuestReservationInfo(
+				201L, uid, checkIn, checkOut, "Asia/Seoul", ReservationStatus.EXPIRED, null, accommodation)), page));
+		when(context.getBean(ReservationService.class).findHostReservations(eq(10L), any(), any()))
+			.thenReturn(new ReservationResponse.HostReservationInfos(List.of(new ReservationResponse.HostReservationInfo(
+				uid, "AB12CD", 190000L, "KRW", 2, checkIn, checkOut, "Asia/Seoul", ReservationStatus.CONFIRMED,
+				null, new MemberResponse.MemberInfo(20L, null, null), accommodation)), page));
+		for (String role : List.of("guest", "host")) {
+			String path = "/api/v1/profile/" + role + "/reservations";
+			assertThat(spec.path("paths").path(path).path("get").path("parameters").findValuesAsText("name"))
+				.containsExactlyInAnyOrder("filterType", "cursor", "size");
+			String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "get", "200", body);
+			String invalid = mvc.perform(get(path).cookie(SESSION).param("filterType", "unknown"))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "400", "C004", invalid);
+		}
+	}
+
+	private Reservation documentationPendingReservation(Instant expiresAt) {
+		Member member = Member.builder().id(10L).build();
+		Accommodation accommodation = Accommodation.builder().id(101L).name("숙소").member(member)
+			.status(AccommodationStatus.PUBLISHED).checkInTime(LocalTime.of(15, 0)).checkOutTime(LocalTime.of(11, 0)).build();
+		return Reservation.builder().reservationUid(UUID.fromString("00000000-0000-0000-0000-000000000020"))
+			.reservationCode("AB12CD").guest(member).accommodation(accommodation)
+			.checkInDate(LocalDate.parse("2027-01-10")).checkOutDate(LocalDate.parse("2027-01-12"))
+			.checkInAt(Instant.parse("2027-01-10T06:00:00Z")).checkOutAt(Instant.parse("2027-01-12T02:00:00Z"))
+			.timeZoneId("Asia/Seoul").guestCount(2).totalPrice(200000L).currency("KRW")
+			.status(ReservationStatus.PAYMENT_PENDING).expiresAt(expiresAt).build();
 	}
 
 	private JsonNode specification(String group) throws Exception {

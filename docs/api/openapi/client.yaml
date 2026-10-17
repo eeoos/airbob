@@ -747,66 +747,6 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseGuestDetail:
-      properties:
-        data:
-          $ref: "#/components/schemas/GuestDetail"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
-    ApiResponseGuestReservationInfos:
-      properties:
-        data:
-          $ref: "#/components/schemas/GuestReservationInfos"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
-    ApiResponseHoldRelease:
-      properties:
-        data:
-          $ref: "#/components/schemas/HoldRelease"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
-    ApiResponseHostDetail:
-      properties:
-        data:
-          $ref: "#/components/schemas/HostDetail"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
-    ApiResponseHostReservationInfos:
-      properties:
-        data:
-          $ref: "#/components/schemas/HostReservationInfos"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
     ApiResponseHostSummary:
       properties:
         data:
@@ -895,18 +835,6 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponsePaymentAttemptReady:
-      properties:
-        data:
-          $ref: "#/components/schemas/PaymentAttemptReady"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
     ApiResponsePaymentInfo:
       properties:
         data:
@@ -919,10 +847,10 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseQuote:
+    ApiResponseReservationResponseGuestDetail:
       properties:
         data:
-          $ref: "#/components/schemas/Quote"
+          $ref: "#/components/schemas/ReservationResponseGuestDetail"
         success:
           enum:
           - true
@@ -931,10 +859,82 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseReady:
+    ApiResponseReservationResponseGuestReservationInfos:
       properties:
         data:
-          $ref: "#/components/schemas/Ready"
+          $ref: "#/components/schemas/ReservationResponseGuestReservationInfos"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReservationResponseHoldRelease:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReservationResponseHoldRelease"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReservationResponseHostDetail:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReservationResponseHostDetail"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReservationResponseHostReservationInfos:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReservationResponseHostReservationInfos"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReservationResponsePaymentAttemptReady:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReservationResponsePaymentAttemptReady"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReservationResponseQuote:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReservationResponseQuote"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReservationResponseReady:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReservationResponseReady"
         success:
           enum:
           - true
@@ -1030,18 +1030,6 @@ components:
       - "email"
       - "password"
       type: "object"
-    Cancel:
-      properties:
-        cancel_amount:
-          format: "int64"
-          type: "integer"
-        cancel_reason:
-          maxLength: 200
-          minLength: 0
-          type: "string"
-      required:
-      - "cancel_reason"
-      type: "object"
     CancelInfo:
       properties:
         cancel_amount:
@@ -1052,18 +1040,6 @@ components:
         canceled_at:
           format: "date-time"
           type: "string"
-      type: "object"
-    Checkout:
-      properties:
-        quote_uid:
-          format: "uuid"
-          type: "string"
-        request_message:
-          maxLength: 255
-          minLength: 0
-          type: "string"
-      required:
-      - "quote_uid"
       type: "object"
     CommonCodeResponse:
       properties:
@@ -1238,241 +1214,6 @@ components:
           type: "string"
         value:
           type: "string"
-      type: "object"
-    GuestDetail:
-      properties:
-        accommodation:
-          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
-        address:
-          $ref: "#/components/schemas/AddressResponseAddressInfo"
-        can_write_review:
-          type: "boolean"
-        check_in_date_time:
-          format: "date-time"
-          type: "string"
-        check_in_time:
-          type: "string"
-        check_out_date_time:
-          format: "date-time"
-          type: "string"
-        check_out_time:
-          type: "string"
-        coordinate:
-          $ref: "#/components/schemas/AddressResponseCoordinate"
-        created_at:
-          format: "date-time"
-          type: "string"
-        guest_count:
-          format: "int32"
-          type: "integer"
-        hold_expires_at:
-          format: "date-time"
-          type: "string"
-        host:
-          $ref: "#/components/schemas/MemberResponseMemberInfo"
-        payment:
-          $ref: "#/components/schemas/GuestPaymentInfo"
-        payment_allowed:
-          type: "boolean"
-        request_message:
-          type: "string"
-        reservation_code:
-          type: "string"
-        reservation_uid:
-          type: "string"
-        server_time:
-          format: "date-time"
-          type: "string"
-        status:
-          enum:
-          - "PAYMENT_PENDING"
-          - "PAYMENT_PROCESSING"
-          - "CONFIRMED"
-          - "CANCELLATION_PENDING"
-          - "CANCELLED"
-          - "CANCELLATION_FAILED"
-          - "EXPIRED"
-          type: "string"
-        time_zone_id:
-          type: "string"
-      type: "object"
-    GuestPaymentInfo:
-      properties:
-        approved_at:
-          format: "date-time"
-          type: "string"
-        method:
-          type: "string"
-        status:
-          enum:
-          - "READY"
-          - "IN_PROGRESS"
-          - "WAITING_FOR_DEPOSIT"
-          - "DONE"
-          - "CANCELED"
-          - "PARTIAL_CANCELED"
-          - "ABORTED"
-          - "EXPIRED"
-          type: "string"
-        total_amount:
-          format: "int64"
-          type: "integer"
-      type: "object"
-    GuestReservationInfo:
-      properties:
-        accommodation:
-          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
-        check_in_date:
-          format: "date"
-          type: "string"
-        check_out_date:
-          format: "date"
-          type: "string"
-        created_at:
-          format: "date-time"
-          type: "string"
-        reservation_id:
-          format: "int64"
-          type: "integer"
-        reservation_uid:
-          type: "string"
-        status:
-          enum:
-          - "PAYMENT_PENDING"
-          - "PAYMENT_PROCESSING"
-          - "CONFIRMED"
-          - "CANCELLATION_PENDING"
-          - "CANCELLED"
-          - "CANCELLATION_FAILED"
-          - "EXPIRED"
-          type: "string"
-        time_zone_id:
-          type: "string"
-      type: "object"
-    GuestReservationInfos:
-      properties:
-        page_info:
-          $ref: "#/components/schemas/CursorResponsePageInfo"
-        reservations:
-          items:
-            $ref: "#/components/schemas/GuestReservationInfo"
-          type: "array"
-      type: "object"
-    HoldRelease:
-      properties:
-        released_now:
-          type: "boolean"
-        reservation_uid:
-          type: "string"
-        server_time:
-          format: "date-time"
-          type: "string"
-        status:
-          enum:
-          - "PAYMENT_PENDING"
-          - "PAYMENT_PROCESSING"
-          - "CONFIRMED"
-          - "CANCELLATION_PENDING"
-          - "CANCELLED"
-          - "CANCELLATION_FAILED"
-          - "EXPIRED"
-          type: "string"
-      type: "object"
-    HostDetail:
-      properties:
-        accommodation:
-          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
-        address:
-          $ref: "#/components/schemas/AddressResponseAddressInfo"
-        check_in_date_time:
-          format: "date-time"
-          type: "string"
-        check_out_date_time:
-          format: "date-time"
-          type: "string"
-        created_at:
-          format: "date-time"
-          type: "string"
-        guest:
-          $ref: "#/components/schemas/MemberResponseMemberInfo"
-        guest_count:
-          format: "int32"
-          type: "integer"
-        payment:
-          $ref: "#/components/schemas/HostPaymentInfo"
-        request_message:
-          type: "string"
-        reservation_code:
-          type: "string"
-        reservation_uid:
-          type: "string"
-        status:
-          enum:
-          - "PAYMENT_PENDING"
-          - "PAYMENT_PROCESSING"
-          - "CONFIRMED"
-          - "CANCELLATION_PENDING"
-          - "CANCELLED"
-          - "CANCELLATION_FAILED"
-          - "EXPIRED"
-          type: "string"
-        time_zone_id:
-          type: "string"
-      type: "object"
-    HostPaymentInfo:
-      properties:
-        total_amount:
-          format: "int64"
-          type: "integer"
-      type: "object"
-    HostReservationInfo:
-      properties:
-        accommodation:
-          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
-        check_in_date:
-          format: "date"
-          type: "string"
-        check_out_date:
-          format: "date"
-          type: "string"
-        created_at:
-          format: "date-time"
-          type: "string"
-        currency:
-          type: "string"
-        guest:
-          $ref: "#/components/schemas/MemberResponseMemberInfo"
-        guest_count:
-          format: "int32"
-          type: "integer"
-        reservation_code:
-          type: "string"
-        reservation_uid:
-          type: "string"
-        status:
-          enum:
-          - "PAYMENT_PENDING"
-          - "PAYMENT_PROCESSING"
-          - "CONFIRMED"
-          - "CANCELLATION_PENDING"
-          - "CANCELLED"
-          - "CANCELLATION_FAILED"
-          - "EXPIRED"
-          type: "string"
-        time_zone_id:
-          type: "string"
-        total_price:
-          format: "int64"
-          type: "integer"
-      type: "object"
-    HostReservationInfos:
-      properties:
-        page_info:
-          $ref: "#/components/schemas/CursorResponsePageInfo"
-        reservations:
-          items:
-            $ref: "#/components/schemas/HostReservationInfo"
-          type: "array"
       type: "object"
     HostSettlement:
       properties:
@@ -1747,28 +1488,6 @@ components:
             type: "string"
           type: "array"
       type: "object"
-    PaymentAttemptReady:
-      properties:
-        amount:
-          format: "int64"
-          type: "integer"
-        currency:
-          type: "string"
-        hold_expires_at:
-          format: "date-time"
-          type: "string"
-        order_id:
-          type: "string"
-        payment_attempt_id:
-          format: "uuid"
-          type: "string"
-        remaining_seconds:
-          format: "int64"
-          type: "integer"
-        server_time:
-          format: "date-time"
-          type: "string"
-      type: "object"
     PaymentInfo:
       properties:
         approved_at:
@@ -1801,6 +1520,57 @@ components:
           - "ABORTED"
           - "EXPIRED"
           type: "string"
+        total_amount:
+          format: "int64"
+          type: "integer"
+      type: "object"
+    PaymentRequestCancel:
+      example:
+        cancel_reason: "여행 일정 변경"
+      properties:
+        cancel_amount:
+          description: "생략하거나 null이면 전액 취소. 지정 시 현재 결제 잔액 전액이어야 합니다. 부분 취소는 지원하지 않으며 0원 예약에서는 생략하거나 null로 보냅니다."
+          example: 10000
+          format: "int64"
+          minimum: 1
+          type:
+          - "integer"
+          - "null"
+        cancel_reason:
+          description: "취소 사유. 200자 이하"
+          example: "여행 일정 변경"
+          maxLength: 200
+          minLength: 0
+          type: "string"
+      required:
+      - "cancel_reason"
+      type: "object"
+    PaymentResponseGuestPaymentInfo:
+      properties:
+        approved_at:
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
+        method:
+          type: "string"
+        status:
+          enum:
+          - "READY"
+          - "IN_PROGRESS"
+          - "WAITING_FOR_DEPOSIT"
+          - "DONE"
+          - "CANCELED"
+          - "PARTIAL_CANCELED"
+          - "ABORTED"
+          - "EXPIRED"
+          type: "string"
+        total_amount:
+          format: "int64"
+          type: "integer"
+      type: "object"
+    PaymentResponseHostPaymentInfo:
+      properties:
         total_amount:
           format: "int64"
           type: "integer"
@@ -1848,22 +1618,55 @@ components:
           - "integer"
           - "null"
       type: "object"
-    Quote:
+    ReservationRequestCheckout:
+      properties:
+        quote_uid:
+          description: "견적 생성 응답의 quote_uid"
+          example: "00000000-0000-0000-0000-000000000010"
+          format: "uuid"
+          type: "string"
+        request_message:
+          description: "호스트에게 전달할 최대 255자 요청. 생략과 null은 같으며 빈 문자열·공백은 그대로 멱등성 비교에 포함됩니다."
+          example: "늦은 체크인 예정입니다."
+          maxLength: 255
+          minLength: 0
+          type:
+          - "string"
+          - "null"
+      required:
+      - "quote_uid"
+      type: "object"
+    ReservationRequestQuote:
       properties:
         accommodation_id:
+          description: "게시된 숙소 ID"
+          example: 101
           format: "int64"
+          minimum: 1
           type: "integer"
         check_in_date:
+          description: "숙소 현지 날짜의 체크인일"
+          example: "2027-01-10"
           format: "date"
           type: "string"
         check_out_date:
+          description: "숙소 현지 날짜의 체크아웃일. 해당 밤은 숙박에 포함하지 않습니다."
+          example: "2027-01-12"
           format: "date"
           type: "string"
         coupon_id:
+          description: "보유 쿠폰의 캠페인 ID. 미사용 시 생략하거나 null입니다. 회원 쿠폰 발급 내역 ID가 아닙니다."
+          example: 7
           format: "int64"
-          type: "integer"
+          minimum: 1
+          type:
+          - "integer"
+          - "null"
         guest_count:
+          description: "예약 인원. 숙소의 최대 수용 인원을 넘을 수 없습니다."
+          example: 2
           format: "int32"
+          minimum: 1
           type: "integer"
       required:
       - "accommodation_id"
@@ -1871,44 +1674,127 @@ components:
       - "check_out_date"
       - "guest_count"
       type: "object"
-    Ready:
+    ReservationResponseGuestDetail:
+      example:
+        accommodation:
+          id: 101
+          name: "도심 속 작은 숙소"
+          thumbnail_url: null
+        address:
+          city: "서울"
+          country: "대한민국"
+          detail: "101호"
+          district: "종로구"
+          postal_code: "03000"
+          state: "서울특별시"
+          street: "가상로 123"
+        can_write_review: false
+        check_in_date_time: "2027-01-10T15:00:00"
+        check_in_time: "15:00:00"
+        check_out_date_time: "2027-01-12T11:00:00"
+        check_out_time: "11:00:00"
+        coordinate:
+          latitude: 37.57
+          longitude: 126.98
+        created_at: "2027-01-01T00:00:00Z"
+        guest_count: 2
+        hold_expires_at: "2027-01-01T00:15:00Z"
+        host:
+          id: 10
+          nickname: "호스트"
+          thumbnail_image_url: null
+        payment: null
+        payment_allowed: true
+        request_message: "늦은 체크인 예정입니다."
+        reservation_code: "AB12CD"
+        reservation_uid: "00000000-0000-0000-0000-000000000020"
+        server_time: "2027-01-01T00:00:00Z"
+        status: "PAYMENT_PENDING"
+        time_zone_id: "Asia/Seoul"
       properties:
-        amount:
-          format: "int64"
-          type: "integer"
-        check_in:
-          format: "date"
+        accommodation:
+          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
+          description: "숙소의 현재 기본 정보"
+        address:
+          $ref: "#/components/schemas/AddressResponseAddressInfo"
+          description: "숙소의 현재 주소"
+        can_write_review:
+          description: "현재 회원이 이 숙소에 리뷰를 작성할 수 있는지 여부. API 설명의 게시·상태·체크아웃·기존 리뷰 조건을 따릅니다."
+          example: false
+          type: "boolean"
+        check_in_date_time:
+          description: "예약에 저장한 숙소 현지 체크인 일시. time_zone_id와 함께 읽습니다."
+          example: "2027-01-10T15:00:00"
+          format: "local-date-time"
           type: "string"
-        check_out:
-          format: "date"
+        check_in_time:
+          description: "숙소 현지 체크인 시간"
+          example: "15:00:00"
           type: "string"
-        currency:
+        check_out_date_time:
+          description: "예약에 저장한 숙소 현지 체크아웃 일시. time_zone_id와 함께 읽습니다."
+          example: "2027-01-12T11:00:00"
+          format: "local-date-time"
           type: "string"
-        customer_email:
+        check_out_time:
+          description: "숙소 현지 체크아웃 시간"
+          example: "11:00:00"
           type: "string"
-        customer_name:
-          type: "string"
-        discount_amount:
-          format: "int64"
-          type: "integer"
+        coordinate:
+          $ref: "#/components/schemas/AddressResponseCoordinate"
+          description: "숙소의 현재 좌표"
+        created_at:
+          description: "예약 생성 UTC 시각. 과거 데이터는 null일 수 있습니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
         guest_count:
+          example: 2
           format: "int32"
+          minimum: 1
           type: "integer"
         hold_expires_at:
+          description: "결제 대기 상태의 UTC 보유 기한. 정리 전에는 이미 지난 시각도 반환되며 다른 저장 상태에서는 null입니다."
+          example: "2027-01-01T00:15:00Z"
           format: "date-time"
-          type: "string"
-        order_name:
-          type: "string"
+          type:
+          - "string"
+          - "null"
+        host:
+          $ref: "#/components/schemas/MemberResponseMemberInfo"
+          description: "숙소 현재 소유자의 회원 정보"
+        payment:
+          anyOf:
+          - $ref: "#/components/schemas/PaymentResponseGuestPaymentInfo"
+          - type: "null"
+          description: "결제 기록. 미결제·0원 예약 등 기록이 없으면 null입니다."
         payment_allowed:
+          description: "유료 결제 대기이며 보유 만료 전인지 여부. 최초 시도 발급의 최소 잔여 시간은 별도로 검사합니다."
+          example: true
           type: "boolean"
-        payment_required:
-          type: "boolean"
+        request_message:
+          description: "체크아웃 시 게스트가 보낸 요청 사항"
+          example: "늦은 체크인 예정입니다."
+          type:
+          - "string"
+          - "null"
+        reservation_code:
+          description: "화면에 표시하는 예약 코드. API 경로에는 reservation_uid를 사용합니다."
+          example: "AB12CD"
+          type: "string"
         reservation_uid:
+          description: "예약 UID. 예약 상세·보유·취소 경로와 결제 주문 ID에 사용합니다."
+          example: "00000000-0000-0000-0000-000000000020"
           type: "string"
         server_time:
+          description: "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다."
+          example: "2027-01-01T00:00:00Z"
           format: "date-time"
           type: "string"
         status:
+          description: "조회 시점의 상태. 만료된 결제 대기는 정리 전에도 EXPIRED입니다."
           enum:
           - "PAYMENT_PENDING"
           - "PAYMENT_PROCESSING"
@@ -1917,10 +1803,579 @@ components:
           - "CANCELLED"
           - "CANCELLATION_FAILED"
           - "EXPIRED"
+          example: "PAYMENT_PENDING"
           type: "string"
-        subtotal:
+        time_zone_id:
+          description: "예약에 저장한 IANA 시간대"
+          example: "Asia/Seoul"
+          type: "string"
+      required:
+      - "accommodation"
+      - "address"
+      - "can_write_review"
+      - "check_in_date_time"
+      - "check_in_time"
+      - "check_out_date_time"
+      - "check_out_time"
+      - "coordinate"
+      - "created_at"
+      - "guest_count"
+      - "hold_expires_at"
+      - "host"
+      - "payment"
+      - "payment_allowed"
+      - "request_message"
+      - "reservation_code"
+      - "reservation_uid"
+      - "server_time"
+      - "status"
+      - "time_zone_id"
+      type: "object"
+    ReservationResponseGuestReservationInfo:
+      properties:
+        accommodation:
+          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
+          description: "숙소의 현재 기본 정보"
+        check_in_date:
+          description: "숙소 현지 체크인 날짜"
+          example: "2027-01-10"
+          format: "date"
+          type: "string"
+        check_out_date:
+          description: "숙소 현지 체크아웃 날짜"
+          example: "2027-01-12"
+          format: "date"
+          type: "string"
+        created_at:
+          description: "예약 생성 UTC 시각. 과거 데이터는 null일 수 있습니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
+        reservation_id:
+          description: "예약의 숫자 ID. 상세·취소 API에는 reservation_uid를 사용합니다."
+          example: 201
           format: "int64"
           type: "integer"
+        reservation_uid:
+          description: "예약 UID. 예약 상세·보유·취소 경로와 결제 주문 ID에 사용합니다."
+          example: "00000000-0000-0000-0000-000000000020"
+          type: "string"
+        status:
+          description: "조회 시점의 상태. 만료된 결제 대기는 정리 전에도 EXPIRED입니다."
+          enum:
+          - "PAYMENT_PENDING"
+          - "PAYMENT_PROCESSING"
+          - "CONFIRMED"
+          - "CANCELLATION_PENDING"
+          - "CANCELLED"
+          - "CANCELLATION_FAILED"
+          - "EXPIRED"
+          example: "PAYMENT_PENDING"
+          type: "string"
+        time_zone_id:
+          description: "예약에 저장한 IANA 시간대"
+          example: "Asia/Seoul"
+          type: "string"
+      required:
+      - "accommodation"
+      - "check_in_date"
+      - "check_out_date"
+      - "created_at"
+      - "reservation_id"
+      - "reservation_uid"
+      - "status"
+      - "time_zone_id"
+      type: "object"
+    ReservationResponseGuestReservationInfos:
+      properties:
+        page_info:
+          $ref: "#/components/schemas/CursorResponsePageInfo"
+          description: "다음 페이지 조회 정보"
+        reservations:
+          description: "이번 페이지의 예약 목록. 결과가 없으면 빈 배열입니다."
+          items:
+            $ref: "#/components/schemas/ReservationResponseGuestReservationInfo"
+          type: "array"
+      required:
+      - "page_info"
+      - "reservations"
+      type: "object"
+    ReservationResponseHoldRelease:
+      properties:
+        released_now:
+          description: "이번 요청에서 저장된 결제 대기 상태를 EXPIRED로 변경했는지 여부. 이미 EXPIRED였다면 false입니다."
+          example: true
+          type: "boolean"
+        reservation_uid:
+          description: "예약 UID. 예약 상세·보유·취소 경로와 결제 주문 ID에 사용합니다."
+          example: "00000000-0000-0000-0000-000000000020"
+          type: "string"
+        server_time:
+          description: "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type: "string"
+        status:
+          description: "해제 후 상태. 성공 응답은 EXPIRED입니다."
+          enum:
+          - "PAYMENT_PENDING"
+          - "PAYMENT_PROCESSING"
+          - "CONFIRMED"
+          - "CANCELLATION_PENDING"
+          - "CANCELLED"
+          - "CANCELLATION_FAILED"
+          - "EXPIRED"
+          example: "EXPIRED"
+          type: "string"
+      required:
+      - "released_now"
+      - "reservation_uid"
+      - "server_time"
+      - "status"
+      type: "object"
+    ReservationResponseHostDetail:
+      example:
+        accommodation:
+          id: 101
+          name: "도심 속 작은 숙소"
+          thumbnail_url: null
+        address:
+          city: "서울"
+          country: "대한민국"
+          detail: "101호"
+          district: "종로구"
+          postal_code: "03000"
+          state: "서울특별시"
+          street: "가상로 123"
+        check_in_date_time: "2027-01-10T15:00:00"
+        check_out_date_time: "2027-01-12T11:00:00"
+        created_at: "2027-01-01T00:00:00Z"
+        guest:
+          id: 20
+          nickname: "여행자"
+          thumbnail_image_url: null
+        guest_count: 2
+        payment:
+          total_amount: 190000
+        request_message: "늦은 체크인 예정입니다."
+        reservation_code: "AB12CD"
+        reservation_uid: "00000000-0000-0000-0000-000000000020"
+        status: "CONFIRMED"
+        time_zone_id: "Asia/Seoul"
+      properties:
+        accommodation:
+          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
+          description: "숙소의 현재 기본 정보"
+        address:
+          $ref: "#/components/schemas/AddressResponseAddressInfo"
+          description: "숙소의 현재 주소"
+        check_in_date_time:
+          description: "예약에 저장한 숙소 현지 체크인 일시. time_zone_id와 함께 읽습니다."
+          example: "2027-01-10T15:00:00"
+          format: "local-date-time"
+          type: "string"
+        check_out_date_time:
+          description: "예약에 저장한 숙소 현지 체크아웃 일시. time_zone_id와 함께 읽습니다."
+          example: "2027-01-12T11:00:00"
+          format: "local-date-time"
+          type: "string"
+        created_at:
+          description: "예약 생성 UTC 시각. 과거 데이터는 null일 수 있습니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
+        guest:
+          $ref: "#/components/schemas/MemberResponseMemberInfo"
+          description: "게스트의 현재 회원 정보"
+        guest_count:
+          example: 2
+          format: "int32"
+          minimum: 1
+          type: "integer"
+        payment:
+          anyOf:
+          - $ref: "#/components/schemas/PaymentResponseHostPaymentInfo"
+          - type: "null"
+          description: "결제 기록. 미결제·0원 예약 등 기록이 없으면 null입니다."
+        request_message:
+          description: "체크아웃 시 게스트가 보낸 요청 사항"
+          example: "늦은 체크인 예정입니다."
+          type:
+          - "string"
+          - "null"
+        reservation_code:
+          description: "화면에 표시하는 예약 코드. API 경로에는 reservation_uid를 사용합니다."
+          example: "AB12CD"
+          type: "string"
+        reservation_uid:
+          description: "예약 UID. 예약 상세·보유·취소 경로와 결제 주문 ID에 사용합니다."
+          example: "00000000-0000-0000-0000-000000000020"
+          type: "string"
+        status:
+          description: "DB에 저장된 예약 상태"
+          enum:
+          - "PAYMENT_PENDING"
+          - "PAYMENT_PROCESSING"
+          - "CONFIRMED"
+          - "CANCELLATION_PENDING"
+          - "CANCELLED"
+          - "CANCELLATION_FAILED"
+          - "EXPIRED"
+          example: "CONFIRMED"
+          type: "string"
+        time_zone_id:
+          description: "예약에 저장한 IANA 시간대"
+          example: "Asia/Seoul"
+          type: "string"
+      required:
+      - "accommodation"
+      - "address"
+      - "check_in_date_time"
+      - "check_out_date_time"
+      - "created_at"
+      - "guest"
+      - "guest_count"
+      - "payment"
+      - "request_message"
+      - "reservation_code"
+      - "reservation_uid"
+      - "status"
+      - "time_zone_id"
+      type: "object"
+    ReservationResponseHostReservationInfo:
+      properties:
+        accommodation:
+          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
+          description: "숙소의 현재 기본 정보"
+        check_in_date:
+          description: "숙소 현지 체크인 날짜"
+          example: "2027-01-10"
+          format: "date"
+          type: "string"
+        check_out_date:
+          description: "숙소 현지 체크아웃 날짜"
+          example: "2027-01-12"
+          format: "date"
+          type: "string"
+        created_at:
+          description: "예약 생성 UTC 시각. 과거 데이터는 null일 수 있습니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
+        currency:
+          description: "요금 통화"
+          example: "KRW"
+          type: "string"
+        guest:
+          $ref: "#/components/schemas/MemberResponseMemberInfo"
+          description: "게스트의 현재 회원 정보"
+        guest_count:
+          example: 2
+          format: "int32"
+          minimum: 1
+          type: "integer"
+        reservation_code:
+          description: "화면에 표시하는 예약 코드. API 경로에는 reservation_uid를 사용합니다."
+          example: "AB12CD"
+          type: "string"
+        reservation_uid:
+          description: "예약 UID. 예약 상세·보유·취소 경로와 결제 주문 ID에 사용합니다."
+          example: "00000000-0000-0000-0000-000000000020"
+          type: "string"
+        status:
+          description: "DB에 저장된 예약 상태"
+          enum:
+          - "PAYMENT_PENDING"
+          - "PAYMENT_PROCESSING"
+          - "CONFIRMED"
+          - "CANCELLATION_PENDING"
+          - "CANCELLED"
+          - "CANCELLATION_FAILED"
+          - "EXPIRED"
+          example: "CONFIRMED"
+          type: "string"
+        time_zone_id:
+          description: "예약에 저장한 IANA 시간대"
+          example: "Asia/Seoul"
+          type: "string"
+        total_price:
+          description: "할인 후 예약 금액"
+          example: 190000
+          format: "int64"
+          type: "integer"
+      required:
+      - "accommodation"
+      - "check_in_date"
+      - "check_out_date"
+      - "created_at"
+      - "currency"
+      - "guest"
+      - "guest_count"
+      - "reservation_code"
+      - "reservation_uid"
+      - "status"
+      - "time_zone_id"
+      - "total_price"
+      type: "object"
+    ReservationResponseHostReservationInfos:
+      properties:
+        page_info:
+          $ref: "#/components/schemas/CursorResponsePageInfo"
+          description: "다음 페이지 조회 정보"
+        reservations:
+          description: "이번 페이지의 예약 목록. 결과가 없으면 빈 배열입니다."
+          items:
+            $ref: "#/components/schemas/ReservationResponseHostReservationInfo"
+          type: "array"
+      required:
+      - "page_info"
+      - "reservations"
+      type: "object"
+    ReservationResponsePaymentAttemptReady:
+      properties:
+        amount:
+          description: "할인 후 결제 금액. 서버 값을 그대로 사용합니다."
+          example: 190000
+          format: "int64"
+          type: "integer"
+        currency:
+          description: "요금 통화"
+          example: "KRW"
+          type: "string"
+        hold_expires_at:
+          description: "발급 시 유효한 UTC 보유 기한. 토큰 발급으로 연장되지 않습니다."
+          example: "2027-01-01T00:15:00Z"
+          format: "date-time"
+          type: "string"
+        order_id:
+          description: "결제 주문 ID. reservation_uid와 같습니다."
+          example: "00000000-0000-0000-0000-000000000020"
+          type: "string"
+        payment_attempt_id:
+          description: "결제 확인 요청에 전달할 시도 ID. 유효한 재호출에는 같은 값을 반환합니다."
+          example: "00000000-0000-0000-0000-000000000030"
+          format: "uuid"
+          type: "string"
+        remaining_seconds:
+          description: "응답 시점의 남은 보유 시간(초). 소수점 이하는 버립니다."
+          example: 900
+          format: "int64"
+          minimum: 0
+          type: "integer"
+        server_time:
+          description: "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type: "string"
+      required:
+      - "amount"
+      - "currency"
+      - "hold_expires_at"
+      - "order_id"
+      - "payment_attempt_id"
+      - "remaining_seconds"
+      - "server_time"
+      type: "object"
+    ReservationResponseQuote:
+      properties:
+        accommodation_id:
+          example: 101
+          format: "int64"
+          type: "integer"
+        amount:
+          description: "할인 후 결제 금액. 서버 값을 그대로 사용합니다."
+          example: 190000
+          format: "int64"
+          type: "integer"
+        check_in:
+          description: "숙소 현지 체크인 날짜"
+          example: "2027-01-10"
+          format: "date"
+          type: "string"
+        check_out:
+          description: "숙소 현지 체크아웃 날짜. 해당 날짜의 밤은 제외합니다."
+          example: "2027-01-12"
+          format: "date"
+          type: "string"
+        currency:
+          description: "요금 통화"
+          example: "KRW"
+          type: "string"
+        discount_amount:
+          description: "적용한 할인액"
+          example: 10000
+          format: "int64"
+          type: "integer"
+        guest_count:
+          example: 2
+          format: "int32"
+          minimum: 1
+          type: "integer"
+        inventory_held:
+          description: "견적은 재고를 확보하지 않으므로 항상 false입니다."
+          example: false
+          type: "boolean"
+        nightly_price:
+          description: "견적 시점의 1박 요금"
+          example: 100000
+          format: "int64"
+          type: "integer"
+        nights:
+          description: "숙박 일수"
+          example: 2
+          format: "int64"
+          type: "integer"
+        order_name:
+          description: "견적 시점의 숙소 이름"
+          example: "도심 속 작은 숙소"
+          type: "string"
+        payment_required:
+          description: "금액이 0보다 큰지 여부. false이면 결제 시도 발급·결제 확인을 건너뜁니다."
+          example: true
+          type: "boolean"
+        quote_uid:
+          description: "체크아웃에 전달할 견적 UID"
+          example: "00000000-0000-0000-0000-000000000010"
+          format: "uuid"
+          type: "string"
+        server_time:
+          description: "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type: "string"
+        subtotal:
+          description: "할인 전 총 숙박 요금"
+          example: 200000
+          format: "int64"
+          type: "integer"
+      required:
+      - "accommodation_id"
+      - "amount"
+      - "check_in"
+      - "check_out"
+      - "currency"
+      - "discount_amount"
+      - "guest_count"
+      - "inventory_held"
+      - "nightly_price"
+      - "nights"
+      - "order_name"
+      - "payment_required"
+      - "quote_uid"
+      - "server_time"
+      - "subtotal"
+      type: "object"
+    ReservationResponseReady:
+      properties:
+        amount:
+          description: "할인 후 결제 금액. 서버 값을 그대로 사용합니다."
+          example: 190000
+          format: "int64"
+          type: "integer"
+        check_in:
+          description: "숙소 현지 체크인 날짜"
+          example: "2027-01-10"
+          format: "date"
+          type: "string"
+        check_out:
+          description: "숙소 현지 체크아웃 날짜. 해당 날짜의 밤은 제외합니다."
+          example: "2027-01-12"
+          format: "date"
+          type: "string"
+        currency:
+          description: "요금 통화"
+          example: "KRW"
+          type: "string"
+        customer_email:
+          description: "예약 게스트의 현재 이메일. 과거 데이터는 null일 수 있습니다."
+          example: "docs@example.invalid"
+          type:
+          - "string"
+          - "null"
+        customer_name:
+          description: "예약 게스트의 현재 닉네임. 과거 데이터는 null일 수 있습니다."
+          example: "여행자"
+          type:
+          - "string"
+          - "null"
+        discount_amount:
+          description: "적용한 할인액"
+          example: 10000
+          format: "int64"
+          type: "integer"
+        guest_count:
+          example: 2
+          format: "int32"
+          minimum: 1
+          type: "integer"
+        hold_expires_at:
+          description: "결제 대기 상태의 UTC 보유 기한. 정리 전에는 이미 지난 시각도 반환되며 다른 저장 상태에서는 null입니다."
+          example: "2027-01-01T00:15:00Z"
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
+        order_name:
+          description: "숙소 이름. 체크아웃 재조회에서는 현재 숙소 이름입니다."
+          example: "도심 속 작은 숙소"
+          type: "string"
+        payment_allowed:
+          description: "유료 결제 대기이며 보유 만료 전인지 여부. 최초 시도 발급의 최소 잔여 시간은 별도로 검사합니다."
+          example: true
+          type: "boolean"
+        payment_required:
+          description: "금액이 0보다 큰지 여부. false이면 결제 시도 발급·결제 확인을 건너뜁니다."
+          example: true
+          type: "boolean"
+        reservation_uid:
+          description: "예약 UID. 예약 상세·보유·취소 경로와 결제 주문 ID에 사용합니다."
+          example: "00000000-0000-0000-0000-000000000020"
+          type: "string"
+        server_time:
+          description: "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다."
+          example: "2027-01-01T00:00:00Z"
+          format: "date-time"
+          type: "string"
+        status:
+          description: "조회 시점의 상태. 만료된 결제 대기는 정리 전에도 EXPIRED입니다."
+          enum:
+          - "PAYMENT_PENDING"
+          - "PAYMENT_PROCESSING"
+          - "CONFIRMED"
+          - "CANCELLATION_PENDING"
+          - "CANCELLED"
+          - "CANCELLATION_FAILED"
+          - "EXPIRED"
+          example: "PAYMENT_PENDING"
+          type: "string"
+        subtotal:
+          description: "할인 전 총 숙박 요금"
+          example: 200000
+          format: "int64"
+          type: "integer"
+      required:
+      - "amount"
+      - "check_in"
+      - "check_out"
+      - "currency"
+      - "customer_email"
+      - "customer_name"
+      - "discount_amount"
+      - "guest_count"
+      - "hold_expires_at"
+      - "order_name"
+      - "payment_allowed"
+      - "payment_required"
+      - "reservation_uid"
+      - "server_time"
+      - "status"
+      - "subtotal"
       type: "object"
     ReviewInfo:
       properties:
@@ -4624,9 +5079,11 @@ paths:
       - "payment-controller"
   /api/v1/profile/guest/reservations:
     get:
-      operationId: "getGuestReservations"
+      description: "본인의 예약을 생성 시각·ID 내림차순으로 조회합니다. filterType을 생략하면 모든 상태를 포함합니다.\n\nUPCOMING은 만료 전 결제 대기, 결제 처리 중, 체크아웃 전의 CONFIRMED·CANCELLATION_PENDING·CANCELLATION_FAILED입니다. PAST는 이 세 상태 중 체크아웃 시각이 지난 예약이며, CANCELLED는 취소·만료와 기한이 지난 결제 대기를 포함합니다.\n\n만료된 결제 대기는 정리 작업 전에도 EXPIRED로 응답합니다. filterType을 바꾸면 cursor를 초기화합니다. 요청 쿼리 이름은 filterType이며 filter_type이 아닙니다.\n"
+      operationId: "Reservation.getGuestReservations"
       parameters:
-      - in: "query"
+      - description: "예약 목록 필터. 생략 시 전체이며 게스트·호스트의 포함 상태는 API 설명을 따릅니다."
+        in: "query"
         name: "filterType"
         required: false
         schema:
@@ -4656,12 +5113,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseGuestReservationInfos"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponseGuestReservationInfos"
+          description: "성공"
         "400":
           content:
             application/json:
               examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
                 C006:
                   summary: "유효하지 않은 커서 페이지 크기입니다."
                   value:
@@ -4717,13 +5183,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "내 예약 목록 조회"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/profile/guest/reservations/{reservationUid}:
     get:
-      operationId: "getGuestReservationDetail"
+      description: "로그인한 게스트 본인의 예약 상세를 조회합니다. 해석할 수 없는 예약 UID, 없는 예약, 다른 회원의 예약은 모두 404/R001입니다.\n\n만료된 결제 대기는 정리 작업 전에도 status=EXPIRED, payment_allowed=false로 응답합니다. 이때 hold_expires_at에는 이미 지난 보유 기한이 남아 있을 수 있으므로 기한의 존재만으로 결제 가능 여부를 판단하지 않습니다.\n\n체크인·체크아웃 일시는 숙소 현지 시간이며 time_zone_id와 함께 읽습니다. payment는 결제 기록이 없으면 null입니다. can_write_review는 숙소가 게시 중이고, 체크아웃한 CONFIRMED·CANCELLATION_FAILED 예약이며 해당 숙소에 게시된 본인 리뷰가 없을 때 true입니다.\n"
+      operationId: "Reservation.getGuestReservationDetail"
       parameters:
-      - in: "path"
+      - description: "예약 생성 응답의 reservation_uid"
+        example: "00000000-0000-0000-0000-000000000020"
+        in: "path"
         name: "reservationUid"
         required: true
         schema:
@@ -4733,8 +5203,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseGuestDetail"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponseGuestDetail"
+          description: "성공"
         "401":
           content:
             application/json:
@@ -4747,6 +5217,22 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                R001:
+                  summary: "존재하지 않는 예약입니다."
+                  value:
+                    error:
+                      code: "R001"
+                      errors: []
+                      message: "존재하지 않는 예약입니다."
+                      status: 404
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -4769,8 +5255,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "내 예약 상세 조회"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/profile/host/accommodations:
     get:
       description: "본인 소유 숙소를 생성 시각 내림차순, 같은 시각이면 ID 내림차순으로 조회합니다.\nstatus 생략 시 DRAFT·PUBLISHED·UNPUBLISHED를 함께 조회합니다. 삭제된 숙소는 항상 제외하므로 DELETED 필터는 빈 목록을 반환합니다.\n첫 페이지는 cursor를 생략하고 다음 페이지부터 page_info.next_cursor를 사용합니다. status를 바꾸면 cursor를 초기화합니다.\n초안의 이름·유형·대표 이미지·주소 항목은 null일 수 있습니다.\n"
@@ -4971,9 +5458,11 @@ paths:
       - "숙소"
   /api/v1/profile/host/reservations:
     get:
-      operationId: "getHostReservations"
+      description: "현재 본인이 소유한 숙소의 예약을 생성 시각·ID 내림차순으로 조회합니다. 숙소가 게시 중단·삭제 상태여도 조회할 수 있습니다. 결제 대기·결제 처리 중은 모든 필터에서 제외합니다.\n\nfilterType을 생략하면 위 두 상태를 제외한 전체를 반환합니다. UPCOMING과 PAST는 CONFIRMED·CANCELLATION_PENDING·CANCELLATION_FAILED를 체크아웃 시각 전·후로 나누며, CANCELLED는 저장된 CANCELLED·EXPIRED 상태입니다.\n\nfilterType을 바꾸면 cursor를 초기화합니다. 요청 쿼리 이름은 filterType이며 filter_type이 아닙니다.\n"
+      operationId: "Reservation.getHostReservations"
       parameters:
-      - in: "query"
+      - description: "예약 목록 필터. 생략 시 전체이며 게스트·호스트의 포함 상태는 API 설명을 따릅니다."
+        in: "query"
         name: "filterType"
         required: false
         schema:
@@ -5003,12 +5492,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseHostReservationInfos"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponseHostReservationInfos"
+          description: "성공"
         "400":
           content:
             application/json:
               examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
                 C006:
                   summary: "유효하지 않은 커서 페이지 크기입니다."
                   value:
@@ -5064,13 +5562,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "호스트 예약 목록 조회"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/profile/host/reservations/{reservationUid}:
     get:
-      operationId: "getHostReservationDetail"
+      description: "예약 숙소의 현재 소유자에게 상세를 반환합니다. 숙소가 게시 중단·삭제 상태이거나 예약이 결제 대기·처리 중이어도 상세 조회는 가능합니다. 호스트 목록과 달리 상태를 제한하지 않습니다.\n\nstatus는 저장된 예약 상태입니다. 체크인·체크아웃 일시는 time_zone_id 기준 현지 시간이며 payment는 결제 기록이 없으면 null입니다.\n\n해석할 수 없는 예약 UID, 없는 예약, 현재 소유자가 아닌 회원의 요청은 모두 404/R001입니다.\n"
+      operationId: "Reservation.getHostReservationDetail"
       parameters:
-      - in: "path"
+      - description: "예약 생성 응답의 reservation_uid"
+        example: "00000000-0000-0000-0000-000000000020"
+        in: "path"
         name: "reservationUid"
         required: true
         schema:
@@ -5080,8 +5582,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseHostDetail"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponseHostDetail"
+          description: "성공"
         "401":
           content:
             application/json:
@@ -5094,6 +5596,22 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                R001:
+                  summary: "존재하지 않는 예약입니다."
+                  value:
+                    error:
+                      code: "R001"
+                      errors: []
+                      message: "존재하지 않는 예약입니다."
+                      status: 404
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5116,8 +5634,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "호스트 예약 상세 조회"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/profile/host/settlements:
     get:
       operationId: "getHostSettlements"
@@ -5278,20 +5797,73 @@ paths:
       - "settlement-controller"
   /api/v1/reservation-quotes:
     post:
-      operationId: "createQuote"
+      description: "로그인한 회원의 가격·쿠폰·숙박 조건을 견적으로 저장합니다. 숙소 현지 오늘부터 3개월 범위에서 체크아웃일이 체크인일보다 뒤여야 하며, 당일 예약은 숙소 체크인 시각 전까지만 가능합니다. 예시 날짜는 실행 시 예약 가능한 날짜로 바꿉니다.\n\n현재 재고를 조회하지만 잠그거나 확보하지 않으며 쿠폰도 사용 처리하지 않습니다. coupon_id는 보유 쿠폰의 캠페인 ID입니다. 성공 응답의 quote_uid를 체크아웃에 사용합니다.\n\n견적 자체의 시간 만료는 없지만 데이터 보관 정책에 따라 삭제될 수 있습니다. 체크아웃에서 가격·할인·숙소·재고를 다시 검사합니다.\n"
+      operationId: "Reservation.createQuote"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Quote"
+              $ref: "#/components/schemas/ReservationRequestQuote"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseQuote"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponseQuote"
+          description: "생성 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                R009:
+                  summary: "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."
+                  value:
+                    error:
+                      code: "R009"
+                      errors: []
+                      message: "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."
+                      status: 400
+                    success: false
+                R010:
+                  summary: "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."
+                  value:
+                    error:
+                      code: "R010"
+                      errors: []
+                      message: "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."
+                      status: 400
+                    success: false
+                R012:
+                  summary: "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."
+                  value:
+                    error:
+                      code: "R012"
+                      errors: []
+                      message: "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."
+                      status: 400
+                    success: false
+                R013:
+                  summary: "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."
+                  value:
+                    error:
+                      code: "R013"
+                      errors: []
+                      message: "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5304,6 +5876,83 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                A001:
+                  summary: "존재하지 않거나 삭제된 숙소입니다."
+                  value:
+                    error:
+                      code: "A001"
+                      errors: []
+                      message: "존재하지 않거나 삭제된 숙소입니다."
+                      status: 404
+                    success: false
+                CP006:
+                  summary: "보유하지 않은 쿠폰입니다."
+                  value:
+                    error:
+                      code: "CP006"
+                      errors: []
+                      message: "보유하지 않은 쿠폰입니다."
+                      status: 404
+                    success: false
+                M001:
+                  summary: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                  value:
+                    error:
+                      code: "M001"
+                      errors: []
+                      message: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                CP007:
+                  summary: "이미 사용한 쿠폰입니다."
+                  value:
+                    error:
+                      code: "CP007"
+                      errors: []
+                      message: "이미 사용한 쿠폰입니다."
+                      status: 409
+                    success: false
+                CP008:
+                  summary: "사용할 수 없는 쿠폰입니다. (기간 만료/비활성 또는 최소 결제 금액 미달)"
+                  value:
+                    error:
+                      code: "CP008"
+                      errors: []
+                      message: "사용할 수 없는 쿠폰입니다. (기간 만료/비활성 또는 최소 결제 금액 미달)"
+                      status: 409
+                    success: false
+                R002:
+                  summary: "해당 날짜는 다른 예약과 겹쳐 예약이 불가능합니다."
+                  value:
+                    error:
+                      code: "R002"
+                      errors: []
+                      message: "해당 날짜는 다른 예약과 겹쳐 예약이 불가능합니다."
+                      status: 409
+                    success: false
+                R014:
+                  summary: "숙소 체크인 시각 이후에는 예약할 수 없습니다."
+                  value:
+                    error:
+                      code: "R014"
+                      errors: []
+                      message: "숙소 체크인 시각 이후에는 예약할 수 없습니다."
+                      status: 409
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5324,32 +5973,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "503":
+          content:
+            application/json:
+              examples:
+                R026:
+                  summary: "예약 가능한 날짜 정보를 준비하고 있습니다. 잠시 후 다시 시도해 주세요."
+                  value:
+                    error:
+                      code: "R026"
+                      errors: []
+                      message: "예약 가능한 날짜 정보를 준비하고 있습니다. 잠시 후 다시 시도해 주세요."
+                      status: 503
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "예약 견적 생성"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/reservations:
     post:
-      operationId: "checkout"
+      description: "quote_uid와 Idempotency-Key로 예약을 생성합니다. 숙소 ID·날짜·인원·쿠폰은 견적의 값을 사용하며 새 요청에서 다시 받지 않습니다. 같은 회원·키·요청으로 재시도하면 기존 예약의 현재 상태를 반환합니다. 새 예약이나 새 보유 시간을 만들지 않습니다.\n\nrequest_message는 최대 255자이며 생략과 null은 동일합니다. 빈 문자열과 공백은 그대로 보존되어 멱등성 비교에 포함됩니다. 같은 키로 요청 내용을 바꾸면 409/R016, 이미 사용한 견적을 새 키로 요청하면 409/R020입니다.\n\n유료 예약은 PAYMENT_PENDING으로 생성하며 기본 15분간 임시 확보합니다. 실제 기한은 hold_expires_at을 따릅니다. 0원 예약은 CONFIRMED로 확정되고 payment_required=false이므로 결제 단계를 건너뜁니다.\n\n가격·할인이 바뀌면 409/R019로 거절하며 새 견적이 필요합니다. 그 밖의 숙소·쿠폰·기간·재고 오류는 각 업무 코드로 반환합니다. 503/R025이면 Retry-After: 1 이후 같은 키와 요청으로 재시도합니다.\n"
+      operationId: "Reservation.checkout"
       parameters:
-      - in: "header"
+      - description: "회원별 요청 식별자. 동일 요청 재시도에는 같은 키를 사용합니다."
+        in: "header"
         name: "Idempotency-Key"
         required: true
         schema:
+          example: "checkout-00000001"
+          maxLength: 128
+          minLength: 8
+          pattern: "^[A-Za-z0-9._:-]+$"
           type: "string"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Checkout"
+              $ref: "#/components/schemas/ReservationRequestCheckout"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseReady"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponseReady"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                R009:
+                  summary: "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."
+                  value:
+                    error:
+                      code: "R009"
+                      errors: []
+                      message: "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."
+                      status: 400
+                    success: false
+                R010:
+                  summary: "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."
+                  value:
+                    error:
+                      code: "R010"
+                      errors: []
+                      message: "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."
+                      status: 400
+                    success: false
+                R012:
+                  summary: "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."
+                  value:
+                    error:
+                      code: "R012"
+                      errors: []
+                      message: "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."
+                      status: 400
+                    success: false
+                R013:
+                  summary: "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."
+                  value:
+                    error:
+                      code: "R013"
+                      errors: []
+                      message: "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5362,6 +6086,119 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                A001:
+                  summary: "존재하지 않거나 삭제된 숙소입니다."
+                  value:
+                    error:
+                      code: "A001"
+                      errors: []
+                      message: "존재하지 않거나 삭제된 숙소입니다."
+                      status: 404
+                    success: false
+                CP006:
+                  summary: "보유하지 않은 쿠폰입니다."
+                  value:
+                    error:
+                      code: "CP006"
+                      errors: []
+                      message: "보유하지 않은 쿠폰입니다."
+                      status: 404
+                    success: false
+                M001:
+                  summary: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                  value:
+                    error:
+                      code: "M001"
+                      errors: []
+                      message: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                      status: 404
+                    success: false
+                R017:
+                  summary: "예약 견적을 찾을 수 없습니다."
+                  value:
+                    error:
+                      code: "R017"
+                      errors: []
+                      message: "예약 견적을 찾을 수 없습니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                CP007:
+                  summary: "이미 사용한 쿠폰입니다."
+                  value:
+                    error:
+                      code: "CP007"
+                      errors: []
+                      message: "이미 사용한 쿠폰입니다."
+                      status: 409
+                    success: false
+                CP008:
+                  summary: "사용할 수 없는 쿠폰입니다. (기간 만료/비활성 또는 최소 결제 금액 미달)"
+                  value:
+                    error:
+                      code: "CP008"
+                      errors: []
+                      message: "사용할 수 없는 쿠폰입니다. (기간 만료/비활성 또는 최소 결제 금액 미달)"
+                      status: 409
+                    success: false
+                R002:
+                  summary: "해당 날짜는 다른 예약과 겹쳐 예약이 불가능합니다."
+                  value:
+                    error:
+                      code: "R002"
+                      errors: []
+                      message: "해당 날짜는 다른 예약과 겹쳐 예약이 불가능합니다."
+                      status: 409
+                    success: false
+                R014:
+                  summary: "숙소 체크인 시각 이후에는 예약할 수 없습니다."
+                  value:
+                    error:
+                      code: "R014"
+                      errors: []
+                      message: "숙소 체크인 시각 이후에는 예약할 수 없습니다."
+                      status: 409
+                    success: false
+                R016:
+                  summary: "동일한 멱등성 키로 다른 예약 요청을 처리할 수 없습니다."
+                  value:
+                    error:
+                      code: "R016"
+                      errors: []
+                      message: "동일한 멱등성 키로 다른 예약 요청을 처리할 수 없습니다."
+                      status: 409
+                    success: false
+                R019:
+                  summary: "예약 조건 또는 금액이 변경되었습니다. 새 견적을 요청해 주세요."
+                  value:
+                    error:
+                      code: "R019"
+                      errors: []
+                      message: "예약 조건 또는 금액이 변경되었습니다. 새 견적을 요청해 주세요."
+                      status: 409
+                    success: false
+                R020:
+                  summary: "이미 다른 요청으로 사용된 예약 견적입니다."
+                  value:
+                    error:
+                      code: "R020"
+                      errors: []
+                      message: "이미 다른 요청으로 사용된 예약 견적입니다."
+                      status: 409
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5382,15 +6219,51 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "503":
+          content:
+            application/json:
+              examples:
+                R025:
+                  summary: "예약 요청이 몰려 재고를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
+                  value:
+                    error:
+                      code: "R025"
+                      errors: []
+                      message: "예약 요청이 몰려 재고를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
+                      status: 503
+                    success: false
+                R026:
+                  summary: "예약 가능한 날짜 정보를 준비하고 있습니다. 잠시 후 다시 시도해 주세요."
+                  value:
+                    error:
+                      code: "R026"
+                      errors: []
+                      message: "예약 가능한 날짜 정보를 준비하고 있습니다. 잠시 후 다시 시도해 주세요."
+                      status: 503
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "재고 잠금 경합 또는 날짜 재고 준비 중"
+          headers:
+            Retry-After:
+              description: "R025일 때만 반환하는 재시도 대기 초. 현재 1입니다."
+              schema:
+                example: 1
+                type: "integer"
+              style: "simple"
       security:
       - sessionCookie: []
+      summary: "견적으로 예약 생성"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/reservations/{reservationUid}:
     post:
-      operationId: "cancelReservation"
+      description: "본인 예약을 취소합니다. cancel_reason은 공백만 있는 값을 제외한 최대 200자로 필수입니다. 유료 예약은 전액 취소만 지원하며 cancel_amount는 생략·null 또는 현재 결제 잔액 전액입니다. 0원 예약은 금액을 생략하거나 null로 보냅니다.\n\n새 취소는 체크인 시각 전까지만 가능합니다. 유료 예약은 CONFIRMED 또는 CANCELLATION_FAILED에서 취소를 접수합니다. 이미 취소 중이거나 취소된 예약은 동일 사유와 금액으로 요청하면 기존 작업을 반환하며, 내용이 다르면 409/P006입니다. 0원 예약은 즉시 취소되고 반복 요청도 성공합니다.\n\n응답은 모두 202와 {\"success\":true}입니다. 유료 취소는 Location 헤더의 작업 조회 URL에서 결과를 확인하고, 0원 취소는 Location 없이 완료되므로 예약 상세를 확인합니다.\n\n다른 회원의 예약은 403/P004, 없는 예약은 404/R001, 해석할 수 없는 예약 UID는 400/C001입니다. 결제 전 보유 해제는 DELETE /reservations/{reservationUid}/hold를 사용합니다.\n"
+      operationId: "Reservation.cancelReservation"
       parameters:
-      - in: "path"
+      - description: "예약 생성 응답의 reservation_uid"
+        example: "00000000-0000-0000-0000-000000000020"
+        in: "path"
         name: "reservationUid"
         required: true
         schema:
@@ -5399,15 +6272,37 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Cancel"
+              $ref: "#/components/schemas/PaymentRequestCancel"
         required: true
       responses:
-        "200":
+        "202":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "요청 접수"
+          headers:
+            Location:
+              description: "비동기 취소 작업이 있을 때 상태 조회 URL"
+              schema:
+                type: "string"
+              style: "simple"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5420,6 +6315,81 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                P004:
+                  summary: "해당 결제 정보에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "P004"
+                      errors: []
+                      message: "해당 결제 정보에 대한 접근 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                P001:
+                  summary: "존재하지 않는 결제 정보입니다."
+                  value:
+                    error:
+                      code: "P001"
+                      errors: []
+                      message: "존재하지 않는 결제 정보입니다."
+                      status: 404
+                    success: false
+                R001:
+                  summary: "존재하지 않는 예약입니다."
+                  value:
+                    error:
+                      code: "R001"
+                      errors: []
+                      message: "존재하지 않는 예약입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                P006:
+                  summary: "기존 결제 작업과 요청 내용이 일치하지 않습니다."
+                  value:
+                    error:
+                      code: "P006"
+                      errors: []
+                      message: "기존 결제 작업과 요청 내용이 일치하지 않습니다."
+                      status: 409
+                    success: false
+                R004:
+                  summary: "결제 완료 상태의 예약만 취소할 수 있습니다."
+                  value:
+                    error:
+                      code: "R004"
+                      errors: []
+                      message: "결제 완료 상태의 예약만 취소할 수 있습니다."
+                      status: 409
+                    success: false
+                R015:
+                  summary: "체크인 시각 이후에는 예약을 취소할 수 없습니다."
+                  value:
+                    error:
+                      code: "R015"
+                      errors: []
+                      message: "체크인 시각 이후에는 예약을 취소할 수 없습니다."
+                      status: 409
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5442,13 +6412,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "예약 취소 요청"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/reservations/{reservationUid}/hold:
     delete:
-      operationId: "releaseHold"
+      description: "본인 예약의 PAYMENT_PENDING 상태를 EXPIRED로 바꾸고 남아 있는 임시 확보와 사용 쿠폰을 해제합니다. 결제 시도 ID를 발급받았어도 결제 확인 처리 전이라면 해제할 수 있습니다. 요청 본문은 없습니다.\n\n저장된 상태가 이미 EXPIRED이면 200과 released_now=false를 반환합니다. 만료 시각이 지났더라도 아직 PAYMENT_PENDING이면 이번 요청이 상태를 바꾸므로 released_now=true입니다. 결제 처리 중·확정·취소 상태에서는 409/R021입니다.\n\n해석할 수 없는 예약 UID, 없는 예약, 다른 회원의 예약은 모두 404/R001입니다. 응답은 Cache-Control: no-store이며 결제된 예약의 취소에는 취소 API를 사용합니다.\n"
+      operationId: "Reservation.releaseHold"
       parameters:
-      - in: "path"
+      - description: "예약 생성 응답의 reservation_uid"
+        example: "00000000-0000-0000-0000-000000000020"
+        in: "path"
         name: "reservationUid"
         required: true
         schema:
@@ -5458,8 +6432,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseHoldRelease"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponseHoldRelease"
+          description: "성공"
+          headers:
+            Cache-Control:
+              description: "no-store"
+              schema:
+                type: "string"
+              style: "simple"
         "401":
           content:
             application/json:
@@ -5472,6 +6452,38 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                R001:
+                  summary: "존재하지 않는 예약입니다."
+                  value:
+                    error:
+                      code: "R001"
+                      errors: []
+                      message: "존재하지 않는 예약입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                R021:
+                  summary: "현재 상태에서는 예약 보유를 해제할 수 없습니다."
+                  value:
+                    error:
+                      code: "R021"
+                      errors: []
+                      message: "현재 상태에서는 예약 보유를 해제할 수 없습니다."
+                      status: 409
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5494,13 +6506,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "예약 보유 해제"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/reservations/{reservationUid}/payment-attempts:
     post:
-      operationId: "beginPaymentAttempt"
+      description: "본인의 유료 PAYMENT_PENDING 예약에서 결제창 진입에 필요한 payment_attempt_id를 발급합니다. 요청 본문은 없으며 order_id는 reservation_uid와 같습니다. 응답의 주문·금액·통화를 사용하고 결제 확인 요청에 시도 ID를 그대로 전달합니다.\n\n최초 발급에는 기본 90초 이상의 보유 시간이 남아 있어야 합니다. 이미 발급한 미사용 시도는 보유 만료 전까지 같은 ID로 반환하며, 시도를 재발급하거나 보유 시간을 연장하지 않습니다. 시간이 부족하거나 만료되면 409/R022, 0원 예약·사용한 시도·허용되지 않는 예약 상태는 409/R023입니다.\n\n해석할 수 없는 예약 UID, 없는 예약, 다른 회원의 예약은 모두 404/R001입니다. 응답은 Cache-Control: no-store입니다.\n"
+      operationId: "Reservation.beginPaymentAttempt"
       parameters:
-      - in: "path"
+      - description: "예약 생성 응답의 reservation_uid"
+        example: "00000000-0000-0000-0000-000000000020"
+        in: "path"
         name: "reservationUid"
         required: true
         schema:
@@ -5510,8 +6526,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponsePaymentAttemptReady"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReservationResponsePaymentAttemptReady"
+          description: "성공"
+          headers:
+            Cache-Control:
+              description: "no-store"
+              schema:
+                type: "string"
+              style: "simple"
         "401":
           content:
             application/json:
@@ -5524,6 +6546,47 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                R001:
+                  summary: "존재하지 않는 예약입니다."
+                  value:
+                    error:
+                      code: "R001"
+                      errors: []
+                      message: "존재하지 않는 예약입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                R022:
+                  summary: "결제를 시작할 수 있는 시간이 부족합니다."
+                  value:
+                    error:
+                      code: "R022"
+                      errors: []
+                      message: "결제를 시작할 수 있는 시간이 부족합니다."
+                      status: 409
+                    success: false
+                R023:
+                  summary: "현재 예약에는 결제 시도를 발급할 수 없습니다."
+                  value:
+                    error:
+                      code: "R023"
+                      errors: []
+                      message: "현재 예약에는 결제 시도를 발급할 수 없습니다."
+                      status: 409
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5546,8 +6609,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "결제 시도 토큰 발급"
       tags:
-      - "reservation-controller"
+      - "예약"
   /api/v1/reviews/{reviewId}:
     delete:
       operationId: "deleteReview"

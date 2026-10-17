@@ -7,6 +7,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
@@ -17,11 +18,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaymentResponse {
 
+	@Schema(name = "PaymentResponseHostPaymentInfo")
 	public record HostPaymentInfo(Long totalAmount) {
 	}
 
 	@JsonInclude(JsonInclude.Include.NON_NULL)
-	public record GuestPaymentInfo(String method, Long totalAmount, PaymentStatus status, Instant approvedAt) {
+	@Schema(name = "PaymentResponseGuestPaymentInfo")
+	public record GuestPaymentInfo(String method, Long totalAmount, PaymentStatus status, @Schema(nullable = true) Instant approvedAt) {
 	}
 
 	@Builder

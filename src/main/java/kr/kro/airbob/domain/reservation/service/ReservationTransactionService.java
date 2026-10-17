@@ -284,7 +284,7 @@ public class ReservationTransactionService {
 
 	@Transactional(readOnly = true)
 	public ReservationResponse.GuestDetail findMyReservationDetail(String reservationUidStr, Long memberId) {
-		UUID reservationUid = UUID.fromString(reservationUidStr);
+		UUID reservationUid = parseReservationUid(reservationUidStr);
 
 		GuestReservationDetailProjection reservation = reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId)
 			.orElseThrow(ReservationNotFoundException::new);
@@ -324,10 +324,18 @@ public class ReservationTransactionService {
 
 	@Transactional(readOnly = true)
 	public ReservationResponse.HostDetail findHostReservationDetail(String reservationUidStr, Long hostId) {
-		UUID reservationUid = UUID.fromString(reservationUidStr);
+		UUID reservationUid = parseReservationUid(reservationUidStr);
 		return reservationRepository.findHostReservationDetailByUidAndHostId(reservationUid, hostId)
 			.map(ReservationResponse.HostDetail::from)
 			.orElseThrow(ReservationNotFoundException::new);
+	}
+
+	private UUID parseReservationUid(String reservationUid) {
+		try {
+			return UUID.fromString(reservationUid);
+		} catch (IllegalArgumentException | NullPointerException exception) {
+			throw new ReservationNotFoundException();
+		}
 	}
 
 	private boolean canWriteReview(Long memberId, GuestReservationDetailProjection reservation, Instant serverTime) {
