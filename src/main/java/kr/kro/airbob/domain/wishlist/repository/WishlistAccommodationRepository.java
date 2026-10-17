@@ -4,9 +4,12 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import jakarta.persistence.LockModeType;
 
 import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
 import kr.kro.airbob.domain.wishlist.repository.querydsl.WishlistAccommodationRepositoryCustom;
@@ -43,7 +46,13 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 	MembershipProjection findMembership(@Param("memberId") Long memberId,
 		@Param("accommodationId") Long accommodationId, @Param("wishlistId") Long wishlistId);
 
-	Optional<WishlistAccommodation> findByIdAndWishlistMemberId(Long id, Long memberId);
+	@Query("select wa.wishlist.id from WishlistAccommodation wa where wa.id = :id and wa.wishlist.member.id = :memberId")
+	Optional<Long> findWishlistIdByIdAndMemberId(@Param("id") Long id, @Param("memberId") Long memberId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select wa from WishlistAccommodation wa where wa.id = :id")
+	Optional<WishlistAccommodation> findByIdForUpdate(@Param("id") Long id);
+
 	List<WishlistAccommodation> findAllByWishlistId(Long wishlistId);
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
 	boolean existsByWishlist_Member_IdAndAccommodation_Id(Long memberId, Long accommodationId);

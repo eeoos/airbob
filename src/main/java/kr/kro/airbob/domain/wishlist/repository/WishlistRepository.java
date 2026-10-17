@@ -3,9 +3,12 @@ package kr.kro.airbob.domain.wishlist.repository;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import jakarta.persistence.LockModeType;
 
 import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
@@ -18,6 +21,10 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Long>, Wishl
 	boolean existsByIdAndMemberId(Long id, Long memberId);
 
 	Optional<Wishlist> findByIdAndStatus(Long id, WishlistStatus status);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select w from Wishlist w where w.id = :id and w.status = :status")
+	Optional<Wishlist> findByIdAndStatusForUpdate(@Param("id") Long id, @Param("status") WishlistStatus status);
 
 	@Query("""
 		select new kr.kro.airbob.domain.wishlist.repository.projection.WishlistDetailHeaderProjection(

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -171,6 +172,13 @@ import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
 import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
+import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
+import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
+import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationAccessDeniedException;
+import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
+import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.search.service.AccommodationSearchService;
 
@@ -1581,6 +1589,265 @@ class ApiDocumentationTest {
 		doThrow(new MaxUploadSizeExceededException(10 * 1024 * 1024)).when(service).uploadReviewImages(eq(201L), anyList(), eq(10L));
 		String oversized = mvc.perform(multipart(path, 201).file(file).cookie(SESSION)).andExpect(status().isPayloadTooLarge()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "413", "I009", oversized);
+	}
+
+	@Test
+	void everyWishlistEndpointRequiresTheSessionWithoutManualIdentityInputs() throws Exception {
+		JsonNode spec = specification("client");
+		String lists = "/api/v1/members/wishlists", list = lists + "/{wishlistId}", membership = lists + "/membership";
+		String items = lists + "/accommodations/{id}", item = lists + "/accommodations/{id}";
+		var requests = List.of(post(lists), patch(list, 42), delete(list, 42), get(lists), get(membership).param("accommodationId", "101"),
+			post(items, 42), patch(item, 501), delete(item, 501), get(items, 42));
+		String[] paths = {lists, list, list, lists, membership, items, item, item, items};
+		String[] methods = {"post", "patch", "delete", "get", "get", "post", "patch", "delete", "get"};
+		for (int index = 0; index < requests.size(); index++) {
+			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths[index], methods[index], "401", "M004", body);
+			assertThat(spec.path("paths").path(paths[index]).path(methods[index]).path("parameters").findValuesAsText("name"))
+				.doesNotContain("memberId", "member_id", "SESSION_ID");
+		}
+		verifyNoInteractions(context.getBean(WishlistService.class));
+	}
+
+	@Test
+	void wishlistNamesHaveMatchingCreateAndRenameConstraintsAndIds() throws Exception {
+		JsonNode spec = specification("client");
+		String lists = "/api/v1/members/wishlists", list = lists + "/{wishlistId}";
+		WishlistService service = context.getBean(WishlistService.class);
+		for (String schemaName : List.of("WishlistRequestCreate", "WishlistRequestUpdate")) {
+			JsonNode schema = spec.path("components").path("schemas").path(schemaName);
+			assertThat(schema.path("required").toString()).isEqualTo("[\"name\"]");
+			assertThat(schema.at("/properties/name/minLength").asInt()).isEqualTo(1);
+			assertThat(schema.at("/properties/name/maxLength").asInt()).isEqualTo(255);
+		}
+		for (String invalid : List.of("{}", "{\"name\":null}", "{\"name\":\"\"}", "{\"name\":\"  \"}",
+			mapper.createObjectNode().put("name", "가".repeat(256)).toString())) {
+			String created = mvc.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, lists, "post", "400", "C001", created);
+			String renamed = mvc.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, list, "patch", "400", "C001", renamed);
+		}
+		verifyNoInteractions(service);
+		when(service.createWishlist(any(), eq(10L))).thenReturn(new WishlistResponse.Create(42));
+		when(service.updateWishlist(eq(42L), any(), eq(10L))).thenReturn(new WishlistResponse.Update(42));
+		for (int length : List.of(1, 255)) {
+			String request = mapper.createObjectNode().put("name", "가".repeat(length)).toString();
+			String created = mvc.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, lists, "post", "201", created);
+			assertThat(mapper.readTree(created).at("/data/id").asLong()).isEqualTo(42);
+			String renamed = mvc.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, list, "patch", "200", renamed);
+		}
+	}
+
+	@Test
+	void wishlistAccommodationInputsValidateLengthsAndReturnTheConnectionId() throws Exception {
+		JsonNode spec = specification("client");
+		String items = "/api/v1/members/wishlists/accommodations/{id}";
+		String item = "/api/v1/members/wishlists/accommodations/{id}";
+		WishlistService service = context.getBean(WishlistService.class);
+		for (String invalid : List.of("{}", "{\"accommodation_id\":null}", "{\"accommodation_id\":0}", "{\"accommodation_id\":-1}")) {
+			String response = mvc.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, items, "post", "400", "C001", response);
+		}
+		for (String invalid : List.of("{}", "{\"memo\":null}", "{\"memo\":\"\"}", "{\"memo\":\"  \"}",
+			mapper.createObjectNode().put("memo", "나".repeat(1025)).toString())) {
+			String response = mvc.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, item, "patch", "400", "C001", response);
+		}
+		verifyNoInteractions(service);
+		JsonNode schema = spec.at("/components/schemas/WishlistAccommodationRequestUpdate");
+		assertThat(schema.path("required").toString()).isEqualTo("[\"memo\"]");
+		assertThat(schema.at("/properties/memo/minLength").asInt()).isEqualTo(1);
+		assertThat(schema.at("/properties/memo/maxLength").asInt()).isEqualTo(1024);
+		when(service.createWishlistAccommodation(eq(42L), any(), eq(10L))).thenReturn(new WishlistAccommodationResponse.Create(501));
+		when(service.updateWishlistAccommodation(eq(501L), any(), eq(10L))).thenReturn(new WishlistAccommodationResponse.Update(501));
+		String created = mvc.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"accommodation_id\":101}"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, items, "post", "200", created);
+		assertThat(mapper.readTree(created).at("/data/id").asLong()).isEqualTo(501);
+		verify(service).createWishlistAccommodation(42L, new WishlistAccommodationRequest.Create(101L), 10L);
+		for (int length : List.of(1, 1024)) {
+			String request = mapper.createObjectNode().put("memo", "나".repeat(length)).toString();
+			String updated = mvc.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, item, "patch", "200", updated);
+			assertThat(mapper.readTree(updated).at("/data/id").asLong()).isEqualTo(501);
+		}
+	}
+
+	@Test
+	void wishlistMembershipRequiresAnAccommodationAndDistinguishesUnknownTargetFromFalse() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/members/wishlists/membership";
+		JsonNode operation = spec.path("paths").path(path).path("get");
+		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactlyInAnyOrder("accommodationId", "wishlistId");
+		operation.path("parameters").forEach(parameter -> assertThat(parameter.path("required").asBoolean())
+			.isEqualTo(parameter.path("name").asText().equals("accommodationId")));
+		String missing = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "400", "C001", missing);
+		for (String parameter : List.of("accommodationId", "wishlistId")) {
+			var request = get(path).cookie(SESSION).param(parameter, "invalid");
+			if (parameter.equals("wishlistId")) request.param("accommodationId", "101");
+			String invalid = mvc.perform(request).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "400", "C004", invalid);
+		}
+		WishlistService service = context.getBean(WishlistService.class);
+		verifyNoInteractions(service);
+		for (WishlistResponse.Membership membership : List.of(new WishlistResponse.Membership(true, true, true),
+			new WishlistResponse.Membership(true, false, true), new WishlistResponse.Membership(false, null, false))) {
+			when(service.findMembership(10L, 101L, 42L)).thenReturn(membership);
+			String response = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("wishlistId", "42").param("memberId", "999"))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "get", "200", response);
+			assertThat(mapper.readTree(response).path("data")).isEqualTo(mapper.valueToTree(membership));
+		}
+		when(service.findMembership(10L, 101L, null)).thenReturn(new WishlistResponse.Membership(true, null, false));
+		String omitted = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", omitted);
+		assertThat(mapper.readTree(omitted).at("/data/target_wishlist_contains").isNull()).isTrue();
+		assertThat(operation.path("responses").has("404")).isFalse();
+	}
+
+	@Test
+	void wishlistListDocumentsOptionalSelectionNullableFieldsAndCursorLimits() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/members/wishlists";
+		WishlistService service = context.getBean(WishlistService.class);
+		when(service.findWishlists(any(), eq(10L), isNull())).thenReturn(new WishlistResponse.WishlistInfos(List.of(
+			new WishlistResponse.WishlistInfo(42, "서울 여행", Instant.parse("2027-01-10T02:00:00.123456Z"), 2L, null, null, null),
+			new WishlistResponse.WishlistInfo(43, "옛 목록", null, 0L, null, null, null)), new CursorResponse.PageInfo(false, null, 2)));
+		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", response);
+		assertThat(mapper.readTree(response).at("/data/wishlists/0/created_at").asText()).isEqualTo("2027-01-10T02:00:00.123456Z");
+		assertThat(mapper.readTree(response).at("/data/wishlists/0/is_contained").isNull()).isTrue();
+		verify(service).findWishlists(argThat(request -> request.size() == 20 && request.lastId() == null), eq(10L), isNull());
+		when(service.findWishlists(any(), eq(10L), eq(101L))).thenReturn(new WishlistResponse.WishlistInfos(List.of(
+			new WishlistResponse.WishlistInfo(42, "서울 여행", Instant.parse("2027-01-10T02:00:00Z"), 2L, null, true, 501L),
+			new WishlistResponse.WishlistInfo(43, "다음 여행", Instant.parse("2027-01-09T02:00:00Z"), 0L, null, false, null)), new CursorResponse.PageInfo(false, null, 2)));
+		String selection = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("size", "50"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", selection);
+		assertThat(mapper.readTree(selection).at("/data/wishlists/0/wishlist_accommodation_id").asLong()).isEqualTo(501);
+		assertThat(mapper.readTree(selection).at("/data/wishlists/1/is_contained").asBoolean()).isFalse();
+		for (String paginated : List.of(path, path + "/accommodations/{id}")) {
+			for (String size : List.of("0", "51", "invalid")) {
+				String invalid = mvc.perform(get(paginated, 42).cookie(SESSION).param("size", size)).andExpect(status().isBadRequest())
+					.andReturn().getResponse().getContentAsString();
+				assertDocumentedError(spec, paginated, "get", "400", "C006", invalid);
+			}
+			String invalid = mvc.perform(get(paginated, 42).cookie(SESSION).param("cursor", "not-a-cursor!"))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paginated, "get", "400", "C010", invalid);
+		}
+	}
+
+	@Test
+	void wishlistDetailIncludesNameEmptyPagesCurrentCardsAndZeroReviewSummary() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/members/wishlists/accommodations/{id}";
+		WishlistService service = context.getBean(WishlistService.class);
+		var info = new WishlistAccommodationResponse.WishlistAccommodationInfo(501, null,
+			Instant.parse("2027-01-10T02:00:00.123456Z"), new AccommodationResponse.AccommodationBasicInfo(101, "서울 하우스", null),
+			new AddressResponse.AddressSummaryInfo("대한민국", null, "서울", null), ReviewResponse.ReviewSummary.of(null, null), true);
+		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
+			.thenReturn(new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(info), new CursorResponse.PageInfo(false, null, 1), "서울 여행"));
+		String response = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", response);
+		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/review_summary/total_count").asInt()).isZero();
+		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/is_in_wishlist").asBoolean()).isTrue();
+		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/memo").isNull()).isTrue();
+		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
+			.thenReturn(new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), new CursorResponse.PageInfo(false, null, 0), "서울 여행"));
+		String empty = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", empty);
+		assertThat(mapper.readTree(empty).at("/data/wishlist_name").asText()).isEqualTo("서울 여행");
+		assertThat(mapper.readTree(empty).at("/data/wishlist_accommodations").isEmpty()).isTrue();
+		for (BaseException error : List.of(new WishlistNotFoundException(), new WishlistAccessDeniedException())) {
+			doThrow(error).when(service).findWishlistAccommodations(eq(42L), any(), eq(10L));
+			var failed = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, path, "get", Integer.toString(failed.getStatus()), error.getErrorCode().getCode(), failed.getContentAsString());
+		}
+	}
+
+	@Test
+	void wishlistMutationErrorsAndDeleteResponsesMatchTheServicePolicy() throws Exception {
+		JsonNode spec = specification("client");
+		String lists = "/api/v1/members/wishlists", list = lists + "/{wishlistId}";
+		String items = lists + "/accommodations/{id}", item = lists + "/accommodations/{id}";
+		WishlistService service = context.getBean(WishlistService.class);
+		for (String path : List.of(list, item)) {
+			String response = mvc.perform(delete(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "delete", "200", response);
+			assertThat(mapper.readTree(response)).isEqualTo(mapper.readTree("{\"success\":true}"));
+		}
+		for (BaseException error : List.of(new WishlistNotFoundException(), new WishlistAccessDeniedException())) {
+			doThrow(error).when(service).deleteWishlist(42L, 10L);
+			doThrow(error).when(service).updateWishlist(eq(42L), any(), eq(10L));
+			var removed = mvc.perform(delete(list, 42).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, list, "delete", Integer.toString(removed.getStatus()), error.getErrorCode().getCode(), removed.getContentAsString());
+			var renamed = mvc.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"여행\"}"))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, list, "patch", Integer.toString(renamed.getStatus()), error.getErrorCode().getCode(), renamed.getContentAsString());
+		}
+		for (BaseException error : List.of(new WishlistNotFoundException(), new WishlistAccessDeniedException(),
+			new WishlistAccommodationDuplicateException(), new AccommodationNotFoundException())) {
+			doThrow(error).when(service).createWishlistAccommodation(eq(42L), any(), eq(10L));
+			var failed = mvc.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"accommodation_id\":101}"))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, items, "post", Integer.toString(failed.getStatus()), error.getErrorCode().getCode(), failed.getContentAsString());
+		}
+		doThrow(new WishlistAccommodationAccessDeniedException()).when(service).deleteWishlistAccommodation(501L, 10L);
+		doThrow(new WishlistAccommodationAccessDeniedException()).when(service).updateWishlistAccommodation(eq(501L), any(), eq(10L));
+		String removed = mvc.perform(delete(item, 501).cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, item, "delete", "403", "W005", removed);
+		String memo = mvc.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"memo\":\"메모\"}"))
+			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, item, "patch", "403", "W005", memo);
+		assertThat(spec.path("paths").path(item).path("delete").path("responses").has("404")).isFalse();
+		doThrow(new MemberNotFoundException()).when(service).createWishlist(any(), eq(10L));
+		String inactive = mvc.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"여행\"}"))
+			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, lists, "post", "404", "M001", inactive);
+	}
+
+	@Test
+	void wishlistAccommodationOperationsShareOneTemplateWithDistinctIdMeanings() throws Exception {
+		JsonNode spec = specification("client");
+		JsonNode path = spec.path("paths").path("/api/v1/members/wishlists/accommodations/{id}");
+		assertThat(path.size()).isEqualTo(4);
+		for (String method : List.of("get", "post", "patch", "delete")) {
+			JsonNode parameter = java.util.stream.StreamSupport.stream(path.path(method).path("parameters").spliterator(), false)
+				.filter(value -> value.path("in").asText().equals("path")).findFirst().orElseThrow();
+			assertThat(parameter.path("name").asText()).isEqualTo("id");
+			assertThat(parameter.path("description").asText()).contains(
+				List.of("get", "post").contains(method) ? "위시리스트 ID" : "연결 ID");
+		}
+		Set<String> shapes = new HashSet<>();
+		spec.path("paths").fieldNames().forEachRemaining(value ->
+			assertThat(shapes.add(value.replaceAll("\\{[^}]+}", "{}"))).as(value).isTrue());
+	}
+
+	@Test
+	void wishlistJsonRequestsRejectUnsupportedContentTypes() throws Exception {
+		JsonNode spec = specification("client");
+		String lists = "/api/v1/members/wishlists", list = lists + "/{wishlistId}", items = lists + "/accommodations/{id}";
+		var requests = List.of(post(lists), patch(list, 42), post(items, 42), patch(items, 501));
+		String[] paths = {lists, list, items, items};
+		String[] methods = {"post", "patch", "post", "patch"};
+		for (int index = 0; index < requests.size(); index++) {
+			String body = mvc.perform(requests.get(index).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content("{}"))
+				.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths[index], methods[index], "415", "C011", body);
+		}
+		verifyNoInteractions(context.getBean(WishlistService.class));
 	}
 
 	private void allowDocumentationAdmin() {

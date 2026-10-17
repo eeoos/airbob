@@ -8,6 +8,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -50,6 +51,12 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(MissingServletRequestPartException.class)
 	protected ResponseEntity<ApiResponse<?>> handleMissingRequestPart(MissingServletRequestPartException exception) {
 		log.warn("Missing multipart request part: {}", exception.getRequestPartName());
+		return ResponseEntity.badRequest().body(ApiResponse.error(ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE)));
+	}
+
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	protected ResponseEntity<ApiResponse<?>> handleMissingRequestParameter(MissingServletRequestParameterException exception) {
+		log.warn("Missing required request parameter: {}", exception.getParameterName());
 		return ResponseEntity.badRequest().body(ApiResponse.error(ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE)));
 	}
 

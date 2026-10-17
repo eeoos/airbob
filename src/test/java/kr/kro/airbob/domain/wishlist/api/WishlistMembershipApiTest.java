@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
+import kr.kro.airbob.common.exception.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
@@ -41,6 +42,7 @@ class WishlistMembershipApiTest {
 		ObjectMapper objectMapper = new ObjectMapper()
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(new WishlistController(service))
+			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.addFilters(new SessionAuthFilter(redisTemplate, objectMapper))
@@ -85,6 +87,16 @@ class WishlistMembershipApiTest {
 			.andExpect(jsonPath("$.data.target_wishlist_contains").value(nullValue()))
 			.andExpect(jsonPath("$.data.target_wishlist_found").value(false));
 		then(service).should().findMembership(1L, 31L, null);
+	}
+
+	@Test
+	@DisplayName("필수 숙소 ID가 없으면 서버 오류 대신 잘못된 입력으로 응답한다")
+	void missingAccommodationIdReturnsBadRequest() throws Exception {
+		authenticate();
+		mockMvc.perform(get(PATH).cookie(new Cookie("SESSION_ID", "wishlist-test-session")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("C001"));
+		then(service).shouldHaveNoInteractions();
 	}
 
 	private void authenticate() {

@@ -707,18 +707,6 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseCreate:
-      properties:
-        data:
-          $ref: "#/components/schemas/Create"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
     ApiResponseHostSummary:
       properties:
         data:
@@ -775,18 +763,6 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/MemberResponseMeInfo"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
-    ApiResponseMembership:
-      properties:
-        data:
-          $ref: "#/components/schemas/Membership"
         success:
           enum:
           - true
@@ -975,18 +951,6 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseUpdate:
-      properties:
-        data:
-          $ref: "#/components/schemas/Update"
-        success:
-          enum:
-          - true
-          type: "boolean"
-      required:
-      - "data"
-      - "success"
-      type: "object"
     ApiResponseVoid:
       properties:
         success:
@@ -996,10 +960,10 @@ components:
       required:
       - "success"
       type: "object"
-    ApiResponseWishlistAccommodationInfos:
+    ApiResponseWishlistAccommodationResponseCreate:
       properties:
         data:
-          $ref: "#/components/schemas/WishlistAccommodationInfos"
+          $ref: "#/components/schemas/WishlistAccommodationResponseCreate"
         success:
           enum:
           - true
@@ -1008,10 +972,70 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseWishlistInfos:
+    ApiResponseWishlistAccommodationResponseUpdate:
       properties:
         data:
-          $ref: "#/components/schemas/WishlistInfos"
+          $ref: "#/components/schemas/WishlistAccommodationResponseUpdate"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseWishlistAccommodationResponseWishlistAccommodationInfos:
+      properties:
+        data:
+          $ref: "#/components/schemas/WishlistAccommodationResponseWishlistAccommodationInfos"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseWishlistResponseCreate:
+      properties:
+        data:
+          $ref: "#/components/schemas/WishlistResponseCreate"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseWishlistResponseMembership:
+      properties:
+        data:
+          $ref: "#/components/schemas/WishlistResponseMembership"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseWishlistResponseUpdate:
+      properties:
+        data:
+          $ref: "#/components/schemas/WishlistResponseUpdate"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseWishlistResponseWishlistInfos:
+      properties:
+        data:
+          $ref: "#/components/schemas/WishlistResponseWishlistInfos"
         success:
           enum:
           - true
@@ -1244,15 +1268,6 @@ components:
       - "infos"
       - "page_info"
       type: "object"
-    Create:
-      properties:
-        name:
-          maxLength: 255
-          minLength: 0
-          type: "string"
-      required:
-      - "name"
-      type: "object"
     CursorResponsePageInfo:
       properties:
         current_size:
@@ -1471,15 +1486,6 @@ components:
           type:
           - "string"
           - "null"
-      type: "object"
-    Membership:
-      properties:
-        is_in_any_wishlist:
-          type: "boolean"
-        target_wishlist_contains:
-          type: "boolean"
-        target_wishlist_found:
-          type: "boolean"
       type: "object"
     PageInfo:
       properties:
@@ -2796,74 +2802,236 @@ components:
           - "PAID"
           type: "string"
       type: "object"
-    Update:
+    WishlistAccommodationRequestCreate:
+      properties:
+        accommodation_id:
+          description: "추가할 공개 숙소 ID"
+          example: 101
+          format: "int64"
+          type: "integer"
+      required:
+      - "accommodation_id"
+      type: "object"
+    WishlistAccommodationRequestUpdate:
+      properties:
+        memo:
+          description: "저장한 숙소의 메모. 필수이며 null·빈 문자열·공백만으로 지울 수 없습니다. 길이는 UTF-16 코드 단위 기준입니다."
+          example: "역에서 가까운 숙소"
+          maxLength: 1024
+          minLength: 1
+          type: "string"
+      required:
+      - "memo"
+      type: "object"
+    WishlistAccommodationResponseCreate:
+      properties:
+        id:
+          description: "저장된 숙소 연결 ID(wishlistAccommodationId). 메모 수정·숙소 삭제에 사용하며 숙소 ID나 목록 ID와 다릅니다."
+          example: 501
+          format: "int64"
+          type: "integer"
+      required:
+      - "id"
+      type: "object"
+    WishlistAccommodationResponseUpdate:
+      properties:
+        id:
+          description: "저장된 숙소 연결 ID(wishlistAccommodationId). 메모 수정·숙소 삭제에 사용하며 숙소 ID나 목록 ID와 다릅니다."
+          example: 501
+          format: "int64"
+          type: "integer"
+      required:
+      - "id"
+      type: "object"
+    WishlistAccommodationResponseWishlistAccommodationInfo:
+      properties:
+        accommodation:
+          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
+          description: "숙소의 현재 ID·이름·썸네일"
+        address_summary:
+          $ref: "#/components/schemas/AddressResponseAddressSummaryInfo"
+          description: "숙소의 현재 주소 요약"
+        created_at:
+          description: "숙소를 목록에 추가한 UTC 시각. 메모 수정 시 바뀌지 않으며 과거 데이터는 null일 수 있습니다."
+          example: "2027-01-10T02:00:00Z"
+          format: "date-time"
+          type:
+          - "string"
+          - "null"
+        is_in_wishlist:
+          description: "이 목록에 저장된 항목이므로 항상 true"
+          example: true
+          type: "boolean"
+        memo:
+          description: "저장한 메모. 최초 추가 시 null"
+          example: "역에서 가까운 숙소"
+          type:
+          - "string"
+          - "null"
+        review_summary:
+          $ref: "#/components/schemas/ReviewResponseReviewSummary"
+          description: "현재 게시된 리뷰의 수와 평균 평점. 없으면 0건·0점"
+        wishlist_accommodation_id:
+          description: "숙소 연결 ID. 메모 수정·숙소 삭제의 wishlistAccommodationId"
+          example: 501
+          format: "int64"
+          type: "integer"
+      required:
+      - "accommodation"
+      - "address_summary"
+      - "created_at"
+      - "is_in_wishlist"
+      - "memo"
+      - "review_summary"
+      - "wishlist_accommodation_id"
+      type: "object"
+    WishlistAccommodationResponseWishlistAccommodationInfos:
+      properties:
+        page_info:
+          $ref: "#/components/schemas/CursorResponsePageInfo"
+          description: "다음 페이지 여부·커서·현재 숙소 수"
+        wishlist_accommodations:
+          description: "현재 공개된 숙소만 추가 시각·연결 ID 내림차순으로 반환합니다. 없으면 빈 배열"
+          items:
+            $ref: "#/components/schemas/WishlistAccommodationResponseWishlistAccommodationInfo"
+          type: "array"
+        wishlist_name:
+          description: "현재 위시리스트 이름. 빈 목록에서도 반환합니다."
+          example: "서울 여행"
+          type: "string"
+      required:
+      - "page_info"
+      - "wishlist_accommodations"
+      - "wishlist_name"
+      type: "object"
+    WishlistRequestCreate:
       properties:
         name:
+          description: "위시리스트 이름. 공백만 사용할 수 없으며 같은 이름의 목록도 허용합니다. 길이는 UTF-16 코드 단위 기준입니다."
+          example: "서울 여행"
           maxLength: 255
-          minLength: 0
+          minLength: 1
           type: "string"
       required:
       - "name"
       type: "object"
-    WishlistAccommodationInfo:
+    WishlistRequestUpdate:
       properties:
-        accommodation:
-          $ref: "#/components/schemas/AccommodationResponseAccommodationBasicInfo"
-        address_summary:
-          $ref: "#/components/schemas/AddressResponseAddressSummaryInfo"
-        created_at:
-          format: "date-time"
+        name:
+          description: "위시리스트 이름. 공백만 사용할 수 없으며 같은 이름의 목록도 허용합니다. 길이는 UTF-16 코드 단위 기준입니다."
+          example: "서울 여행"
+          maxLength: 255
+          minLength: 1
           type: "string"
-        is_in_wishlist:
-          type: "boolean"
-        memo:
-          type: "string"
-        review_summary:
-          $ref: "#/components/schemas/ReviewResponseReviewSummary"
-        wishlist_accommodation_id:
+      required:
+      - "name"
+      type: "object"
+    WishlistResponseCreate:
+      properties:
+        id:
+          description: "위시리스트 ID. 목록 수정·삭제·숙소 추가·상세 조회의 wishlistId"
+          example: 42
           format: "int64"
           type: "integer"
+      required:
+      - "id"
       type: "object"
-    WishlistAccommodationInfos:
+    WishlistResponseMembership:
       properties:
-        page_info:
-          $ref: "#/components/schemas/CursorResponsePageInfo"
-        wishlist_accommodations:
-          items:
-            $ref: "#/components/schemas/WishlistAccommodationInfo"
-          type: "array"
-        wishlist_name:
-          type: "string"
+        is_in_any_wishlist:
+          description: "본인의 활성 목록 중 하나라도 숙소를 포함하는지 여부. 숙소의 공개 상태와 무관합니다."
+          example: true
+          type: "boolean"
+        target_wishlist_contains:
+          description: "지정한 본인 목록의 포함 여부. wishlistId 생략·없음·삭제·타인 소유이면 null"
+          example: false
+          type:
+          - "boolean"
+          - "null"
+        target_wishlist_found:
+          description: "wishlistId가 본인의 활성 목록인지 여부. 생략 시 false"
+          example: true
+          type: "boolean"
+      required:
+      - "is_in_any_wishlist"
+      - "target_wishlist_contains"
+      - "target_wishlist_found"
       type: "object"
-    WishlistInfo:
+    WishlistResponseUpdate:
+      properties:
+        id:
+          description: "이름을 변경한 위시리스트 ID"
+          example: 42
+          format: "int64"
+          type: "integer"
+      required:
+      - "id"
+      type: "object"
+    WishlistResponseWishlistInfo:
       properties:
         created_at:
+          description: "목록을 생성한 UTC 시각. 과거 데이터는 null일 수 있습니다."
+          example: "2027-01-10T02:00:00Z"
           format: "date-time"
-          type: "string"
+          type:
+          - "string"
+          - "null"
         id:
+          description: "위시리스트 ID"
+          example: 42
           format: "int64"
           type: "integer"
         is_contained:
-          type: "boolean"
+          description: "accommodationId로 지정한 숙소가 이 목록에 있는지 여부. 조회값 생략 시 null"
+          example: true
+          type:
+          - "boolean"
+          - "null"
         name:
+          description: "현재 위시리스트 이름"
+          example: "서울 여행"
           type: "string"
         thumbnail_image_url:
-          type: "string"
+          description: "가장 최근 추가한 대표 숙소의 현재 썸네일. 대표나 사진이 없으면 null이며 숙소의 공개 상태는 확인하지 않습니다."
+          example: "https://example.invalid/stay.jpg"
+          type:
+          - "string"
+          - "null"
         wishlist_accommodation_id:
+          description: "해당 숙소의 연결 ID. 메모 수정·숙소 삭제에 사용합니다. accommodationId 생략 또는 미포함이면 null"
+          example: 501
           format: "int64"
-          type: "integer"
+          type:
+          - "integer"
+          - "null"
         wishlist_item_count:
+          description: "저장한 전체 숙소 수. 비공개 숙소도 포함하므로 상세 목록의 표시 개수와 다를 수 있습니다."
+          example: 2
           format: "int64"
+          minimum: 0
           type: "integer"
+      required:
+      - "created_at"
+      - "id"
+      - "is_contained"
+      - "name"
+      - "thumbnail_image_url"
+      - "wishlist_accommodation_id"
+      - "wishlist_item_count"
       type: "object"
-    WishlistInfos:
+    WishlistResponseWishlistInfos:
       properties:
         page_info:
           $ref: "#/components/schemas/CursorResponsePageInfo"
+          description: "다음 페이지 여부·커서·현재 목록 수"
         wishlists:
+          description: "생성 시각·목록 ID 내림차순의 활성 목록. 없으면 빈 배열"
           items:
-            $ref: "#/components/schemas/WishlistInfo"
+            $ref: "#/components/schemas/WishlistResponseWishlistInfo"
           type: "array"
+      required:
+      - "page_info"
+      - "wishlists"
       type: "object"
   securitySchemes:
     sessionCookie:
@@ -4843,9 +5011,12 @@ paths:
       - "recently-viewed-controller"
   /api/v1/members/wishlists:
     get:
-      operationId: "findWishlists"
+      description: "본인의 활성 위시리스트를 생성 시각·목록 ID 내림차순으로 조회합니다. 기본 20개, 최대 50개입니다. accommodationId는 목록 필터가 아니라 각 목록의 저장 여부와 연결 ID를 함께 받기 위한 선택값입니다. 생략하면 is_contained와 wishlist_accommodation_id는 null입니다. 숙소 수·대표 사진·저장 여부에는 비공개 숙소도 포함되므로 공개 숙소만 반환하는 상세 목록과 개수가 다를 수 있습니다."
+      operationId: "Wishlist.findWishlists"
       parameters:
-      - in: "query"
+      - description: "각 목록의 저장 여부를 확인할 숙소 ID. 목록을 필터링하지 않습니다."
+        example: 101
+        in: "query"
         name: "accommodationId"
         required: false
         schema:
@@ -4872,12 +5043,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseWishlistInfos"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseWishlistResponseWishlistInfos"
+          description: "성공"
         "400":
           content:
             application/json:
               examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
                 C006:
                   summary: "유효하지 않은 커서 페이지 크기입니다."
                   value:
@@ -4933,23 +5113,41 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "내 위시리스트 조회"
       tags:
-      - "wishlist-controller"
+      - "위시리스트"
     post:
-      operationId: "createWishlist"
+      description: "현재 활성 회원의 빈 위시리스트를 생성합니다. 이름은 필수이며 공백만 사용할 수 없고 최대 255자입니다. 같은 이름의 목록도 생성할 수 있습니다. 응답 id는 wishlistId입니다."
+      operationId: "Wishlist.createWishlist"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Create"
+              $ref: "#/components/schemas/WishlistRequestCreate"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseCreate"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseWishlistResponseCreate"
+          description: "생성 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -4962,6 +5160,38 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                M001:
+                  summary: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                  value:
+                    error:
+                      code: "M001"
+                      errors: []
+                      message: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -4984,14 +5214,18 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "위시리스트 생성"
       tags:
-      - "wishlist-controller"
-  /api/v1/members/wishlists/accommodations/{wishlistAccommodationId}:
+      - "위시리스트"
+  /api/v1/members/wishlists/accommodations/{id}:
     delete:
-      operationId: "deleteWishlistAccommodation"
+      description: "본인의 활성 위시리스트에서 숙소 연결과 메모를 삭제합니다. 저장 후 숙소가 비공개가 되어도 삭제할 수 있습니다. 대표 숙소를 삭제하면 남은 항목 중 추가 시각·연결 ID가 가장 큰 숙소를 대표로 선택합니다. 없거나 이미 삭제됐거나 다른 회원의 항목은 403/W005입니다."
+      operationId: "Wishlist.deleteWishlistAccommodation"
       parameters:
-      - in: "path"
-        name: "wishlistAccommodationId"
+      - description: "숙소 추가 응답의 연결 ID(wishlistAccommodationId)"
+        example: 501
+        in: "path"
+        name: "id"
         required: true
         schema:
           format: "int64"
@@ -5002,7 +5236,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5015,6 +5265,22 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                W005:
+                  summary: "위시리스트 항목에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "W005"
+                      errors: []
+                      message: "위시리스트 항목에 대한 접근 권한이 없습니다."
+                      status: 403
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5037,72 +5303,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "위시리스트에서 숙소 삭제"
       tags:
-      - "wishlist-controller"
-    patch:
-      operationId: "updateWishlistAccommodation"
-      parameters:
-      - in: "path"
-        name: "wishlistAccommodationId"
-        required: true
-        schema:
-          format: "int64"
-          type: "integer"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Update"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponseUpdate"
-          description: "OK"
-        "401":
-          content:
-            application/json:
-              examples:
-                M004:
-                  summary: "인증이 필요합니다."
-                  value:
-                    error:
-                      code: "M004"
-                      errors: []
-                      message: "인증이 필요합니다."
-                      status: 401
-                    success: false
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
-        "500":
-          content:
-            application/json:
-              examples:
-                C003:
-                  summary: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
-                  value:
-                    error:
-                      code: "C003"
-                      errors: []
-                      message: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
-                      status: 500
-                    success: false
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
-      security:
-      - sessionCookie: []
-      tags:
-      - "wishlist-controller"
-  /api/v1/members/wishlists/accommodations/{wishlistId}:
+      - "위시리스트"
     get:
-      operationId: "findWishlistAccommodations"
+      description: "본인의 활성 위시리스트에서 현재 공개된 숙소를 추가 시각·연결 ID 내림차순으로 조회합니다. 기본 20개, 최대 50개입니다. 비공개 숙소는 제외하며 비어 있어도 wishlist_name과 빈 배열을 반환합니다. 숙소·주소·리뷰 요약은 현재 값이고 리뷰가 없으면 0건·0점입니다. is_in_wishlist는 항상 true입니다. 없거나 삭제된 목록은 404/W001, 다른 회원의 목록은 403/W002입니다."
+      operationId: "Wishlist.findWishlistAccommodations"
       parameters:
-      - in: "path"
-        name: "wishlistId"
+      - description: "위시리스트 ID"
+        example: 42
+        in: "path"
+        name: "id"
         required: true
         schema:
           format: "int64"
@@ -5128,12 +5339,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseWishlistAccommodationInfos"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseWishlistAccommodationResponseWishlistAccommodationInfos"
+          description: "성공"
         "400":
           content:
             application/json:
               examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
                 C006:
                   summary: "유효하지 않은 커서 페이지 크기입니다."
                   value:
@@ -5171,6 +5391,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                W002:
+                  summary: "위시리스트에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "W002"
+                      errors: []
+                      message: "위시리스트에 대한 접근 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                W001:
+                  summary: "존재하지 않는 위시리스트입니다."
+                  value:
+                    error:
+                      code: "W001"
+                      errors: []
+                      message: "존재하지 않는 위시리스트입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -5189,13 +5441,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "위시리스트 숙소 조회"
       tags:
-      - "wishlist-controller"
-    post:
-      operationId: "createWishlistAccommodation"
+      - "위시리스트"
+    patch:
+      description: "본인의 활성 위시리스트에 저장된 항목의 메모를 변경합니다. memo는 필수이며 공백만 사용할 수 없고 최대 1,024자입니다. null·빈 문자열로 메모를 지울 수 없습니다. 저장 후 숙소가 비공개가 되어도 수정할 수 있습니다. 없거나 다른 회원의 항목은 403/W005입니다."
+      operationId: "Wishlist.updateWishlistAccommodation"
       parameters:
-      - in: "path"
-        name: "wishlistId"
+      - description: "숙소 추가 응답의 연결 ID(wishlistAccommodationId)"
+        example: 501
+        in: "path"
+        name: "id"
         required: true
         schema:
           format: "int64"
@@ -5204,15 +5460,40 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Create"
+              $ref: "#/components/schemas/WishlistAccommodationRequestUpdate"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseCreate"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseWishlistAccommodationResponseUpdate"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5229,6 +5510,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                W005:
+                  summary: "위시리스트 항목에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "W005"
+                      errors: []
+                      message: "위시리스트 항목에 대한 접근 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -5247,19 +5560,185 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "저장한 숙소 메모 변경"
       tags:
-      - "wishlist-controller"
+      - "위시리스트"
+    post:
+      description: "본인의 활성 위시리스트에 현재 공개된 숙소를 추가하고 대표 썸네일 대상으로 설정합니다. 같은 목록에 이미 저장된 숙소는 동시 요청도 409/W004로 거절합니다. 다른 목록에는 같은 숙소를 저장할 수 있습니다. 성공은 200이며 응답 id는 숙소 ID나 목록 ID가 아닌 wishlistAccommodationId입니다. 메모의 초기값은 null입니다."
+      operationId: "Wishlist.createWishlistAccommodation"
+      parameters:
+      - description: "위시리스트 ID"
+        example: 42
+        in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "int64"
+          type: "integer"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WishlistAccommodationRequestCreate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseWishlistAccommodationResponseCreate"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "401":
+          content:
+            application/json:
+              examples:
+                M004:
+                  summary: "인증이 필요합니다."
+                  value:
+                    error:
+                      code: "M004"
+                      errors: []
+                      message: "인증이 필요합니다."
+                      status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                W002:
+                  summary: "위시리스트에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "W002"
+                      errors: []
+                      message: "위시리스트에 대한 접근 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                A001:
+                  summary: "존재하지 않거나 삭제된 숙소입니다."
+                  value:
+                    error:
+                      code: "A001"
+                      errors: []
+                      message: "존재하지 않거나 삭제된 숙소입니다."
+                      status: 404
+                    success: false
+                W001:
+                  summary: "존재하지 않는 위시리스트입니다."
+                  value:
+                    error:
+                      code: "W001"
+                      errors: []
+                      message: "존재하지 않는 위시리스트입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                W004:
+                  summary: "이미 위시리스트에 추가된 숙소입니다."
+                  value:
+                    error:
+                      code: "W004"
+                      errors: []
+                      message: "이미 위시리스트에 추가된 숙소입니다."
+                      status: 409
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "500":
+          content:
+            application/json:
+              examples:
+                C003:
+                  summary: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
+                  value:
+                    error:
+                      code: "C003"
+                      errors: []
+                      message: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
+                      status: 500
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+      security:
+      - sessionCookie: []
+      summary: "위시리스트에 숙소 추가"
+      tags:
+      - "위시리스트"
   /api/v1/members/wishlists/membership:
     get:
-      operationId: "findMembership"
+      description: "accommodationId는 필수입니다. 본인의 활성 위시리스트 중 하나라도 해당 숙소를 포함하면 is_in_any_wishlist가 true입니다. 숙소의 현재 공개 상태는 확인하지 않습니다. wishlistId를 생략하거나 본인의 활성 목록이 아니면 target_wishlist_found=false, target_wishlist_contains=null입니다. 유효한 본인 목록이면 found=true와 실제 포함 여부를 반환합니다. 없는 숙소나 목록도 조회 결과로 처리하며 404를 반환하지 않습니다."
+      operationId: "Wishlist.findMembership"
       parameters:
-      - in: "query"
+      - description: "저장 여부를 확인할 숙소 ID"
+        example: 101
+        in: "query"
         name: "accommodationId"
         required: true
         schema:
           format: "int64"
           type: "integer"
-      - in: "query"
+      - description: "특정 목록의 저장 여부도 확인할 때 지정하는 목록 ID"
+        example: 42
+        in: "query"
         name: "wishlistId"
         required: false
         schema:
@@ -5270,8 +5749,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseMembership"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseWishlistResponseMembership"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5306,13 +5810,17 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "숙소 저장 여부 조회"
       tags:
-      - "wishlist-controller"
+      - "위시리스트"
   /api/v1/members/wishlists/{wishlistId}:
     delete:
-      operationId: "deleteWishlist"
+      description: "본인의 활성 위시리스트를 삭제 상태로 바꾸고 저장된 숙소 연결과 메모를 모두 삭제합니다. 숙소 자체는 삭제하지 않습니다. 없거나 이미 삭제된 목록은 404/W001, 다른 회원의 목록은 403/W002입니다."
+      operationId: "Wishlist.deleteWishlist"
       parameters:
-      - in: "path"
+      - description: "위시리스트 ID"
+        example: 42
+        in: "path"
         name: "wishlistId"
         required: true
         schema:
@@ -5324,7 +5832,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5337,6 +5861,38 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                W002:
+                  summary: "위시리스트에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "W002"
+                      errors: []
+                      message: "위시리스트에 대한 접근 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                W001:
+                  summary: "존재하지 않는 위시리스트입니다."
+                  value:
+                    error:
+                      code: "W001"
+                      errors: []
+                      message: "존재하지 않는 위시리스트입니다."
+                      status: 404
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5359,12 +5915,16 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "위시리스트 삭제"
       tags:
-      - "wishlist-controller"
+      - "위시리스트"
     patch:
-      operationId: "updateWishlist"
+      description: "본인의 활성 위시리스트 이름을 변경합니다. 이름은 필수이며 공백만 사용할 수 없고 최대 255자입니다. 없거나 삭제된 목록은 404/W001, 다른 회원의 목록은 403/W002입니다."
+      operationId: "Wishlist.updateWishlist"
       parameters:
-      - in: "path"
+      - description: "위시리스트 ID"
+        example: 42
+        in: "path"
         name: "wishlistId"
         required: true
         schema:
@@ -5374,15 +5934,40 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Update"
+              $ref: "#/components/schemas/WishlistRequestUpdate"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseUpdate"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseWishlistResponseUpdate"
+          description: "성공"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -5395,6 +5980,54 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                W002:
+                  summary: "위시리스트에 대한 접근 권한이 없습니다."
+                  value:
+                    error:
+                      code: "W002"
+                      errors: []
+                      message: "위시리스트에 대한 접근 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                W001:
+                  summary: "존재하지 않는 위시리스트입니다."
+                  value:
+                    error:
+                      code: "W001"
+                      errors: []
+                      message: "존재하지 않는 위시리스트입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -5417,8 +6050,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "위시리스트 이름 변경"
       tags:
-      - "wishlist-controller"
+      - "위시리스트"
   /api/v1/payment-operations/{operationId}:
     get:
       description: "작업을 요청한 회원 본인의 결제 승인 또는 취소 결과를 조회합니다. operationId는 승인 접수 응답의 operation_id 또는 취소 응답 Location에 포함된 UUID입니다.\nPENDING·PROCESSING은 진행 중, SUCCEEDED는 해당 승인 또는 취소 성공, FAILED는 최종 실패, REQUIRES_REVIEW는 운영자 확인 필요 상태입니다.\n\nnext_action을 우선합니다. POLL이면 retry_after_seconds(2~30초) 후 다시 조회하고, START_NEW_CHECKOUT이면 새 견적부터 진행합니다.\nRETRY_CANCELLATION이면 취소를 재요청하고, CONTACT_SUPPORT이면 user_message와 문의 안내를 표시하며, NONE이면 예약 상세를 확인합니다.\nREQUIRES_REVIEW에서도 retry_after_seconds=30이지만 승인·취소 요청을 자동으로 다시 보내지 않습니다.\n현재 예약 상태와 체크인 시각에 따라 next_action이 달라질 수 있으므로 status만으로 다음 행동을 고정하지 않습니다.\n"
