@@ -67,7 +67,7 @@ class ReviewServiceTest {
 	@Test
 	@DisplayName("숙소가 비공개로 바뀌면 후기 작성과 집계 변경을 거부한다")
 	void rejectCreationWhenAccommodationIsNoLongerPublished() {
-		when(memberRepository.findByIdAndStatus(2L, MemberStatus.ACTIVE))
+		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
 			.thenReturn(Optional.of(member()));
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.empty());
@@ -82,7 +82,7 @@ class ReviewServiceTest {
 	@DisplayName("작성 시점에도 본인의 체크아웃 완료 예약이 있어야 한다")
 	void recheckCompletedStayBeforeCreatingReview() {
 		Instant now = Instant.parse("2030-01-01T00:00:00Z");
-		when(memberRepository.findByIdAndStatus(2L, MemberStatus.ACTIVE))
+		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
 			.thenReturn(Optional.of(member()));
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation()));
@@ -98,7 +98,7 @@ class ReviewServiceTest {
 	@DisplayName("조회 이후 게시된 후기가 생겼으면 실제 작성 시 중복을 거부한다")
 	void recheckPublishedReviewBeforeCreatingReview() {
 		Instant now = Instant.parse("2030-01-01T00:00:00Z");
-		when(memberRepository.findByIdAndStatus(2L, MemberStatus.ACTIVE))
+		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
 			.thenReturn(Optional.of(member()));
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation()));
@@ -119,7 +119,7 @@ class ReviewServiceTest {
 		Accommodation accommodation = accommodation();
 		Member author = member();
 		Review savedReview = review(10L, 5, accommodation, author);
-		when(memberRepository.findByIdAndStatus(2L, MemberStatus.ACTIVE))
+		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
 			.thenReturn(Optional.of(author));
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation));
@@ -143,7 +143,7 @@ class ReviewServiceTest {
 	@DisplayName("리뷰 평점을 변경하면 숙소 상세 캐시를 무효화한다")
 	void invalidateDetailCacheWhenReviewRatingChanges() {
 		Review review = review(10L, 3, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
+		when(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).thenReturn(Optional.of(review));
 
 		reviewService.updateReviewContent(10L, new ReviewRequest.Update("수정한 내용", 5), 2L);
 
@@ -160,7 +160,7 @@ class ReviewServiceTest {
 	@DisplayName("내용만 바꾸거나 같은 평점을 보내면 숙소 상세 캐시를 무효화하지 않는다")
 	void keepDetailCacheWhenReviewRatingDoesNotChange(Integer requestedRating) {
 		Review review = review(10L, 3, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
+		when(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).thenReturn(Optional.of(review));
 
 		reviewService.updateReviewContent(
 			10L, new ReviewRequest.Update("수정한 내용", requestedRating), 2L);
@@ -174,7 +174,7 @@ class ReviewServiceTest {
 	@DisplayName("리뷰를 삭제하면 숙소 상세 캐시를 무효화한다")
 	void invalidateDetailCacheWhenReviewIsDeleted() {
 		Review review = review(10L, 4, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
+		when(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).thenReturn(Optional.of(review));
 
 		reviewService.deleteReview(10L, 2L);
 
@@ -220,6 +220,18 @@ class ReviewServiceTest {
 		reviewService.deleteReviewImage(10L, 20L, 2L);
 
 		verifyNoInteractions(cacheInvalidationPublisher);
+	}
+
+	@Test
+	@DisplayName("뒤쪽 파일이 유효하지 않으면 앞쪽 파일도 저장소에 업로드하지 않는다")
+	void validatesEveryFileBeforeUploadingAnyFile() throws IOException {
+		Review review = review(10L, 4, accommodation(), member());
+		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
+		var valid = new MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
+		var invalid = new MockMultipartFile("images", "invalid.txt", "text/plain", new byte[] {1});
+		assertThatThrownBy(() -> reviewService.uploadReviewImages(10L, List.of(valid, invalid), 2L))
+			.isInstanceOf(kr.kro.airbob.domain.image.exception.InvalidImageFormatException.class);
+		verifyNoInteractions(s3ImageUploader, reviewImageRepository);
 	}
 
 	private Accommodation accommodation() {

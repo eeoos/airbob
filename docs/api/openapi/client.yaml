@@ -166,7 +166,7 @@ components:
         policy:
           $ref: "#/components/schemas/PolicyResponsePolicyInfo"
         review_summary:
-          $ref: "#/components/schemas/ReviewSummary"
+          $ref: "#/components/schemas/ReviewResponseReviewSummary"
         time_zone_id:
           description: "주소에서 계산한 IANA 시간대"
           example: "Asia/Seoul"
@@ -294,7 +294,7 @@ components:
         is_in_wishlist:
           type: "boolean"
         review_summary:
-          $ref: "#/components/schemas/ReviewSummary"
+          $ref: "#/components/schemas/ReviewResponseReviewSummary"
         thumbnail_url:
           type:
           - "string"
@@ -350,7 +350,7 @@ components:
         name:
           type: "string"
         review_summary:
-          $ref: "#/components/schemas/ReviewSummary"
+          $ref: "#/components/schemas/ReviewResponseReviewSummary"
         type:
           type: "string"
       type: "object"
@@ -927,10 +927,34 @@ components:
       - "data"
       - "success"
       type: "object"
-    ApiResponseReviewInfos:
+    ApiResponseReviewResponseCreate:
       properties:
         data:
-          $ref: "#/components/schemas/ReviewInfos"
+          $ref: "#/components/schemas/ReviewResponseCreate"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReviewResponseReviewInfos:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReviewResponseReviewInfos"
+        success:
+          enum:
+          - true
+          type: "boolean"
+      required:
+      - "data"
+      - "success"
+      type: "object"
+    ApiResponseReviewResponseUpdate:
+      properties:
+        data:
+          $ref: "#/components/schemas/ReviewResponseUpdate"
         success:
           enum:
           - true
@@ -2594,42 +2618,142 @@ components:
       - "status"
       - "subtotal"
       type: "object"
-    ReviewInfo:
+    ReviewRequestCreate:
       properties:
         content:
+          description: "리뷰 본문. 작성·수정 모두 필수이며 빈 값·공백만 있는 값 불가. 최대 1024자(이모지 등 일부 문자는 2자로 계산)"
+          example: "숙소가 깨끗하고 교통이 편리했어요."
+          maxLength: 1024
+          minLength: 1
           type: "string"
+        rating:
+          description: "1~5의 정수 평점"
+          example: 5
+          format: "int32"
+          maximum: 5
+          minimum: 1
+          type: "integer"
+      required:
+      - "content"
+      - "rating"
+      type: "object"
+    ReviewRequestUpdate:
+      description: "본문은 필수, 평점은 생략·null이면 유지"
+      example:
+        content: "수정한 리뷰 내용입니다."
+      properties:
+        content:
+          description: "리뷰 본문. 작성·수정 모두 필수이며 빈 값·공백만 있는 값 불가. 최대 1024자(이모지 등 일부 문자는 2자로 계산)"
+          example: "숙소가 깨끗하고 교통이 편리했어요."
+          maxLength: 1024
+          minLength: 1
+          type: "string"
+        rating:
+          description: "변경할 평점. 생략·null이면 기존 평점 유지"
+          example: 4
+          format: "int32"
+          maximum: 5
+          minimum: 1
+          type:
+          - "integer"
+          - "null"
+      required:
+      - "content"
+      type: "object"
+    ReviewResponseCreate:
+      properties:
         id:
+          description: "리뷰 ID. 수정·삭제·이미지 API의 reviewId"
+          example: 201
+          format: "int64"
+          type: "integer"
+      required:
+      - "id"
+      type: "object"
+    ReviewResponseReviewInfo:
+      properties:
+        content:
+          description: "현재 리뷰 본문. 과거 데이터는 null일 수 있습니다."
+          example: "숙소가 깨끗하고 교통이 편리했어요."
+          type:
+          - "string"
+          - "null"
+        id:
+          description: "리뷰 ID"
+          example: 201
           format: "int64"
           type: "integer"
         images:
+          description: "첨부 이미지. 없으면 빈 배열이며 표시 순서는 보장하지 않습니다."
           items:
             $ref: "#/components/schemas/ImageResponseImageInfo"
           type: "array"
         rating:
+          description: "현재 평점"
+          example: 5
           format: "int32"
+          maximum: 5
+          minimum: 1
           type: "integer"
         reviewed_at:
+          description: "최초 작성 UTC 시각. 수정 시 바뀌지 않으며 과거 데이터는 null일 수 있습니다."
+          example: "2027-01-10T02:00:00Z"
           format: "date-time"
-          type: "string"
+          type:
+          - "string"
+          - "null"
         reviewer:
           $ref: "#/components/schemas/MemberResponseMemberInfo"
+          description: "작성자의 현재 ID·닉네임·프로필 이미지"
+      required:
+      - "content"
+      - "id"
+      - "images"
+      - "rating"
+      - "reviewed_at"
+      - "reviewer"
       type: "object"
-    ReviewInfos:
+    ReviewResponseReviewInfos:
       properties:
         page_info:
           $ref: "#/components/schemas/CursorResponsePageInfo"
+          description: "다음 페이지 여부·커서·현재 항목 수"
         reviews:
+          description: "현재 페이지의 게시된 리뷰. 없으면 빈 배열"
           items:
-            $ref: "#/components/schemas/ReviewInfo"
+            $ref: "#/components/schemas/ReviewResponseReviewInfo"
           type: "array"
+      required:
+      - "page_info"
+      - "reviews"
       type: "object"
-    ReviewSummary:
+    ReviewResponseReviewSummary:
       properties:
         average_rating:
+          description: "게시된 리뷰의 평균 평점. 소수 둘째 자리까지 반올림하며 리뷰가 없으면 0"
+          example: 4.5
+          maximum: 5
+          minimum: 0
           type: "number"
         total_count:
+          description: "게시된 리뷰 수. 없으면 0"
+          example: 2
           format: "int32"
+          minimum: 0
           type: "integer"
+      required:
+      - "average_rating"
+      - "total_count"
+      type: "object"
+    ReviewResponseUpdate:
+      properties:
+        id:
+          description: "리뷰 ID. 수정·삭제·이미지 API의 reviewId"
+          example: 201
+          format: "int64"
+          type: "integer"
+      required:
+      - "id"
       type: "object"
     SettlementDetail:
       properties:
@@ -2674,17 +2798,12 @@ components:
       type: "object"
     Update:
       properties:
-        content:
-          maxLength: 1024
+        name:
+          maxLength: 255
           minLength: 0
           type: "string"
-        rating:
-          format: "int32"
-          maximum: 5
-          minimum: 1
-          type: "integer"
       required:
-      - "content"
+      - "name"
       type: "object"
     WishlistAccommodationInfo:
       properties:
@@ -2700,7 +2819,7 @@ components:
         memo:
           type: "string"
         review_summary:
-          $ref: "#/components/schemas/ReviewSummary"
+          $ref: "#/components/schemas/ReviewResponseReviewSummary"
         wishlist_accommodation_id:
           format: "int64"
           type: "integer"
@@ -3581,15 +3700,19 @@ paths:
       - "숙소"
   /api/v1/accommodations/{accommodationId}/reviews:
     get:
-      operationId: "findReviews"
+      description: "로그인 없이 숙소의 게시된 리뷰를 조회합니다. 삭제·숨김 리뷰는 제외합니다. 숙소의 현재 게시 상태나 존재 여부는 별도로 확인하지 않으며 결과가 없으면 200과 빈 reviews를 반환합니다.\nLATEST는 작성 시각 내림차순, HIGHEST_RATING은 높은 평점순, LOWEST_RATING은 낮은 평점순입니다.\n평점 동률에서는 작성 시각 내림차순, 작성 시각까지 같으면 리뷰 ID 내림차순입니다.\n\ncursor와 size(기본 20, 1~50)를 사용합니다. 다음 페이지는 page_info.next_cursor를 그대로 전달하며 숙소·정렬을 바꾸면 커서를 생략합니다.\n조회 사이에 리뷰 작성·수정·삭제가 있으면 목록과 정렬 위치가 바뀔 수 있습니다. reviewed_at은 최초 작성 시각(UTC)이며 이미지 표시 순서는 보장하지 않습니다.\n"
+      operationId: "Review.findReviews"
       parameters:
-      - in: "path"
+      - description: "조회할 숙소 ID"
+        example: 101
+        in: "path"
         name: "accommodationId"
         required: true
         schema:
           format: "int64"
           type: "integer"
-      - in: "query"
+      - description: "정렬 방식. 정렬을 바꾸면 cursor를 초기화합니다."
+        in: "query"
         name: "sortType"
         required: false
         schema:
@@ -3620,12 +3743,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseReviewInfos"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReviewResponseReviewInfos"
+          description: "리뷰 목록. 결과가 없으면 reviews는 빈 배열입니다."
         "400":
           content:
             application/json:
               examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
                 C006:
                   summary: "유효하지 않은 커서 페이지 크기입니다."
                   value:
@@ -3664,12 +3796,16 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security: []
+      summary: "숙소 리뷰 조회"
       tags:
-      - "review-controller"
+      - "리뷰"
     post:
-      operationId: "createReview"
+      description: "로그인한 활성 회원이 현재 게시된 숙소에 리뷰를 작성합니다. 해당 숙소에 본인의 CONFIRMED 또는 CANCELLATION_FAILED 예약이 있고\n체크아웃 시각에 도달했어야 합니다. 조건 미충족은 403/V003입니다. reservation_uid나 회원 ID는 입력하지 않습니다.\n\n숙소별로 본인의 게시된 리뷰가 이미 있으면 409/V004입니다. 삭제·숨김 상태의 리뷰는 중복 검사에서 제외됩니다.\n본문과 1~5의 정수 평점은 필수입니다. 성공 시 data.id를 반환하며, 이미지는 생성 후 별도 이미지 API로 추가합니다.\n숙소가 없거나 게시 상태가 아니면 404/A001, 활성 회원을 찾지 못하면 404/M001입니다.\n"
+      operationId: "Review.createReview"
       parameters:
-      - in: "path"
+      - description: "리뷰를 작성할 숙소 ID"
+        example: 101
+        in: "path"
         name: "accommodationId"
         required: true
         schema:
@@ -3679,15 +3815,40 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Create"
+              $ref: "#/components/schemas/ReviewRequestCreate"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseCreate"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReviewResponseCreate"
+          description: "리뷰 생성 완료. data.id는 리뷰 ID입니다."
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -3700,6 +3861,79 @@ paths:
                       errors: []
                       message: "인증이 필요합니다."
                       status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                V003:
+                  summary: "리뷰를 작성할 권한이 없습니다."
+                  value:
+                    error:
+                      code: "V003"
+                      errors: []
+                      message: "리뷰를 작성할 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                A001:
+                  summary: "존재하지 않거나 삭제된 숙소입니다."
+                  value:
+                    error:
+                      code: "A001"
+                      errors: []
+                      message: "존재하지 않거나 삭제된 숙소입니다."
+                      status: 404
+                    success: false
+                M001:
+                  summary: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                  value:
+                    error:
+                      code: "M001"
+                      errors: []
+                      message: "존재하지 않거나 활성 상태가 아닌 사용자입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "409":
+          content:
+            application/json:
+              examples:
+                V004:
+                  summary: "이미 리뷰를 작성했습니다."
+                  value:
+                    error:
+                      code: "V004"
+                      errors: []
+                      message: "이미 리뷰를 작성했습니다."
+                      status: 409
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -3722,8 +3956,9 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "리뷰 작성"
       tags:
-      - "review-controller"
+      - "리뷰"
   /api/v1/accommodations/{accommodationId}/unpublish:
     patch:
       description: "본인 소유의 PUBLISHED 숙소를 UNPUBLISHED로 변경합니다. 요청 본문은 없으며 기존 예약을 자동 취소하지 않습니다.\n게시 상태가 아니면 400/A003이고, 다른 회원의 숙소와 삭제된 숙소는 404/A001입니다.\n검색 결과와 공개 상세 캐시는 비동기로 갱신됩니다.\n"
@@ -7161,9 +7396,12 @@ paths:
       - "예약"
   /api/v1/reviews/{reviewId}:
     delete:
-      operationId: "deleteReview"
+      description: "본인의 게시된 리뷰를 삭제 상태로 바꾸고 공개 목록과 숙소 평점 집계에서 제외합니다. 본문 없이 호출합니다. 없거나 타인의 리뷰, 이미 삭제·숨김 상태인 리뷰는 404/V001입니다. 리뷰 삭제로 첨부 이미지 파일까지 삭제되지는 않습니다."
+      operationId: "Review.deleteReview"
       parameters:
-      - in: "path"
+      - description: "본인이 작성한 리뷰 ID"
+        example: 201
+        in: "path"
         name: "reviewId"
         required: true
         schema:
@@ -7175,143 +7413,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
-        "401":
-          content:
-            application/json:
-              examples:
-                M004:
-                  summary: "인증이 필요합니다."
-                  value:
-                    error:
-                      code: "M004"
-                      errors: []
-                      message: "인증이 필요합니다."
-                      status: 401
-                    success: false
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
-        "500":
-          content:
-            application/json:
-              examples:
-                C003:
-                  summary: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
-                  value:
-                    error:
-                      code: "C003"
-                      errors: []
-                      message: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
-                      status: 500
-                    success: false
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
-      security:
-      - sessionCookie: []
-      tags:
-      - "review-controller"
-    patch:
-      operationId: "updateReview"
-      parameters:
-      - in: "path"
-        name: "reviewId"
-        required: true
-        schema:
-          format: "int64"
-          type: "integer"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Update"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponseUpdate"
-          description: "OK"
-        "401":
-          content:
-            application/json:
-              examples:
-                M004:
-                  summary: "인증이 필요합니다."
-                  value:
-                    error:
-                      code: "M004"
-                      errors: []
-                      message: "인증이 필요합니다."
-                      status: 401
-                    success: false
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
-        "500":
-          content:
-            application/json:
-              examples:
-                C003:
-                  summary: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
-                  value:
-                    error:
-                      code: "C003"
-                      errors: []
-                      message: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
-                      status: 500
-                    success: false
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
-      security:
-      - sessionCookie: []
-      tags:
-      - "review-controller"
-  /api/v1/reviews/{reviewId}/images:
-    post:
-      operationId: "uploadReviewImages"
-      parameters:
-      - in: "path"
-        name: "reviewId"
-        required: true
-        schema:
-          format: "int64"
-          type: "integer"
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              properties:
-                images:
-                  items:
-                    format: "binary"
-                    type: "string"
-                  type: "array"
-              required:
-              - "images"
-              type: "object"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponseImageResponseImageUploadResult"
-          description: "OK"
+          description: "삭제 완료"
         "400":
           content:
             application/json:
               examples:
-                C001:
-                  summary: "유효하지 않은 입력 값입니다."
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
                   value:
                     error:
-                      code: "C001"
+                      code: "C004"
                       errors: []
-                      message: "유효하지 않은 입력 값입니다."
+                      message: "유효하지 않은 타입 값입니다."
                       status: 400
                     success: false
               schema:
@@ -7333,18 +7446,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
-        "413":
+        "404":
           content:
             application/json:
               examples:
-                I009:
-                  summary: "파일 또는 요청 전체의 업로드 허용 크기를 초과했습니다."
+                V001:
+                  summary: "존재하지 않는 리뷰입니다."
                   value:
                     error:
-                      code: "I009"
+                      code: "V001"
                       errors: []
-                      message: "파일 또는 요청 전체의 업로드 허용 크기를 초과했습니다."
-                      status: 413
+                      message: "존재하지 않는 리뷰입니다."
+                      status: 404
                     success: false
               schema:
                 $ref: "#/components/schemas/ApiError"
@@ -7367,31 +7480,59 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "리뷰 삭제"
       tags:
-      - "review-controller"
-  /api/v1/reviews/{reviewId}/images/{imageId}:
-    delete:
-      operationId: "deleteReviewImage"
+      - "리뷰"
+    patch:
+      description: "본인이 작성한 게시 상태의 리뷰만 수정합니다. 본문 content는 매번 필수이며, rating은 생략·null이면 유지하고 지정하면 1~5의 정수로 변경합니다.\n평점만 바꾸려면 기존 본문도 함께 보냅니다. 평점 변경은 숙소의 리뷰 수를 바꾸지 않고 평균 평점에 반영합니다.\n없거나 타인의 리뷰는 404/V001, 본인의 삭제·숨김 리뷰는 403/V005입니다. reviewed_at은 최초 작성 시각으로 유지됩니다.\n"
+      operationId: "Review.updateReview"
       parameters:
-      - in: "path"
+      - description: "본인이 작성한 리뷰 ID"
+        example: 201
+        in: "path"
         name: "reviewId"
         required: true
         schema:
           format: "int64"
           type: "integer"
-      - in: "path"
-        name: "imageId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewRequestUpdate"
         required: true
-        schema:
-          format: "int64"
-          type: "integer"
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponseVoid"
-          description: "OK"
+                $ref: "#/components/schemas/ApiResponseReviewResponseUpdate"
+          description: "수정 완료. data.id는 리뷰 ID입니다."
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "401":
           content:
             application/json:
@@ -7408,6 +7549,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                V005:
+                  summary: "게시된 리뷰만 수정할 수 있습니다."
+                  value:
+                    error:
+                      code: "V005"
+                      errors: []
+                      message: "게시된 리뷰만 수정할 수 있습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                V001:
+                  summary: "존재하지 않는 리뷰입니다."
+                  value:
+                    error:
+                      code: "V001"
+                      errors: []
+                      message: "존재하지 않는 리뷰입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:
@@ -7426,8 +7615,295 @@ paths:
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
       security:
       - sessionCookie: []
+      summary: "리뷰 수정"
       tags:
-      - "review-controller"
+      - "리뷰"
+  /api/v1/reviews/{reviewId}/images:
+    post:
+      description: "본인 리뷰에 이미지를 추가합니다. multipart/form-data에서 파일마다 images 파트를 반복하며 파일 파트의 Content-Type은 image/jpeg 또는 image/png입니다.\n파일당 최대 10MiB, multipart 헤더·구분자를 포함한 요청 전체는 최대 20MiB입니다. 성공은 201이며 data.uploaded_images에 이번에 추가한 이미지의 id와 image_url을 반환합니다.\n\n없거나 타인의 리뷰는 404/V001입니다. 현재 이미지 API는 리뷰의 삭제·숨김 상태를 별도로 제한하지 않습니다.\nimages 파트 누락은 400/C001, 빈 파일은 400/I007, 잘못된 파일 Content-Type은 400/I003입니다.\n서버 업로드 크기 제한은 413/I009, 서비스의 개별 파일 검사에서 발견한 크기 초과는 400/I008입니다. multipart가 아닌 요청은 415/C011입니다.\n"
+      operationId: "Review.uploadReviewImages"
+      parameters:
+      - description: "본인이 작성한 리뷰 ID"
+        example: 201
+        in: "path"
+        name: "reviewId"
+        required: true
+        schema:
+          format: "int64"
+          type: "integer"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                images:
+                  items:
+                    format: "binary"
+                    type: "string"
+                  type: "array"
+              required:
+              - "images"
+              type: "object"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseImageResponseImageUploadResult"
+          description: "이미지 추가 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C001:
+                  summary: "유효하지 않은 입력 값입니다."
+                  value:
+                    error:
+                      code: "C001"
+                      errors: []
+                      message: "유효하지 않은 입력 값입니다."
+                      status: 400
+                    success: false
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+                I003:
+                  summary: "지원하지 않는 이미지 형식입니다. (JPG, PNG만 가능합니다)"
+                  value:
+                    error:
+                      code: "I003"
+                      errors: []
+                      message: "지원하지 않는 이미지 형식입니다. (JPG, PNG만 가능합니다)"
+                      status: 400
+                    success: false
+                I007:
+                  summary: "이미지 파일이 비어 있습니다."
+                  value:
+                    error:
+                      code: "I007"
+                      errors: []
+                      message: "이미지 파일이 비어 있습니다."
+                      status: 400
+                    success: false
+                I008:
+                  summary: "이미지 파일 크기는 10MB를 초과할 수 없습니다."
+                  value:
+                    error:
+                      code: "I008"
+                      errors: []
+                      message: "이미지 파일 크기는 10MB를 초과할 수 없습니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "401":
+          content:
+            application/json:
+              examples:
+                M004:
+                  summary: "인증이 필요합니다."
+                  value:
+                    error:
+                      code: "M004"
+                      errors: []
+                      message: "인증이 필요합니다."
+                      status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "404":
+          content:
+            application/json:
+              examples:
+                V001:
+                  summary: "존재하지 않는 리뷰입니다."
+                  value:
+                    error:
+                      code: "V001"
+                      errors: []
+                      message: "존재하지 않는 리뷰입니다."
+                      status: 404
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "413":
+          content:
+            application/json:
+              examples:
+                I009:
+                  summary: "파일 또는 요청 전체의 업로드 허용 크기를 초과했습니다."
+                  value:
+                    error:
+                      code: "I009"
+                      errors: []
+                      message: "파일 또는 요청 전체의 업로드 허용 크기를 초과했습니다."
+                      status: 413
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "500":
+          content:
+            application/json:
+              examples:
+                C003:
+                  summary: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
+                  value:
+                    error:
+                      code: "C003"
+                      errors: []
+                      message: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
+                      status: 500
+                    success: false
+                I001:
+                  summary: "이미지 업로드 중 오류가 발생했습니다."
+                  value:
+                    error:
+                      code: "I001"
+                      errors: []
+                      message: "이미지 업로드 중 오류가 발생했습니다."
+                      status: 500
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+      security:
+      - sessionCookie: []
+      summary: "리뷰 이미지 업로드"
+      tags:
+      - "리뷰"
+  /api/v1/reviews/{reviewId}/images/{imageId}:
+    delete:
+      description: "본인 리뷰의 이미지 연결을 삭제합니다. imageId는 업로드 응답 또는 리뷰 목록의 images[].id이며 본문은 없습니다.\n이미지가 없거나 다른 회원의 이미지이면 403/V006, 본인의 이미지지만 reviewId가 실제 소속 리뷰와 다르면 400/C009입니다.\n리뷰의 삭제·숨김 상태와 관계없이 본인 이미지 삭제가 가능합니다. 성공은 200과 {\"success\":true}, 삭제 후 같은 요청은 403/V006입니다.\n파일 저장소 삭제는 별도로 시도하며, 200이 파일 저장소에서의 삭제 완료까지 보장하지는 않습니다.\n"
+      operationId: "Review.deleteReviewImage"
+      parameters:
+      - description: "이미지가 속한 리뷰 ID"
+        example: 201
+        in: "path"
+        name: "reviewId"
+        required: true
+        schema:
+          format: "int64"
+          type: "integer"
+      - description: "리뷰 이미지 ID"
+        example: 301
+        in: "path"
+        name: "imageId"
+        required: true
+        schema:
+          format: "int64"
+          type: "integer"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+          description: "리뷰 이미지 연결 삭제 완료"
+        "400":
+          content:
+            application/json:
+              examples:
+                C004:
+                  summary: "유효하지 않은 타입 값입니다."
+                  value:
+                    error:
+                      code: "C004"
+                      errors: []
+                      message: "유효하지 않은 타입 값입니다."
+                      status: 400
+                    success: false
+                C009:
+                  summary: "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."
+                  value:
+                    error:
+                      code: "C009"
+                      errors: []
+                      message: "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."
+                      status: 400
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "401":
+          content:
+            application/json:
+              examples:
+                M004:
+                  summary: "인증이 필요합니다."
+                  value:
+                    error:
+                      code: "M004"
+                      errors: []
+                      message: "인증이 필요합니다."
+                      status: 401
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "403":
+          content:
+            application/json:
+              examples:
+                V006:
+                  summary: "해당 리뷰에 대한 권한이 없습니다."
+                  value:
+                    error:
+                      code: "V006"
+                      errors: []
+                      message: "해당 리뷰에 대한 권한이 없습니다."
+                      status: 403
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "500":
+          content:
+            application/json:
+              examples:
+                C003:
+                  summary: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
+                  value:
+                    error:
+                      code: "C003"
+                      errors: []
+                      message: "서버 내부에서 처리할 수 없는 오류가 발생했습니다."
+                      status: 500
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+      security:
+      - sessionCookie: []
+      summary: "리뷰 이미지 삭제"
+      tags:
+      - "리뷰"
   /api/v1/search/accommodations:
     get:
       operationId: "searchAccommodations"

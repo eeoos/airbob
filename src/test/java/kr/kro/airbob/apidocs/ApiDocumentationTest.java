@@ -155,6 +155,20 @@ import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.review.service.ReviewService;
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.entity.ReviewSortType;
+import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
+import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
+import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
+import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
+import kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException;
+import kr.kro.airbob.domain.image.exception.ImageUploadException;
+import kr.kro.airbob.domain.image.exception.InvalidImageFormatException;
+import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
+import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
 import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
@@ -1379,6 +1393,194 @@ class ApiDocumentationTest {
 				.andReturn().getResponse();
 			assertDocumentedError(spec, deletePath, "delete", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
 		}
+	}
+
+	@Test
+	void reviewListIsPublicAndMatchesSortCursorAndNullableDisplayFields() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/accommodations/{accommodationId}/reviews";
+		JsonNode operation = spec.path("paths").path(path).path("get");
+		assertThat(operation.path("security").isEmpty()).isTrue();
+		assertThat(operation.path("responses").has("401")).isFalse();
+		assertThat(operation.path("parameters").findValuesAsText("name"))
+			.containsExactlyInAnyOrder("accommodationId", "sortType", "cursor", "size");
+		JsonNode sort = java.util.stream.StreamSupport.stream(operation.path("parameters").spliterator(), false)
+			.filter(parameter -> parameter.path("name").asText().equals("sortType")).findFirst().orElseThrow().path("schema");
+		assertThat(sort.path("default").asText()).isEqualTo("LATEST");
+		assertThat(sort.path("enum").toString()).contains("LATEST", "HIGHEST_RATING", "LOWEST_RATING");
+		ReviewService service = context.getBean(ReviewService.class);
+		var page = new ReviewResponse.ReviewInfos(List.of(
+			new ReviewResponse.ReviewInfo(201, 5, "좋은 숙소", Instant.parse("2027-01-10T02:00:00.123456Z"),
+				new MemberResponse.MemberInfo(10, null, null), List.of(new ImageResponse.ImageInfo(301L, "https://example.invalid/review.png"))),
+			new ReviewResponse.ReviewInfo(202, 3, null, (Instant)null,
+				new MemberResponse.MemberInfo(20, "여행자", null), List.of())), new CursorResponse.PageInfo(false, null, 2));
+		when(service.findReviews(eq(101L), any(), any())).thenReturn(page);
+		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", body);
+		assertThat(mapper.readTree(body).at("/data/reviews/0/reviewed_at").asText()).isEqualTo("2027-01-10T02:00:00.123456Z");
+		assertThat(mapper.readTree(body).at("/data/reviews/1/images").isEmpty()).isTrue();
+		verify(service).findReviews(eq(101L), argThat(request -> request.size() == 20 && request.lastId() == null),
+			eq(ReviewSortType.LATEST));
+		for (String invalidSize : List.of("0", "51", "invalid")) {
+			String invalid = mvc.perform(get(path, 101).param("size", invalidSize)).andExpect(status().isBadRequest())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "400", "C006", invalid);
+		}
+		String invalidSort = mvc.perform(get(path, 101).param("sortType", "latest")).andExpect(status().isBadRequest())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "400", "C004", invalidSort);
+		String invalidCursor = mvc.perform(get(path, 101).param("cursor", "not-a-cursor!")).andExpect(status().isBadRequest())
+			.andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "get", "400", "C010", invalidCursor);
+		when(service.findReviews(eq(999L), any(), any())).thenReturn(new ReviewResponse.ReviewInfos(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+		String empty = mvc.perform(get(path, 999)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", empty);
+		assertThat(mapper.readTree(empty).at("/data/reviews").isEmpty()).isTrue();
+	}
+
+	@Test
+	void reviewCreationValidatesRequiredBodyAndDocumentsEligibilityAndDuplicateErrors() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/accommodations/{accommodationId}/reviews";
+		JsonNode schema = spec.at("/components/schemas/ReviewRequestCreate");
+		validateInstance(spec, schema, mapper.readTree("{\"rating\":5,\"content\":\"숙소가 좋았어요\"}"));
+		assertThat(schema.path("required").toString()).contains("content", "rating");
+		assertThat(schema.at("/properties/content/maxLength").asInt()).isEqualTo(1024);
+		assertThat(schema.at("/properties/content/minLength").asInt()).isEqualTo(1);
+		ReviewService service = context.getBean(ReviewService.class);
+		for (String invalid : List.of("{}", "{\"content\":\"본문\"}", "{\"rating\":5}", "{\"rating\":null,\"content\":\"본문\"}",
+			"{\"rating\":0,\"content\":\"본문\"}", "{\"rating\":6,\"content\":\"본문\"}", "{\"rating\":5,\"content\":\"  \"}",
+			mapper.createObjectNode().put("rating", 5).put("content", "가".repeat(1025)).toString())) {
+			String body = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "post", "400", "C001", body);
+		}
+		verifyNoInteractions(service);
+		when(service.createReview(eq(101L), any(), eq(10L))).thenReturn(new ReviewResponse.Create(201));
+		String request = mapper.createObjectNode().put("rating", 5).put("content", "가".repeat(1024)).toString();
+		String success = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "post", "201", success);
+		assertThat(mapper.readTree(success).at("/data/id").asLong()).isEqualTo(201);
+		for (BaseException error : List.of(new MemberNotFoundException(), new AccommodationNotFoundException(),
+			new ReviewCreationForbiddenException(), new ReviewAlreadyExistsException())) {
+			doThrow(error).when(service).createReview(eq(101L), any(), eq(10L));
+			var response = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
+		String unsupported = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(request))
+			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
+	}
+
+	@Test
+	void reviewUpdateRequiresContentButPreservesAnOmittedOrNullRating() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/reviews/{reviewId}";
+		JsonNode schema = spec.at("/components/schemas/ReviewRequestUpdate");
+		assertThat(schema.path("required").toString()).isEqualTo("[\"content\"]");
+		assertThat(schema.at("/properties/content/minLength").asInt()).isEqualTo(1);
+		ReviewService service = context.getBean(ReviewService.class);
+		for (String invalid : List.of("{}", "{\"rating\":3}", "{\"content\":null}", "{\"content\":\"\"}", "{\"content\":\" \"}",
+			"{\"content\":\"본문\",\"rating\":6}")) {
+			String body = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "patch", "400", "C001", body);
+		}
+		verifyNoInteractions(service);
+		when(service.updateReviewContent(eq(201L), any(), eq(10L))).thenReturn(new ReviewResponse.Update(201));
+		for (String request : List.of("{\"content\":\"수정 본문\"}", "{\"content\":\"수정 본문\",\"rating\":null}", "{\"content\":\"수정 본문\",\"rating\":1}")) {
+			validateInstance(spec, schema, mapper.readTree(request));
+			String success = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "patch", "200", success);
+			assertThat(mapper.readTree(success).at("/data/id").asLong()).isEqualTo(201);
+		}
+		for (BaseException error : List.of(new ReviewNotFoundException(),
+			new ReviewUpdateForbiddenException())) {
+			doThrow(error).when(service).updateReviewContent(eq(201L), any(), eq(10L));
+			var response = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"수정 본문\"}"))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, path, "patch", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
+	}
+
+	@Test
+	void everyReviewMutationRequiresTheSessionWithoutMemberIdInputs() throws Exception {
+		JsonNode spec = specification("client");
+		var requests = List.of(post("/api/v1/accommodations/{accommodationId}/reviews", 101).contentType(MediaType.APPLICATION_JSON).content("{\"rating\":5,\"content\":\"본문\"}"),
+			patch("/api/v1/reviews/{reviewId}", 201).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"본문\"}"),
+			delete("/api/v1/reviews/{reviewId}", 201),
+			multipart("/api/v1/reviews/{reviewId}/images", 201).file(new MockMultipartFile("images", "review.png", "image/png", new byte[] {1})),
+			delete("/api/v1/reviews/{reviewId}/images/{imageId}", 201, 301));
+		String[] paths = {"/api/v1/accommodations/{accommodationId}/reviews", "/api/v1/reviews/{reviewId}", "/api/v1/reviews/{reviewId}",
+			"/api/v1/reviews/{reviewId}/images", "/api/v1/reviews/{reviewId}/images/{imageId}"};
+		String[] methods = {"post", "patch", "delete", "post", "delete"};
+		for (int index = 0; index < requests.size(); index++) {
+			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, paths[index], methods[index], "401", "M004", body);
+			assertThat(spec.path("paths").path(paths[index]).path(methods[index]).path("parameters").findValuesAsText("name"))
+				.doesNotContain("memberId", "member_id", "SESSION_ID");
+		}
+		verifyNoInteractions(context.getBean(ReviewService.class));
+	}
+
+	@Test
+	void reviewDeletionAndImageDeletionHaveDifferentMissingResourceErrors() throws Exception {
+		JsonNode spec = specification("client");
+		ReviewService service = context.getBean(ReviewService.class);
+		String review = "/api/v1/reviews/{reviewId}", image = "/api/v1/reviews/{reviewId}/images/{imageId}";
+		for (String path : List.of(review, image)) {
+			assertThat(spec.path("paths").path(path).path("delete").has("requestBody")).isFalse();
+			String success = mvc.perform(delete(path, 201, 301).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			validateResponse(spec, path, "delete", "200", success);
+			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
+		}
+		doThrow(new ReviewNotFoundException()).when(service).deleteReview(201L, 10L);
+		String missing = mvc.perform(delete(review, 201).cookie(SESSION)).andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, review, "delete", "404", "V001", missing);
+		assertThat(spec.path("paths").path(image).path("delete").path("responses").has("404")).isFalse();
+		for (BaseException error : List.of(new ReviewAccessDeniedException(),
+			new InvalidInputException())) {
+			doThrow(error).when(service).deleteReviewImage(201L, 301L, 10L);
+			var response = mvc.perform(delete(image, 201, 301).cookie(SESSION))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, image, "delete", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
+	}
+
+	@Test
+	void reviewUploadDocumentsMultipartFilesAndRealErrorsWithoutAnAuthorizationFormField() throws Exception {
+		JsonNode spec = specification("client");
+		String path = "/api/v1/reviews/{reviewId}/images";
+		JsonNode operation = spec.path("paths").path(path).path("post");
+		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("reviewId");
+		assertThat(operation.at("/requestBody/content/multipart~1form-data/schema/properties/images/items/format").asText()).isEqualTo("binary");
+		String missing = mvc.perform(multipart(path, 201).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "400", "C001", missing);
+		String unsupported = mvc.perform(post(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
+		ReviewService service = context.getBean(ReviewService.class);
+		verifyNoInteractions(service);
+		when(service.uploadReviewImages(eq(201L), anyList(), eq(10L)))
+			.thenReturn(new ImageResponse.ImageUploadResult(List.of(new ImageResponse.ImageInfo(301L, "https://example.invalid/review.png"))));
+		var file = new MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
+		String success = mvc.perform(multipart(path, 201).file(file).cookie(SESSION)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "post", "201", success);
+		assertThat(mapper.readTree(success).at("/data/uploaded_images/0/id").asLong()).isEqualTo(301);
+		for (BaseException error : List.of(new ReviewNotFoundException(),
+			new ImageUploadException("review.png"), new InvalidImageFormatException(),
+			new EmptyImageFileException(), new ImageFileSizeExceededException())) {
+			doThrow(error).when(service).uploadReviewImages(eq(201L), anyList(), eq(10L));
+			var response = mvc.perform(multipart(path, 201).file(file).cookie(SESSION))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+		}
+		doThrow(new MaxUploadSizeExceededException(10 * 1024 * 1024)).when(service).uploadReviewImages(eq(201L), anyList(), eq(10L));
+		String oversized = mvc.perform(multipart(path, 201).file(file).cookie(SESSION)).andExpect(status().isPayloadTooLarge()).andReturn().getResponse().getContentAsString();
+		assertDocumentedError(spec, path, "post", "413", "I009", oversized);
 	}
 
 	private void allowDocumentationAdmin() {

@@ -154,7 +154,7 @@
 
 ## 이미지 업로드
 
-숙소 이미지 업로드는 요청 Content-Type이 `multipart/form-data`가 아니면 415/C011로 거절한다.
+숙소·리뷰 이미지 업로드는 요청 Content-Type이 `multipart/form-data`가 아니면 415/C011로 거절한다.
 
 숙소와 리뷰의 이미지 API는 `multipart/form-data`의 `images` 필드에 파일을 여러 개 전달한다. 파일 파트의 Content-Type은 `image/jpeg` 또는 `image/png`이다. 파일당 10MiB(10 × 1024 × 1024바이트), 요청 전체 20MiB 제한을 적용하며 전체 크기에는 multipart 구분자와 헤더도 포함된다. 파일 목록을 JSON이나 쿼리 문자열로 보내지 않는다.
 
