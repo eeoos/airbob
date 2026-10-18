@@ -34,8 +34,6 @@ import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestSto
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
-import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
@@ -59,8 +57,6 @@ class ReservationReadControllerValidationTest {
 	@Mock ReservationInventoryService inventoryService;
 	@Mock Clock clock;
 	@Mock PaymentCancellationCommandService cancellationService;
-	@Mock ReservationQuoteService quoteService;
-	@Mock ReservationHoldCommandService holdCommandService;
 	@InjectMocks ReservationTransactionService transactionService;
 
 	private MockMvc mvc;
@@ -69,7 +65,8 @@ class ReservationReadControllerValidationTest {
 	void setUp() {
 		UserContext.set(new UserInfo(10L));
 		var service = new ReservationService(transactionService, cancellationService, clock);
-		mvc = MockMvcBuilders.standaloneSetup(new ReservationController(quoteService, service, holdCommandService))
+		mvc = MockMvcBuilders.standaloneSetup(
+				new ReservationGuestController(service), new ReservationHostController(service))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.build();

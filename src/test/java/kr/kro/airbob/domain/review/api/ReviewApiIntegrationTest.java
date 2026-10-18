@@ -61,6 +61,7 @@ import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
+import kr.kro.airbob.domain.review.service.ReviewImageService;
 import kr.kro.airbob.domain.review.service.ReviewService;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
@@ -69,7 +70,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, ReviewService.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, ReviewService.class, ReviewImageService.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -93,6 +94,7 @@ class ReviewApiIntegrationTest {
 	}
 
 	@Autowired ReviewService service;
+	@Autowired ReviewImageService imageService;
 	@Autowired JdbcTemplate jdbc;
 	@Autowired CursorDecoder decoder;
 	@MockitoBean Clock clock;
@@ -288,18 +290,18 @@ class ReviewApiIntegrationTest {
 		jdbc.update("UPDATE review SET status = ? WHERE id = ?", status, id);
 		var file = new org.springframework.mock.web.MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
 		when(uploader.upload(file, "reviews/" + id)).thenReturn("https://example.invalid/review.png");
-		assertThatThrownBy(() -> service.uploadReviewImages(id, List.of(file), 20L)).isInstanceOf(ReviewNotFoundException.class);
-		var uploaded = service.uploadReviewImages(id, List.of(file), 10L);
+		assertThatThrownBy(() -> imageService.uploadReviewImages(id, List.of(file), 20L)).isInstanceOf(ReviewNotFoundException.class);
+		var uploaded = imageService.uploadReviewImages(id, List.of(file), 10L);
 		long imageId = uploaded.uploadedImages().getFirst().id();
 		assertThat(uploaded.uploadedImages().getFirst().imageUrl()).isEqualTo("https://example.invalid/review.png");
-		assertThatThrownBy(() -> service.deleteReviewImage(id, imageId, 20L))
+		assertThatThrownBy(() -> imageService.deleteReviewImage(id, imageId, 20L))
 			.isInstanceOf(kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException.class);
-		assertThatThrownBy(() -> service.deleteReviewImage(id + 100, imageId, 10L))
+		assertThatThrownBy(() -> imageService.deleteReviewImage(id + 100, imageId, 10L))
 			.isInstanceOf(kr.kro.airbob.common.exception.InvalidInputException.class);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review_image", Long.class)).isEqualTo(1);
-		service.deleteReviewImage(id, imageId, 10L);
+		imageService.deleteReviewImage(id, imageId, 10L);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review_image", Long.class)).isZero();
-		assertThatThrownBy(() -> service.deleteReviewImage(id, imageId, 10L))
+		assertThatThrownBy(() -> imageService.deleteReviewImage(id, imageId, 10L))
 			.isInstanceOf(kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException.class);
 	}
 

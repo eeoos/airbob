@@ -365,6 +365,25 @@ class CommonCodeAdminServiceIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("공개·관리자 코드 조회는 정렬 순서가 같으면 코드 오름차순으로 반환한다")
+	void publicAndAdminListsOrderBySortOrderThenCode() {
+		String groupCode = "CODE_ORDER_GROUP";
+		adminService.createGroup(new CommonCodeGroupRequest.Create(groupCode, "정렬 검증 그룹", null, true));
+		adminService.create(groupCode, new CommonCodeRequest.Create("A_LAST", "마지막 코드", null, 1, true));
+		adminService.create(groupCode, new CommonCodeRequest.Create("CHARLIE", "가 표시명", null, null, true));
+		adminService.create(groupCode, new CommonCodeRequest.Create("BRAVO", "나 표시명", null, 0, false));
+		adminService.create(groupCode, new CommonCodeRequest.Create("ALPHA", "다 표시명", null, null, true));
+		adminService.create(groupCode, new CommonCodeRequest.Create("Z_FIRST", "첫 코드", null, -1, true));
+
+		assertThat(adminService.getAll(groupCode))
+			.extracting(CommonCodeAdminResponse::code)
+			.containsExactly("Z_FIRST", "ALPHA", "BRAVO", "CHARLIE", "A_LAST");
+		assertThat(commonCodeService.getCodes(groupCode))
+			.extracting(CommonCodeResponse::code)
+			.containsExactly("Z_FIRST", "ALPHA", "CHARLIE", "A_LAST");
+	}
+
+	@Test
 	void maximumLengthValuesPersistAndCodeOrderUsesSignedIntegerBoundaries() {
 		String groupCode = "G".repeat(50), name = "이".repeat(100), description = "설".repeat(255);
 		var group = adminService.createGroup(new CommonCodeGroupRequest.Create(groupCode, name, description, null));

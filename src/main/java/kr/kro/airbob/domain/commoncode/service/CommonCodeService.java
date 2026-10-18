@@ -63,7 +63,7 @@ public class CommonCodeService {
 				return CachedGroupCodes.found(List.of());
 			}
 			List<CommonCodeResponse> codes = commonCodeRepository
-				.findByGroupCodeAndActiveTrueOrderBySortOrderAsc(groupCode)
+				.findByGroupCodeAndActiveTrueOrderBySortOrderAscCodeAsc(groupCode)
 				.stream()
 				.map(CommonCodeResponse::from)
 				.toList();

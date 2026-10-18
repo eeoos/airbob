@@ -13,7 +13,7 @@ public record CommonCodeResponse(
 	String code,
 	@Schema(description = "화면에 표시할 이름", example = "무선 인터넷", requiredMode = Schema.RequiredMode.REQUIRED)
 	String name,
-	@Schema(description = "오름차순 정렬 값. 음수를 포함하며 같은 값 안의 순서는 보장하지 않습니다.", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+	@Schema(description = "오름차순 정렬 값. 음수도 허용하며 같은 값이면 code 오름차순으로 정렬합니다.", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
 	int sortOrder
 ) {
 	public static CommonCodeResponse from(CommonCode commonCode) {

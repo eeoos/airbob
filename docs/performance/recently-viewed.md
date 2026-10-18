@@ -42,9 +42,9 @@ RDS db.t3.small(MySQL 8.4.11·버퍼 풀 512MiB), 별도 c6i.xlarge 부하 발�
 
 ## 현재 구현과 회귀 검증
 
-- [RecentlyViewedService](../../src/main/java/kr/kro/airbob/domain/recentlyViewed/service/RecentlyViewedService.java)는 Redis의 최근 순서를 유지하면서 필요한 필드를 한 번에 조회한다.
+- [RecentlyViewedService](../../src/main/java/kr/kro/airbob/domain/recentlyviewed/service/RecentlyViewedService.java)는 Redis의 최근 순서를 유지하면서 필요한 필드를 한 번에 조회한다.
   공개되지 않거나 삭제된 숙소의 기록을 정리하고, 찜 여부는 해당 회원 기준으로 한 번에 조회한다.
-- [실제 MySQL·Redis 통합 테스트](../../src/test/java/kr/kro/airbob/domain/recentlyViewed/service/RecentlyViewedQueryIntegrationTest.java)는 유효 숙소 1·20·50·100개에서 SELECT 2회와 응답·정렬·소유권 계약을 검증한다.
+- [실제 MySQL·Redis 통합 테스트](../../src/test/java/kr/kro/airbob/domain/recentlyviewed/service/RecentlyViewedQueryIntegrationTest.java)는 유효 숙소 1·20·50·100개에서 SELECT 2회와 응답·정렬·소유권 계약을 검증한다.
   빈 기록이나 유효 숙소가 없는 요청까지 항상 2회를 실행한다는 뜻은 아니다.
 - [쿼리 수 모니터링](../operations/query-count-monitoring.md)은 로그 출력과 독립적으로 동작한다.
   정확한 횟수는 요청별 SQL 또는 Prometheus의 `_sum / _count` 증가량으로 확인한다.

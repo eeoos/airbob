@@ -45,6 +45,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.common.exception.GlobalExceptionHandler;
+import kr.kro.airbob.domain.review.service.ReviewImageService;
 import kr.kro.airbob.domain.review.service.ReviewService;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
@@ -64,6 +65,7 @@ class ReviewUploadHttpTest {
 	@LocalServerPort int port;
 	@Autowired ObjectMapper mapper;
 	@MockitoBean ReviewService reviewService;
+	@MockitoBean ReviewImageService reviewImageService;
 	@MockitoBean RedisTemplate<String, Object> redis;
 
 	@BeforeEach
@@ -76,12 +78,12 @@ class ReviewUploadHttpTest {
 
 	@Test
 	void repeatedImagePartsBindToRealController() throws Exception {
-		when(reviewService.uploadReviewImages(eq(101L), anyList(), eq(10L)))
+		when(reviewImageService.uploadReviewImages(eq(101L), anyList(), eq(10L)))
 			.thenReturn(new ImageResponse.ImageUploadResult(List.of(new ImageResponse.ImageInfo(1L, "https://example.invalid/image.png"))));
 		var response = upload(2, 3);
 		assertThat(response.statusCode()).isEqualTo(201);
 		assertThat(mapper.readTree(response.body()).at("/data/uploaded_images/0/id").asLong()).isEqualTo(1L);
-		verify(reviewService).uploadReviewImages(eq(101L), argThat(files -> files.size() == 2), eq(10L));
+		verify(reviewImageService).uploadReviewImages(eq(101L), argThat(files -> files.size() == 2), eq(10L));
 	}
 
 	@Test
@@ -124,13 +126,13 @@ class ReviewUploadHttpTest {
 			}
 			assertThat(status).startsWith("HTTP/1.1 413");
 		}
-		verifyNoInteractions(reviewService);
+		verifyNoInteractions(reviewService, reviewImageService);
 	}
 
 	private void assertError(HttpResponse<String> response, int status, String code) throws Exception {
 		assertThat(response.statusCode()).isEqualTo(status);
 		assertThat(mapper.readTree(response.body()).at("/error/code").asText()).isEqualTo(code);
-		verifyNoInteractions(reviewService);
+		verifyNoInteractions(reviewService, reviewImageService);
 	}
 
 	private HttpResponse<String> upload(int... sizes) throws Exception {

@@ -59,7 +59,7 @@ class ReservationHoldControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationController(quoteService, reservationService, holdCommandService))
+			new ReservationCommandController(quoteService, reservationService, holdCommandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
