@@ -11,14 +11,11 @@
 - **팀 개발:** 숙소 후기·위시리스트·최근 본 숙소 기능 개발
 - **개인 고도화:** 숙소 상세 조회 캐시·쿠폰 발급·쿼리 최적화·인프라 개선
 
-Java 21.0.12.1 · Spring Boot · JPA · QueryDSL · MySQL · Redis
+Java · Spring Boot · JPA · QueryDSL · MySQL · Redis
 
-개발·빌드에는 **Eclipse Temurin JDK 21.0.12.1+1**을 사용합니다. 터미널의 `JAVA_HOME`, IntelliJ의
-Project SDK와 Gradle JVM을 같은 JDK로 맞추고 `java -version`, `./gradlew --version`으로 확인합니다.
 
 Website: [Airbob](https://www.airbob.cloud/) <br>
 API 명세: [일반 회원·호스트](https://api.airbob.cloud/swagger-ui/index.html?urls.primaryName=client) · [관리자](https://api.airbob.cloud/swagger-ui/index.html?urls.primaryName=admin) <br>
-API 사용 가이드: [사용 안내](docs/api/README.md) · [공통 규칙](docs/api/conventions.md) · [예약·결제](docs/api/reservation-payment.md) · [쿠폰](docs/api/coupons.md)
 
 <details>
 <summary>체험 계정</summary>
@@ -58,8 +55,6 @@ API 사용 가이드: [사용 안내](docs/api/README.md) · [공통 규칙](doc
 최근 본 숙소의 N+1 행은 원본 리뷰 집계를 유지한 비교입니다. 현재 운영 API는 리뷰 요약까지 적용해 유효 숙소 1~100개에서 SELECT 2회를 사용합니다.
 
 DB 로딩은 숙소 상세 데이터를 읽는 로더의 실행 횟수이며, 로딩 한 번에 여러 SQL이 실행될 수 있습니다.
-
-[전체 문서 목차](docs/README.md) · [성능 결과와 실험 이력](docs/performance/README.md) · [부하 테스트 방법](load-test/README.md)
 
 ## 목차
 
