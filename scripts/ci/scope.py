@@ -25,8 +25,8 @@ def classify(paths, force_app=False):
         if path.startswith(('docs/api/', 'src/test/java/kr/kro/airbob/apidocs/', 'src/test/resources/apidocs/')):
             selected['api_docs'] = True
             continue
-        if path.startswith(('docs/', 'load-test/', 'scripts/archive/')) or path in {
-            'README.md', 'AGENTS.md', 'scripts/README.md', '.gitattributes', '.gitignore', 'LICENSE',
+        if path.startswith(('docs/', 'load-test/', 'scripts/archive/', '.claude/rules/')) or path in {
+            'README.md', 'AGENTS.md', 'CLAUDE.md', 'scripts/README.md', '.gitattributes', '.gitignore', 'LICENSE',
         }:
             continue
         if path.startswith(('.github/', 'scripts/ci/')) or path in BUILD_FILES or path.startswith('gradle/'):
