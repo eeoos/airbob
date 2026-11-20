@@ -33,8 +33,6 @@ Operations: `docs/operations/coupon-issuance-operations.md` and
   `coupon.issue.retry-budget-ms`), each in a new transaction with a 1-second timeout, then returns
   `CP012`.
 - `UNIQUE(member_id, coupon_id)` and whole-transaction rollback prevent duplicates.
-- Issuance unit reads and deletes use Spring Data JPA native queries; preparation retains bounded
-  JDBC multi-row inserts.
 
 ## Stock preparation
 
@@ -45,9 +43,6 @@ Operations: `docs/operations/coupon-issuance-operations.md` and
 
 ## Lists and status
 
-- Coupon campaign and owned-coupon lists use `@CursorParam` with a default size of 20 and a maximum
-  of 50. Campaign order is `(issue_start_at, coupon.id)` descending; owned-coupon order is
-  `(created_at, member_coupon.id)` descending.
 - `member_coupon.created_at` is nonnull (V32). When repairing data, reconcile it from trusted
   issuance evidence; never invent dates.
 - Campaign availability uses a correlated QueryDSL `EXISTS` on remaining `coupon_issue_unit` rows,

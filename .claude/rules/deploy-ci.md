@@ -21,6 +21,8 @@ paths:
 - `scripts/README.md` identifies deployment, dataset, and archived tools. OCI CD and asset sync
   include only the five named deployment/operations scripts; local dataset and archived tools
   must not trigger an OCI deployment or be copied to its deployment directory.
+- API-documentation-only CI must validate contracts without requesting OCI deployment. Required
+  `CI result` includes documentation job outcomes; app builds already validate contracts via `check`.
 
 ## OCI deployment
 

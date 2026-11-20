@@ -28,11 +28,6 @@ Operations: `docs/operations/outbox-operations.md` and
 
 ## Topics and listeners
 
-- The fixed business streams are:
-  - `PAYMENT_OPERATION.events`, `.RETRY`, `.DLT`
-  - `ACCOMMODATION_INDEX.events`, `.RETRY`, `.DLT`
-  - `ACCOMMODATION_CACHE.events`, `.RETRY`, `.DLT`
-  - `OPERATOR_ALERT.events`, `.RETRY`, `.DLT`
 - Topic auto-creation is disabled. `docker/kafka/init-topics.sh` creates every main, retry, and DLT
   topic with the same partition count (3) and asserts it. `scripts/deploy-oci.sh` creates topics
   before Flyway and registers the Debezium connector after it (see `deploy-ci.md`).

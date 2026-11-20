@@ -6,10 +6,6 @@ paths:
 
 # Accommodation detail cache
 
-- Cache code lives under `domain/accommodation/cache/`: core classes at its root, plus `config/`,
-  `invalidation/`, `messaging/{event,kafka,outbox}/`, `monitoring/`, and `redis/`. The dedicated
-  Redis connection is configured in `config/AccommodationDetailRedisConfig` and
-  `config/AccommodationDetailRedisProperties`.
 - General Redis and the dedicated accommodation-cache Redis remain separate dependencies.
 - Durable invalidation uses the domain-owned canonical messaging adapter and
   `ACCOMMODATION_CACHE.events`. Do not recreate root outbox or Kafka-consumer packages.

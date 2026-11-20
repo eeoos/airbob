@@ -10,8 +10,6 @@ Read `docs/operations/payment-operation-runbook.md` before changing failure or r
 ## Workflow
 
 - Paid confirmation and cancellation are asynchronous `PaymentOperation` workflows.
-- Durable states are `QUEUED`, `EXECUTING`, `WAITING_RETRY`, `APPLIED`, `DECLINED`, and
-  `MANUAL_REVIEW`.
 - API transactions lock the reservation row before its inventory date rows (cancellation also locks
   the payment row) and append a `PaymentOperationExecutionRequestedV1` outbox event.
 - A worker acquires the operation UID's MySQL execution fence on a dedicated JDBC connection,
