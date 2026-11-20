@@ -6,6 +6,31 @@
       "Read(./secrets/**)"
     ]
   },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/compile-on-edit.sh\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-before-stop.sh\"",
+            "timeout": 900
+          }
+        ]
+      }
+    ]
+  },
   "sandbox": {
     "enabled": true,
     "filesystem": {
