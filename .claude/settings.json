@@ -5,5 +5,25 @@
       "Read(./.env.*)",
       "Read(./secrets/**)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "filesystem": {
+      "allowWrite": ["/tmp", "/private/tmp"],
+      "denyRead": ["~/.ssh", "~/.aws"]
+    },
+    "network": {
+      "allowLocalBinding": true,
+      "allowedDomains": [
+        "github.com",
+        "api.github.com",
+        "repo.maven.apache.org",
+        "plugins.gradle.org",
+        "plugins-artifacts.gradle.org",
+        "services.gradle.org",
+        "downloads.gradle.org"
+      ]
+    },
+    "excludedCommands": ["docker *"]
   }
 }
