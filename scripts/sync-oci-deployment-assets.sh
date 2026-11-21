@@ -34,7 +34,7 @@ docker-compose.oci.yml
 "
 
 managed_directories="
-src/main/resources/db/migration
+core/core-api/src/main/resources/db/migration
 docker/debezium
 docker/elasticsearch
 docker/kafka

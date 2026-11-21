@@ -9,7 +9,7 @@ CURL_BIN="${CURL_BIN:-curl}"
 DOCKER_BIN="${DOCKER_BIN:-docker}"
 JQ_BIN="${JQ_BIN:-jq}"
 COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.yml}"
-INDEX_DEFINITION="${INDEX_DEFINITION:-$PROJECT_DIR/src/main/resources/elasticsearch/accommodations-index.json}"
+INDEX_DEFINITION="${INDEX_DEFINITION:-$PROJECT_DIR/core/core-api/src/main/resources/elasticsearch/accommodations-index.json}"
 ELASTICSEARCH_URL="${ELASTICSEARCH_URL:-http://localhost:9200}"
 ELASTICSEARCH_URL="${ELASTICSEARCH_URL%/}"
 ES_ALIAS="${ES_ALIAS:-accommodations}"
@@ -82,7 +82,7 @@ case "$MYSQL_SOURCE_MODE" in
 			scripts/reindex-accommodations.sh docker-compose.yml \
 			docker/logstash/pipeline/airbob.conf docker/logstash/config/logstash.yml \
 			docker/logstash/config/jdbc/mysql-connector-j-8.0.33.jar \
-			src/main/resources/elasticsearch/accommodations-index.json ||
+			core/core-api/src/main/resources/elasticsearch/accommodations-index.json ||
 			fail "external dataset reindex inputs differ from REINDEX_SOURCE_COMMIT"
 		;;
 	*) fail "MYSQL_SOURCE_MODE must be compose or external" ;;

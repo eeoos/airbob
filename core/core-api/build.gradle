@@ -1,0 +1,193 @@
+plugins {
+	id 'org.springframework.boot'
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+	// Resolve only the library used by the offline Python/Java credential contract.
+	growthBContractTestRuntime {
+		canBeConsumed = false
+		canBeResolved = true
+		transitive = false
+	}
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:${libs.versions.spring.cloud.aws.get()}"
+	}
+}
+
+dependencies {
+	growthBContractTestRuntime libs.jbcrypt
+
+	// Spring Web
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation libs.springdoc.webmvc.ui
+
+	//Spring Validation
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// Spring Data JPA
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	//해싱
+	implementation libs.jbcrypt
+
+	//httpclient
+	implementation 'org.apache.httpcomponents.client5:httpclient5'
+
+	//elasticsearch
+	implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+	implementation 'co.elastic.clients:elasticsearch-java'
+
+	// retry
+	implementation 'org.springframework.retry:spring-retry'
+
+	// aop
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+	//Redis
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	//Redisson
+	implementation libs.redisson
+
+	// Caffeine (공통 코드 로컬 캐시 + TTL)
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+
+	// Flyway. Migrations stay in this module's resources so the boot JAR keeps
+	// BOOT-INF/classes/db/migration, which archived AWS lab tools read.
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
+
+	// Lombok
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	// MySQL JDBC 드라이버
+	compileOnly 'com.mysql:mysql-connector-j'
+	runtimeOnly 'com.mysql:mysql-connector-j'
+
+	// 로컬 SQL 진단 전용. 운영 bootJar에는 포함하지 않는다.
+	compileOnly libs.p6spy
+	developmentOnly libs.p6spy
+	testImplementation libs.p6spy
+
+	// Kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
+	// Spring Cloud AWS
+	implementation 'io.awspring.cloud:spring-cloud-aws-starter-s3'
+
+	// Commons Lang
+	implementation libs.commons.lang3
+
+	// Coordinate-based IANA time zone resolution
+	implementation libs.timeshape
+
+	// Jackson CSV
+	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
+
+	// Json
+	implementation libs.org.json
+
+	// Actuator
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	// Prometheus
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
+	// 테스트
+	testImplementation 'org.springframework.kafka:spring-kafka-test'
+
+	//query dsl
+	implementation variantOf(libs.querydsl.jpa) { classifier('jakarta') }
+	annotationProcessor variantOf(libs.querydsl.apt) { classifier('jakarta') }
+	annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+	annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+	// 테스트
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation libs.json.schema.validator
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	//test container
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:mysql'
+	testImplementation 'org.testcontainers:elasticsearch'
+	testImplementation 'org.testcontainers:testcontainers'
+}
+
+// Deployment, CI, and archived tooling read these artifacts from the repository root
+// (build/libs/airbob.jar, build/openapi, build/growth-b-contract-test-runtime), so core-api keeps
+// writing them there instead of core/core-api/build.
+def rootBuildDirectory = rootProject.layout.buildDirectory
+def versionedOpenApiDirectory = rootProject.layout.projectDirectory.dir('docs/api/openapi')
+
+tasks.register('prepareGrowthBContractTestRuntime', Sync) {
+	group = 'verification'
+	description = 'Prepare BCrypt for the offline Global B credential contract tests.'
+	from configurations.growthBContractTestRuntime
+	into rootBuildDirectory.dir('growth-b-contract-test-runtime')
+}
+
+// Tests read docker/, scripts/, infra/, monitoring/, and docs/ relative to the repository root.
+tasks.withType(Test).configureEach {
+	workingDir = rootProject.projectDir
+}
+
+tasks.named('test') {
+	// The same tests run in isolation through the OpenAPI tasks below.
+	exclude '**/apidocs/**'
+}
+
+tasks.named('bootJar') {
+	archiveFileName = 'airbob.jar'
+	destinationDirectory = rootBuildDirectory.dir('libs')
+}
+
+// Generate with real MVC controllers and mocked services, without application infrastructure.
+tasks.register('generateOpenApi', Test) {
+	group = 'documentation'
+	description = 'Generate and validate API contracts in build/openapi without changing source files.'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	include '**/apidocs/**'
+	systemProperty 'airbob.openapi.output', rootBuildDirectory.dir('openapi').get().asFile.absolutePath
+	outputs.dir rootBuildDirectory.dir('openapi')
+}
+
+tasks.register('updateOpenApi', Sync) {
+	group = 'documentation'
+	description = 'Explicitly replace the versioned OpenAPI snapshots with validated generated contracts.'
+	dependsOn tasks.named('generateOpenApi')
+	from rootBuildDirectory.dir('openapi')
+	into versionedOpenApiDirectory
+}
+
+tasks.register('verifyOpenApi') {
+	mustRunAfter tasks.named('updateOpenApi')
+	group = 'verification'
+	description = 'Reject stale, missing, or unexpected versioned OpenAPI contracts.'
+	dependsOn tasks.named('generateOpenApi')
+	inputs.dir versionedOpenApiDirectory
+	inputs.dir rootBuildDirectory.dir('openapi')
+	doLast {
+		def generated = rootBuildDirectory.dir('openapi').get().asFile
+		def versioned = versionedOpenApiDirectory.asFile
+		def names = generated.listFiles().findAll { it.isFile() }.collect { it.name }.toSet()
+		def savedNames = versioned.listFiles()?.findAll { it.isFile() }?.collect { it.name }?.toSet() ?: [] as Set
+		if (names.isEmpty() || names != savedNames || names.any {
+			!java.util.Arrays.equals(new File(generated, it).bytes, new File(versioned, it).bytes)
+		}) {
+			throw new GradleException('OpenAPI snapshots are stale. Run ./gradlew updateOpenApi and commit docs/api/openapi/.')
+		}
+	}
+}
+
+tasks.named('check') {
+	dependsOn tasks.named('verifyOpenApi')
+}
