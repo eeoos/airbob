@@ -1,7 +1,7 @@
 ---
 paths:
-  - "src/**/domain/accommodation/cache/**/*"
-  - "src/**/config/AccommodationDetailRedis*"
+  - "**/src/**/domain/accommodation/cache/**/*"
+  - "**/src/**/config/AccommodationDetailRedis*"
 ---
 
 # Accommodation detail cache

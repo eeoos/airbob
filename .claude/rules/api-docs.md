@@ -1,8 +1,8 @@
 ---
 paths:
-  - "src/**/api/**/*"
-  - "src/**/dto/**/*"
-  - "src/**/apidocs/**/*"
+  - "**/src/**/api/**/*"
+  - "**/src/**/dto/**/*"
+  - "**/src/**/apidocs/**/*"
   - "docs/api/**/*"
 ---
 

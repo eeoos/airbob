@@ -11,7 +11,14 @@ state. The README, `docs/` and `scripts/README.md` are written in Korean.
 - Datasource and AWS credentials come from environment variables (`SPRING_DATASOURCE_*`, `AWS_*`,
   `CLOUDFRONT_DOMAIN`) supplied by `.env`.
 
-## Package structure
+## Module and package structure
+
+The build is a multi-module Gradle project following team-dodn/spring-boot-java-template.
+`core/core-api` is the only executable module and still holds all application code and resources,
+including Flyway migrations. Versions live in `gradle/libs.versions.toml`. Build outputs stay at the
+repository root (`build/libs/airbob.jar`, `build/openapi`) because deployment and CI read them there.
+The target structure, layering rules, and the PR-by-PR migration roadmap are in
+`docs/architecture/code-structure.md`; follow it when moving code.
 
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`domain/payment/messaging/`,
@@ -53,6 +60,6 @@ directly, even if you have not opened a matching file yet.
 - The `test` profile disables scheduled execution, Kafka listener auto-startup, inventory startup
   seeding and retention, and search index bootstrap. Listeners that declare their own `autoStartup`
   ignore the global switch, so each needs its own flag set to `false` in
-  `src/test/resources/application-test.yaml`.
+  `core/core-api/src/test/resources/application-test.yaml`.
 - Do not weaken `test`-profile Kafka/scheduling isolation to make a focused test pass.
 

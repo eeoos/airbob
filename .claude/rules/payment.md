@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/**/domain/payment/**/*"
+  - "**/src/**/domain/payment/**/*"
 ---
 
 # Payment confirmation and cancellation

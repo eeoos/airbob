@@ -1,13 +1,13 @@
 ---
 paths:
-  - "src/main/resources/db/migration/**/*"
-  - "src/test/java/**/migration/**/*"
+  - "**/src/main/resources/db/migration/**/*"
+  - "**/src/test/java/**/migration/**/*"
   - "scripts/preflight-reservation-inventory-cutover.sh"
 ---
 
 # Database migrations
 
-- MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
+- MySQL 8 with Flyway migrations under `core/core-api/src/main/resources/db/migration/`.
 - Roll forward only. Do not rewrite applied migrations, and do not automatically roll a V25+
   database back to a pre-inventory binary.
 - Earlier cutovers required stopping older readers/writers and passing guards before specific

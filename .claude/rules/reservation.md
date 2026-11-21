@@ -1,8 +1,8 @@
 ---
 paths:
-  - "src/**/domain/reservation/**/*"
-  - "src/**/domain/payment/**/*"
-  - "src/**/domain/accommodation/**/*"
+  - "**/src/**/domain/reservation/**/*"
+  - "**/src/**/domain/payment/**/*"
+  - "**/src/**/domain/accommodation/**/*"
 ---
 
 # Reservation inventory
