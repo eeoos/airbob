@@ -1147,7 +1147,7 @@ def validate_inputs(config):
     release = Path(config['release'])
     require(sha(release / 'consumer-manifest.json') == config['consumerManifestSha256'] and
             sha(release / 'SHA256SUMS.json') == config['checksumsSha256'], 'Reviewed release trust anchors differ')
-    manifest, checks, baseline = validate(release, config['datasetId'], Path(config['backendRoot']) / 'src/main/resources/db/migration',
+    manifest, checks, baseline = validate(release, config['datasetId'], Path(config['backendRoot']) / 'core/core-api/src/main/resources/db/migration',
             allow_small=config.get('allowSmall', False), expected_app_sha=sha(config['appJar']))
     contract.validate_private_accounts(config['privateAccounts'], release, expected_environment=account_environment(config))
     return manifest, checks, baseline

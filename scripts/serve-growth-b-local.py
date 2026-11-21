@@ -379,7 +379,7 @@ class Supervisor:
         release = Path(self.restore_config['release'])
         require(sha(release / 'consumer-manifest.json') == self.restore_config['consumerManifestSha256']
                 and sha(release / 'SHA256SUMS.json') == self.restore_config['checksumsSha256'], 'Retained release anchors changed')
-        _, checks, _ = contract.validate(release, self.dataset_id, Path(self.restore_config['backendRoot']) / 'src/main/resources/db/migration',
+        _, checks, _ = contract.validate(release, self.dataset_id, Path(self.restore_config['backendRoot']) / 'core/core-api/src/main/resources/db/migration',
                                           expected_app_sha=JAR_SHA, verify_gzip=False)
         contract.validate_private_accounts(self.completion['privateAccounts'], release, expected_environment=self.environment)
         self.runtime = restore.extract_runtime(release, self.output / ('runtime-' + os.urandom(6).hex()))

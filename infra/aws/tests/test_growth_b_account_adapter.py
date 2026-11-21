@@ -165,7 +165,7 @@ class AccountInputTest(AccountInputFixture):
         # Release authenticity is covered separately; exercise the real private validator here.
         with patch.object(restore, 'validate', return_value=({}, {}, self.baseline)) as public:
             result = restore.validate_inputs(self.config)
-            public.assert_called_once_with(self.release, self.config['datasetId'], ROOT / 'src/main/resources/db/migration',
+            public.assert_called_once_with(self.release, self.config['datasetId'], ROOT / 'core/core-api/src/main/resources/db/migration',
                 allow_small=True, expected_app_sha=restore.sha(self.jar))
             return result
 

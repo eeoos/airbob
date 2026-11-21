@@ -16,24 +16,33 @@ class ScopeTests(unittest.TestCase):
 
     def test_api_docs_run_contract_checks_without_application_tests_or_deployment(self):
         for path in ('docs/api/README.md', 'docs/api/openapi/client.yaml',
-                     'src/test/java/kr/kro/airbob/apidocs/ApiDocumentationTest.java',
-                     'src/test/resources/apidocs/openapi-3.1-schema.json'):
+                     'core/core-api/src/test/java/kr/kro/airbob/apidocs/ApiDocumentationTest.java',
+                     'core/core-api/src/test/resources/apidocs/openapi-3.1-schema.json'):
             with self.subTest(path=path):
                 self.assertEqual(scope.classify([path]),
                     dict(app=False, infrastructure=False, data=False, oci=False, api_docs=True))
-        selected = scope.classify(['docs/api/openapi/client.yaml', 'src/main/java/example/Controller.java'])
+        selected = scope.classify(['docs/api/openapi/client.yaml', 'core/core-api/src/main/java/example/Controller.java'])
         self.assertTrue(selected['app'])
         self.assertFalse(selected['api_docs'])  # build/check already verifies the contract
 
     def test_application_change_does_not_wait_for_unrelated_aws_tools(self):
-        self.assertEqual(scope.classify(['src/main/java/example/Service.java']),
+        self.assertEqual(scope.classify(['core/core-api/src/main/java/example/Service.java']),
             dict(app=True, infrastructure=False, data=False, oci=True, api_docs=False))
-        self.assertEqual(scope.classify(['src/test/java/example/ServiceTest.java']),
+        self.assertEqual(scope.classify(['core/core-api/src/test/java/example/ServiceTest.java']),
+            dict(app=True, infrastructure=False, data=False, oci=False, api_docs=False))
+
+    def test_shipped_modules_deploy_but_test_support_modules_do_not(self):
+        for path in ('clients/client-example/src/main/java/example/Client.java',
+                     'support/monitoring/src/main/resources/monitoring.yml'):
+            with self.subTest(path=path):
+                self.assertTrue(scope.classify([path])['oci'])
+        self.assertEqual(scope.classify(['tests/api-docs/src/main/java/example/RestDocsTest.java']),
             dict(app=True, infrastructure=False, data=False, oci=False, api_docs=False))
 
     def test_shared_schema_configuration_and_workflow_inputs_run_all_checks(self):
-        for path in ['src/main/resources/db/migration/V32__example.sql',
-                     'src/main/resources/application.yaml', 'build.gradle',
+        for path in ['core/core-api/src/main/resources/db/migration/V32__example.sql',
+                     'core/core-api/src/main/resources/application.yaml', 'build.gradle',
+                     'core/core-api/build.gradle', 'gradle/libs.versions.toml',
                      'docker-compose.yml', '.github/workflows/cd.yml', 'scripts/ci/scope.py']:
             with self.subTest(path=path):
                 selected = scope.classify([path])
@@ -61,7 +70,7 @@ class ScopeTests(unittest.TestCase):
             git('init', '-q')
             git('config', 'user.name', 'CI test')
             git('config', 'user.email', 'ci@example.invalid')
-            source = root / 'src/main/java/Removed.java'
+            source = root / 'core/core-api/src/main/java/Removed.java'
             source.parent.mkdir(parents=True)
             source.write_text('class Removed {}')
             git('add', '.'); git('commit', '-qm', 'base')

@@ -98,7 +98,7 @@ DB 로딩은 숙소 상세 데이터를 읽는 로더의 실행 횟수이며, �
 
 락을 얻은 요청도 캐시를 다시 확인합니다. 기다리는 동안 앞선 요청이 값을 채웠다면 DB 조회를 생략할 수 있기 때문입니다. 락 대기 시간 초과 시에도 캐시를 한 번 더 확인한 뒤 우회 여부를 결정합니다.
 
-Redis를 사용할 수 없는 경로에서는 [같은 JVM 안의 요청을 병합](src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailLocalLoadCoordinator.java)합니다. 서로 다른 앱의 조회까지 합칠 수는 없으며, 선행 조회 대기가 설정된 상한을 넘으면 해당 요청은 독립적으로 DB를 조회합니다. 이 경로는 캐시에 결과를 쓰지 않습니다.
+Redis를 사용할 수 없는 경로에서는 [같은 JVM 안의 요청을 병합](core/core-api/src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailLocalLoadCoordinator.java)합니다. 서로 다른 앱의 조회까지 합칠 수는 없으며, 선행 조회 대기가 설정된 상한을 넘으면 해당 요청은 독립적으로 DB를 조회합니다. 이 경로는 캐시에 결과를 쓰지 않습니다.
 
 #### 캐시를 삭제한 뒤에도 예전 값이 돌아올 수 있다
 
@@ -126,7 +126,7 @@ sequenceDiagram
     R-->>A: permit이 사라졌으므로 저장 거부
 ```
 
-permit 비교와 저장을 별도 요청으로 나누면 그 사이에 무효화가 끼어들 수 있어 [하나의 Lua 연산](src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailRedisStore.java)으로 처리합니다. 무효화보다 늦게 끝난 조회가 캐시를 다시 채우지 못하는지는 [경합 테스트](src/test/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailCacheInvalidationRaceIntegrationTest.java)로 확인합니다. 이미 시작한 조회에는 이전 데이터가 반환될 수 있지만, 그 결과가 캐시에 남아 후속 요청에 반복 제공되는 것을 막습니다.
+permit 비교와 저장을 별도 요청으로 나누면 그 사이에 무효화가 끼어들 수 있어 [하나의 Lua 연산](core/core-api/src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailRedisStore.java)으로 처리합니다. 무효화보다 늦게 끝난 조회가 캐시를 다시 채우지 못하는지는 [경합 테스트](core/core-api/src/test/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailCacheInvalidationRaceIntegrationTest.java)로 확인합니다. 이미 시작한 조회에는 이전 데이터가 반환될 수 있지만, 그 결과가 캐시에 남아 후속 요청에 반복 제공되는 것을 막습니다.
 
 ### 쿠폰 동시 발급
 
@@ -156,7 +156,7 @@ flowchart LR
     class U1,U2,U3 unit
 ```
 
-[발급 트랜잭션](src/main/java/kr/kro/airbob/domain/coupon/service/CouponSkipLockedIssueService.java)에서는 쿠폰 정책을 공유 잠금으로 확인한 뒤, 선택한 재고 행의 DELETE와 `member_coupon` INSERT를 함께 커밋합니다. 회원·쿠폰 유니크 제약을 위반하거나 저장이 실패하면 재고 삭제도 롤백됩니다.
+[발급 트랜잭션](core/core-api/src/main/java/kr/kro/airbob/domain/coupon/service/CouponSkipLockedIssueService.java)에서는 쿠폰 정책을 공유 잠금으로 확인한 뒤, 선택한 재고 행의 DELETE와 `member_coupon` INSERT를 함께 커밋합니다. 회원·쿠폰 유니크 제약을 위반하거나 저장이 실패하면 재고 삭제도 롤백됩니다.
 
 #### 빈 조회와 품절을 구분하기
 
@@ -166,7 +166,7 @@ flowchart LR
 2. 새 트랜잭션의 스냅샷에서 중복 발급 여부·정책·잔여 재고를 다시 확인합니다.
 3. 재고가 없으면 품절(`CP002`), 재고가 남아 있으면 횟수와 시간 예산 안에서 재시도합니다. 한도를 넘기면 재시도 가능한 경합(`CP012`)으로 응답합니다.
 
-마지막 재고를 다른 요청이 잠근 상태, 중복 발급, 저장 실패 시 재고 복구는 [MySQL 동시성 테스트](src/test/java/kr/kro/airbob/domain/coupon/CouponConcurrencyTest.java)에서 확인합니다.
+마지막 재고를 다른 요청이 잠근 상태, 중복 발급, 저장 실패 시 재고 복구는 [MySQL 동시성 테스트](core/core-api/src/test/java/kr/kro/airbob/domain/coupon/CouponConcurrencyTest.java)에서 확인합니다.
 
 현재 기본값은 대리 키와 `REPEATABLE_READ`입니다. 복합 키 및 `READ_COMMITTED`도 비교했지만 기존 선택을 바꿀 만큼 일관된 이점을 확인하지 못했습니다. 재고 수량에 비례하는 저장 공간과 사전 준비 비용이 필요하며, 발급 시작 후에는 수량 변경이나 재입고를 허용하지 않습니다.
 
@@ -198,7 +198,7 @@ flowchart LR
     Before -->|"집계 시점 변경"| After
 ```
 
-요약 테이블에 리뷰 수·평점 합계·평균을 유지하고, [리뷰 변경과 요약 갱신](src/main/java/kr/kro/airbob/domain/review/repository/AccommodationReviewSummaryRepository.java)을 같은 트랜잭션에서 처리합니다. 반복 읽기의 계산은 줄어들지만, 리뷰를 쓸 때 요약 갱신 비용이 추가되고 같은 숙소의 요약 행에서 경합이 생길 수 있습니다.
+요약 테이블에 리뷰 수·평점 합계·평균을 유지하고, [리뷰 변경과 요약 갱신](core/core-api/src/main/java/kr/kro/airbob/domain/review/repository/AccommodationReviewSummaryRepository.java)을 같은 트랜잭션에서 처리합니다. 반복 읽기의 계산은 줄어들지만, 리뷰를 쓸 때 요약 갱신 비용이 추가되고 같은 숙소의 요약 행에서 경합이 생길 수 있습니다.
 
 위시리스트 숙소 50개·20 RPS의 AWS 비교에서 3회 p95 중앙값은 **18.42ms → 11.03ms**였습니다. 최근 본 숙소의 N+1 제거와 리뷰 요약 적용은 각각 따로 측정했습니다. 
 

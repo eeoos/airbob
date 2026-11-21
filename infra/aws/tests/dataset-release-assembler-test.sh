@@ -225,7 +225,7 @@ world_version=world-v2
 options_end
 EOF
   : > "$root/backend-migrations.sha256"
-  while IFS= read -r path; do name=${path##*/}; printf '%s  ./%s\n' "$(sha256_file "$path")" "$name" >> "$root/backend-migrations.sha256"; done < <(find "$repo_root/src/main/resources/db/migration" -type f -name 'V*.sql' | sort)
+  while IFS= read -r path; do name=${path##*/}; printf '%s  ./%s\n' "$(sha256_file "$path")" "$name" >> "$root/backend-migrations.sha256"; done < <(find "$repo_root/core/core-api/src/main/resources/db/migration" -type f -name 'V*.sql' | sort)
   printf '%s  %s\n' "$(sha256_file "$semantic_validator")" 'infra/aws/scripts/validate-benchmark-dataset-v2.jq' > "$root/etl-code.sha256"
   printf '%s  %s\n' "$(printf source | { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi; } | awk '{print $1}')" source.csv > "$root/source.sha256"
   cat > "$root/database-fingerprint.tsv" <<'EOF'

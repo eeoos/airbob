@@ -11,25 +11,39 @@ DEPLOYMENT_SCRIPTS = {
     'scripts/reindex-accommodations.sh', 'scripts/init-ssl.sh',
 }
 BUILD_FILES = {'build.gradle', 'settings.gradle', 'gradlew', 'gradlew.bat', 'gradle.properties'}
-OCI_PREFIXES = ('src/main/', 'gradle/', 'docker/app/', 'docker/debezium/',
+# Gradle modules are <group>/<module>/ (core/core-api, storage/db-core, clients/*, support/*, tests/*).
+MODULE = r'(?:core|storage|clients|support|tests)/[^/]+/'
+MODULE_BUILD_FILE = re.compile(MODULE + r'build\.gradle$')
+# Main code of these groups ships in the application JAR; tests/* modules are test-only.
+SHIPPED_MAIN = re.compile(r'(?:core|storage|clients|support)/[^/]+/src/main/')
+MODULE_MAIN_RESOURCES = re.compile(MODULE + r'src/main/resources/')
+MODULE_SOURCES = re.compile(MODULE + r'src/')
+API_DOCS_PREFIXES = ('docs/api/', 'core/core-api/src/test/java/kr/kro/airbob/apidocs/',
+                     'core/core-api/src/test/resources/apidocs/')
+OCI_PREFIXES = ('gradle/', 'docker/app/', 'docker/debezium/',
                 'docker/elasticsearch/', 'docker/kafka/', 'docker/mysql/init/',
                 'docker/logstash/', 'docker/nginx/', 'monitoring/')
 OCI_FILES = BUILD_FILES | DEPLOYMENT_SCRIPTS | {'docker-compose.oci.yml', 'infra/aws/images/release.json'}
 
 
+def is_build_file(path):
+    return path in BUILD_FILES or bool(MODULE_BUILD_FILE.match(path))
+
+
 def classify(paths, force_app=False):
     selected = dict(app=force_app, infrastructure=False, data=False, oci=False, api_docs=False)
     for path in paths:
-        oci = path in OCI_FILES or path.startswith(OCI_PREFIXES)
+        oci = (path in OCI_FILES or is_build_file(path) or path.startswith(OCI_PREFIXES)
+               or bool(SHIPPED_MAIN.match(path)))
         selected['oci'] |= oci
-        if path.startswith(('docs/api/', 'src/test/java/kr/kro/airbob/apidocs/', 'src/test/resources/apidocs/')):
+        if path.startswith(API_DOCS_PREFIXES):
             selected['api_docs'] = True
             continue
         if path.startswith(('docs/', 'load-test/', 'scripts/archive/', '.claude/rules/')) or path in {
             'README.md', 'AGENTS.md', 'CLAUDE.md', 'scripts/README.md', '.gitattributes', '.gitignore', 'LICENSE',
         }:
             continue
-        if path.startswith(('.github/', 'scripts/ci/')) or path in BUILD_FILES or path.startswith('gradle/'):
+        if path.startswith(('.github/', 'scripts/ci/')) or is_build_file(path) or path.startswith('gradle/'):
             selected.update(app=True, infrastructure=True, data=True)
         elif path.startswith('infra/aws/'):
             selected.update(infrastructure=True, data=True)
@@ -37,9 +51,9 @@ def classify(paths, force_app=False):
             selected['data'] = True
         elif path.startswith(('docker/', 'monitoring/')) or path.startswith('docker-compose') or path in DEPLOYMENT_SCRIPTS:
             selected.update(app=True, infrastructure=True, data=True)
-        elif path.startswith('src/main/resources/'):
+        elif MODULE_MAIN_RESOURCES.match(path):
             selected.update(app=True, infrastructure=True, data=True)
-        elif path.startswith('src/'):
+        elif MODULE_SOURCES.match(path):
             selected['app'] = True
         else:
             # New code locations are checked until their dependencies are classified.
