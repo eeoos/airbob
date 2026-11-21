@@ -56,13 +56,3 @@ directly, even if you have not opened a matching file yet.
   `src/test/resources/application-test.yaml`.
 - Do not weaken `test`-profile Kafka/scheduling isolation to make a focused test pass.
 
-## Working guidelines
-
-- Keep diffs minimal: change only what the request needs, match the existing style, and leave
-  adjacent code, comments, and formatting alone. Mention unrelated dead code instead of deleting
-  it; remove only the imports, variables, and functions your own change orphaned.
-- Write the simplest code that solves the problem: no unrequested features, configurability,
-  single-use abstractions, or handling for cases that cannot happen.
-- If a request is ambiguous or you are unsure, state your assumptions and ask before implementing.
-- Verify before reporting done: reproduce a bug with a failing test before fixing it, and run the
-  relevant tests before and after a refactor.
