@@ -150,3 +150,6 @@ override.tf.json
 # Local README previews
 /README.preview.md
 /output/readme-design-preview/
+
+# Local Korean reference translation of CLAUDE.md
+/CLAUDE.ko.md

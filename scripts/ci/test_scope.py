@@ -10,7 +10,8 @@ import scope
 class ScopeTests(unittest.TestCase):
     def test_docs_and_archived_measurements_do_not_run_or_deploy_application(self):
         self.assertEqual(scope.classify(['docs/performance/cache.md', 'README.md',
-            'load-test/k6/cache/comparison.js', 'scripts/archive/bootstrap.py']),
+            'load-test/k6/cache/comparison.js', 'scripts/archive/bootstrap.py',
+            'CLAUDE.md', 'AGENTS.md', '.claude/rules/reservation.md']),
             dict(app=False, infrastructure=False, data=False, oci=False, api_docs=False))
 
     def test_api_docs_run_contract_checks_without_application_tests_or_deployment(self):
