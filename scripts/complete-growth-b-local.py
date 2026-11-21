@@ -152,7 +152,7 @@ def validate_final(config):
     require(lifetime.get('policy') == 'sequential-single-database'
             and lifetime.get('maximumConcurrentDatasetSchemas') == 1
             and lifetime.get('plaintextTemporaryDumpBytes') == 0, 'Final qualification must preserve the one-database streaming policy')
-    manifest, checks, baseline = contract.validate(release, config['datasetId'], ROOT / 'src/main/resources/db/migration',
+    manifest, checks, baseline = contract.validate(release, config['datasetId'], ROOT / 'core/core-api/src/main/resources/db/migration',
                 allow_small=False, expected_app_sha=config['appJarSha256'])
     require(manifest['finalScaleSelected'] is True and manifest['datasetScale'] == contract.FINAL_SCALE
             and roundtrip['dumpSha256'] == checks['airbob-growth.sql.gz'], 'Final dataset/dump identity differs')
@@ -525,7 +525,7 @@ def baseline_config(config, info, identity):
     environment = restore.connection_environment(info)
     value = {'releaseDirectory': config['release'], 'datasetId': config['datasetId'],
         'consumerManifestSha256': config['consumerManifestSha256'], 'checksSha256': config['checksumsSha256'],
-        'migrationDirectory': str(Path(config['backendRoot']) / 'src/main/resources/db/migration'),
+        'migrationDirectory': str(Path(config['backendRoot']) / 'core/core-api/src/main/resources/db/migration'),
         'appJar': config['appJar'], 'allowSmallQualification': False,
         'sourceTimeoutSeconds': config['operationTimeoutSeconds'],
         'mysql': {'jdbcUrl': environment['AIRBOB_ETL_DB_URL'], 'username': 'root',

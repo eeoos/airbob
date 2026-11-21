@@ -180,7 +180,7 @@ def source_config(args, manifest, info, identity, suffix, native, es_config):
     environment = restore.connection_environment(info)
     config = {'releaseDirectory': str(args.release), 'datasetId': manifest['datasetId'],
               'consumerManifestSha256': args.consumer_manifest_sha256, 'checksSha256': args.checks_sha256,
-              'migrationDirectory': str(ROOT / 'src/main/resources/db/migration'), 'appJar': str(args.app_jar),
+              'migrationDirectory': str(ROOT / 'core/core-api/src/main/resources/db/migration'), 'appJar': str(args.app_jar),
               'allowSmallQualification': True, 'sourceTimeoutSeconds': 600, 'snapshotTimeoutSeconds': 600,
               'mysql': {'jdbcUrl': environment['AIRBOB_ETL_DB_URL'], 'username': 'root',
                         'passwordEnvironment': PASSWORD_ENV, 'expectedServerUuid': identity['uuid']},
@@ -261,7 +261,7 @@ def main():
     manifest = restore.read(args.release / 'consumer-manifest.json')
     restore.require(manifest['datasetScale'] == 'small-qualification' and not manifest['finalScaleSelected'],
                     'This harness accepts only the bounded small qualification')
-    manifest, checks, baseline = restore.validate(args.release, manifest['datasetId'], ROOT / 'src/main/resources/db/migration',
+    manifest, checks, baseline = restore.validate(args.release, manifest['datasetId'], ROOT / 'core/core-api/src/main/resources/db/migration',
                                                  allow_small=True, expected_app_sha=restore.sha(args.app_jar))
     search_qualification = restore.read(args.release / 'search-qualification.json')
     restore.require(args.image == search_qualification['imageId'], 'Use the ES image qualified by this sealed small release')

@@ -25,6 +25,7 @@
 
 | 목적 | 문서 |
 |---|---|
+| 모듈·패키지 구조와 단계별 이전 계획 | [코드 구조](architecture/code-structure.md) |
 | 로컬 SQL 확인·쿼리 수 관측 | [SQL 추적과 모니터링](operations/query-count-monitoring.md) |
 | 예약 재고와 DB 전환 | [재고 전환](operations/reservation-inventory-cutover.md) |
 | 결제 실패·복구·수동 해결 | [결제 운영](operations/payment-operation-runbook.md) |

@@ -11,8 +11,8 @@ binlog에서 읽어 Kafka로 전달한다.
 column이 없으므로 DB 행만 보고 전달 완료를 판정할 수 없다. consumer는 중복 wake-up
 signal을 처리할 수 있어야 한다.
 
-- 이벤트 계약: [`messaging/event`](../../src/main/java/kr/kro/airbob/messaging/event)
-- outbox 구현: [`messaging/outbox`](../../src/main/java/kr/kro/airbob/messaging/outbox)
+- 이벤트 계약: [`messaging/event`](../../core/core-api/src/main/java/kr/kro/airbob/messaging/event)
+- outbox 구현: [`messaging/outbox`](../../core/core-api/src/main/java/kr/kro/airbob/messaging/outbox)
 - connector 설정: [`docker/debezium/outbox-connector.json`](../../docker/debezium/outbox-connector.json)
 
 ## Connect와 topic bootstrap

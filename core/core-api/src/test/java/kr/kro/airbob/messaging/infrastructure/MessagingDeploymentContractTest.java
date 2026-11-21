@@ -185,13 +185,13 @@ class MessagingDeploymentContractTest {
 	@Test
 	@DisplayName("애플리케이션은 하나의 bootstrap 주소와 canonical String payload serializer를 사용한다")
 	void normalizesKafkaClientProperties() throws IOException {
-		String application = read("src/main/resources/application.yaml");
+		String application = read("core/core-api/src/main/resources/application.yaml");
 		assertThat(application)
 			.contains("value-serializer: org.apache.kafka.common.serialization.StringSerializer")
 			.doesNotContain("value-serializer: org.springframework.kafka.support.serializer.JsonSerializer");
 
 		for (String profile : List.of("dev", "aws", "oci")) {
-			String profileConfig = read("src/main/resources/application-" + profile + ".yaml");
+			String profileConfig = read("core/core-api/src/main/resources/application-" + profile + ".yaml");
 			assertThat(profileConfig)
 				.contains("  kafka:\n    bootstrap-servers:")
 				.doesNotContain("group-id: payment-service-group")

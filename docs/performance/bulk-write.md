@@ -11,17 +11,17 @@
 | 숙소 편의시설 | 기존 편의시설별 DELETE | 숙소 ID 조건의 JPQL DELETE |
 | 만료 예약 이력 | JPA `save()`를 건별 호출 | 제한된 크기의 JDBC batch INSERT |
 
-[위시리스트 삭제](../../src/main/java/kr/kro/airbob/domain/wishlist/service/WishlistService.java)는 존재·소유권과
+[위시리스트 삭제](../../core/core-api/src/main/java/kr/kro/airbob/domain/wishlist/service/WishlistService.java)는 존재·소유권과
 삭제 대상을 조회한 뒤 연결 행을 지운다. 대상 조회 자체를 제거한 최적화는 아니다.
 연결 숙소 N개를 개별 삭제하던 경로와 비교하면 DELETE는 N회에서 1회가 된다.
 N=1,000의 `1,000 → 1회`는 DELETE 횟수이며 전체 요청의 SQL 수나 지연 감소율이 아니다.
 
-[편의시설 저장소](../../src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationAmenityRepository.java)는
+[편의시설 저장소](../../core/core-api/src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationAmenityRepository.java)는
 `DELETE ... WHERE accommodation.id = :accommodationId`로 기존 항목을 지운다.
-[숙소 수정 서비스](../../src/main/java/kr/kro/airbob/domain/accommodation/service/AccommodationCommandService.java)에서
+[숙소 수정 서비스](../../core/core-api/src/main/java/kr/kro/airbob/domain/accommodation/service/AccommodationCommandService.java)에서
 `amenityInfos=null`은 기존 값 유지, 빈 목록은 전체 삭제, 값이 있으면 삭제 후 재등록한다.
 
-[예약 이력 writer](../../src/main/java/kr/kro/airbob/domain/reservation/repository/ReservationHistoryBatchWriter.java)는
+[예약 이력 writer](../../core/core-api/src/main/java/kr/kro/airbob/domain/reservation/repository/ReservationHistoryBatchWriter.java)는
 `JdbcTemplate.batchUpdate()`를 사용한다. 예약 상태·소유 재고 해제·쿠폰 복원과 이력 저장은
 같은 만료 정리 트랜잭션에서 처리한다. JDBC batch 호출 수와 MySQL이 실행한 SQL 문장 수는 구분한다.
 실제 드라이버 전송 방식은 측정 당시의 `rewriteBatchedStatements` 등 JDBC 설정과 함께 해석한다.

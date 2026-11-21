@@ -70,8 +70,8 @@ class RdsSessionSqlTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.journal = core.Journal(Path(self.temp.name).resolve() / 'journal', 'a' * 64, 'b' * 64); self.addCleanup(self.journal.close)
-        v1 = (ROOT / 'src/main/resources/db/migration/V1__init.sql').read_text()
-        v18 = (ROOT / 'src/main/resources/db/migration/V18__refactor_messaging_orchestration.sql').read_text()
+        v1 = (ROOT / 'core/core-api/src/main/resources/db/migration/V1__init.sql').read_text()
+        v18 = (ROOT / 'core/core-api/src/main/resources/db/migration/V18__refactor_messaging_orchestration.sql').read_text()
         ddl = [re.search(r'CREATE TABLE ' + table + r' \(.*?\) ENGINE=.*?;', v1, re.S)[0] for table in core.COLUMNS]
         sql = ['DROP DATABASE IF EXISTS airbobdb;', 'CREATE DATABASE airbobdb CHARACTER SET utf8mb4;', 'USE airbobdb;',
             *['CREATE TABLE `' + name + '` (id BIGINT PRIMARY KEY) ENGINE=InnoDB;' for name in sorted(TABLES - set(core.COLUMNS))],

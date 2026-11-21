@@ -81,7 +81,7 @@ CD는 deploy job에서도 commit을 checkout한 다음
 경로만 $HOME/airbob의 managed deployment asset으로 동기화한다.
 
 - docker-compose.oci.yml
-- src/main/resources/db/migration/
+- core/core-api/src/main/resources/db/migration/
 - docker/debezium/, docker/elasticsearch/, docker/kafka/, docker/mysql/init/
 - docker/logstash/, docker/nginx/, monitoring/
 - scripts/ 안의 deploy-oci.sh, sync-oci-deployment-assets.sh,
@@ -90,6 +90,10 @@ CD는 deploy job에서도 commit을 checkout한 다음
 managed directory 안에서 저장소에서 삭제된 파일은 서버에서도 삭제한다. 반면 서버가
 소유하는 root secret, application log, Docker named volume은 동기화 대상이 아니므로
 삭제하지 않는다. 배포 디렉터리 전체에 rsync --delete를 사용하지 않는다.
+
+멀티모듈 전환 전에는 migration을 `src/main/resources/db/migration/`으로 동기화했다. 전환 후
+Flyway container는 `core/core-api/src/main/resources/db/migration/`만 마운트하므로, 서버에
+남아 있는 이전 경로의 사본은 더 이상 갱신되지도 사용되지도 않는다. 확인 후 삭제해도 된다.
 
 배포 디렉터리의 `scripts/`는 위 5개 파일로 맞춘다. 이전에 복사된 CodeDeploy·데이터셋·
 보관용 도구도 이 디렉터리에서는 제거되므로, 개인 도구는 managed directory 밖에 둔다.

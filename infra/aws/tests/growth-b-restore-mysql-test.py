@@ -41,7 +41,7 @@ def main():
     output.mkdir(mode=0o700)
     manifest = restore.read(release/'consumer-manifest.json')
     restore.require(manifest['datasetScale'] == 'small-qualification', 'Only a bounded existing small release is allowed')
-    _, checks, _ = restore.validate(release, manifest['datasetId'], ROOT/'src/main/resources/db/migration', allow_small=True,
+    _, checks, _ = restore.validate(release, manifest['datasetId'], ROOT/'core/core-api/src/main/resources/db/migration', allow_small=True,
                                     expected_app_sha=restore.sha(args.app_jar))
     mysql = restore.inspect('image', 'mysql:8.4.11')['Id']
     redis = restore.inspect('image', 'redis:7-alpine')['Id']

@@ -1,0 +1,29 @@
+[versions]
+spring-boot = "3.5.8"
+spring-dependency-management = "1.1.7"
+spring-cloud-aws = "3.1.1"
+springdoc = "2.8.17"
+querydsl = "5.0.0"
+redisson = "3.28.0"
+jbcrypt = "0.4"
+p6spy = "3.9.1"
+commons-lang3 = "3.18.0"
+timeshape = "2026b.29"
+org-json = "20250107"
+json-schema-validator = "1.5.9"
+
+[libraries]
+springdoc-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+querydsl-jpa = { module = "com.querydsl:querydsl-jpa", version.ref = "querydsl" }
+querydsl-apt = { module = "com.querydsl:querydsl-apt", version.ref = "querydsl" }
+redisson = { module = "org.redisson:redisson", version.ref = "redisson" }
+jbcrypt = { module = "org.mindrot:jbcrypt", version.ref = "jbcrypt" }
+p6spy = { module = "p6spy:p6spy", version.ref = "p6spy" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3" }
+timeshape = { module = "net.iakovlev:timeshape", version.ref = "timeshape" }
+org-json = { module = "org.json:json", version.ref = "org-json" }
+json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "json-schema-validator" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }

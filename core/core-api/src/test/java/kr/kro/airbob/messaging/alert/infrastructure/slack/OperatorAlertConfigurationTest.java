@@ -33,7 +33,7 @@ class OperatorAlertConfigurationTest {
 			mainYaml = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
 		}
 		String testYaml = java.nio.file.Files.readString(
-			java.nio.file.Path.of("src/test/resources/application-test.yaml"));
+			java.nio.file.Path.of("core/core-api/src/test/resources/application-test.yaml"));
 
 		assertThat(mainYaml)
 			.contains(

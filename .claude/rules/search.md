@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/**/search/**/*"
+  - "**/src/**/search/**/*"
   - "docker/elasticsearch/**/*"
   - "docker/logstash/**/*"
   - "scripts/reindex-accommodations.sh"

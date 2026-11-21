@@ -37,7 +37,7 @@ out/
 .vscode/
 
 # Spring Boot config files (all profiles)
-/src/main/resources/properties/env.properties
+**/src/main/resources/properties/env.properties
 
 .DS_Store
 ._.DS_Store
@@ -89,14 +89,14 @@ jacoco.exec
 __pycache__/
 
 # Generated AsciiDoc files
-src/docs/asciidoc/
+**/src/docs/asciidoc/
 
 # Local implementation planning artifacts
 /docs/plans/
 /docs/superpowers/
 
 # Static build output
-src/main/resources/static/
+**/src/main/resources/static/
 
 # Flyway migration lock
 flyway_schema_history.lock
@@ -111,7 +111,7 @@ flyway_schema_history.lock
 docker-volume/
 
 # Mock data
-src/main/resources/mock-data/
+**/src/main/resources/mock-data/
 
 # Elasticsearch snapshot
 es-snapshot/

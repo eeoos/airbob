@@ -49,7 +49,7 @@ def capture_search_baseline(config, output, runtime, info, db):
     variable = 'AIRBOB_FRESH_TEST_BASELINE_DB_PASSWORD'
     source = {'releaseDirectory': config['release'], 'datasetId': config['datasetId'],
               'consumerManifestSha256': config['consumerManifestSha256'], 'checksSha256': config['checksumsSha256'],
-              'migrationDirectory': str(Path(config['backendRoot']) / 'src/main/resources/db/migration'),
+              'migrationDirectory': str(Path(config['backendRoot']) / 'core/core-api/src/main/resources/db/migration'),
               'appJar': config['appJar'], 'allowSmallQualification': config.get('allowSmall', False),
               'sourceTimeoutSeconds': config.get('operationTimeoutSeconds', 7200),
               'mysql': {'jdbcUrl': environment['AIRBOB_ETL_DB_URL'], 'username': 'root',
@@ -83,7 +83,7 @@ def main():
                     restore.sha(release / 'SHA256SUMS.json') == args.checks_sha256, 'Reviewed small release anchors differ')
     manifest = restore.read(release / 'consumer-manifest.json')
     restore.require(manifest['datasetScale'] == 'small-qualification', 'Only the bounded small release is allowed')
-    _, _, baseline = restore.validate(release, manifest['datasetId'], ROOT / 'src/main/resources/db/migration',
+    _, _, baseline = restore.validate(release, manifest['datasetId'], ROOT / 'core/core-api/src/main/resources/db/migration',
                                       allow_small=True, expected_app_sha=restore.sha(app_jar))
     restore.require_local_engine()
     restore.require(not restore.existing('container'), 'Stop other test containers before fresh integration')

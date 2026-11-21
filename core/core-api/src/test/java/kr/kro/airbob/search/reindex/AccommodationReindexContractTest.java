@@ -24,7 +24,7 @@ import kr.kro.airbob.search.messaging.kafka.AccommodationSearchRefreshListener;
 class AccommodationReindexContractTest {
 
 	private static final Path INDEX_DEFINITION = Path.of(
-		"src/main/resources/elasticsearch/accommodations-index.json");
+		"core/core-api/src/main/resources/elasticsearch/accommodations-index.json");
 	private static final Path LOGSTASH_PIPELINE = Path.of("docker/logstash/pipeline/airbob.conf");
 
 	private final ObjectMapper objectMapper = new ObjectMapper();

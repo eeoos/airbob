@@ -49,7 +49,7 @@ class OciDeploymentContractTest {
 
 		assertThat(script)
 			.contains("docker-compose.oci.yml")
-			.contains("src/main/resources/db/migration")
+			.contains("core/core-api/src/main/resources/db/migration")
 			.contains("docker/debezium")
 			.contains("docker/elasticsearch")
 			.contains("docker/kafka")
@@ -72,7 +72,7 @@ class OciDeploymentContractTest {
 		Files.createDirectories(target);
 		Files.writeString(source.resolve("docker-compose.oci.yml"), "services: {}\n");
 		for (String directory : List.of(
-			"src/main/resources/db/migration",
+			"core/core-api/src/main/resources/db/migration",
 			"docker/debezium",
 			"docker/elasticsearch",
 			"docker/kafka",
@@ -402,7 +402,7 @@ class OciDeploymentContractTest {
 
 		assertThat(migration)
 			.contains("flyway/flyway:11.7.2")
-			.contains("./src/main/resources/db/migration:/flyway/sql:ro")
+			.contains("./core/core-api/src/main/resources/db/migration:/flyway/sql:ro")
 			.contains("FLYWAY_BASELINE_ON_MIGRATE: \"true\"")
 			.contains("condition: service_healthy")
 			.contains("restart: \"no\"");

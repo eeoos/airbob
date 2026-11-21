@@ -181,7 +181,7 @@ class ContractTest(unittest.TestCase):
         self.migration_dir.mkdir()
         # This release contract remains V28 even when the application adds migrations.
         for version in range(1, 29):
-            migration, = (ROOT / 'src/main/resources/db/migration').glob(f'V{version}__*.sql')
+            migration, = (ROOT / 'core/core-api/src/main/resources/db/migration').glob(f'V{version}__*.sql')
             shutil.copyfile(migration, self.migration_dir / migration.name)
         release = root / 'release'
         release.mkdir()

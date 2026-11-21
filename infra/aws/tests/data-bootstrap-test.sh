@@ -26,7 +26,7 @@ assert_contains() {
 
 latest_flyway_version=0
 flyway_history_rows=0
-for migration_path in "$repo_root"/src/main/resources/db/migration/V*.sql; do
+for migration_path in "$repo_root"/core/core-api/src/main/resources/db/migration/V*.sql; do
   migration_file=${migration_path##*/}
   migration_version=${migration_file#V}
   migration_version=${migration_version%%__*}

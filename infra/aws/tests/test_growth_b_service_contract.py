@@ -211,7 +211,7 @@ class ServiceContract(unittest.TestCase):
         required = set()
         for name in ('application.yaml', 'application-aws.yaml'):
             required.update(re.findall(r'\$\{([A-Z][A-Z0-9_]*)\}',
-                (ROOT / 'src/main/resources' / name).read_text()))
+                (ROOT / 'core/core-api/src/main/resources' / name).read_text()))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); contract = root / 'contract.json'
             contract.write_text(json.dumps({'cacheEnabled': True}))

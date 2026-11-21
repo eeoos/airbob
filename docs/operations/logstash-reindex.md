@@ -219,7 +219,7 @@ curl -X DELETE 'http://localhost:9200/accommodations-vYYYYMMDDhhmmss'
 - `accommodation_amenity.amenity_code`
 - 검색 가용 기간과 겹치는 확정·취소 처리 중 예약
 
-`src/main/resources/elasticsearch/accommodations-index.json`이 애플리케이션 bootstrap과 재색인
+`core/core-api/src/main/resources/elasticsearch/accommodations-index.json`이 애플리케이션 bootstrap과 재색인
 버전 인덱스의 설정과
 엄격한 mapping을 정의한다. 문서 필드를 바꿀 때 `AccommodationDocument`, Logstash SQL과
 이 파일을 같은 변경에서 갱신해야 한다.

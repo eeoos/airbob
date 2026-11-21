@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("canonical outbox package boundary")
 class OutboxPackageArchitectureTest {
 
-	private static final Path MAIN_JAVA = Path.of("src/main/java");
+	private static final Path MAIN_JAVA = Path.of("core/core-api/src/main/java");
 	private static final Path OUTBOX_ROOT = MAIN_JAVA.resolve(
 		"kr/kro/airbob/messaging/outbox");
 

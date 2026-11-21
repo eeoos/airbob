@@ -300,7 +300,7 @@ if [[ "$expected_kind" == growth-b ]]; then
   [[ -n "${GROWTH_PUBLICATION_RECEIPT:-}" ]] || fail 'GROWTH_PUBLICATION_RECEIPT is required'
   growth_b_command=(python3 "$script_dir/publish-growth-dataset-b.py"
     --release "$release_dir" --expected-id "$expected_release" --bucket "$dataset_bucket"
-    --migration-dir "$repo_root/src/main/resources/db/migration"
+    --migration-dir "$repo_root/core/core-api/src/main/resources/db/migration"
     --receipt "$GROWTH_PUBLICATION_RECEIPT")
   [[ "${GROWTH_ALLOW_SMALL:-0}" != 1 ]] || growth_b_command+=(--allow-small)
   "${growth_b_command[@]}"
