@@ -57,25 +57,5 @@ cloud:
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN:}
 
-logging:
-  level:
-    org.hibernate.SQL: "OFF"
-    org.hibernate.orm.jdbc.bind: "OFF"
-    org.hibernate.type.descriptor.sql: "OFF"
-    airbob.sql.trace: INFO
-
-management:
-  endpoints:
-    web:
-      base-path: /actuator
-      exposure:
-        include: health, prometheus
-
-  metrics:
-    tags:
-      application: airbob-api
-    distribution:
-      percentiles-histogram:
-        http:
-          server:
-            requests: true
+# Actuator exposure, metrics, and log levels come from support/monitoring (monitoring.yml)
+# and support/logging (logging.yml).

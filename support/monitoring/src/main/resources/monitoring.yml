@@ -1,0 +1,51 @@
+# Actuator exposure and metric conventions shared by every deployment profile.
+# Application-specific health composition (the readiness group's members, such as
+# accommodationInventory) stays in core-api's application*.yaml.
+
+---
+spring.config.activate.on-profile: dev
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health, prometheus
+
+  metrics:
+    tags:
+      application: airbob-api
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+
+---
+spring.config.activate.on-profile: "aws | oci"
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health, info, prometheus, metrics
+
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+  health:
+    elasticsearch:
+      enabled: false
+
+  metrics:
+    tags:
+      application: airbob-api
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true

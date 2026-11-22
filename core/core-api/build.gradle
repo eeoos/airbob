@@ -21,6 +21,9 @@ dependencyManagement {
 }
 
 dependencies {
+	implementation project(':support:monitoring')
+	implementation project(':support:logging')
+
 	growthBContractTestRuntime libs.jbcrypt
 
 	// Spring Web
@@ -94,10 +97,11 @@ dependencies {
 	// Json
 	implementation libs.org.json
 
-	// Actuator
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	// Prometheus
-	implementation 'io.micrometer:micrometer-registry-prometheus'
+	// Health indicators and metrics used directly by application code.
+	// The actuator starter and the Prometheus registry come from support:monitoring.
+	implementation 'org.springframework.boot:spring-boot-actuator'
+	implementation 'io.micrometer:micrometer-core'
+	testImplementation 'io.micrometer:micrometer-registry-prometheus'
 
 	// 테스트
 	testImplementation 'org.springframework.kafka:spring-kafka-test'

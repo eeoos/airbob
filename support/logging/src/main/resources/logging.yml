@@ -1,0 +1,19 @@
+# Log levels per deployment profile.
+
+---
+spring.config.activate.on-profile: dev
+
+logging:
+  level:
+    org.hibernate.SQL: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"
+    org.hibernate.type.descriptor.sql: "OFF"
+    airbob.sql.trace: INFO
+
+---
+spring.config.activate.on-profile: "aws | oci"
+
+logging:
+  level:
+    kr.kro.airbob: INFO
+    org.hibernate.SQL: INFO

@@ -9,6 +9,13 @@ airbob은 [team-dodn/spring-boot-java-template](https://github.com/team-dodn/spr
 | 모듈 | 내용 |
 |---|---|
 | `core/core-api` | 유일한 실행 모듈이다. 애플리케이션 코드, 설정, Flyway 마이그레이션, Elasticsearch 인덱스 정의가 모두 여기에 있다 |
+| `support/monitoring` | actuator starter, Prometheus 레지스트리, `monitoring.yml`(프로필별 actuator 노출·probe·메트릭 태그·히스토그램) |
+| `support/logging` | `logging.yml`(프로필별 로그 레벨) |
+
+core-api의 `application.yaml`이 `spring.config.import`로 `monitoring.yml`과 `logging.yml`을 불러온다.
+readiness 그룹 구성(`accommodationInventory` 포함)처럼 애플리케이션 health indicator에 묶인 설정은
+core-api의 `application*.yaml`에 남는다. core-api 코드가 직접 쓰는 `spring-boot-actuator`(HealthIndicator)와
+`micrometer-core`는 core-api가 직접 선언한다.
 
 `core/core-api`의 패키지는 아직 이전 구조인 `kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`를 그대로 쓴다.
 
@@ -92,7 +99,7 @@ ArchUnit 테스트가 이 규칙을 강제한다(PR 6).
 | PR | 내용 | 확인할 것 | 상태 |
 |---|---|---|---|
 | 1 | 멀티모듈 골격: 소스를 `core/core-api`로 이동, version catalog 도입, 경로 계약 유지, 훅·규칙·문서 경로 갱신 | 전체 테스트, 루트 산출물 경로, CI scope·infra 테스트 | 완료 |
-| 2 | `support/monitoring`, `support/logging`: 설정 yml 분리 | 프로필별 effective 프로퍼티가 전후로 같은지 | |
+| 2 | `support/monitoring`, `support/logging`: 설정 yml 분리 | 프로필별 effective 프로퍼티가 전후로 같은지 | 완료 |
 | 3 | `clients/client-slack` | `OperatorAlertDelivery*Exception`의 의미(retry/DLT) 보존 | |
 | 4 | `clients/client-toss-payments`: 전송 계층만 분리하고 분류 로직은 core-api 어댑터에 남김 | payment runbook을 먼저 읽는다. `TossPaymentsAdapterTest`의 단언을 바꾸지 않는다 | |
 | 5 | `common.exception`, `common.dto`, `cursor`를 `core.support.*`로, `GlobalExceptionHandler`를 `core.api.controller`로 이동 | OpenAPI 스냅샷이 그대로인지 | |
