@@ -16,6 +16,8 @@ import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
+import kr.kro.airbob.client.toss.TossPaymentsClient;
+import kr.kro.airbob.domain.payment.config.PaymentOperationConfiguration;
 import kr.kro.airbob.domain.payment.config.TossPaymentClientProperties;
 
 class RestClientConfigTest {
@@ -41,7 +43,8 @@ class RestClientConfigTest {
 			Duration.ofSeconds(2),
 			Duration.ofSeconds(10)
 		);
-		RestClient restClient = new RestClientConfig(properties).tossPaymentRestClient();
+		TossPaymentsClient tossPaymentsClient = new PaymentOperationConfiguration().tossPaymentsClient(properties);
+		RestClient restClient = (RestClient)ReflectionTestUtils.getField(tossPaymentsClient, "restClient");
 
 		Object requestFactory = ReflectionTestUtils.getField(restClient, "clientRequestFactory");
 		assertThat(requestFactory).isInstanceOf(JdkClientHttpRequestFactory.class);

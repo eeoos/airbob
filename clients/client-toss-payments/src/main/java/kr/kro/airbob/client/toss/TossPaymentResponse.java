@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.dto;
+package kr.kro.airbob.client.toss;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
-@Setter // ?
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor

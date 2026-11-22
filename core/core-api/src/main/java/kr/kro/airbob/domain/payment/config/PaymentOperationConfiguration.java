@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import kr.kro.airbob.client.toss.TossPaymentsClient;
 import kr.kro.airbob.domain.payment.service.PaymentRetryBackoff;
 
 @Configuration(proxyBeanMethods = false)
@@ -14,6 +15,11 @@ public class PaymentOperationConfiguration {
 	@Bean
 	public PaymentRetryBackoff paymentRetryBackoff(PaymentOperationProperties properties) {
 		return new PaymentRetryBackoff(properties.retryInitialDelay(), properties.retryMaxDelay());
+	}
+
+	@Bean
+	public TossPaymentsClient tossPaymentsClient(TossPaymentClientProperties toss) {
+		return TossPaymentsClient.create(toss.baseUrl(), toss.secretKey(), toss.connectTimeout(), toss.readTimeout());
 	}
 
 	@Bean
