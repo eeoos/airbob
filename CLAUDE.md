@@ -25,6 +25,12 @@ repository root (`build/libs/airbob.jar`, `build/openapi`) because deployment an
 The target structure, layering rules, and the PR-by-PR migration roadmap are in
 `docs/architecture/code-structure.md`; follow it when moving code.
 
+ArchUnit tests in `core/core-api/src/test/java/kr/kro/airbob/architecture` enforce the layer rules
+strictly for `kr.kro.airbob.core..` and freeze legacy violations (cross-domain repository use,
+domain cycles, entity → DTO/service) in `core/core-api/src/test/resources/archunit_store`. Never add
+entries to the store to make a new violation pass; fixing a violation prunes it, so commit the
+shrunk store with the fix.
+
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`domain/payment/messaging/`,
 `domain/accommodation/cache/messaging/`, `search/messaging/`); reusable contracts and infrastructure
