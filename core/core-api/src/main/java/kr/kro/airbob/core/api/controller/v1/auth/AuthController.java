@@ -1,15 +1,15 @@
-package kr.kro.airbob.domain.auth.api;
+package kr.kro.airbob.core.api.controller.v1.auth;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.core.api.controller.v1.auth.request.AuthRequest.Login;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.api.security.SessionCookie;
+import kr.kro.airbob.core.domain.auth.AuthService;
 import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
-import kr.kro.airbob.domain.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 
 @RestController

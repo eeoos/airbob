@@ -12,10 +12,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.core.domain.auth.SessionAuthenticationService;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.response.ErrorResponse;
-import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.repository;
+package kr.kro.airbob.core.domain.auth.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;

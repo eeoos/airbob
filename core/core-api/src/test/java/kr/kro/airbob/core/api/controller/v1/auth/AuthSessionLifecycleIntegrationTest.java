@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.api;
+package kr.kro.airbob.core.api.controller.v1.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -32,11 +32,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
+import kr.kro.airbob.common.context.UserContext;
+import kr.kro.airbob.config.RedisConfig;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
-import kr.kro.airbob.config.RedisConfig;
+import kr.kro.airbob.core.domain.auth.AuthService;
+import kr.kro.airbob.core.domain.auth.SessionAuthenticationService;
+import kr.kro.airbob.core.domain.auth.SessionIssuer;
+import kr.kro.airbob.core.domain.auth.SessionReader;
+import kr.kro.airbob.core.domain.auth.SessionWriter;
+import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberProfile;
 import kr.kro.airbob.core.domain.member.MemberReader;
@@ -45,10 +51,6 @@ import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.MemberWriter;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
-import kr.kro.airbob.domain.auth.service.AuthService;
-import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
-import kr.kro.airbob.domain.auth.service.SessionIssuanceService;
 
 // Exercise real MVC, authentication, session storage and Redis serialization; only MySQL repositories are mocked.
 @Testcontainers
@@ -96,13 +98,14 @@ class AuthSessionLifecycleIntegrationTest {
 
         SessionRedisRepository sessions = new SessionRedisRepository(redis);
         MemberReader memberReader = new MemberReader(members);
-        AuthService authentication = new AuthService(memberReader, sessions, new SessionIssuanceService(memberReader, sessions));
-        MemberService profiles = new MemberService(new MemberReader(members), new MemberWriter(members, mock(MemberHistoryRepository.class), Clock.systemUTC()), sessions);
+        SessionWriter sessionWriter = new SessionWriter(sessions);
+        AuthService authentication = new AuthService(memberReader, new SessionIssuer(memberReader, sessionWriter), sessionWriter);
+        MemberService profiles = new MemberService(new MemberReader(members), new MemberWriter(members, mock(MemberHistoryRepository.class), Clock.systemUTC()), sessionWriter);
         mvc = MockMvcBuilders.standaloneSetup(new AuthController(authentication, profiles))
             .setControllerAdvice(new GlobalExceptionHandler())
             .setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
             .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
-            .addFilter(new SessionAuthFilter(new SessionAuthenticationService(sessions), mapper), "/api/v1/*")
+            .addFilter(new SessionAuthFilter(new SessionAuthenticationService(new SessionReader(sessions)), mapper), "/api/v1/*")
             .build();
     }
 

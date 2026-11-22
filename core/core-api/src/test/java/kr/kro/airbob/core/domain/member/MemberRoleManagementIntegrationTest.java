@@ -43,10 +43,10 @@ import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
+import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
-import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers

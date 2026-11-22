@@ -38,15 +38,15 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 
 #### auth와 member의 경계 (PR 10a)
 
-- **auth**: 로그인·로그아웃, 세션 발급(`SessionIssuanceService`)과 조회(`SessionAuthenticationService`), 세션 저장소(`SessionRedisRepository`).
+- **auth**: 로그인·로그아웃(`AuthService`), 요청의 세션 확인(`SessionAuthenticationService`), 세션 발급·조회·삭제.
   세션 저장 형식(Redis 키)은 `SessionRedisRepository`만 안다. 필터도 `SessionAuthenticationService`를 거친다.
 - **member**: 회원 생애주기(가입·탈퇴·프로필), 역할과 이력, 자격 증명. 비밀번호 해시 생성은 가입에서, 검증은 `Member.matchesPassword`에서 한다.
   auth는 `MemberReader`(`readActiveByEmail`, `readActiveForUpdate`)로 회원을 읽고, member의 Repository를 쓰지 않는다.
 - **웹 보안**(`core.api.security`): 필터는 세션을 확인해 `UserContext`를 채우고, 인터셉터는 `MemberService.isActiveAdmin`으로 관리자 경로를 막는다.
   세션 쿠키 이름과 속성은 `SessionCookie`가 정한다.
-- 탈퇴 시 세션 무효화는 member가 소유한 포트(`SessionInvalidator`)를 auth가 구현하는 기존 방식을 유지한다.
+- 탈퇴 시 세션 무효화는 member가 소유한 포트(`SessionInvalidator`)를 auth의 `SessionWriter`가 구현한다.
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -60,6 +60,10 @@ statistics는 `RevenueStatsService`가 `RevenueStatsReader`(사전 집계 조회
 진입점 `StatisticsScheduler`가 매일 04:00 UTC에 `RevenueStatsService.recompute`를 호출한다.
 member는 `MemberService`(가입·탈퇴·프로필·관리자 확인)와 `MemberAdminService`(역할 변경)가 `MemberReader`와 `MemberWriter`(변경과 이력 SCD2 기록)를 쓴다.
 탈퇴 시 세션 무효화 포트는 `core.domain.member.port.SessionInvalidator`에 둔다.
+auth는 `AuthService`(로그인·로그아웃)와 `SessionAuthenticationService`(필터의 세션 확인)가 `SessionReader`(세션의 회원 확인),
+`SessionWriter`(세션 생성·삭제·회원 세션 전체 무효화), `SessionIssuer`(발급)를 쓴다.
+로그인은 비밀번호 비교를 트랜잭션 밖에서 하므로, `SessionIssuer.issue`는 Implement이지만 자기 트랜잭션에서 회원을 잠그고
+그 사이 탈퇴하거나 비밀번호가 바뀌지 않았는지 다시 확인한 뒤 세션을 만든다.
 
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
 그리고 위 도메인들을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
@@ -225,7 +229,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 10a | auth·member 경계: 웹 보안을 `core.api.security`로 옮겨 순환 해소, auth의 member Repository 사용을 `MemberReader`로, 비밀번호 검증을 `Member`로, 필터의 세션 조회를 `SessionAuthenticationService`로, 관리자 확인을 `MemberService.isActiveAdmin`으로 | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 10b-1 | member 경계: accommodation·coupon·reservation(2)·review의 `MemberRepository` 사용을 `MemberReader`(`readActive`, `readActiveForUpdate`, `readReference`)로. 옮길 때 동결 위반 메시지(클래스 전체 이름)가 바뀌어 새 위반이 되지 않도록 먼저 없앤다 | 동결 위반 감소, 쿼리 불변 | 완료 |
 | 10b-2 | member 이전: 내부 계층화(Reader/Writer, 입출력 레코드, 엔티티의 요청 DTO 의존 제거)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 10c | auth 이전: 내부 계층화(세션 저장소가 직접 구현하던 `SessionInvalidator`를 Implement로, 쓰이지 않는 `NotEqualHostException` 정리)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 10c | auth 이전: `SessionReader`·`SessionWriter`·`SessionIssuer`(Implement) 추출, 세션 저장소가 직접 구현하던 `SessionInvalidator`를 `SessionWriter`로, 쓰이지 않던 `NotEqualHostException` 삭제, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 11~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |

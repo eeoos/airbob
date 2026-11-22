@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.dto;
+package kr.kro.airbob.core.api.controller.v1.auth.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;

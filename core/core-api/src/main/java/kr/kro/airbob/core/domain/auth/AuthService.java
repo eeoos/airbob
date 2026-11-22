@@ -1,11 +1,9 @@
-package kr.kro.airbob.domain.auth.service;
+package kr.kro.airbob.core.domain.auth;
 
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
-import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -13,8 +11,8 @@ import lombok.RequiredArgsConstructor;
 public class AuthService {
 
     private final MemberReader memberReader;
-    private final SessionRedisRepository sessionRedisRepository;
-    private final SessionIssuanceService sessionIssuanceService;
+    private final SessionIssuer sessionIssuer;
+    private final SessionWriter sessionWriter;
 
     public String login(String email, String password) {
         Member member = memberReader.readActiveByEmail(email);
@@ -23,11 +21,11 @@ public class AuthService {
             throw new InvalidPasswordException();
         }
 
-        return sessionIssuanceService.issue(member.getId(), member.getPassword());
+        return sessionIssuer.issue(member.getId(), member.getPassword());
     }
 
     public void logout(String sessionId) {
-        sessionRedisRepository.deleteSession(sessionId);
+        sessionWriter.delete(sessionId);
     }
 
 }
