@@ -1,0 +1,5 @@
+#
+#Sun Nov 22 05:01:10 UTC 2026
+Classes\ should\ not\ use\ repositories\ owned\ by\ another\ domain=3afce96a-3867-464b-b1e0-b88319cbd20b
+Domain\ dependencies\ should\ be\ free\ of\ cycles=37a99c4b-0743-4d38-ac0d-9e4082f7f6b5
+Entities\ and\ embeddables\ should\ not\ depend\ on\ web\ DTOs,\ controllers,\ or\ services=047c7276-5ce5-487f-a28d-272a8ca02162

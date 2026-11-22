@@ -11,6 +11,7 @@ commons-lang3 = "3.18.0"
 timeshape = "2026b.29"
 org-json = "20250107"
 json-schema-validator = "1.5.9"
+archunit = "1.5.1"
 
 [libraries]
 springdoc-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
@@ -23,6 +24,7 @@ commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "co
 timeshape = { module = "net.iakovlev:timeshape", version.ref = "timeshape" }
 org-json = { module = "org.json:json", version.ref = "org-json" }
 json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "json-schema-validator" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
