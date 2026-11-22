@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import kr.kro.airbob.client.slack.SlackWebhookClient;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
@@ -34,7 +35,7 @@ class SlackOperatorAlertGatewayTest {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		SlackOperatorAlertGateway gateway = new SlackOperatorAlertGateway(
-			builder.build(), enabledProperties());
+			new SlackWebhookClient(builder.build()), enabledProperties());
 		server.expect(requestTo(WEBHOOK))
 			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
 			.andExpect(content().string(org.hamcrest.Matchers.allOf(
@@ -54,7 +55,7 @@ class SlackOperatorAlertGatewayTest {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		SlackOperatorAlertGateway gateway = new SlackOperatorAlertGateway(
-			builder.build(), enabledProperties());
+			new SlackWebhookClient(builder.build()), enabledProperties());
 		server.expect(requestTo(WEBHOOK)).andRespond(withServerError());
 
 		Throwable failure = org.assertj.core.api.Assertions.catchThrowable(
@@ -71,7 +72,7 @@ class SlackOperatorAlertGatewayTest {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		SlackOperatorAlertGateway gateway = new SlackOperatorAlertGateway(
-			builder.build(), enabledProperties());
+			new SlackWebhookClient(builder.build()), enabledProperties());
 		server.expect(requestTo(WEBHOOK)).andRespond(withStatus(HttpStatus.FOUND));
 
 		assertThatThrownBy(() -> gateway.deliver(event()))
@@ -85,7 +86,7 @@ class SlackOperatorAlertGatewayTest {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		SlackOperatorAlertGateway gateway = new SlackOperatorAlertGateway(
-			builder.build(), enabledProperties());
+			new SlackWebhookClient(builder.build()), enabledProperties());
 		server.expect(requestTo(WEBHOOK)).andRespond(request -> {
 			throw new java.net.SocketTimeoutException("read timed out");
 		});
@@ -105,11 +106,11 @@ class SlackOperatorAlertGatewayTest {
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
 		assertThatThrownBy(() -> new SlackOperatorAlertGateway(
-			builder.build(), properties(false, WEBHOOK)).deliver(event()))
+			new SlackWebhookClient(builder.build()), properties(false, WEBHOOK)).deliver(event()))
 			.isInstanceOf(OperatorAlertDeliveryNotConfiguredException.class)
 			.hasNoCause();
 		assertThatThrownBy(() -> new SlackOperatorAlertGateway(
-			builder.build(), properties(true, "")).deliver(event()))
+			new SlackWebhookClient(builder.build()), properties(true, "")).deliver(event()))
 			.isInstanceOf(OperatorAlertDeliveryNotConfiguredException.class)
 			.hasNoCause();
 		server.verify();
@@ -120,7 +121,9 @@ class SlackOperatorAlertGatewayTest {
 		OperatorAlertSlackConfiguration configuration =
 			new OperatorAlertSlackConfiguration(enabledProperties());
 
-		RestClient client = configuration.operatorAlertRestClient();
+		SlackWebhookClient slackWebhookClient = configuration.operatorAlertSlackWebhookClient();
+		RestClient client = (RestClient)org.springframework.test.util.ReflectionTestUtils
+			.getField(slackWebhookClient, "restClient");
 		Object requestFactory = org.springframework.test.util.ReflectionTestUtils
 			.getField(client, "clientRequestFactory");
 		assertThat(requestFactory)

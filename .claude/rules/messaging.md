@@ -4,6 +4,7 @@ paths:
   - "**/src/**/domain/payment/**/*"
   - "docker/kafka/**/*"
   - "docker/debezium/**/*"
+  - "clients/client-slack/**/*"
 ---
 
 # Messaging, outbox, and operator alerts

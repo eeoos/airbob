@@ -18,6 +18,8 @@ The build is a multi-module Gradle project following team-dodn/spring-boot-java-
 including Flyway migrations. `support/monitoring` (`monitoring.yml`: actuator exposure, probes, metric
 tags) and `support/logging` (`logging.yml`: log levels) are imported by core-api's
 `spring.config.import`; readiness-group membership stays in core-api's `application*.yaml`.
+`clients/*` modules hold only HTTP transport (no Spring beans of their own); core-api owns their
+properties, bean wiring, and the mapping of provider responses to domain outcomes.
 Versions live in `gradle/libs.versions.toml`. Build outputs stay at the
 repository root (`build/libs/airbob.jar`, `build/openapi`) because deployment and CI read them there.
 The target structure, layering rules, and the PR-by-PR migration roadmap are in
