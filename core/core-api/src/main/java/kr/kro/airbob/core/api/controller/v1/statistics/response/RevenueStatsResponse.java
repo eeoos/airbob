@@ -1,9 +1,10 @@
-package kr.kro.airbob.domain.statistics.dto;
+package kr.kro.airbob.core.api.controller.v1.statistics.response;
 
 import java.time.LocalDate;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import kr.kro.airbob.core.domain.statistics.DailyRevenueTotal;
 
 public class RevenueStatsResponse {
 
@@ -22,6 +23,10 @@ public class RevenueStatsResponse {
 		@Schema(description = "집계된 CANCEL·PARTIAL_CANCEL 원장 행 수. 같은 예약의 여러 환불도 각각 계산", example = "1")
 		long refundCount
 	) {
+		public static DailyRevenue from(DailyRevenueTotal total) {
+			return new DailyRevenue(total.date(), total.grossAmount(), total.refundAmount(), total.netAmount(),
+				total.paymentCount(), total.refundCount());
+		}
 	}
 
 	@Schema(name = "RevenueStatsResponseDailyRevenues", description = "양 끝 날짜를 포함한 사전 집계 조회 결과. 실시간 원장 조회가 아닙니다.")
@@ -34,5 +39,12 @@ public class RevenueStatsResponse {
 		String source,
 		@Schema(description = "날짜 오름차순. 집계 행이 없는 날은 생략하며 결과가 없으면 빈 배열. 페이지네이션 없음")
 		List<DailyRevenue> items
-	) {}
+	) {
+		// 조회 출처. 사전 집계 테이블만 읽으므로 항상 stats다.
+		private static final String SOURCE_STATS = "stats";
+
+		public static DailyRevenues of(LocalDate from, LocalDate to, List<DailyRevenueTotal> totals) {
+			return new DailyRevenues(from, to, SOURCE_STATS, totals.stream().map(DailyRevenue::from).toList());
+		}
+	}
 }

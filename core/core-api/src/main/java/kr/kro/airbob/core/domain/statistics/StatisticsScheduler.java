@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.statistics.scheduler;
+package kr.kro.airbob.core.domain.statistics;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -6,7 +6,6 @@ import java.time.LocalDate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

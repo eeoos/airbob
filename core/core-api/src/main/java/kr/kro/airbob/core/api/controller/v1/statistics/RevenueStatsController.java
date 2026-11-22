@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.statistics.api;
+package kr.kro.airbob.core.api.controller.v1.statistics;
 
 import java.time.LocalDate;
 
@@ -13,12 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import kr.kro.airbob.core.support.response.ApiResponse;
+import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.controller.v1.statistics.response.RevenueStatsResponse;
+import kr.kro.airbob.core.domain.statistics.RevenueStatsService;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.config.apidocs.ApiErrors;
-import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
-import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 @Tag(name = "매출 통계")
@@ -48,7 +48,8 @@ public class RevenueStatsController {
 		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
 
 		validateDateRange(from, to);
-		RevenueStatsResponse.DailyRevenues response = revenueStatsService.getDailyRevenue(from, to);
+		RevenueStatsResponse.DailyRevenues response =
+			RevenueStatsResponse.DailyRevenues.of(from, to, revenueStatsService.getDailyRevenue(from, to));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 

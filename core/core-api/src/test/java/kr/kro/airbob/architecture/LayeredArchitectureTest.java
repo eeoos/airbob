@@ -7,6 +7,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
+import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
@@ -63,9 +64,19 @@ class LayeredArchitectureTest {
 	@ArchTest
 	static final ArchRule implementDoesNotCallBusiness = noClasses()
 		.that().resideInAPackage(CORE_DOMAIN).and().areAnnotatedWith(Component.class)
+		.and(DescribedPredicate.not(ArchitectureSlices.entryPoints()))
 		.should().dependOnClassesThat().areAnnotatedWith(Service.class)
 		.allowEmptyShould(true)
 		.as("@Component implement classes in core.domain should not depend on @Service classes");
+
+	/** Entry points (schedulers, listeners) may call business classes, so nothing may call them in turn. */
+	@ArchTest
+	static final ArchRule entryPointsAreNotCalled = noClasses()
+		.that().resideInAPackage("kr.kro.airbob.core..")
+		.should().dependOnClassesThat(JavaClass.Predicates.resideInAPackage(CORE_DOMAIN)
+			.and(ArchitectureSlices.entryPoints()))
+		.allowEmptyShould(true)
+		.as("entry points in core.domain (@Scheduled, @KafkaListener) should not be called by other classes");
 
 	/**
 	 * Rule 7 for the flat core.domain packages, where entities share a package with business and implement

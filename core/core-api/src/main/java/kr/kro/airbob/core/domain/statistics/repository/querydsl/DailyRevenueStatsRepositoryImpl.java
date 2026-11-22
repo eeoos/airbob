@@ -1,6 +1,6 @@
-package kr.kro.airbob.domain.statistics.repository.querydsl;
+package kr.kro.airbob.core.domain.statistics.repository.querydsl;
 
-import static kr.kro.airbob.domain.statistics.entity.QDailyRevenueStats.*;
+import static kr.kro.airbob.core.domain.statistics.QDailyRevenueStats.*;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -8,7 +8,7 @@ import java.util.List;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
-import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
+import kr.kro.airbob.core.domain.statistics.DailyRevenueTotal;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -17,9 +17,9 @@ public class DailyRevenueStatsRepositoryImpl implements DailyRevenueStatsReposit
 	private final JPAQueryFactory queryFactory;
 
 	@Override
-	public List<RevenueStatsResponse.DailyRevenue> findDailyRevenueFromStats(LocalDate from, LocalDate to) {
+	public List<DailyRevenueTotal> findDailyRevenueFromStats(LocalDate from, LocalDate to) {
 		return queryFactory
-			.select(Projections.constructor(RevenueStatsResponse.DailyRevenue.class,
+			.select(Projections.constructor(DailyRevenueTotal.class,
 				dailyRevenueStats.statDate,
 				dailyRevenueStats.grossAmount.sum(),
 				dailyRevenueStats.refundAmount.sum(),

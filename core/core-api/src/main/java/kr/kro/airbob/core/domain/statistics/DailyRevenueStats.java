@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.statistics.entity;
+package kr.kro.airbob.core.domain.statistics;
 
 import java.time.LocalDate;
 
