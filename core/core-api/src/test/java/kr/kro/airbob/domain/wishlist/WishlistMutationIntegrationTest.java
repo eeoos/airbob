@@ -42,20 +42,21 @@ import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
-import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
+import kr.kro.airbob.domain.wishlist.service.WishlistWriter;
 
 @DataJpaTest(showSql = false)
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, WishlistService.class, MemberReader.class, AccommodationReader.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
+	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -96,17 +97,17 @@ class WishlistMutationIntegrationTest {
 				VALUES (?, 20, '테스트 숙소', UUID_TO_BIN(UUID()), 'PUBLISHED', 100000, '15:00:00', '11:00:00', NOW(6), NOW(6))
 				""", id);
 		}
-		wishlistId = service.createWishlist(new WishlistRequest.Create("여름 여행"), 10L).id();
+		wishlistId = service.createWishlist("여름 여행", 10L);
 	}
 
 	@Test
 	void lifecyclePreservesIdsLengthsAndDeleteSemantics() {
 		long membershipId = add(101);
 		assertThatThrownBy(() -> add(101)).isInstanceOf(WishlistAccommodationDuplicateException.class);
-		assertThat(service.createWishlist(new WishlistRequest.Create("여름 여행"), 10L).id()).isNotEqualTo(wishlistId);
-		assertThat(service.updateWishlist(wishlistId, new WishlistRequest.Update("가".repeat(255)), 10L).id()).isEqualTo(wishlistId);
+		assertThat(service.createWishlist("여름 여행", 10L)).isNotEqualTo(wishlistId);
+		assertThat(service.updateWishlist(wishlistId, "가".repeat(255), 10L)).isEqualTo(wishlistId);
 		assertThat(service.updateWishlistAccommodation(membershipId,
-			new WishlistAccommodationRequest.Update("나".repeat(1024)), 10L).id()).isEqualTo(membershipId);
+			"나".repeat(1024), 10L)).isEqualTo(membershipId);
 		assertThat(jdbc.queryForObject("SELECT CHAR_LENGTH(name) FROM wishlist WHERE id = ?", Integer.class, wishlistId)).isEqualTo(255);
 		assertThat(jdbc.queryForObject("SELECT CHAR_LENGTH(memo) FROM wishlist_accommodation WHERE id = ?", Integer.class, membershipId)).isEqualTo(1024);
 		service.deleteWishlistAccommodation(membershipId, 10L);
@@ -123,21 +124,21 @@ class WishlistMutationIntegrationTest {
 	@Test
 	void rejectsWrongOwnersMissingResourcesAndUnpublishedAccommodation() {
 		long membershipId = add(101);
-		assertThatThrownBy(() -> service.updateWishlist(wishlistId, new WishlistRequest.Update("남의 목록"), 20L))
+		assertThatThrownBy(() -> service.updateWishlist(wishlistId, "남의 목록", 20L))
 			.isInstanceOf(WishlistAccessDeniedException.class);
-		assertThatThrownBy(() -> service.createWishlistAccommodation(wishlistId, new WishlistAccommodationRequest.Create(102L), 20L))
+		assertThatThrownBy(() -> service.createWishlistAccommodation(wishlistId, 102L, 20L))
 			.isInstanceOf(WishlistAccessDeniedException.class);
-		assertThatThrownBy(() -> service.updateWishlistAccommodation(membershipId, new WishlistAccommodationRequest.Update("남의 메모"), 20L))
+		assertThatThrownBy(() -> service.updateWishlistAccommodation(membershipId, "남의 메모", 20L))
 			.isInstanceOf(WishlistAccommodationAccessDeniedException.class);
 		assertThatThrownBy(() -> service.deleteWishlistAccommodation(membershipId, 20L))
 			.isInstanceOf(WishlistAccommodationAccessDeniedException.class);
-		assertThatThrownBy(() -> service.updateWishlist(Long.MAX_VALUE, new WishlistRequest.Update("없는 목록"), 10L))
+		assertThatThrownBy(() -> service.updateWishlist(Long.MAX_VALUE, "없는 목록", 10L))
 			.isInstanceOf(WishlistNotFoundException.class);
 		jdbc.update("UPDATE accommodation SET status = 'UNPUBLISHED' WHERE id = 102");
 		assertThatThrownBy(() -> add(102)).isInstanceOf(AccommodationNotFoundException.class);
 		assertThatThrownBy(() -> add(Long.MAX_VALUE)).isInstanceOf(AccommodationNotFoundException.class);
 		jdbc.update("UPDATE member SET status = 'DORMANT' WHERE id = 10");
-		assertThatThrownBy(() -> service.createWishlist(new WishlistRequest.Create("새 목록"), 10L))
+		assertThatThrownBy(() -> service.createWishlist("새 목록", 10L))
 			.isInstanceOf(MemberNotFoundException.class);
 		assertAggregate();
 	}
@@ -169,7 +170,7 @@ class WishlistMutationIntegrationTest {
 			long accommodationId = id;
 			actions.add(() -> { add(accommodationId); return "added"; });
 			actions.add(() -> {
-				service.updateWishlist(wishlistId, new WishlistRequest.Update("여행 " + accommodationId), 10L);
+				service.updateWishlist(wishlistId, "여행 " + accommodationId, 10L);
 				return "renamed";
 			});
 		}
@@ -219,7 +220,7 @@ class WishlistMutationIntegrationTest {
 	}
 
 	private long add(long accommodationId) {
-		return service.createWishlistAccommodation(wishlistId, new WishlistAccommodationRequest.Create(accommodationId), 10L).id();
+		return service.createWishlistAccommodation(wishlistId, accommodationId, 10L);
 	}
 
 	private void assertAggregate() {

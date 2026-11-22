@@ -24,7 +24,7 @@ import jakarta.servlet.http.Cookie;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
-import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.WishlistMembership;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,7 +63,7 @@ class WishlistMembershipApiTest {
 	void usesSessionOwnerAndReturnsTargetSnapshot() throws Exception {
 		authenticate();
 		given(service.findMembership(1L, 31L, 42L))
-			.willReturn(new WishlistResponse.Membership(true, false, true));
+			.willReturn(new WishlistMembership(true, false, true));
 		mockMvc.perform(get(PATH).cookie(new Cookie("SESSION_ID", "wishlist-test-session"))
 				.param("accommodationId", "31").param("wishlistId", "42").param("memberId", "999"))
 			.andExpect(status().isOk())
@@ -79,7 +79,7 @@ class WishlistMembershipApiTest {
 	void acceptsOptionalTargetWishlist() throws Exception {
 		authenticate();
 		given(service.findMembership(1L, 31L, null))
-			.willReturn(new WishlistResponse.Membership(true, null, false));
+			.willReturn(new WishlistMembership(true, null, false));
 		mockMvc.perform(get(PATH).cookie(new Cookie("SESSION_ID", "wishlist-test-session"))
 				.param("accommodationId", "31"))
 			.andExpect(status().isOk())

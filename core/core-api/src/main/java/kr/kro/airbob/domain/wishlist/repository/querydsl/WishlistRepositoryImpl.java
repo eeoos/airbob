@@ -18,9 +18,9 @@ import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.jpa.impl.JPAUpdateClause;
 
+import kr.kro.airbob.domain.wishlist.QWishlistSummary;
+import kr.kro.airbob.domain.wishlist.WishlistSummary;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
-import kr.kro.airbob.domain.wishlist.repository.projection.QWishlistSummaryProjection;
-import kr.kro.airbob.domain.wishlist.repository.projection.WishlistSummaryProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -61,12 +61,12 @@ public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 	}
 
 	@Override
-	public Slice<WishlistSummaryProjection> findSummariesByMemberIdAndStatusWithCursor(Long memberId,
+	public Slice<WishlistSummary> findSummariesByMemberIdAndStatusWithCursor(Long memberId,
 		WishlistStatus status, Long lastId, LocalDateTime lastCreatedAt, Long accommodationId, Pageable pageable) {
 		Expression<Long> membershipId = accommodationId == null
 			? Expressions.nullExpression(Long.class) : wishlistAccommodation.id;
 		var query = queryFactory
-			.select(new QWishlistSummaryProjection(wishlist.id, wishlist.name, wishlist.createdAt,
+			.select(new QWishlistSummary(wishlist.id, wishlist.name, wishlist.createdAt,
 				wishlist.accommodationCount, accommodation.thumbnailUrl, membershipId))
 			.from(wishlist)
 			.leftJoin(accommodation).on(accommodation.id.eq(wishlist.representativeAccommodationId));
@@ -75,7 +75,7 @@ public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 			query.leftJoin(wishlistAccommodation).on(wishlistAccommodation.wishlist.id.eq(wishlist.id),
 				wishlistAccommodation.accommodation.id.eq(accommodationId));
 		}
-		List<WishlistSummaryProjection> content = query
+		List<WishlistSummary> content = query
 			.where(wishlist.member.id.eq(memberId), wishlist.status.eq(status), cursorCondition(lastId, lastCreatedAt))
 			.orderBy(wishlist.createdAt.desc(), wishlist.id.desc())
 			.limit(pageable.getPageSize() + 1)
