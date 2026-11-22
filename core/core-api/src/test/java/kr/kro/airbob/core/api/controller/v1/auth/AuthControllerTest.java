@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.api;
+package kr.kro.airbob.core.api.controller.v1.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -12,9 +12,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.domain.auth.AuthService;
 import kr.kro.airbob.core.domain.member.MemberProfile;
 import kr.kro.airbob.core.domain.member.MemberService;
-import kr.kro.airbob.domain.auth.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

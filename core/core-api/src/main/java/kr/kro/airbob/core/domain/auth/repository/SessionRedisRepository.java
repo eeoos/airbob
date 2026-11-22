@@ -1,11 +1,10 @@
-package kr.kro.airbob.domain.auth.repository;
+package kr.kro.airbob.core.domain.auth.repository;
 
 import java.time.Duration;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import kr.kro.airbob.core.domain.member.port.SessionInvalidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -14,7 +13,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Slf4j
 @RequiredArgsConstructor
-public class SessionRedisRepository implements SessionInvalidator {
+public class SessionRedisRepository {
     private static final Duration TTL = Duration.ofHours(1);
     private static final String SESSION = "SESSION:";
     private static final String MEMBER_SESSIONS = "MEMBER_SESSIONS:";
@@ -54,7 +53,6 @@ public class SessionRedisRepository implements SessionInvalidator {
         memberId.ifPresent(id -> redisTemplate.opsForZSet().remove(MEMBER_SESSIONS + id, sessionId));
     }
 
-    @Override
     public void invalidateAll(Long memberId) {
         String memberSessionsKey = MEMBER_SESSIONS + memberId;
         redisTemplate.delete(MEMBER_SESSION_ACTIVE + memberId);

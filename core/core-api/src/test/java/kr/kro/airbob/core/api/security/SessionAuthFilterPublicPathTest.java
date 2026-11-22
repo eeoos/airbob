@@ -14,8 +14,9 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
-import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
+import kr.kro.airbob.core.domain.auth.SessionAuthenticationService;
+import kr.kro.airbob.core.domain.auth.SessionReader;
+import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 
 @DisplayName("세션 인증 필터 공개 경로 테스트")
 class SessionAuthFilterPublicPathTest {
@@ -94,7 +95,7 @@ class SessionAuthFilterPublicPathTest {
 		ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
-		SessionAuthFilter filter = new SessionAuthFilter(new SessionAuthenticationService(new SessionRedisRepository(redisTemplate)), new ObjectMapper());
+		SessionAuthFilter filter = new SessionAuthFilter(new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))), new ObjectMapper());
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
 		request.setCookies(new Cookie("SESSION_ID", "valid-session"));
 		MockHttpServletResponse response = new MockHttpServletResponse();
@@ -116,7 +117,7 @@ class SessionAuthFilterPublicPathTest {
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
 		when(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:10")).thenReturn(true);
-		SessionAuthFilter filter = new SessionAuthFilter(new SessionAuthenticationService(new SessionRedisRepository(redisTemplate)), new ObjectMapper());
+		SessionAuthFilter filter = new SessionAuthFilter(new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))), new ObjectMapper());
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
 		request.setCookies(new Cookie("SESSION_ID", "valid-session"));
 		MockHttpServletResponse response = new MockHttpServletResponse();
@@ -133,7 +134,7 @@ class SessionAuthFilterPublicPathTest {
 	@SuppressWarnings("unchecked")
 	private SessionAuthFilter createFilter() {
 		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
-		return new SessionAuthFilter(new SessionAuthenticationService(new SessionRedisRepository(redisTemplate)), new ObjectMapper());
+		return new SessionAuthFilter(new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))), new ObjectMapper());
 	}
 
 	private record RequestTarget(String method, String path) {}

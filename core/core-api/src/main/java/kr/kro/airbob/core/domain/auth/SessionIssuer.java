@@ -1,20 +1,20 @@
-package kr.kro.airbob.domain.auth.service;
-
-import java.util.UUID;
+package kr.kro.airbob.core.domain.auth;
 
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
-import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
+/**
+ * 비밀번호를 확인한 회원에게 세션을 발급한다. 로그인은 비밀번호 비교를 트랜잭션 밖에서 하므로,
+ * 발급은 자기 트랜잭션에서 회원을 잠그고 그 사이 탈퇴하거나 비밀번호가 바뀌지 않았는지 다시 확인한다.
+ */
+@Component
 @RequiredArgsConstructor
-public class SessionIssuanceService {
+public class SessionIssuer {
     private final MemberReader memberReader;
-    private final SessionRedisRepository sessionRedisRepository;
+    private final SessionWriter sessionWriter;
 
     @Transactional
     public String issue(Long memberId, String verifiedPasswordHash) {
@@ -24,8 +24,6 @@ public class SessionIssuanceService {
             throw new InvalidPasswordException();
         }
 
-        String sessionId = UUID.randomUUID().toString();
-        sessionRedisRepository.saveSession(sessionId, memberId);
-        return sessionId;
+        return sessionWriter.create(memberId);
     }
 }
