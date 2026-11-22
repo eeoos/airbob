@@ -1,25 +1,22 @@
 package kr.kro.airbob.messaging.alert.infrastructure.slack;
 
-import java.util.Map;
-
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
+import kr.kro.airbob.client.slack.SlackWebhookClient;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertGateway;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 
 @Component
 public class SlackOperatorAlertGateway implements OperatorAlertGateway {
 
-	private final RestClient restClient;
+	private final SlackWebhookClient slackWebhookClient;
 	private final OperatorAlertSlackProperties properties;
 
 	public SlackOperatorAlertGateway(
-		@Qualifier("operatorAlertRestClient") RestClient restClient,
+		SlackWebhookClient slackWebhookClient,
 		OperatorAlertSlackProperties properties
 	) {
-		this.restClient = restClient;
+		this.slackWebhookClient = slackWebhookClient;
 		this.properties = properties;
 	}
 
@@ -30,14 +27,7 @@ public class SlackOperatorAlertGateway implements OperatorAlertGateway {
 		}
 
 		try {
-			restClient.post()
-				.uri(properties.webhookUrl())
-				.body(Map.of("text", message(alert)))
-				.retrieve()
-				.onStatus(status -> !status.is2xxSuccessful(), (request, response) -> {
-					throw new OperatorAlertDeliveryException();
-				})
-				.toBodilessEntity();
+			slackWebhookClient.send(properties.webhookUrl(), message(alert));
 		} catch (RuntimeException deliveryFailure) {
 			throw new OperatorAlertDeliveryException();
 		}
