@@ -22,13 +22,13 @@ import org.springframework.data.domain.SliceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-import kr.kro.airbob.cursor.dto.CouponCampaignCursorData;
-import kr.kro.airbob.cursor.dto.CursorData;
-import kr.kro.airbob.cursor.dto.CursorRequest;
-import kr.kro.airbob.cursor.dto.CursorResponse;
-import kr.kro.airbob.cursor.util.CursorDecoder;
-import kr.kro.airbob.cursor.util.CursorEncoder;
-import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData;
+import kr.kro.airbob.core.support.cursor.dto.CursorData;
+import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
+import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;

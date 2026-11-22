@@ -13,9 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.cursor.dto.CursorRequest;
-import kr.kro.airbob.cursor.dto.CursorResponse;
-import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;

@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-import kr.kro.airbob.common.exception.GlobalExceptionHandler;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeAdminResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupRequest;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupResponse;

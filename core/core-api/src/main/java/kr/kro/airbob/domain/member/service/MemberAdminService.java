@@ -12,7 +12,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import kr.kro.airbob.common.exception.AdminAccessDeniedException;
+import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.member.common.MemberRole;

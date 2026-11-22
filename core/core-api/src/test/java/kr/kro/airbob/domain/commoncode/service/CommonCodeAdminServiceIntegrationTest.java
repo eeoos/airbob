@@ -11,7 +11,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeAdminResponse;
 
 import org.junit.jupiter.api.DisplayName;

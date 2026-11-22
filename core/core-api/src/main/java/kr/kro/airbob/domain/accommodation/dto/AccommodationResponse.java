@@ -8,7 +8,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;

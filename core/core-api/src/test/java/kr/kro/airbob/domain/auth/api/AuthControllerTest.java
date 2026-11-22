@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import kr.kro.airbob.common.exception.GlobalExceptionHandler;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.auth.service.AuthService;
 import kr.kro.airbob.domain.member.dto.MemberResponse;

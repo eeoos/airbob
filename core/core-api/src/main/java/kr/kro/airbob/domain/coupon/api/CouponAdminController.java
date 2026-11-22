@@ -4,7 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.service.CouponService;

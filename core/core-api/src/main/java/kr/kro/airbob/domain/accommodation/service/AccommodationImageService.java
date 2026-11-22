@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;

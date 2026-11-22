@@ -25,7 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
-import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
@@ -498,7 +498,7 @@ class AccommodationCommandServiceTest {
 		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
-			.isInstanceOf(kr.kro.airbob.common.exception.InvalidInputException.class);
+			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
 	}
@@ -523,7 +523,7 @@ class AccommodationCommandServiceTest {
 		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
-			.isInstanceOf(kr.kro.airbob.common.exception.InvalidInputException.class);
+			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
 	}
@@ -562,7 +562,7 @@ class AccommodationCommandServiceTest {
 		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
-			.isInstanceOf(kr.kro.airbob.common.exception.InvalidInputException.class);
+			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 
 		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");

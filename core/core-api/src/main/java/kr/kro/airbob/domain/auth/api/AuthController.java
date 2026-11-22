@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
-import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
 import kr.kro.airbob.domain.auth.service.AuthService;
 import kr.kro.airbob.domain.member.dto.MemberResponse;

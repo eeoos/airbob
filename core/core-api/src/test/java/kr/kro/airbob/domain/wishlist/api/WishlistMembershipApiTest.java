@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.common.exception.GlobalExceptionHandler;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;

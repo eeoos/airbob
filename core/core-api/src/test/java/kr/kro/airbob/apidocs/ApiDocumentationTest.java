@@ -79,15 +79,15 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.common.exception.GlobalExceptionHandler;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
-import kr.kro.airbob.cursor.dto.CursorData;
-import kr.kro.airbob.cursor.resolver.*;
-import kr.kro.airbob.cursor.util.CursorDecoder;
-import kr.kro.airbob.cursor.util.CursorEncoder;
+import kr.kro.airbob.core.support.cursor.dto.CursorData;
+import kr.kro.airbob.core.support.cursor.resolver.*;
+import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
+import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
@@ -138,7 +138,7 @@ import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.exception.*;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
-import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
@@ -165,8 +165,8 @@ import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.review.service.ReviewImageService;
 import kr.kro.airbob.domain.review.service.ReviewService;
-import kr.kro.airbob.common.exception.BaseException;
-import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
@@ -993,10 +993,10 @@ class ApiDocumentationTest {
 			assertThat(mapper.readTree(body).at("/data/status").asText()).isEqualTo(state == PaymentOperationStatus.QUEUED ? "PENDING" : "SUCCEEDED");
 			assertThat(mapper.readTree(body).at("/data/status_url").asText()).isEqualTo("/api/v1/payment-operations/" + DOCUMENTATION_OPERATION_ID);
 		}
-		for (kr.kro.airbob.common.exception.BaseException error : List.of(new PaymentAccessDeniedException(),
+		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new PaymentAccessDeniedException(),
 			new ReservationNotFoundException(), new kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException(),
 			new kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException(),
-			new PaymentOperationConflictException(), new kr.kro.airbob.common.exception.InvalidInputException("mismatch"))) {
+			new PaymentOperationConflictException(), new kr.kro.airbob.core.support.error.InvalidInputException("mismatch"))) {
 			doThrow(error).when(service).requestConfirmation(any(), eq(10L));
 			var response = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
@@ -1124,7 +1124,7 @@ class ApiDocumentationTest {
 		assertThat(body).doesNotContain("payment_key", "evidence_reference", "failure_code");
 		verify(service).findManualReviewQueue(50);
 		for (int invalidLimit : List.of(0, 101)) {
-			doThrow(new kr.kro.airbob.common.exception.InvalidInputException("limit")).when(service).findManualReviewQueue(invalidLimit);
+			doThrow(new kr.kro.airbob.core.support.error.InvalidInputException("limit")).when(service).findManualReviewQueue(invalidLimit);
 			String invalid = mvc.perform(get(path).cookie(SESSION).param("limit", Integer.toString(invalidLimit)))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C001", invalid);
@@ -1192,7 +1192,7 @@ class ApiDocumentationTest {
 		String request = "{\"expected_version\":7,\"reason_code\":\"PROVIDER_PAYMENT_NOT_FOUND\",\"evidence_reference\":\"incident/ABC-123\"}";
 		for (String action : List.of("reconciliation", "mark-not-paid")) {
 			String path = "/api/v1/admin/payment-operations/{operationId}/" + action;
-			for (kr.kro.airbob.common.exception.BaseException error : List.of(new PaymentOperationNotFoundException(), new PaymentOperationConflictException())) {
+			for (kr.kro.airbob.core.support.error.BaseException error : List.of(new PaymentOperationNotFoundException(), new PaymentOperationConflictException())) {
 				if (action.equals("reconciliation")) {
 					doThrow(error).when(service).requestReconciliation(any(), eq(10L), anyLong());
 				} else {
@@ -1241,8 +1241,8 @@ class ApiDocumentationTest {
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C010", invalidCursor);
 			Object wrongCursor = path.equals("/api/v1/coupons")
-				? new kr.kro.airbob.cursor.dto.CursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"))
-				: new kr.kro.airbob.cursor.dto.CouponCampaignCursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"));
+				? new kr.kro.airbob.core.support.cursor.dto.CursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"))
+				: new kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"));
 			String encoded = java.util.Base64.getEncoder().encodeToString(mapper.writeValueAsBytes(wrongCursor));
 			String mismatched = mvc.perform(get(path).cookie(SESSION).param("cursor", encoded)).andExpect(status().isBadRequest())
 				.andReturn().getResponse().getContentAsString();
@@ -1313,7 +1313,7 @@ class ApiDocumentationTest {
 		validateResponse(spec, path, "post", "201", success);
 		assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
 		verify(service).issue(101L, 10L);
-		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(), new CouponSoldOutException(),
+		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(), new CouponSoldOutException(),
 			new CouponAlreadyIssuedException(), new CouponNotIssuableException(), new CouponStockNotPreparedException(), new CouponIssueContendedException())) {
 			doThrow(error).when(service).issue(101L, 10L);
 			var response = mvc.perform(post(path, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
@@ -1391,7 +1391,7 @@ class ApiDocumentationTest {
 		CouponService service = context.getBean(CouponService.class);
 		verify(service).updateCoupon(argThat(dto -> dto.name() == null && dto.description().isEmpty() && dto.discountType() == null
 			&& dto.isActive() == null && dto.totalQuantity() == null), eq(101L));
-		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(),
+		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(),
 			new CouponConfigurationLockedException(), new CouponInvalidConfigurationException())) {
 			doThrow(error).when(service).updateCoupon(any(), eq(101L));
 			var response = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":200}"))
@@ -1450,14 +1450,14 @@ class ApiDocumentationTest {
 			validateResponse(spec, path, method, "200", success);
 			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
 		}
-		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(),
+		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(),
 			new CouponAlreadyPreparedException(), new CouponStockPreparationNotAllowedException(), new CouponInvalidConfigurationException())) {
 			doThrow(error).when(preparationService).prepare(101L);
 			var response = mvc.perform(post(preparePath, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
 				.andReturn().getResponse();
 			assertDocumentedError(spec, preparePath, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
 		}
-		for (kr.kro.airbob.common.exception.BaseException error : List.of(new CouponNotFoundException(), new CouponConfigurationLockedException())) {
+		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(), new CouponConfigurationLockedException())) {
 			doThrow(error).when(couponService).deleteCoupon(101L);
 			var response = mvc.perform(delete(deletePath, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
 				.andReturn().getResponse();

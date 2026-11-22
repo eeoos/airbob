@@ -5,7 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
-import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 
 public record ReservationCheckoutIdentity(

@@ -12,7 +12,7 @@ import org.springframework.core.MethodParameter;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.common.exception.ErrorCode;
+import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.auth.exception.AuthenticationRequiredException;
 

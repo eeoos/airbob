@@ -6,7 +6,7 @@ import java.util.Locale;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import lombok.RequiredArgsConstructor;

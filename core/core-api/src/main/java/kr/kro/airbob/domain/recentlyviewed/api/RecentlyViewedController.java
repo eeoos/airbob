@@ -3,7 +3,7 @@ package kr.kro.airbob.domain.recentlyviewed.api;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import lombok.RequiredArgsConstructor;

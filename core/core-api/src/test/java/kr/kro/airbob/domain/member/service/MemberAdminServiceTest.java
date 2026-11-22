@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
-import kr.kro.airbob.common.exception.AdminAccessDeniedException;
+import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.dto.MemberAdminRequest.ChangeRole;
 import kr.kro.airbob.domain.member.dto.MemberAdminResponse.RoleChanged;

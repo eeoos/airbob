@@ -13,7 +13,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.handler.MappedInterceptor;
 
 import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
-import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
+import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;

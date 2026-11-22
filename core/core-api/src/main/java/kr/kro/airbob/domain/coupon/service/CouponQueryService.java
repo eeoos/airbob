@@ -8,10 +8,10 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.cursor.dto.CouponCampaignCursorData;
-import kr.kro.airbob.cursor.dto.CursorRequest;
-import kr.kro.airbob.cursor.dto.CursorResponse;
-import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData;
+import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;

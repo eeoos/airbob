@@ -4,8 +4,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.common.dto.ApiResponse;
-import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.core.support.response.ApiResponse;
+import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;

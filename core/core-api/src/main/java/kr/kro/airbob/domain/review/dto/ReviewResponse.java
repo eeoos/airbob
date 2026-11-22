@@ -10,7 +10,7 @@ import java.util.List;
 import com.querydsl.core.annotations.QueryProjection;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
