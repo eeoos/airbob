@@ -20,13 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.port.AccommodationInventorySeeder;
 import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository.SeedDay;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedPolicy.SeedRange;
 
 @Service
-public class AccommodationInventorySeedService {
+public class AccommodationInventorySeedService implements AccommodationInventorySeeder {
 
 	private final AccommodationReader accommodationReader;
 	private final ReservationInventoryService inventoryService;
@@ -49,6 +50,7 @@ public class AccommodationInventorySeedService {
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
+	@Override
 	public void seedCurrentHorizon(Accommodation accommodation) {
 		Accommodation target = Objects.requireNonNull(accommodation, "accommodation must not be null");
 		seed(target.getId(), target.getTimeZoneId(), clock.instant());

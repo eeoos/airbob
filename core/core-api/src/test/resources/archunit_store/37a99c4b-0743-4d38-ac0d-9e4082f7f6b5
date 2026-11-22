@@ -1,10 +1,5 @@
-Domain dependency cycle edge: accommodation -> reservation
-Domain dependency cycle edge: accommodation -> search
-Domain dependency cycle edge: payment -> accommodation
 Domain dependency cycle edge: payment -> reservation
 Domain dependency cycle edge: payment -> search
-Domain dependency cycle edge: reservation -> accommodation
 Domain dependency cycle edge: reservation -> payment
 Domain dependency cycle edge: reservation -> search
-Domain dependency cycle edge: search -> accommodation
 Domain dependency cycle edge: search -> reservation

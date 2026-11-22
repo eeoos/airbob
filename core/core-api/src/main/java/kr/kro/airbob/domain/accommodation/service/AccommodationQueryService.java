@@ -1,8 +1,5 @@
 package kr.kro.airbob.domain.accommodation.service;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 
@@ -21,12 +18,11 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.domain.accommodation.port.AccommodationAvailability;
+import kr.kro.airbob.domain.accommodation.port.AccommodationAvailabilityReader;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
-import kr.kro.airbob.domain.reservation.policy.BookingWindow;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -34,12 +30,10 @@ import lombok.RequiredArgsConstructor;
 public class AccommodationQueryService {
 
 	private final AccommodationRepository accommodationRepository;
-	private final ReservationInventoryService inventoryService;
+	private final AccommodationAvailabilityReader availabilityReader;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
-	private final BookingWindowProvider bookingWindowProvider;
 	private final AccommodationDetailReader accommodationDetailReader;
 	private final AccommodationDetailCache accommodationDetailCache;
-	private final Clock clock;
 
 	public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
 		AccommodationDetailSnapshot snapshot = accommodationDetailCache.getOrLoad(
@@ -58,25 +52,15 @@ public class AccommodationQueryService {
 			.findBookingProjectionByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new)
 			.timeZoneId();
-		BookingWindow bookingWindow = bookingWindowProvider.currentFor(timeZoneId);
-		Instant queriedAt = clock.instant();
-		LocalDate bookingWindowStart = bookingWindow.startInclusive();
-		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
-		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = inventoryService
-			.findUnavailableRangesSnapshot(
-				accommodationId,
-				bookingWindowStart,
-				bookingWindowEndExclusive,
-				queriedAt
-			)
-			.stream()
+		AccommodationAvailability availability = availabilityReader.readAvailability(accommodationId, timeZoneId);
+		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = availability.unavailableRanges().stream()
 			.map(range -> new AccommodationResponse.UnavailableDateRange(
 				range.startInclusive(), range.endExclusive()))
 			.toList();
 
 		return new AccommodationResponse.Availability(
-			bookingWindowStart,
-			bookingWindowEndExclusive,
+			availability.startInclusive(),
+			availability.endExclusive(),
 			unavailableRanges
 		);
 	}

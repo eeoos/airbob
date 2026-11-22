@@ -4,13 +4,14 @@ import java.time.Instant;
 
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.domain.accommodation.port.AccommodationReservationReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 
 /** 예약 조회 구현 컴포넌트. 다른 도메인은 ReservationRepository 대신 이 컴포넌트로 읽는다. */
 @Component
 @RequiredArgsConstructor
-public class ReservationReader {
+public class ReservationReader implements AccommodationReservationReader {
 
 	private final ReservationRepository reservationRepository;
 
@@ -19,7 +20,7 @@ public class ReservationReader {
 		return reservationRepository.existsPastCompletedReservationByGuest(accommodationId, memberId, now);
 	}
 
-	/** 숙소에 체크아웃 전이면서 재고를 점유한 예약이 있는지. 잠그지 않는 조회다. */
+	@Override
 	public boolean existsFutureInventoryReservation(Long accommodationId, Instant now) {
 		return reservationRepository.existsFutureInventoryReservation(accommodationId, now);
 	}

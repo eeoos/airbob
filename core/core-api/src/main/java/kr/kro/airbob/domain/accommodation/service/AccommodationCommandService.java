@@ -42,18 +42,18 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
 import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationAmenityException;
 import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationTypeException;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
+import kr.kro.airbob.domain.accommodation.port.AccommodationInventorySeeder;
+import kr.kro.airbob.domain.accommodation.port.AccommodationReservationReader;
+import kr.kro.airbob.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.geo.dto.GeocodeResult;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -65,15 +65,15 @@ public class AccommodationCommandService {
 	private final AccommodationHistoryRepository accommodationHistoryRepository;
 	private final OccupancyPolicyRepository occupancyPolicyRepository;
 	private final AccommodationRepository accommodationRepository;
-	private final ReservationReader reservationReader;
+	private final AccommodationReservationReader reservationReader;
 	private final CommonCodeReader commonCodeReader;
 	private final AddressRepository addressRepository;
 	private final MemberReader memberReader;
-	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 	private final GeocodingService geocodingService;
 	private final TimeZoneResolver timeZoneResolver;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	private final AccommodationInventorySeedService inventorySeedService;
+	private final AccommodationInventorySeeder inventorySeedService;
 	private final Clock clock;
 
 	@Transactional

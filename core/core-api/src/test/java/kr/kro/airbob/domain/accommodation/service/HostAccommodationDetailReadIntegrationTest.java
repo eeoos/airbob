@@ -43,6 +43,7 @@ import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
@@ -58,7 +59,7 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationDetailReader.class, WishlistReader.class, AccommodationQueryService.class,
-	HostAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
+	ReservationAvailabilityReader.class, HostAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class HostAccommodationDetailReadIntegrationTest {
 
