@@ -9,13 +9,13 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -29,13 +29,16 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationReviewSummaryRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReviewSummaryWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.entity.Review;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -55,8 +58,15 @@ class ReviewServiceTest {
 	@Mock private Clock clock;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 
-	@InjectMocks
 	private ReviewService reviewService;
+
+	@BeforeEach
+	void setUp() {
+		reviewService = new ReviewService(reviewRepository, memberReader, reviewImageRepository,
+			new ReservationReader(reservationRepository), new AccommodationReader(accommodationRepository),
+			new AccommodationReviewSummaryWriter(summaryRepository), cursorPageInfoCreator, searchRefreshPublisher,
+			cacheInvalidationPublisher, clock);
+	}
 
 	@Test
 	@DisplayName("숙소가 비공개로 바뀌면 후기 작성과 집계 변경을 거부한다")

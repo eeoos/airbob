@@ -21,10 +21,9 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReviewSummaryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.Review;
@@ -35,7 +34,6 @@ import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -48,9 +46,9 @@ public class ReviewService {
 	private final ReviewRepository reviewRepository;
 	private final MemberReader memberReader;
 	private final ReviewImageRepository reviewImageRepository;
-	private final ReservationRepository reservationRepository;
-	private final AccommodationRepository accommodationRepository;
-	private final AccommodationReviewSummaryRepository summaryRepository;
+	private final ReservationReader reservationReader;
+	private final AccommodationReader accommodationReader;
+	private final AccommodationReviewSummaryWriter summaryWriter;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
@@ -96,7 +94,7 @@ public class ReviewService {
 		if (request.rating() != null && !request.rating().equals(review.getRating())) {
 			int oldRating = review.getRating();
 			review.updateRating(request.rating());
-			summaryRepository.applyRatingChange(review.getAccommodation().getId(), oldRating, request.rating());
+			summaryWriter.applyRatingChange(review.getAccommodation().getId(), oldRating, request.rating());
 			searchRefreshPublisher.requestRefresh(
 				review.getAccommodation().getAccommodationUid());
 			cacheInvalidationPublisher.publish(
@@ -190,7 +188,7 @@ public class ReviewService {
 
 	private void validateReviewCreation(Long accommodationId, Long memberId) {
 		// 예약한 사용자인지와 체크아웃까지 완료했는지 확인
-		if (!reservationRepository.existsPastCompletedReservationByGuest(
+		if (!reservationReader.existsPastCompletedReservationByGuest(
 			accommodationId, memberId, clock.instant())) {
 			throw new ReviewCreationForbiddenException();
 		}
@@ -205,7 +203,7 @@ public class ReviewService {
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {
-		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
+		return accommodationReader.readPublished(accommodationId);
 	}
 
 	private Review lockReviewByIdAndAuthorId(Long reviewId, Long memberId) {
@@ -215,11 +213,10 @@ public class ReviewService {
 
 	private void updateReviewSummaryOnCreate(Accommodation accommodation, int rating) {
 		// 원자적 upsert: 행이 없으면 INSERT, 있으면 증가. 동시성/첫 리뷰 PK 중복 모두 안전.
-		summaryRepository.applyNewReview(accommodation.getId(), rating);
+		summaryWriter.applyNewReview(accommodation.getId(), rating);
 	}
 
 	private void updateReviewSummaryOnDelete(Long accommodationId, int rating) {
-		summaryRepository.removeReview(accommodationId, rating);
-		summaryRepository.deleteIfEmpty(accommodationId);
+		summaryWriter.removeReview(accommodationId, rating);
 	}
 }

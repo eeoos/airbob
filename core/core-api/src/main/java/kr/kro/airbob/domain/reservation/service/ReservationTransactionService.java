@@ -62,8 +62,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestClaim;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
-import kr.kro.airbob.domain.review.entity.ReviewStatus;
-import kr.kro.airbob.domain.review.repository.ReviewRepository;
+import kr.kro.airbob.domain.reservation.port.ReservationReviewReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -77,7 +76,7 @@ public class ReservationTransactionService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	private final MemberReader memberReader;
-	private final ReviewRepository reviewRepository;
+	private final ReservationReviewReader reviewReader;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationHistoryRepository historyRepository;
@@ -341,8 +340,7 @@ public class ReservationTransactionService {
 			|| reservation.checkOutAt().isAfter(serverTime)) {
 			return false;
 		}
-		return !reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
-			reservation.accommodationId(), memberId, ReviewStatus.PUBLISHED);
+		return !reviewReader.hasPublishedReview(reservation.accommodationId(), memberId);
 	}
 
 	private String createReservationCode() {

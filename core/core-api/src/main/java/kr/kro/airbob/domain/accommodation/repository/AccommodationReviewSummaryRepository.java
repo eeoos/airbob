@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.review.repository;
+package kr.kro.airbob.domain.accommodation.repository;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -8,8 +8,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
-import kr.kro.airbob.domain.review.repository.querydsl.AccommodationReviewSummaryRepositoryCustom;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
+import kr.kro.airbob.domain.accommodation.repository.querydsl.AccommodationReviewSummaryRepositoryCustom;
 
 public interface AccommodationReviewSummaryRepository extends JpaRepository<AccommodationReviewSummary, Long>,
 	AccommodationReviewSummaryRepositoryCustom {

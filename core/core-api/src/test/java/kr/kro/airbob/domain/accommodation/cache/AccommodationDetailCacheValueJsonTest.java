@@ -17,10 +17,10 @@ import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.dto.PolicyResponse;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
 
 @JsonTest
 @DisplayName("숙소 상세 캐시 값 JSON 테스트")
@@ -49,7 +49,7 @@ class AccommodationDetailCacheValueJsonTest {
 				new PolicyResponse.PolicyInfo(4, 1, 0),
 				List.of(new AmenityResponse.AmenityInfo("WIFI", 1)),
 				List.of(new ImageResponse.ImageInfo(3L, "https://image.test/3")),
-				new ReviewResponse.ReviewSummary(8, new BigDecimal("4.75"))
+				new AccommodationResponse.ReviewSummary(8, new BigDecimal("4.75"))
 			));
 
 		String json = objectMapper.writeValueAsString(expected);

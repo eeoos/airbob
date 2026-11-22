@@ -46,6 +46,18 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
   세션 쿠키 이름과 속성은 `SessionCookie`가 정한다.
 - 탈퇴 시 세션 무효화는 member가 소유한 포트(`SessionInvalidator`)를 auth의 `SessionWriter`가 구현한다.
 
+#### review의 경계 (PR 12a)
+
+review는 accommodation(리뷰 대상), reservation(작성 자격), search(색인 갱신 요청)에 의존한다. 반대 방향은 아래처럼 정리했다.
+
+- **리뷰 요약**(`AccommodationReviewSummary`)은 숙소와 기본키를 공유하는 1:1 엔티티이고, 숙소·위시리스트 목록 쿼리가 조인하며 검색 문서에도 들어간다.
+  그래서 숙소의 평점 속성으로 보고 accommodation이 소유한다(엔티티, Repository, QueryDSL).
+  - review는 `AccommodationReviewSummaryWriter`로 원자적 SQL 갱신을 요청한다.
+  - 검색 문서 빌더는 `AccommodationReviewSummaryReader`로 읽는다.
+  - 응답 DTO는 `AccommodationResponse.ReviewSummary`다. 스키마 이름 `ReviewResponseReviewSummary`는 그대로 둔다.
+- **리뷰 작성 가능 여부**: 게스트 예약 상세가 이미 게시한 리뷰가 있는지 확인한다. reservation이 소유한 포트 `ReservationReviewReader`를 review의 `ReviewReader`가 구현한다.
+- review가 쓰는 숙소·예약 조회는 `AccommodationReader.readPublished`와 `ReservationReader.existsPastCompletedReservationByGuest`를 거친다.
+
 템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
@@ -203,6 +215,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 10b-1 (member Repository 사용 정리) | 22 | 20 | 14 |
 | PR 10b-2 (member 이전) | 22 | 20 | 13 (`Member` → 가입 요청 DTO 해소) |
 | PR 11 (image 이전) | 22 | 16 (image ↔ accommodation, image ↔ review 해소) | 13 |
+| PR 12a (review 경계) | 18 | 10 (review ↔ accommodation, review ↔ reservation, review ↔ search 해소) | 13 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -236,7 +249,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 10b-2 | member 이전: 내부 계층화(Reader/Writer, 입출력 레코드, 엔티티의 요청 DTO 의존 제거)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 10c | auth 이전: `SessionReader`·`SessionWriter`·`SessionIssuer`(Implement) 추출, 세션 저장소가 직접 구현하던 `SessionInvalidator`를 `SessionWriter`로, 쓰이지 않던 `NotEqualHostException` 삭제, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 11 | image 이전: 숙소·리뷰 이미지 엔티티를 Repository가 있는 소유 도메인으로 옮겨 순환 해소, 저장 기능(`Image`, S3 업로더, 저장소 정리 이벤트·리스너, 예외)은 `core.domain.image`로, `ImageResponse`는 `core.api.controller.v1.image.response`로 | 동결 위반 감소, 스냅샷 불변 | 완료 |
-| 12~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 12a | review 경계: 리뷰 요약(엔티티·Repository·응답 DTO)을 accommodation으로 옮기고 `AccommodationReviewSummaryReader`·`AccommodationReviewSummaryWriter` 추가, review의 숙소·예약 Repository 사용을 `AccommodationReader`·`ReservationReader`로, reservation의 리뷰 확인을 포트 `ReservationReviewReader`(구현 `ReviewReader`)로 | 동결 위반 감소, 쿼리·스냅샷 불변 | 완료 |
+| 12b | review 이전: 내부 계층화(Reader/Writer, 입출력 레코드)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 13~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 

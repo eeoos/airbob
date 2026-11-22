@@ -57,6 +57,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
+import kr.kro.airbob.domain.review.service.ReviewReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
@@ -113,7 +114,7 @@ class ReservationTransactionServiceTest {
 			searchRefreshPublisher,
 			cursorPageInfoCreator,
 			new MemberReader(memberRepository),
-			reviewRepository,
+			new ReviewReader(reviewRepository),
 			reservationRepository,
 			accommodationRepository,
 			historyRepository,

@@ -127,6 +127,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -152,7 +153,6 @@ import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnav
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
@@ -1965,7 +1965,7 @@ class ApiDocumentationTest {
 		var cards = List.of(
 			new AccommodationResponse.RecentlyViewedAccommodationInfo(Instant.parse("2027-01-10T02:00:00.123Z"),
 				101L, "서울 하우스", "https://example.invalid/stay.jpg", new AddressResponse.AddressSummaryInfo("대한민국", null, "서울", null),
-				ReviewResponse.ReviewSummary.of(2, new BigDecimal("4.50")), true),
+				AccommodationResponse.ReviewSummary.of(2, new BigDecimal("4.50")), true),
 			new AccommodationResponse.RecentlyViewedAccommodationInfo(Instant.parse("2027-01-09T00:00:00Z"),
 				102L, null, null, new AddressResponse.AddressSummaryInfo(null, null, null, null), null, false));
 		when(service.getRecentlyViewed(10L)).thenReturn(AccommodationResponse.RecentlyViewedAccommodationInfos.from(cards));

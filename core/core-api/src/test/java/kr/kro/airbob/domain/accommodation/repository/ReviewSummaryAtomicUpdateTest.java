@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.review;
+package kr.kro.airbob.domain.accommodation.repository;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -34,7 +34,6 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers

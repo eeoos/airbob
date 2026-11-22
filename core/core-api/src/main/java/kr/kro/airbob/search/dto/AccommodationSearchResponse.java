@@ -4,8 +4,8 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -34,7 +34,7 @@ public class AccommodationSearchResponse {
 		@Schema(description = "색인의 위도·경도. 위치가 없으면 각 필드는 null", requiredMode = Schema.RequiredMode.REQUIRED)
 		AddressResponse.Coordinate coordinate,
 		@Schema(description = "색인의 리뷰 집계. 없으면 0건·0점", requiredMode = Schema.RequiredMode.REQUIRED)
-		ReviewResponse.ReviewSummary reviewSummary,
+		AccommodationResponse.ReviewSummary reviewSummary,
 		@Schema(description = "본인의 현재 활성 위시리스트 중 하나라도 포함하는지 여부. 유효한 세션이 없으면 false", example = "false", requiredMode = Schema.RequiredMode.REQUIRED)
 		Boolean isInWishlist
 	){
@@ -53,7 +53,7 @@ public class AccommodationSearchResponse {
 					.latitude(location != null ? location.lat() : null)
 					.longitude(location != null ? location.lon() : null)
 					.build())
-				.reviewSummary(ReviewResponse.ReviewSummary.builder()
+				.reviewSummary(AccommodationResponse.ReviewSummary.builder()
 					.averageRating(doc.averageRating() != null
 						? BigDecimal.valueOf(doc.averageRating())
 						: BigDecimal.ZERO)

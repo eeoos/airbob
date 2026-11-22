@@ -198,7 +198,7 @@ flowchart LR
     Before -->|"집계 시점 변경"| After
 ```
 
-요약 테이블에 리뷰 수·평점 합계·평균을 유지하고, [리뷰 변경과 요약 갱신](core/core-api/src/main/java/kr/kro/airbob/domain/review/repository/AccommodationReviewSummaryRepository.java)을 같은 트랜잭션에서 처리합니다. 반복 읽기의 계산은 줄어들지만, 리뷰를 쓸 때 요약 갱신 비용이 추가되고 같은 숙소의 요약 행에서 경합이 생길 수 있습니다.
+요약 테이블에 리뷰 수·평점 합계·평균을 유지하고, [리뷰 변경과 요약 갱신](core/core-api/src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationReviewSummaryRepository.java)을 같은 트랜잭션에서 처리합니다. 반복 읽기의 계산은 줄어들지만, 리뷰를 쓸 때 요약 갱신 비용이 추가되고 같은 숙소의 요약 행에서 경합이 생길 수 있습니다.
 
 위시리스트 숙소 50개·20 RPS의 AWS 비교에서 3회 p95 중앙값은 **18.42ms → 11.03ms**였습니다. 최근 본 숙소의 N+1 제거와 리뷰 요약 적용은 각각 따로 측정했습니다. 
 

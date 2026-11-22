@@ -10,7 +10,6 @@ import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationPage;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -61,7 +60,7 @@ public class WishlistAccommodationResponse {
 		@Schema(description = "숙소의 현재 주소 요약", requiredMode = Schema.RequiredMode.REQUIRED)
 		AddressResponse.AddressSummaryInfo addressSummary,
 		@Schema(description = "현재 게시된 리뷰의 수와 평균 평점. 없으면 0건·0점", requiredMode = Schema.RequiredMode.REQUIRED)
-		ReviewResponse.ReviewSummary reviewSummary,
+		AccommodationResponse.ReviewSummary reviewSummary,
 		@Schema(description = "이 목록에 저장된 항목이므로 항상 true", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
 		Boolean isInWishlist
 	) {
@@ -73,7 +72,7 @@ public class WishlistAccommodationResponse {
 				new AccommodationResponse.AccommodationBasicInfo(
 					item.accommodationId(), item.accommodationName(), item.thumbnailUrl()),
 				new AddressResponse.AddressSummaryInfo(item.country(), item.state(), item.city(), item.district()),
-				ReviewResponse.ReviewSummary.of(item.reviewCount(), item.averageRating()),
+				AccommodationResponse.ReviewSummary.of(item.reviewCount(), item.averageRating()),
 				true // 위시리스트에 저장된 항목만 조회하므로 항상 true
 			);
 		}

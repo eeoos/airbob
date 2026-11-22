@@ -8,15 +8,15 @@ import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReviewSummaryReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.RequiredArgsConstructor;
 
@@ -27,7 +27,7 @@ public class AccommodationDocumentBuilder {
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository amenityRepository;
 	private final ReservationRepository reservationRepository;
-	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
+	private final AccommodationReviewSummaryReader reviewSummaryReader;
 	private final BookingWindowProvider bookingWindowProvider;
 
 	public AccommodationDocument buildAccommodationDocument(UUID accommodationUid) {
@@ -82,7 +82,7 @@ public class AccommodationDocumentBuilder {
 	}
 
 	private AccommodationReviewSummary getReviewSummary(UUID accommodationUid) {
-		return reviewSummaryRepository.findByAccommodation_AccommodationUid(accommodationUid)
+		return reviewSummaryReader.findByAccommodationUid(accommodationUid)
 			.orElse(null);
 	}
 

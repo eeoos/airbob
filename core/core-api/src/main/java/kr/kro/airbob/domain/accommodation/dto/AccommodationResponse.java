@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.accommodation.dto;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,11 +13,11 @@ import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -46,7 +47,7 @@ public class AccommodationResponse {
 		String type,
 		AddressResponse.AddressSummaryInfo addressSummary,
 		// Integer basePrice,
-		// ReviewResponse.ReviewSummary reviewSummary,
+		// ReviewSummary reviewSummary,
 		@Schema(description = "UTC 생성 시각. 생성 시각이 없는 과거 데이터는 null입니다.", nullable = true, example = "2027-01-01T00:00:00Z")
 		Instant createdAt
 	) {
@@ -130,7 +131,7 @@ public class AccommodationResponse {
 
 		List<ImageResponse.ImageInfo> images,
 
-		ReviewResponse.ReviewSummary reviewSummary
+		ReviewSummary reviewSummary
 
 	) {
 		public static DetailInfo from(AccommodationDetailSnapshot snapshot, Boolean isInWishlist) {
@@ -244,20 +245,20 @@ public class AccommodationResponse {
 		@Schema(description = "현재 주소 요약. 주소가 없는 과거 숙소도 각 필드가 null인 객체로 반환합니다.", requiredMode = Schema.RequiredMode.REQUIRED)
 		AddressResponse.AddressSummaryInfo addressSummary,
 		@Schema(description = "현재 게시된 리뷰 수와 평균 평점. 없으면 0건·0점", requiredMode = Schema.RequiredMode.REQUIRED)
-		ReviewResponse.ReviewSummary reviewSummary,
+		ReviewSummary reviewSummary,
 		@Schema(description = "본인의 활성 위시리스트 중 하나라도 이 숙소를 포함하는지 여부", example = "false", requiredMode = Schema.RequiredMode.REQUIRED)
 		Boolean isInWishlist
 	) {
 		public RecentlyViewedAccommodationInfo {
 			// 요약 행 유무와 관계없이 리뷰 없음은 다른 숙소 응답처럼 0건·0점으로 표현한다.
 			if (reviewSummary == null || Integer.valueOf(0).equals(reviewSummary.totalCount())) {
-				reviewSummary = ReviewResponse.ReviewSummary.of(null, null);
+				reviewSummary = ReviewSummary.of(null, null);
 			}
 		}
 
 		public static RecentlyViewedAccommodationInfo from(Instant viewedAt,
 			RecentlyViewedAccommodationProjection accommodation, boolean isInWishlist) {
-			ReviewResponse.ReviewSummary reviewSummary = ReviewResponse.ReviewSummary.of(
+			ReviewSummary reviewSummary = ReviewSummary.of(
 				accommodation.totalReviewCount(), accommodation.averageRating());
 			return RecentlyViewedAccommodationInfo.builder()
 				.viewedAt(viewedAt)
@@ -291,6 +292,34 @@ public class AccommodationResponse {
 				.thumbnailUrl(accommodation.getThumbnailUrl())
 				.build();
 		}
+	}
+
+	/** 숙소의 리뷰 요약. 숙소 상세·목록, 위시리스트, 검색 응답이 함께 쓴다. 스키마 이름은 기존 계약을 유지한다. */
+	@Builder
+	@Schema(name = "ReviewResponseReviewSummary")
+	public record ReviewSummary(
+		@Schema(description = "게시된 리뷰 수. 없으면 0", example = "2", minimum = "0", requiredMode = Schema.RequiredMode.REQUIRED)
+		Integer totalCount,
+		@Schema(description = "게시된 리뷰의 평균 평점. 소수 둘째 자리까지 반올림하며 리뷰가 없으면 0", example = "4.50", minimum = "0", maximum = "5", requiredMode = Schema.RequiredMode.REQUIRED)
+		BigDecimal averageRating
+	) {
+		public static ReviewSummary of(Integer totalCount, BigDecimal averageRating) {
+			return new ReviewSummary(
+				totalCount == null ? 0 : totalCount,
+				averageRating == null ? BigDecimal.ZERO : averageRating
+			);
+		}
+
+		public static ReviewSummary of(AccommodationReviewSummary summary) {
+			if (summary == null) {
+				return of(null, null);
+			}
+			return of(
+				summary.getTotalReviewCount(),
+				summary.getAverageRating()
+			);
+		}
+
 	}
 
 	private static Instant toUtcInstant(LocalDateTime dateTime) {
