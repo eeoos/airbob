@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.member.service;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,6 +70,17 @@ class MemberServiceTest {
         assertNotEquals("password1", savedMember.getPassword());
         assertTrue(BCrypt.checkpw("password1", savedMember.getPassword()));
         then(historyRepository).should().save(any(MemberHistory.class));
+    }
+
+    @Test
+    void activeAdminCheckRequiresActiveStatusAndAdminRole() {
+        MemberService service = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
+        given(memberRepository.existsByIdAndStatusAndRole(1L, MemberStatus.ACTIVE, MemberRole.ADMIN))
+            .willReturn(true);
+
+        assertTrue(service.isActiveAdmin(1L));
+        assertFalse(service.isActiveAdmin(2L));
     }
 
     @Test

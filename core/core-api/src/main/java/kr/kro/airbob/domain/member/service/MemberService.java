@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.member.port.SessionInvalidator;
+import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
@@ -70,6 +71,12 @@ public class MemberService {
         historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason, changedAt));
 
         sessionInvalidator.invalidateAll(memberId);
+    }
+
+    /** 관리자 경로 인가용: 활성 상태의 ADMIN 회원인지. 세션에는 회원 ID만 있으므로 역할은 매번 DB에서 확인한다. */
+    @Transactional(readOnly = true)
+    public boolean isActiveAdmin(Long memberId) {
+        return memberRepository.existsByIdAndStatusAndRole(memberId, MemberStatus.ACTIVE, MemberRole.ADMIN);
     }
 
     @Transactional(readOnly = true)

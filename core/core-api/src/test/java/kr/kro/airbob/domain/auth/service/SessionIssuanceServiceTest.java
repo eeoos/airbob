@@ -13,6 +13,7 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -27,7 +28,7 @@ class SessionIssuanceServiceTest {
 
     @Test
     void issueCreatesSessionAfterLockingActiveMember() {
-        SessionIssuanceService service = new SessionIssuanceService(memberRepository, sessionRedisRepository);
+        SessionIssuanceService service = new SessionIssuanceService(new MemberReader(memberRepository), sessionRedisRepository);
         Member member = activeMember(1L, "current-hash");
         given(memberRepository.findByIdAndStatusForUpdate(1L, MemberStatus.ACTIVE))
             .willReturn(Optional.of(member));
@@ -40,7 +41,7 @@ class SessionIssuanceServiceTest {
 
     @Test
     void issueRejectsMemberThatBecameInactive() {
-        SessionIssuanceService service = new SessionIssuanceService(memberRepository, sessionRedisRepository);
+        SessionIssuanceService service = new SessionIssuanceService(new MemberReader(memberRepository), sessionRedisRepository);
         given(memberRepository.findByIdAndStatusForUpdate(1L, MemberStatus.ACTIVE))
             .willReturn(Optional.empty());
 
@@ -51,7 +52,7 @@ class SessionIssuanceServiceTest {
 
     @Test
     void issueRejectsPasswordChangedAfterCredentialCheck() {
-        SessionIssuanceService service = new SessionIssuanceService(memberRepository, sessionRedisRepository);
+        SessionIssuanceService service = new SessionIssuanceService(new MemberReader(memberRepository), sessionRedisRepository);
         Member member = activeMember(1L, "new-hash");
         given(memberRepository.findByIdAndStatusForUpdate(1L, MemberStatus.ACTIVE))
             .willReturn(Optional.of(member));

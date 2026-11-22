@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.interceptor;
+package kr.kro.airbob.core.api.security;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -8,9 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
-import kr.kro.airbob.domain.member.common.MemberRole;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberService;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -24,7 +22,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AdminAuthInterceptor implements HandlerInterceptor {
 
-	private final MemberRepository memberRepository;
+	private final MemberService memberService;
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -33,8 +31,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
 			throw new AdminAccessDeniedException();
 		}
 
-		if (!memberRepository.existsByIdAndStatusAndRole(
-			userInfo.id(), MemberStatus.ACTIVE, MemberRole.ADMIN)) {
+		if (!memberService.isActiveAdmin(userInfo.id())) {
 			throw new AdminAccessDeniedException();
 		}
 		return true;

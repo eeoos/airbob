@@ -17,11 +17,11 @@ import jakarta.validation.Valid;
 import kr.kro.airbob.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.api.controller.v1.wishlist.request.WishlistRequest;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.support.cursor.annotation.CursorParam;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 
 @Tag(name = "위시리스트")
 @RequestMapping("/api")

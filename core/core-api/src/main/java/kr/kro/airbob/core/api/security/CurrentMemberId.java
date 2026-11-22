@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.annotation;
+package kr.kro.airbob.core.api.security;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;

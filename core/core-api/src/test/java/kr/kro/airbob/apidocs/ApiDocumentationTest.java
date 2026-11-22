@@ -85,6 +85,9 @@ import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
+import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.domain.commoncode.*;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeAdminService;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeService;
@@ -104,11 +107,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
-import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
-import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.dto.MemberAdminRequest;
 import kr.kro.airbob.domain.member.dto.MemberAdminResponse;
@@ -159,7 +158,9 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
+import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.auth.service.AuthService;
+import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
 import kr.kro.airbob.domain.coupon.service.CouponQueryService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
@@ -234,7 +235,7 @@ import kr.kro.airbob.search.exception.SearchUnavailableException;
 	ReviewService.class,
 	SettlementService.class,
 	WishlistService.class,
-	MemberRepository.class, QueryCountMetricRecorder.class
+	QueryCountMetricRecorder.class
 })
 class ApiDocumentationTest {
 	@Autowired MockMvc mvc;
@@ -541,7 +542,7 @@ class ApiDocumentationTest {
 		assertDocumentedError(spec, path, "patch", "403", "M006", forbidden.getContentAsString());
 		verifyNoInteractions(service);
 
-		when(context.getBean(MemberRepository.class).existsByIdAndStatusAndRole(10L, MemberStatus.ACTIVE, MemberRole.ADMIN))
+		when(context.getBean(MemberService.class).isActiveAdmin(10L))
 			.thenReturn(true);
 		when(service.changeRole(10L, 20L, new MemberAdminRequest.ChangeRole(MemberRole.ADMIN, "운영 관리자 지정")))
 			.thenReturn(new MemberAdminResponse.RoleChanged(20L, MemberRole.ADMIN));
@@ -556,7 +557,7 @@ class ApiDocumentationTest {
 	void memberRoleChangeValidationAndBusinessErrorsMatchSpecification() throws Exception {
 		JsonNode spec = specification("admin");
 		String path = "/api/v1/admin/members/{memberId}/role";
-		when(context.getBean(MemberRepository.class).existsByIdAndStatusAndRole(10L, MemberStatus.ACTIVE, MemberRole.ADMIN))
+		when(context.getBean(MemberService.class).isActiveAdmin(10L))
 			.thenReturn(true);
 		for (String invalid : List.of("{}", "{\"role\":\"UNKNOWN\",\"reason\":\"역할 변경\"}",
 			"{\"role\":\"ADMIN\",\"reason\":\"   \"}", "{\"role\":\"ADMIN\",\"reason\":\"" + "a".repeat(256) + "\"}")) {
@@ -2622,7 +2623,7 @@ class ApiDocumentationTest {
 	}
 
 	private void allowDocumentationAdmin() {
-		when(context.getBean(MemberRepository.class).existsByIdAndStatusAndRole(10L, MemberStatus.ACTIVE, MemberRole.ADMIN)).thenReturn(true);
+		when(context.getBean(MemberService.class).isActiveAdmin(10L)).thenReturn(true);
 	}
 
 	private Reservation documentationPendingReservation(Instant expiresAt) {
@@ -2713,6 +2714,7 @@ class ApiDocumentationTest {
 		SpringDocPageableConfiguration.class, SpringDocSortConfiguration.class, SwaggerConfig.class,
 		SwaggerUiConfigProperties.class, SwaggerUiOAuthProperties.class})
 	@Import({OpenApiConfiguration.class, WebMvcConfig.class, GlobalExceptionHandler.class, SessionAuthFilter.class,
+		SessionAuthenticationService.class, SessionRedisRepository.class,
 		AdminAuthInterceptor.class, QueryCountInterceptor.class, CurrentMemberIdArgumentResolver.class,
 		CursorDecoder.class, CursorParamArgumentResolver.class, CouponCampaignCursorParamArgumentResolver.class,
 		ReviewCursorParamArgumentResolver.class})

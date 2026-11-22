@@ -21,11 +21,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.domain.wishlist.WishlistMembership;
 import kr.kro.airbob.core.domain.wishlist.WishlistService;
-import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
+import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
 
 @ExtendWith(MockitoExtension.class)
 class WishlistMembershipApiTest {
@@ -45,7 +47,7 @@ class WishlistMembershipApiTest {
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
-			.addFilters(new SessionAuthFilter(redisTemplate, objectMapper))
+			.addFilters(new SessionAuthFilter(new SessionAuthenticationService(new SessionRedisRepository(redisTemplate)), objectMapper))
 			.build();
 	}
 

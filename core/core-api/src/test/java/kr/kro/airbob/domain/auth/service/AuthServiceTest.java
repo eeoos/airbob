@@ -13,6 +13,7 @@ import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.jbcrypt.BCrypt;
@@ -30,7 +31,7 @@ class AuthServiceTest {
 
     @Test
     void loginAcceptsBCryptPasswordHash() {
-        AuthService authService = new AuthService(memberRepository, sessionRedisRepository, sessionIssuanceService);
+        AuthService authService = new AuthService(new MemberReader(memberRepository), sessionRedisRepository, sessionIssuanceService);
         Member member = activeMember(1L, "guest@airbob.test", BCrypt.hashpw("password1", BCrypt.gensalt()));
         given(memberRepository.findByEmailAndStatus("guest@airbob.test", MemberStatus.ACTIVE))
             .willReturn(Optional.of(member));
@@ -45,7 +46,7 @@ class AuthServiceTest {
 
     @Test
     void loginRejectsPlaintextStoredPasswordWithoutFallback() {
-        AuthService authService = new AuthService(memberRepository, sessionRedisRepository, sessionIssuanceService);
+        AuthService authService = new AuthService(new MemberReader(memberRepository), sessionRedisRepository, sessionIssuanceService);
         Member member = activeMember(1L, "guest@airbob.test", "password1");
         given(memberRepository.findByEmailAndStatus("guest@airbob.test", MemberStatus.ACTIVE))
             .willReturn(Optional.of(member));

@@ -31,15 +31,21 @@ public class SessionRedisRepository implements SessionInvalidator {
         redisTemplate.expire(memberSessionsKey, TTL);
     }
 
+    /** 세션에 저장된 회원 ID. 세션이 없거나 값의 형식이 잘못되었으면 비어 있다. */
     public Optional<Long> getMemberIdBySession(String sessionId) {
         Object value = redisTemplate.opsForValue().get(SESSION + sessionId);
-        log.info("value: {}, type: {}", value, value == null ? null : value.getClass());
-
         if (value instanceof Number number) {
             return Optional.of(number.longValue());
-        } else {
-            return Optional.empty(); // 또는 예외
         }
+        if (value != null) {
+            log.warn("세션 값 타입 오류: SESSION:{} 타입 = {}", sessionId, value.getClass().getName());
+        }
+        return Optional.empty();
+    }
+
+    /** 회원별 세션 활성 키. 회원의 모든 세션을 무효화하면 사라져, 남은 세션 키가 있어도 인증되지 않는다. */
+    public boolean isMemberSessionActive(Long memberId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(MEMBER_SESSION_ACTIVE + memberId));
     }
 
     public void deleteSession(String sessionId) {
