@@ -9,7 +9,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.common.exception.ErrorCode;
+import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException;
 
 @DisplayName("Reservation 결제 시도 토큰 테스트")

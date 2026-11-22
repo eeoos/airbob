@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import kr.kro.airbob.common.dto.ApiResponse;
-import kr.kro.airbob.common.exception.ErrorCode;
+import kr.kro.airbob.core.support.response.ApiResponse;
+import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;

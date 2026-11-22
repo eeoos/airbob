@@ -1,9 +1,9 @@
 package kr.kro.airbob.domain.reservation.exception;
 
-import static kr.kro.airbob.common.exception.ErrorCode.*;
+import static kr.kro.airbob.core.support.error.ErrorCode.*;
 
-import kr.kro.airbob.common.exception.BaseException;
-import kr.kro.airbob.common.exception.ErrorCode;
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.core.support.error.ErrorCode;
 
 public class ReservationStateChangeException extends BaseException {
 

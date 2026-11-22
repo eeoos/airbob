@@ -26,7 +26,17 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 결제도 마찬가지로 `payment.toss.*` 프로퍼티, 활성화 여부, provider 코드 분류(승인·거절·재시도·결과 불명·수동 검토),
 응답 상관 검증, 도메인 값 정규화는 core-api의 `TossPaymentsAdapter`에 남는다.
 
-`core/core-api`의 패키지는 아직 이전 구조인 `kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`를 그대로 쓴다.
+공통 패키지 중 템플릿 위치로 옮긴 것은 다음과 같다.
+
+| 이전 위치 | 현재 위치 |
+|---|---|
+| `common.exception`(`BaseException`, `ErrorCode`, `InvalidInputException`, `AdminAccessDeniedException`) | `core.support.error` |
+| `common.dto`(`ApiResponse`, `ErrorResponse`) | `core.support.response` |
+| `cursor.*` | `core.support.cursor.*` |
+| `common.exception.GlobalExceptionHandler` | `core.api.controller` (Presentation이 도메인 예외를 아는 정방향 의존이 되어 `common` ↔ 도메인 순환이 사라졌다) |
+
+`common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
+그리고 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
 
 ### 경로 계약
 
@@ -111,7 +121,7 @@ ArchUnit 테스트가 이 규칙을 강제한다(PR 6).
 | 2 | `support/monitoring`, `support/logging`: 설정 yml 분리 | 프로필별 effective 프로퍼티가 전후로 같은지 | 완료 |
 | 3 | `clients/client-slack` | `OperatorAlertDelivery*Exception`의 의미(retry/DLT) 보존 | 완료 |
 | 4 | `clients/client-toss-payments`: 전송 계층만 분리하고 분류 로직은 core-api 어댑터에 남김 | payment runbook을 먼저 읽는다. `TossPaymentsAdapterTest`의 단언을 바꾸지 않는다 | 완료 |
-| 5 | `common.exception`, `common.dto`, `cursor`를 `core.support.*`로, `GlobalExceptionHandler`를 `core.api.controller`로 이동 | OpenAPI 스냅샷이 그대로인지 | |
+| 5 | `common.exception`, `common.dto`, `cursor`를 `core.support.*`로, `GlobalExceptionHandler`를 `core.api.controller`로 이동 | OpenAPI 스냅샷이 그대로인지 | 완료 |
 | 6 | ArchUnit 규칙: 새 패키지는 엄격, 레거시는 동결 | 동결 저장소 커밋 | |
 | 7 | wishlist 파일럿: Reader/Writer 추출, 입출력에서 DTO 제거, accommodation↔wishlist 순환을 포트로 해소. 도메인 이전 레시피 확정 | 동결 위반이 줄었는지 | |
 | 8~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: commoncode, statistics → member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |

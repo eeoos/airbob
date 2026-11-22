@@ -3,7 +3,7 @@ package kr.kro.airbob.domain.member.api;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.member.dto.MemberAdminRequest;
 import kr.kro.airbob.domain.member.dto.MemberAdminResponse;
 import kr.kro.airbob.domain.member.service.MemberAdminService;

@@ -4,7 +4,7 @@ import java.time.Clock;
 
 import org.springframework.stereotype.Service;
 
-import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;

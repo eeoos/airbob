@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;

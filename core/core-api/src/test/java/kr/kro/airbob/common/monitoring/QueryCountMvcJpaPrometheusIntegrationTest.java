@@ -39,7 +39,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import kr.kro.airbob.config.WebMvcConfig;
-import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
+import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;

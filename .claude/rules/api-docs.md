@@ -3,6 +3,7 @@ paths:
   - "**/src/**/api/**/*"
   - "**/src/**/dto/**/*"
   - "**/src/**/apidocs/**/*"
+  - "**/src/**/core/support/response/**/*"
   - "docs/api/**/*"
 ---
 

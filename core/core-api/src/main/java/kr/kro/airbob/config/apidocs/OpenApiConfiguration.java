@@ -42,8 +42,8 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
-import kr.kro.airbob.common.exception.ErrorCode;
-import kr.kro.airbob.cursor.annotation.CursorParam;
+import kr.kro.airbob.core.support.error.ErrorCode;
+import kr.kro.airbob.core.support.cursor.annotation.CursorParam;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 
 @Configuration(proxyBeanMethods = false)

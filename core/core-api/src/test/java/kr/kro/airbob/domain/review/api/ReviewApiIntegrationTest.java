@@ -42,12 +42,12 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.common.exception.BaseException;
-import kr.kro.airbob.cursor.dto.CursorRequest;
-import kr.kro.airbob.cursor.dto.ReviewCursorData;
-import kr.kro.airbob.cursor.util.CursorDecoder;
-import kr.kro.airbob.cursor.util.CursorEncoder;
-import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.core.support.cursor.dto.ReviewCursorData;
+import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
+import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
@@ -297,7 +297,7 @@ class ReviewApiIntegrationTest {
 		assertThatThrownBy(() -> imageService.deleteReviewImage(id, imageId, 20L))
 			.isInstanceOf(kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException.class);
 		assertThatThrownBy(() -> imageService.deleteReviewImage(id + 100, imageId, 10L))
-			.isInstanceOf(kr.kro.airbob.common.exception.InvalidInputException.class);
+			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review_image", Long.class)).isEqualTo(1);
 		imageService.deleteReviewImage(id, imageId, 10L);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review_image", Long.class)).isZero();
