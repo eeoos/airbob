@@ -1,6 +1,5 @@
 package kr.kro.airbob.domain.review.dto;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -13,9 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -77,32 +74,5 @@ public class ReviewResponse {
 				new ArrayList<>()
 			);
 		}
-	}
-
-	@Builder
-	@Schema(name = "ReviewResponseReviewSummary")
-	public record ReviewSummary(
-		@Schema(description = "게시된 리뷰 수. 없으면 0", example = "2", minimum = "0", requiredMode = Schema.RequiredMode.REQUIRED)
-		Integer totalCount,
-		@Schema(description = "게시된 리뷰의 평균 평점. 소수 둘째 자리까지 반올림하며 리뷰가 없으면 0", example = "4.50", minimum = "0", maximum = "5", requiredMode = Schema.RequiredMode.REQUIRED)
-		BigDecimal averageRating
-	) {
-		public static ReviewSummary of(Integer totalCount, BigDecimal averageRating) {
-			return new ReviewSummary(
-				totalCount == null ? 0 : totalCount,
-				averageRating == null ? BigDecimal.ZERO : averageRating
-			);
-		}
-
-		public static ReviewSummary of(AccommodationReviewSummary summary) {
-			if (summary == null) {
-				return of(null, null);
-			}
-			return of(
-				summary.getTotalReviewCount(),
-				summary.getAverageRating()
-			);
-		}
-
 	}
 }

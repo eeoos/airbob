@@ -68,6 +68,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
+import kr.kro.airbob.domain.review.service.ReviewReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
@@ -134,7 +135,7 @@ class GuestReservationListReadQueryIntegrationTest {
 			""");
 		service = new ReservationTransactionService(
 			mock(AccommodationSearchRefreshPublisher.class), cursorPageInfoCreator,
-			new MemberReader(mock(MemberRepository.class)), mock(ReviewRepository.class), reservationRepository,
+			new MemberReader(mock(MemberRepository.class)), new ReviewReader(mock(ReviewRepository.class)), reservationRepository,
 			mock(AccommodationRepository.class), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageService.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),

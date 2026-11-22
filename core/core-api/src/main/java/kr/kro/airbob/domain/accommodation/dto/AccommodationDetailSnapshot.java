@@ -5,7 +5,6 @@ import java.util.List;
 
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
 
 /**
  * 요청자별 찜 여부가 빠진 숙소 상세 공용 스냅샷
@@ -26,7 +25,7 @@ public record AccommodationDetailSnapshot(
 	PolicyResponse.PolicyInfo policy,
 	List<AmenityResponse.AmenityInfo> amenities,
 	List<ImageResponse.ImageInfo> images,
-	ReviewResponse.ReviewSummary reviewSummary
+	AccommodationResponse.ReviewSummary reviewSummary
 ) {
 	public AccommodationDetailSnapshot {
 		amenities = List.copyOf(amenities);

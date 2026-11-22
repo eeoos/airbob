@@ -12,10 +12,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -25,11 +25,12 @@ import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationReviewSummaryRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReviewSummaryReader;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,8 +52,13 @@ class AccommodationDocumentBuilderTest {
 	@Mock
 	private BookingWindowProvider bookingWindowProvider;
 
-	@InjectMocks
 	private AccommodationDocumentBuilder documentBuilder;
+
+	@BeforeEach
+	void setUp() {
+		documentBuilder = new AccommodationDocumentBuilder(accommodationRepository, amenityRepository,
+			reservationRepository, new AccommodationReviewSummaryReader(reviewSummaryRepository), bookingWindowProvider);
+	}
 
 	@Test
 	@DisplayName("검색 대상이 아닌 숙소는 부가 필드/연관 projection 없이 상태만 반환한다")

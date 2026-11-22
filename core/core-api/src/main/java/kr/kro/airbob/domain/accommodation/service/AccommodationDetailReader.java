@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.dto.PolicyResponse;
@@ -17,7 +18,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityReposit
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.accommodation.port.AccommodationWishlistReader;
 import lombok.RequiredArgsConstructor;
 
@@ -60,7 +60,7 @@ public class AccommodationDetailReader {
 			new PolicyResponse.PolicyInfo(projection.maxOccupancy(), projection.infantOccupancy(), projection.petOccupancy()),
 			amenities,
 			images,
-			ReviewResponse.ReviewSummary.of(projection.totalReviewCount(), projection.averageRating())
+			AccommodationResponse.ReviewSummary.of(projection.totalReviewCount(), projection.averageRating())
 		);
 	}
 

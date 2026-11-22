@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.review.repository.querydsl;
+package kr.kro.airbob.domain.accommodation.repository.querydsl;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -6,10 +6,10 @@ import java.util.List;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
 import lombok.RequiredArgsConstructor;
 
-import static kr.kro.airbob.domain.review.entity.QAccommodationReviewSummary.accommodationReviewSummary;
+import static kr.kro.airbob.domain.accommodation.entity.QAccommodationReviewSummary.accommodationReviewSummary;
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.accommodation;
 
 @RequiredArgsConstructor

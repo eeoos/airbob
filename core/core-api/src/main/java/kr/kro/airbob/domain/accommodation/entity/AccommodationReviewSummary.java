@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.review.entity;
+package kr.kro.airbob.domain.accommodation.entity;
 
 import java.math.BigDecimal;
 
@@ -10,7 +10,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

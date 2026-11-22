@@ -4,7 +4,7 @@ import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
 import static kr.kro.airbob.domain.accommodation.entity.QOccupancyPolicy.*;
 import static kr.kro.airbob.core.domain.member.QMember.*;
-import static kr.kro.airbob.domain.review.entity.QAccommodationReviewSummary.*;
+import static kr.kro.airbob.domain.accommodation.entity.QAccommodationReviewSummary.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
