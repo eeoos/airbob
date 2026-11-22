@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.statistics.repository;
+package kr.kro.airbob.core.domain.statistics.repository;
 
 import java.time.LocalDate;
 
@@ -7,9 +7,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import kr.kro.airbob.domain.statistics.entity.DailyRevenueStats;
-import kr.kro.airbob.domain.statistics.entity.DailyRevenueStatsId;
-import kr.kro.airbob.domain.statistics.repository.querydsl.DailyRevenueStatsRepositoryCustom;
+import kr.kro.airbob.core.domain.statistics.DailyRevenueStats;
+import kr.kro.airbob.core.domain.statistics.DailyRevenueStatsId;
+import kr.kro.airbob.core.domain.statistics.repository.querydsl.DailyRevenueStatsRepositoryCustom;
 
 public interface DailyRevenueStatsRepository
 	extends JpaRepository<DailyRevenueStats, DailyRevenueStatsId>, DailyRevenueStatsRepositoryCustom {

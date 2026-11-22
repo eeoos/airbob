@@ -35,7 +35,7 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 | `cursor.*` | `core.support.cursor.*` |
 | `common.exception.GlobalExceptionHandler` | `core.api.controller` (Presentation이 도메인 예외를 아는 정방향 의존이 되어 `common` ↔ 도메인 순환이 사라졌다) |
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c)와 commoncode(PR 8)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -45,9 +45,11 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 
 commoncode도 같은 배치다. 공개 조회 `CommonCodeService`와 관리 `CommonCodeAdminService`가 `CommonCodeReader`(활성 코드 1분 캐시 포함)와 `CommonCodeWriter`를 쓴다.
 accommodation은 숙소 유형·편의시설 코드 검증에 `CommonCodeReader.isValidCode`를 쓴다.
+statistics는 `RevenueStatsService`가 `RevenueStatsReader`(사전 집계 조회)와 `RevenueStatsWriter`(일자별 재집계)를 쓰고,
+진입점 `StatisticsScheduler`가 매일 04:00 UTC에 `RevenueStatsService.recompute`를 호출한다.
 
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
-그리고 위 두 도메인을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
+그리고 위 도메인들을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
 
 ### 경로 계약
 
@@ -100,12 +102,14 @@ kr.kro.airbob
 | Presentation | `core.api..` | 요청을 검증하고 Business를 호출한 뒤 응답 DTO를 조립한다 |
 | Business | `@Service`, 이름 `*Service` | 유스케이스의 흐름만 보이도록 Implement를 조합한다. 트랜잭션 경계를 둔다 |
 | Implement | `@Component` (`*Reader`, `*Writer`, `*Validator`, `*Manager` …) | 재사용되는 세부 구현이다. 다른 도메인의 Implement와 협력할 수 있다 |
+| 진입점 | `core.domain.<도메인>`의 `@Scheduled`·`@KafkaListener` 컴포넌트(`*Scheduler`, `*Listener`) | 프레임워크가 호출하는 비-HTTP 입구. Controller처럼 Business를 호출해 유스케이스를 시작한다 |
 | Data Access | `core.domain.<도메인>.repository` | 영속성. 같은 도메인의 Implement만 사용한다 |
 
 1. **역참조 금지**: `core.domain`은 `core.api`에 의존하지 않는다. Business 메서드는 web Request/Response를 받지도, 반환하지도 않는다.
 2. **Presentation은 Business만 호출한다**: Implement나 Repository를 직접 쓰지 않는다.
 3. **Business 규칙**: 다른 Business를 부르지 않는다(같은 계층 참조 금지). Repository에도 직접 접근하지 않는다(계층 건너뛰기 금지).
-4. **Implement 규칙**: Business에 의존하지 않는다.
+4. **Implement 규칙**: Business에 의존하지 않는다. 진입점(스케줄러·리스너)은 Implement가 아니므로 Business를 호출할 수 있다. 대신 어떤 클래스도 진입점을 호출하지 않는다.
+   진입점은 HTTP API가 아니어서 `core.api.controller`가 아니라 자기 도메인 옆(`core.domain.<도메인>`)에 둔다. 도메인 Kafka 어댑터를 도메인 옆에 두는 기존 원칙(CLAUDE.md)과 같다.
 5. **Repository 캡슐화**: 다른 도메인의 Repository를 주입하지 않는다. 그 도메인의 Reader/Writer를 쓴다.
 6. **도메인 순환 금지**: 순환이 생기면 의존받는 쪽이 포트 인터페이스를 소유하고, 상대 도메인이 그 포트를 구현한다. 기존 예는 `member/port/SessionInvalidator`다.
 7. **엔티티는 DTO와 service 패키지에 의존하지 않는다**: 상태로 결정되는 규칙은 엔티티 메서드에 둔다. 예: `Reservation.confirm()`.
@@ -152,6 +156,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
   `core.support`가 도메인·Presentation·설정에 의존하지 않는지도 확인한다.
   `core.domain.<도메인>`은 엔티티와 Service·Reader가 한 패키지에 있어서, 동결 테스트가 패키지 이름(`dto`·`api`·`service`)으로는 규칙 7을 검사하지 못한다.
   그래서 엄격 테스트가 엔티티의 `@Service`·`@Component` 의존을 따로 막는다.
+  `@Scheduled`·`@KafkaListener` 메서드를 가진 컴포넌트는 진입점으로 보고 Implement 규칙(4)에서 빼며, 대신 `core..`의 어떤 클래스도 진입점에 의존하지 못하게 한다.
   아직 클래스가 없는 패키지의 규칙은 통과하고(`allowEmptyShould`), 도메인을 옮기는 순간부터 적용된다.
 - **`LegacyDependencyFreezeTest`(동결)**: 애플리케이션 전체에 규칙 5~7을 적용한다.
   - 현재 위반은 `core/core-api/src/test/resources/archunit_store`에 기록되어 있다.
@@ -199,7 +204,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 7b | wishlist 내부 계층화: `WishlistReader`/`WishlistWriter` 추출, Business 입출력에서 web DTO 제거, 목록 조회 projection을 도메인 레코드로 변경, 테스트 정리 | API 응답·OpenAPI 스냅샷 불변 | 완료 |
 | 7c | wishlist를 `core.api.controller.v1.wishlist`·`core.domain.wishlist`로 이동하고 도메인 이전 레시피 확정 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 8 | commoncode 이전: 레시피 3단계를 한 PR로. `CommonCodeReader`(캐시·조회)·`CommonCodeWriter` 추출, 입출력 도메인 레코드, accommodation이 Reader로 코드 검증 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 9~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: statistics → member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 9 | statistics 이전: `RevenueStatsReader`·`RevenueStatsWriter` 추출, 조회 결과를 도메인 레코드 `DailyRevenueTotal`로, 스케줄러를 진입점으로 분류하는 ArchUnit 규칙 추가 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
+| 10~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 
@@ -234,6 +240,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
    | `domain.<도메인>.dto`의 응답 DTO | `core.api.controller.v1.<도메인>.response` |
    | `domain.<도메인>.{entity,exception,service}`, 도메인 레코드 | `core.domain.<도메인>` (하위 패키지 없이) |
    | `domain.<도메인>.repository` | `core.domain.<도메인>.repository` (`querydsl`, `projection` 유지) |
+   | `domain.<도메인>.scheduler` 등 진입점 | `core.domain.<도메인>` (Business만 호출) |
 
 2. 패키지 문자열을 더 구체적인 경로부터 바꾼다(`...api` → `...dto.XxxRequest` → `...dto.XxxResponse` → `...{entity,exception,service}` → 나머지).
    - 이 치환으로 JPQL `select new` FQCN과 QueryDSL `import static ...QXxx.*`도 함께 바뀐다.

@@ -22,6 +22,8 @@ final class ArchitectureSlices {
 	private static final Pattern TOP_LEVEL_PACKAGE = Pattern.compile(
 		"^kr\\.kro\\.airbob\\.(core\\.[a-z0-9]+|[a-z0-9]+)(?:\\..*)?$");
 	private static final Pattern REPOSITORY_PACKAGE = Pattern.compile("^.*\\.repository(?:\\..*)?$");
+	private static final String SCHEDULED = "org.springframework.scheduling.annotation.Scheduled";
+	private static final String KAFKA_LISTENER = "org.springframework.kafka.annotation.KafkaListener";
 
 	private ArchitectureSlices() {
 	}
@@ -77,5 +79,20 @@ final class ArchitectureSlices {
 
 	static DescribedPredicate<JavaClass> repositories() {
 		return DescribedPredicate.describe("repositories", ArchitectureSlices::isRepository);
+	}
+
+	/**
+	 * Entry points that the framework invokes instead of other code: schedulers and Kafka listeners. Like
+	 * controllers, they start a use case by calling a business class, so they live beside their domain but are not
+	 * implement components.
+	 */
+	static boolean isEntryPoint(JavaClass javaClass) {
+		return javaClass.isAnnotatedWith(KAFKA_LISTENER)
+			|| javaClass.getMethods().stream().anyMatch(method ->
+				method.isAnnotatedWith(SCHEDULED) || method.isAnnotatedWith(KAFKA_LISTENER));
+	}
+
+	static DescribedPredicate<JavaClass> entryPoints() {
+		return DescribedPredicate.describe("entry points (@Scheduled or @KafkaListener)", ArchitectureSlices::isEntryPoint);
 	}
 }

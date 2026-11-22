@@ -88,6 +88,8 @@ import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
 import kr.kro.airbob.core.domain.commoncode.*;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeAdminService;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeService;
+import kr.kro.airbob.core.domain.statistics.DailyRevenueTotal;
+import kr.kro.airbob.core.domain.statistics.RevenueStatsService;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccessDeniedException;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationAccessDeniedException;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationDuplicateException;
@@ -194,8 +196,6 @@ import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.exception.*;
-import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
-import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
 import kr.kro.airbob.search.service.AccommodationSearchService;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse;
 import kr.kro.airbob.search.document.AccommodationDocument;
@@ -2471,9 +2471,9 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("admin");
 		String path = "/api/v1/admin/stats/revenue";
 		LocalDate from = LocalDate.of(2027, 1, 1), to = LocalDate.of(2027, 1, 31);
-		when(service.getDailyRevenue(from, to)).thenReturn(new RevenueStatsResponse.DailyRevenues(from, to, "stats", List.of(
-			new RevenueStatsResponse.DailyRevenue(from, 150000, 20000, 130000, 2, 1),
-			new RevenueStatsResponse.DailyRevenue(from.plusDays(2), 0, 50, -50, 0, 2))));
+		when(service.getDailyRevenue(from, to)).thenReturn(List.of(
+			new DailyRevenueTotal(from, 150000, 20000, 130000, 2, 1),
+			new DailyRevenueTotal(from.plusDays(2), 0, 50, -50, 0, 2)));
 		String body = mvc.perform(get(path).cookie(SESSION).param("from", from.toString()).param("to", to.toString()))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
@@ -2483,7 +2483,7 @@ class ApiDocumentationTest {
 			  {"date":"2027-01-03","gross_amount":0,"refund_amount":50,"net_amount":-50,"payment_count":0,"refund_count":2}]}
 			"""));
 		verify(service).getDailyRevenue(from, to);
-		when(service.getDailyRevenue(from, from)).thenReturn(new RevenueStatsResponse.DailyRevenues(from, from, "stats", List.of()));
+		when(service.getDailyRevenue(from, from)).thenReturn(List.of());
 		String empty = mvc.perform(get(path).cookie(SESSION).param("from", from.toString()).param("to", from.toString()))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);

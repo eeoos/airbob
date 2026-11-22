@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.statistics;
+package kr.kro.airbob.core.domain.statistics;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -27,8 +27,6 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
-import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
-import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
@@ -135,38 +133,34 @@ class DailyRevenueStatsIntegrationTest {
 	void returnsDailyRevenueFromPrecomputedStats() {
 		revenueStatsService.backfill(D1, D2);
 
-		RevenueStatsResponse.DailyRevenues statsResponse =
-			revenueStatsService.getDailyRevenue(D1, D2);
-		List<RevenueStatsResponse.DailyRevenue> stats = statsResponse.items();
-
-		assertThat(statsResponse.source()).isEqualTo("stats");
+		List<DailyRevenueTotal> stats = revenueStatsService.getDailyRevenue(D1, D2);
 
 		// 일자 롤업 값 검증: D1 net 80000(pay 3), D2 net 2000(gross 7000 - refund 5000)
 		assertThat(stats).containsExactly(
-			new RevenueStatsResponse.DailyRevenue(D1, 80000, 0, 80000, 3, 0),
-			new RevenueStatsResponse.DailyRevenue(D2, 7000, 5000, 2000, 1, 1)
+			new DailyRevenueTotal(D1, 80000, 0, 80000, 3, 0),
+			new DailyRevenueTotal(D2, 7000, 5000, 2000, 1, 1)
 		);
 	}
 
 	@Test
 	@DisplayName("미집계·거래 없는 날은 생략하고 늦게 반영된 거래는 재집계 후 조회된다")
 	void sparseDatesAndLateTransactionsRequireRecomputation() {
-		assertThat(revenueStatsService.getDailyRevenue(D1.minusDays(1), D2.plusDays(1)).items()).isEmpty();
+		assertThat(revenueStatsService.getDailyRevenue(D1.minusDays(1), D2.plusDays(1))).isEmpty();
 		revenueStatsService.backfill(D1.minusDays(1), D2.plusDays(1));
-		assertThat(revenueStatsService.getDailyRevenue(D1.minusDays(1), D2.plusDays(1)).items())
-			.extracting(RevenueStatsResponse.DailyRevenue::date).containsExactly(D1, D2);
+		assertThat(revenueStatsService.getDailyRevenue(D1.minusDays(1), D2.plusDays(1)))
+			.extracting(DailyRevenueTotal::date).containsExactly(D1, D2);
 
 		long reservation = insertReservation("LATE", acc1, jdbc.queryForObject("SELECT member_id FROM accommodation WHERE id = ?", Long.class, acc1));
 		insertConfirm(reservation, 123, D1);
-		assertThat(revenueStatsService.getDailyRevenue(D1, D1).items().getFirst().grossAmount()).isEqualTo(80000);
+		assertThat(revenueStatsService.getDailyRevenue(D1, D1).getFirst().grossAmount()).isEqualTo(80000);
 		revenueStatsService.recompute(D1);
-		assertThat(revenueStatsService.getDailyRevenue(D1, D1).items().getFirst().grossAmount()).isEqualTo(80123);
+		assertThat(revenueStatsService.getDailyRevenue(D1, D1).getFirst().grossAmount()).isEqualTo(80123);
 
 		// 원장 행이 없는 날짜를 재집계하면 과거 집계도 남지 않는다.
 		jdbc.update("DELETE FROM payment_transaction WHERE transaction_type = 'CONFIRM' AND DATE(created_at) = ?", D1);
 		revenueStatsService.recompute(D1);
-		assertThat(revenueStatsService.getDailyRevenue(D1, D1).items()).isEmpty();
-		assertThat(revenueStatsService.getDailyRevenue(D2, D2).items()).hasSize(1);
+		assertThat(revenueStatsService.getDailyRevenue(D1, D1)).isEmpty();
+		assertThat(revenueStatsService.getDailyRevenue(D2, D2)).hasSize(1);
 	}
 
 	@Test
@@ -191,9 +185,9 @@ class DailyRevenueStatsIntegrationTest {
 			reservation, d3.atStartOfDay(), reservation, d3.atStartOfDay(), reservation, d3.atStartOfDay());
 
 		revenueStatsService.backfill(D2, d3.plusDays(2));
-		assertThat(revenueStatsService.getDailyRevenue(D2, d3.plusDays(2)).items()).containsExactly(
-			new RevenueStatsResponse.DailyRevenue(D2, 7100, 5000, 2100, 2, 1),
-			new RevenueStatsResponse.DailyRevenue(d3, 0, 50, -50, 1, 3));
+		assertThat(revenueStatsService.getDailyRevenue(D2, d3.plusDays(2))).containsExactly(
+			new DailyRevenueTotal(D2, 7100, 5000, 2100, 2, 1),
+			new DailyRevenueTotal(d3, 0, 50, -50, 1, 3));
 	}
 
 	@Test
@@ -217,7 +211,7 @@ class DailyRevenueStatsIntegrationTest {
 		for (LocalDate date : List.of(LocalDate.of(1000, 1, 1), LocalDate.of(9999, 12, 31))) {
 			revenueStatsService.backfill(date, date);
 			assertThat(revenueStatsService.getDailyRevenue(date, date))
-				.isEqualTo(new RevenueStatsResponse.DailyRevenues(date, date, "stats", List.of()));
+				.isEmpty();
 		}
 	}
 

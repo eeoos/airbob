@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.statistics.scheduler;
+package kr.kro.airbob.core.domain.statistics;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -15,8 +15,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.annotation.Scheduled;
-
-import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("일일 매출 집계 스케줄러 테스트")
