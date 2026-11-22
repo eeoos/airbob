@@ -50,6 +50,9 @@ import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.domain.review.ReviewReader;
+import kr.kro.airbob.core.domain.review.ReviewStatus;
+import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -67,9 +70,6 @@ import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestSto
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.domain.review.service.ReviewReader;
-import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")

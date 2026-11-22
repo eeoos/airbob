@@ -58,7 +58,7 @@ review는 accommodation(리뷰 대상), reservation(작성 자격), search(색�
 - **리뷰 작성 가능 여부**: 게스트 예약 상세가 이미 게시한 리뷰가 있는지 확인한다. reservation이 소유한 포트 `ReservationReviewReader`를 review의 `ReviewReader`가 구현한다.
 - review가 쓰는 숙소·예약 조회는 `AccommodationReader.readPublished`와 `ReservationReader.existsPastCompletedReservationByGuest`를 거친다.
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -80,6 +80,10 @@ image는 숙소·리뷰 이미지가 함께 쓰는 저장 기능만 둔다. 공�
 트랜잭션 결과에 맞춘 저장소 정리(`ImageStorageTransactionEvents`와 리스너: 커밋 후 삭제, 롤백 후 업로드 객체 정리), 이미지 검증 예외가 `core.domain.image`에 있다.
 숙소·리뷰 이미지 엔티티(`AccommodationImage`, `ReviewImage`)는 Repository와 함께 각 소유 도메인에 둔다.
 그래서 image는 accommodation과 review에 의존하지 않는다. 공통 응답 DTO `ImageResponse`는 `core.api.controller.v1.image.response`에 있다.
+Business가 돌려주는 저장된 이미지는 도메인 레코드 `StoredImage`(ID, 조회 주소)이고, Controller가 `ImageResponse.ImageInfo.from(StoredImage)`로 응답을 만든다.
+review는 `ReviewService`(작성·수정·삭제·목록)와 `ReviewImageService`(이미지 업로드·삭제)가 `ReviewReader`·`ReviewWriter`와
+`ReviewImageReader`·`ReviewImageWriter`를 쓴다. 목록은 도메인 레코드 `ReviewItem`(QueryDSL `@QueryProjection`)의 커서 페이지 `ReviewPage`로 돌려주고,
+Controller가 `ReviewResponse.ReviewInfos.from`으로 응답을 만든다. `ReviewReader`는 reservation이 소유한 포트 `ReservationReviewReader`도 구현한다.
 
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
 그리고 위 도메인들을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
@@ -216,6 +220,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 10b-2 (member 이전) | 22 | 20 | 13 (`Member` → 가입 요청 DTO 해소) |
 | PR 11 (image 이전) | 22 | 16 (image ↔ accommodation, image ↔ review 해소) | 13 |
 | PR 12a (review 경계) | 18 | 10 (review ↔ accommodation, review ↔ reservation, review ↔ search 해소) | 13 |
+| PR 12b (review 이전) | 18 | 10 | 13 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -250,7 +255,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 10c | auth 이전: `SessionReader`·`SessionWriter`·`SessionIssuer`(Implement) 추출, 세션 저장소가 직접 구현하던 `SessionInvalidator`를 `SessionWriter`로, 쓰이지 않던 `NotEqualHostException` 삭제, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 11 | image 이전: 숙소·리뷰 이미지 엔티티를 Repository가 있는 소유 도메인으로 옮겨 순환 해소, 저장 기능(`Image`, S3 업로더, 저장소 정리 이벤트·리스너, 예외)은 `core.domain.image`로, `ImageResponse`는 `core.api.controller.v1.image.response`로 | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 12a | review 경계: 리뷰 요약(엔티티·Repository·응답 DTO)을 accommodation으로 옮기고 `AccommodationReviewSummaryReader`·`AccommodationReviewSummaryWriter` 추가, review의 숙소·예약 Repository 사용을 `AccommodationReader`·`ReservationReader`로, reservation의 리뷰 확인을 포트 `ReservationReviewReader`(구현 `ReviewReader`)로 | 동결 위반 감소, 쿼리·스냅샷 불변 | 완료 |
-| 12b | review 이전: 내부 계층화(Reader/Writer, 입출력 레코드)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 12b | review 이전: `ReviewReader`·`ReviewWriter`·`ReviewImageReader`·`ReviewImageWriter` 추출, Business 입출력을 원시값과 도메인 레코드(`ReviewItem`, `ReviewPage`, `StoredImage`)로, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 13~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |

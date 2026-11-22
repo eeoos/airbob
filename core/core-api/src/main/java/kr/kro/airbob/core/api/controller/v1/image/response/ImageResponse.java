@@ -4,6 +4,7 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.domain.image.Image;
+import kr.kro.airbob.core.domain.image.StoredImage;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -24,6 +25,10 @@ public class ImageResponse {
 				.id(image.getId())
 				.imageUrl(image.getImageUrl())
 				.build();
+		}
+
+		public static ImageInfo from(StoredImage image) {
+			return new ImageInfo(image.id(), image.imageUrl());
 		}
 	}
 

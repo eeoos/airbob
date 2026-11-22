@@ -13,10 +13,10 @@ import org.springframework.boot.test.autoconfigure.json.JsonTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.core.api.controller.v1.review.response.ReviewResponse;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
 
 @JsonTest
 @DisplayName("절대 시각 API 응답 계약 테스트")
