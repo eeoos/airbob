@@ -25,6 +25,8 @@ import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.domain.review.ReviewReader;
+import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
@@ -43,8 +45,6 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.domain.review.service.ReviewReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)

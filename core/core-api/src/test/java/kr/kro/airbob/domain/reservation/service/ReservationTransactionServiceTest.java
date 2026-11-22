@@ -31,6 +31,8 @@ import kr.kro.airbob.core.domain.member.MemberNotFoundException;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.domain.review.ReviewReader;
+import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -56,8 +58,6 @@ import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
-import kr.kro.airbob.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.domain.review.service.ReviewReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
@@ -191,7 +191,7 @@ class ReservationTransactionServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
-			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
+			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(false);
 
 		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
@@ -223,7 +223,7 @@ class ReservationTransactionServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
-			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
+			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(false);
 
 		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
@@ -240,7 +240,7 @@ class ReservationTransactionServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
-			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
+			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(true);
 
 		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)

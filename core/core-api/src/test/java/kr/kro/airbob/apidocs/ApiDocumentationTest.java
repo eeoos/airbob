@@ -2,6 +2,7 @@ package kr.kro.airbob.apidocs;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -103,6 +104,7 @@ import kr.kro.airbob.core.domain.image.ImageFileSizeExceededException;
 import kr.kro.airbob.core.domain.image.ImageUploadException;
 import kr.kro.airbob.core.domain.image.InsufficientImageCountException;
 import kr.kro.airbob.core.domain.image.InvalidImageFormatException;
+import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.domain.member.DuplicatedEmailException;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberAdminService;
@@ -111,6 +113,16 @@ import kr.kro.airbob.core.domain.member.MemberProfile;
 import kr.kro.airbob.core.domain.member.MemberRole;
 import kr.kro.airbob.core.domain.member.MemberRoleChangeNotAllowedException;
 import kr.kro.airbob.core.domain.member.MemberService;
+import kr.kro.airbob.core.domain.review.ReviewAccessDeniedException;
+import kr.kro.airbob.core.domain.review.ReviewAlreadyExistsException;
+import kr.kro.airbob.core.domain.review.ReviewCreationForbiddenException;
+import kr.kro.airbob.core.domain.review.ReviewImageService;
+import kr.kro.airbob.core.domain.review.ReviewItem;
+import kr.kro.airbob.core.domain.review.ReviewNotFoundException;
+import kr.kro.airbob.core.domain.review.ReviewPage;
+import kr.kro.airbob.core.domain.review.ReviewService;
+import kr.kro.airbob.core.domain.review.ReviewSortType;
+import kr.kro.airbob.core.domain.review.ReviewUpdateForbiddenException;
 import kr.kro.airbob.core.domain.statistics.DailyRevenueTotal;
 import kr.kro.airbob.core.domain.statistics.RevenueStatsService;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccessDeniedException;
@@ -179,17 +191,8 @@ import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
-import kr.kro.airbob.domain.review.service.ReviewImageService;
-import kr.kro.airbob.domain.review.service.ReviewService;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
-import kr.kro.airbob.domain.review.entity.ReviewSortType;
-import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
-import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
-import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
-import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
-import kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
@@ -1481,11 +1484,11 @@ class ApiDocumentationTest {
 		assertThat(sort.path("default").asText()).isEqualTo("LATEST");
 		assertThat(sort.path("enum").toString()).contains("LATEST", "HIGHEST_RATING", "LOWEST_RATING");
 		ReviewService service = context.getBean(ReviewService.class);
-		var page = new ReviewResponse.ReviewInfos(List.of(
-			new ReviewResponse.ReviewInfo(201, 5, "좋은 숙소", Instant.parse("2027-01-10T02:00:00.123456Z"),
-				new MemberResponse.MemberInfo(10, null, null), List.of(new ImageResponse.ImageInfo(301L, "https://example.invalid/review.png"))),
-			new ReviewResponse.ReviewInfo(202, 3, null, (Instant)null,
-				new MemberResponse.MemberInfo(20, "여행자", null), List.of())), new CursorResponse.PageInfo(false, null, 2));
+		var page = new ReviewPage(List.of(
+			new ReviewItem(201, 5, "좋은 숙소", LocalDateTime.parse("2027-01-10T02:00:00.123456"),
+				10, null, null, List.of(new StoredImage(301L, "https://example.invalid/review.png"))),
+			new ReviewItem(202, 3, null, null,
+				20, "여행자", null, List.of())), new CursorResponse.PageInfo(false, null, 2));
 		when(service.findReviews(eq(101L), any(), any())).thenReturn(page);
 		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
@@ -1504,7 +1507,7 @@ class ApiDocumentationTest {
 		String invalidCursor = mvc.perform(get(path, 101).param("cursor", "not-a-cursor!")).andExpect(status().isBadRequest())
 			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "400", "C010", invalidCursor);
-		when(service.findReviews(eq(999L), any(), any())).thenReturn(new ReviewResponse.ReviewInfos(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+		when(service.findReviews(eq(999L), any(), any())).thenReturn(new ReviewPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 		String empty = mvc.perform(get(path, 999)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/reviews").isEmpty()).isTrue();
@@ -1528,7 +1531,7 @@ class ApiDocumentationTest {
 			assertDocumentedError(spec, path, "post", "400", "C001", body);
 		}
 		verifyNoInteractions(service);
-		when(service.createReview(eq(101L), any(), eq(10L))).thenReturn(new ReviewResponse.Create(201));
+		when(service.createReview(eq(101L), anyInt(), any(), eq(10L))).thenReturn(201L);
 		String request = mapper.createObjectNode().put("rating", 5).put("content", "가".repeat(1024)).toString();
 		String success = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
@@ -1536,7 +1539,7 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(success).at("/data/id").asLong()).isEqualTo(201);
 		for (BaseException error : List.of(new MemberNotFoundException(), new AccommodationNotFoundException(),
 			new ReviewCreationForbiddenException(), new ReviewAlreadyExistsException())) {
-			doThrow(error).when(service).createReview(eq(101L), any(), eq(10L));
+			doThrow(error).when(service).createReview(eq(101L), anyInt(), any(), eq(10L));
 			var response = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
 			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
@@ -1561,7 +1564,7 @@ class ApiDocumentationTest {
 			assertDocumentedError(spec, path, "patch", "400", "C001", body);
 		}
 		verifyNoInteractions(service);
-		when(service.updateReviewContent(eq(201L), any(), eq(10L))).thenReturn(new ReviewResponse.Update(201));
+		when(service.updateReviewContent(eq(201L), any(), any(), eq(10L))).thenReturn(201L);
 		for (String request : List.of("{\"content\":\"수정 본문\"}", "{\"content\":\"수정 본문\",\"rating\":null}", "{\"content\":\"수정 본문\",\"rating\":1}")) {
 			validateInstance(spec, schema, mapper.readTree(request));
 			String success = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
@@ -1571,7 +1574,7 @@ class ApiDocumentationTest {
 		}
 		for (BaseException error : List.of(new ReviewNotFoundException(),
 			new ReviewUpdateForbiddenException())) {
-			doThrow(error).when(service).updateReviewContent(eq(201L), any(), eq(10L));
+			doThrow(error).when(service).updateReviewContent(eq(201L), any(), any(), eq(10L));
 			var response = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"수정 본문\"}"))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
 			assertDocumentedError(spec, path, "patch", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
@@ -1638,7 +1641,7 @@ class ApiDocumentationTest {
 		ReviewImageService service = context.getBean(ReviewImageService.class);
 		verifyNoInteractions(service);
 		when(service.uploadReviewImages(eq(201L), anyList(), eq(10L)))
-			.thenReturn(new ImageResponse.ImageUploadResult(List.of(new ImageResponse.ImageInfo(301L, "https://example.invalid/review.png"))));
+			.thenReturn(List.of(new StoredImage(301L, "https://example.invalid/review.png")));
 		var file = new MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
 		String success = mvc.perform(multipart(path, 201).file(file).cookie(SESSION)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "201", success);
