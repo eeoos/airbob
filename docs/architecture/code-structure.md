@@ -35,7 +35,7 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 | `cursor.*` | `core.support.cursor.*` |
 | `common.exception.GlobalExceptionHandler` | `core.api.controller` (Presentation이 도메인 예외를 아는 정방향 의존이 되어 `common` ↔ 도메인 순환이 사라졌다) |
 
-도메인 중에서는 wishlist가 템플릿 구조로 옮겨졌다(PR 7c). 다른 도메인을 옮길 때 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c)와 commoncode(PR 8)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -43,8 +43,11 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 | Business·Implement·도메인 모델 | `core.domain.wishlist`(`WishlistService`, `WishlistReader`, `WishlistWriter`, 엔티티, enum, 예외, 도메인 레코드) |
 | Data Access | `core.domain.wishlist.repository`(Spring Data, `querydsl`, `projection`) |
 
+commoncode도 같은 배치다. 공개 조회 `CommonCodeService`와 관리 `CommonCodeAdminService`가 `CommonCodeReader`(활성 코드 1분 캐시 포함)와 `CommonCodeWriter`를 쓴다.
+accommodation은 숙소 유형·편의시설 코드 검증에 `CommonCodeReader.isValidCode`를 쓴다.
+
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
-그리고 wishlist를 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
+그리고 위 두 도메인을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
 
 ### 경로 계약
 
@@ -126,8 +129,13 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 
 - **입력**: Business는 요청 DTO 대신 원시값이나 도메인 값을 받는다. 예: `createWishlist(String name, Long memberId)`.
   Controller가 `request.name()`처럼 꺼내 넘긴다. 필드가 많으면 요청 DTO에 `toXxx()`를 두고 도메인 입력 record를 만든다.
-- **출력**: 엔티티 ID나 도메인 레코드를 돌려준다. 응답 DTO는 `XxxResponse.from(도메인 레코드)`로 Controller에서 만든다.
+  생성은 `NewXxx`, null 필드를 유지하는 부분 수정은 `XxxPatch`로 이름 짓는다(예: `NewCommonCode`, `CommonCodePatch`).
+- **출력**: 엔티티 ID나 도메인 레코드를 돌려준다. 엔티티는 Business 밖으로 내보내지 않는다. 응답 DTO는 `XxxResponse.from(도메인 레코드)`로 Controller에서 만든다.
   UTC `LocalDateTime` → `Instant` 변환이나 요청에 따라 필드를 null로 비우는 일처럼 응답 모양만 바꾸는 규칙은 `from`에 둔다.
+  엔티티 전체 값이 필요한 응답은 `XxxDetail.from(엔티티)` 레코드를 쓴다(예: `CommonCodeDetail`).
+- **다른 도메인이 쓰는 기능**: Service가 아니라 Reader/Writer에 둔다. Service는 Controller용 흐름만 갖는다.
+  예: 숙소의 코드 검증은 `CommonCodeService`가 아니라 `CommonCodeReader.isValidCode`를 쓴다. 이전 구조 도메인의 Service도 마찬가지다.
+- **값 정규화 규칙**: 코드 대문자화처럼 저장 값의 규칙은 엔티티 정적 메서드에 둔다(예: `CommonCode.normalizeCode`). 요청 DTO의 공백 제거는 검증 전에 필요하므로 그대로 둔다.
 - **도메인 레코드 위치**: Business가 반환하는 조회 결과는 도메인 루트 패키지에 둔다(예: `WishlistSummary`, `WishlistAccommodationItem`).
   QueryDSL이 `@QueryProjection`으로 바로 만들어도 된다. Implement 안에서만 쓰는 projection(소유자 확인용 헤더, native query 인터페이스)은 `repository/projection`에 남긴다.
   `repository` 패키지의 타입은 엄격 규칙에서 Data Access로 분류되므로 Business가 직접 받으면 안 된다.
@@ -190,7 +198,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 7a | wishlist 경계: `MemberReader`·`AccommodationReader` 추가, accommodation·search가 소유한 포트를 wishlist가 구현해 순환 해소, 다른 도메인의 wishlist Repository 사용 제거 | 동결 위반이 줄었는지 | 완료 |
 | 7b | wishlist 내부 계층화: `WishlistReader`/`WishlistWriter` 추출, Business 입출력에서 web DTO 제거, 목록 조회 projection을 도메인 레코드로 변경, 테스트 정리 | API 응답·OpenAPI 스냅샷 불변 | 완료 |
 | 7c | wishlist를 `core.api.controller.v1.wishlist`·`core.domain.wishlist`로 이동하고 도메인 이전 레시피 확정 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 8~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: commoncode, statistics → member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 8 | commoncode 이전: 레시피 3단계를 한 PR로. `CommonCodeReader`(캐시·조회)·`CommonCodeWriter` 추출, 입출력 도메인 레코드, accommodation이 Reader로 코드 검증 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
+| 9~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: statistics → member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 

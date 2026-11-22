@@ -1,0 +1,11 @@
+package kr.kro.airbob.core.domain.commoncode;
+
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.core.support.error.ErrorCode;
+
+public class CommonCodeGroupNotFoundException extends BaseException {
+
+	public CommonCodeGroupNotFoundException() {
+		super(ErrorCode.COMMON_CODE_GROUP_NOT_FOUND);
+	}
+}

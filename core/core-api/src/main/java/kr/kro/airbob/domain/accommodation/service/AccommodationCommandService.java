@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeGroups;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
@@ -43,8 +45,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
-import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.exception.InsufficientImageCountException;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
@@ -68,7 +68,7 @@ public class AccommodationCommandService {
 	private final OccupancyPolicyRepository occupancyPolicyRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationRepository reservationRepository;
-	private final CommonCodeService commonCodeService;
+	private final CommonCodeReader commonCodeReader;
 	private final AddressRepository addressRepository;
 	private final MemberRepository memberRepository;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
@@ -300,7 +300,7 @@ public class AccommodationCommandService {
 			));
 
 		boolean hasInvalidCode = amenityCountMap.keySet().stream()
-			.anyMatch(code -> !commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, code));
+			.anyMatch(code -> !commonCodeReader.isValidCode(CommonCodeGroups.AMENITY_TYPE, code));
 		if (hasInvalidCode) {
 			throw new InvalidAccommodationAmenityException();
 		}
@@ -320,7 +320,7 @@ public class AccommodationCommandService {
 		if (type == null) {
 			return;
 		}
-		if (!commonCodeService.isValidCode(
+		if (!commonCodeReader.isValidCode(
 			CommonCodeGroups.ACCOMMODATION_TYPE, type.toUpperCase(Locale.ROOT))) {
 			throw new InvalidAccommodationTypeException();
 		}

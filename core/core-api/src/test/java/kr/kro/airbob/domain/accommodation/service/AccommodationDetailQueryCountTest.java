@@ -35,6 +35,7 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
@@ -48,7 +49,6 @@ import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
@@ -116,7 +116,7 @@ class AccommodationDetailQueryCountTest {
 	private EntityManagerFactory entityManagerFactory;
 
 	@MockitoBean
-	private CommonCodeService commonCodeService;
+	private CommonCodeReader commonCodeReader;
 
 	@MockitoBean
 	private CursorPageInfoCreator cursorPageInfoCreator;

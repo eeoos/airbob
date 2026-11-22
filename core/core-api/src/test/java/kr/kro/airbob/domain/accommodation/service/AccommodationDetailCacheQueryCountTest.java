@@ -38,6 +38,7 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.domain.wishlist.Wishlist;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodation;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
@@ -55,7 +56,6 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -117,7 +117,7 @@ class AccommodationDetailCacheQueryCountTest {
 	@Autowired private EntityManager entityManager;
 	@Autowired private EntityManagerFactory entityManagerFactory;
 
-	@MockitoBean private CommonCodeService commonCodeService;
+	@MockitoBean private CommonCodeReader commonCodeReader;
 	@MockitoBean private CursorPageInfoCreator cursorPageInfoCreator;
 	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@MockitoBean private GeocodingService geocodingService;

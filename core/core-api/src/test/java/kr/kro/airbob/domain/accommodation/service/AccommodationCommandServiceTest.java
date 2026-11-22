@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.accommodation.service;
 
-import static kr.kro.airbob.domain.commoncode.common.CommonCodeGroups.*;
+import static kr.kro.airbob.core.domain.commoncode.CommonCodeGroups.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -25,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
@@ -43,7 +44,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -64,7 +64,7 @@ class AccommodationCommandServiceTest {
 	@Mock private AccommodationImageRepository accommodationImageRepository;
 	@Mock private AddressRepository addressRepository;
 	@Mock private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Mock private CommonCodeService commonCodeService;
+	@Mock private CommonCodeReader commonCodeReader;
 	@Mock private GeocodingService geocodingService;
 	@Mock private TimeZoneResolver timeZoneResolver;
 	@Mock private MemberRepository memberRepository;
@@ -333,7 +333,7 @@ class AccommodationCommandServiceTest {
 
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
-		when(commonCodeService.isValidCode(ACCOMMODATION_TYPE, "NOT_A_TYPE"))
+		when(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "NOT_A_TYPE"))
 			.thenReturn(false);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
@@ -428,7 +428,7 @@ class AccommodationCommandServiceTest {
 
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
-		when(commonCodeService.isValidCode(eq(AMENITY_TYPE), anyString()))
+		when(commonCodeReader.isValidCode(eq(AMENITY_TYPE), anyString()))
 			.thenAnswer(invocation -> "WIFI".equals(invocation.getArgument(1)));
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
@@ -461,9 +461,9 @@ class AccommodationCommandServiceTest {
 			when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 				1L, 2L, AccommodationStatus.DELETED))
 				.thenReturn(Optional.of(accommodation));
-			when(commonCodeService.isValidCode(ACCOMMODATION_TYPE, "PRIVATE_ROOM"))
+			when(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "PRIVATE_ROOM"))
 				.thenReturn(true);
-			when(commonCodeService.isValidCode(AMENITY_TYPE, "WIFI"))
+			when(commonCodeReader.isValidCode(AMENITY_TYPE, "WIFI"))
 				.thenReturn(true);
 
 			accommodationCommandService.updateAccommodation(1L, request, 2L);
