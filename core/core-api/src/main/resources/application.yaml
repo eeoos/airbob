@@ -5,6 +5,12 @@ spring:
   profiles:
     active: dev
 
+  # Shared operational configuration from the support modules (support/monitoring, support/logging).
+  config:
+    import:
+      - monitoring.yml
+      - logging.yml
+
   task:
     scheduling:
       pool:

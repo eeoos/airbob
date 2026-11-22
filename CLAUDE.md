@@ -15,7 +15,10 @@ state. The README, `docs/` and `scripts/README.md` are written in Korean.
 
 The build is a multi-module Gradle project following team-dodn/spring-boot-java-template.
 `core/core-api` is the only executable module and still holds all application code and resources,
-including Flyway migrations. Versions live in `gradle/libs.versions.toml`. Build outputs stay at the
+including Flyway migrations. `support/monitoring` (`monitoring.yml`: actuator exposure, probes, metric
+tags) and `support/logging` (`logging.yml`: log levels) are imported by core-api's
+`spring.config.import`; readiness-group membership stays in core-api's `application*.yaml`.
+Versions live in `gradle/libs.versions.toml`. Build outputs stay at the
 repository root (`build/libs/airbob.jar`, `build/openapi`) because deployment and CI read them there.
 The target structure, layering rules, and the PR-by-PR migration roadmap are in
 `docs/architecture/code-structure.md`; follow it when moving code.

@@ -55,36 +55,11 @@ accommodation:
       host: ${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${REDIS_HOST}}
       port: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6379}
 
-logging:
-  level:
-    kr.kro.airbob: INFO
-    org.hibernate.SQL: INFO
-
+# Actuator exposure, metrics, and log levels come from support/monitoring (monitoring.yml)
+# and support/logging (logging.yml).
 management:
-  endpoints:
-    web:
-      base-path: /actuator
-      exposure:
-        include: health, info, prometheus, metrics
-
   endpoint:
     health:
-      probes:
-        enabled: true
       group:
         readiness:
           include: readinessState,accommodationInventory
-      show-details: never
-
-  health:
-    elasticsearch:
-      enabled: false
-
-  metrics:
-    tags:
-      application: airbob-api
-    distribution:
-      percentiles-histogram:
-        http:
-          server:
-            requests: true
