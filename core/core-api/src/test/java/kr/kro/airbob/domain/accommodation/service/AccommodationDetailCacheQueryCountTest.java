@@ -35,6 +35,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
@@ -81,7 +82,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	MicrometerAccommodationDetailCacheMetricRecorder.class,
 	FailSafeAccommodationDetailCacheMetricRecorder.class,
 	AccommodationDetailCacheInvalidationListener.class,
-	AccommodationDetailReader.class,
+	AccommodationDetailReader.class, WishlistReader.class,
 	AccommodationQueryService.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

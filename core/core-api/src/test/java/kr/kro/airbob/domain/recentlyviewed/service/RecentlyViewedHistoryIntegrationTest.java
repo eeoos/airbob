@@ -33,7 +33,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 
 @Testcontainers
 class RecentlyViewedHistoryIntegrationTest {
@@ -48,7 +48,7 @@ class RecentlyViewedHistoryIntegrationTest {
 	private static LettuceConnectionFactory connections;
 	private static StringRedisTemplate redis;
 	private AccommodationRepository accommodations;
-	private WishlistAccommodationRepository wishlists;
+	private WishlistReader wishlists;
 	private RecentlyViewedService service;
 
 	@BeforeAll
@@ -68,7 +68,7 @@ class RecentlyViewedHistoryIntegrationTest {
 	void fixture() {
 		redis.delete(List.of(KEY, OTHER_KEY));
 		accommodations = mock(AccommodationRepository.class);
-		wishlists = mock(WishlistAccommodationRepository.class);
+		wishlists = mock(WishlistReader.class);
 		service = new RecentlyViewedService(redis, accommodations, wishlists);
 	}
 
@@ -166,7 +166,7 @@ class RecentlyViewedHistoryIntegrationTest {
 		redis.expire(KEY, Duration.ofHours(1));
 		when(accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
 			.thenReturn(List.of(card(10L), card(31L), card(9L)));
-		when(wishlists.findAccommodationIdsByMemberIdAndAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(10L));
+		when(wishlists.findWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(10L));
 
 		var result = service.getRecentlyViewed(7L);
 		assertThat(result.accommodations()).extracting(item -> item.accommodationId()).containsExactly(9L, 31L, 10L);

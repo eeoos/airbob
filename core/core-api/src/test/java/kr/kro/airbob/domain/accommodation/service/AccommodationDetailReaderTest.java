@@ -24,7 +24,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityReposit
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.domain.accommodation.port.AccommodationWishlistReader;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 상세 원본 조회기 단위 테스트")
@@ -33,7 +33,7 @@ class AccommodationDetailReaderTest {
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private AccommodationAmenityRepository accommodationAmenityRepository;
 	@Mock private AccommodationImageRepository accommodationImageRepository;
-	@Mock private WishlistAccommodationRepository wishlistAccommodationRepository;
+	@Mock private AccommodationWishlistReader wishlistReader;
 
 	@InjectMocks
 	private AccommodationDetailReader reader;
@@ -57,7 +57,7 @@ class AccommodationDetailReaderTest {
 		assertThat(snapshot.name()).isEqualTo("서울의 집");
 		assertThat(snapshot.reviewSummary().totalCount()).isEqualTo(3);
 		assertThat(snapshot.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
-		verifyNoInteractions(wishlistAccommodationRepository);
+		verifyNoInteractions(wishlistReader);
 	}
 
 	@Test
@@ -75,8 +75,7 @@ class AccommodationDetailReaderTest {
 	@Test
 	@DisplayName("로그인 사용자의 찜 여부는 공용 상세와 분리해 조회한다")
 	void readsWishlistStateSeparately() {
-		when(wishlistAccommodationRepository
-			.existsByWishlist_Member_IdAndAccommodation_Id(7L, 1L)).thenReturn(true);
+		when(wishlistReader.isInWishlist(1L, 7L)).thenReturn(true);
 
 		assertThat(reader.isInWishlist(1L, 7L)).isTrue();
 	}

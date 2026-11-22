@@ -19,7 +19,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,7 +30,7 @@ public class RecentlyViewedService {
 
 	private final RedisTemplate<String, String> redisTemplate;
 	private final AccommodationRepository accommodationRepository;
-	private final WishlistAccommodationRepository wishlistAccommodationRepository;
+	private final WishlistReader wishlistReader;
 
 	private static final String RECENTLY_VIEWED_KEY_PREFIX = "recently_viewed:";
 	private static final int MAX_COUNT = 100;
@@ -123,8 +123,8 @@ public class RecentlyViewedService {
 	}
 
 	private Map<Long, Boolean> getWishlistMap(Long memberId, List<Long> accommodationIds) {
-		Set<Long> wishlistAccommodationIds = wishlistAccommodationRepository
-			.findAccommodationIdsByMemberIdAndAccommodationIds(memberId, accommodationIds);
+		Set<Long> wishlistAccommodationIds = wishlistReader
+			.findWishlistedAccommodationIds(memberId, accommodationIds);
 
 		return accommodationIds.stream()
 			.collect(Collectors.toMap(

@@ -21,7 +21,7 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.search.port.SearchWishlistReader;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse;
@@ -38,7 +38,7 @@ import static kr.kro.airbob.search.dto.AccommodationSearchRequest.MAX_PAGE_NUMBE
 public class AccommodationSearchService {
 
     private final ElasticsearchClient esClient;
-    private final WishlistAccommodationRepository wishlistRepository;
+    private final SearchWishlistReader wishlistReader;
     private final BookingWindowProvider bookingWindowProvider;
 
     private static final String INDEX = "accommodations";
@@ -259,7 +259,7 @@ public class AccommodationSearchService {
 
     private Set<Long> getWishlist(List<Long> ids, Long memberId) {
         if (memberId == null) return Set.of();
-        return wishlistRepository.findAccommodationIdsByMemberIdAndAccommodationIds(memberId, ids);
+        return wishlistReader.findWishlistedAccommodationIds(memberId, ids);
     }
 
     private AccommodationSearchResponse.AccommodationSearchInfos createEmpty(Pageable pageable) {

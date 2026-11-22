@@ -39,6 +39,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
@@ -63,7 +65,7 @@ import kr.kro.airbob.domain.wishlist.service.WishlistService;
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
 	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
-	WishlistService.class, CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
+	WishlistService.class, MemberReader.class, AccommodationReader.class, CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	WishlistDetailQueryIntegrationTest.ReadTestConfig.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

@@ -32,6 +32,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
@@ -71,7 +72,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
 	AccommodationQueryService.class,
-	AccommodationDetailReader.class,
+	AccommodationDetailReader.class, WishlistReader.class,
 	AccommodationInventoryDayRepository.class,
 	ReservationInventoryService.class
 })
