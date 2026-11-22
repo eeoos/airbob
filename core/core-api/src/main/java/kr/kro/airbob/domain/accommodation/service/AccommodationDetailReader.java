@@ -18,7 +18,7 @@ import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodat
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.domain.accommodation.port.AccommodationWishlistReader;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -28,7 +28,7 @@ public class AccommodationDetailReader {
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository accommodationAmenityRepository;
 	private final AccommodationImageRepository accommodationImageRepository;
-	private final WishlistAccommodationRepository wishlistAccommodationRepository;
+	private final AccommodationWishlistReader wishlistReader;
 
 	@Transactional(readOnly = true)
 	public AccommodationDetailSnapshot load(Long accommodationId) {
@@ -66,8 +66,7 @@ public class AccommodationDetailReader {
 
 	@Transactional(readOnly = true)
 	public boolean isInWishlist(Long accommodationId, Long viewerId) {
-		return wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(
-			viewerId, accommodationId);
+		return wishlistReader.isInWishlist(accommodationId, viewerId);
 	}
 
 	List<AmenityResponse.AmenityInfo> loadAmenities(Long accommodationId) {

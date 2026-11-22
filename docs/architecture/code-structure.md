@@ -99,6 +99,19 @@ kr.kro.airbob
 6. **도메인 순환 금지**: 순환이 생기면 의존받는 쪽이 포트 인터페이스를 소유하고, 상대 도메인이 그 포트를 구현한다. 기존 예는 `member/port/SessionInvalidator`다.
 7. **엔티티는 DTO와 service 패키지에 의존하지 않는다**: 상태로 결정되는 규칙은 엔티티 메서드에 둔다. 예: `Reservation.confirm()`.
 
+#### Reader/Writer와 포트가 뜻하는 것
+
+- **Reader/Writer는 CQRS가 아니다.**
+  - Implement 계층 컴포넌트를 역할(조회·저장·검증)로 나눠 부르는 이름이다.
+  - 읽기 모델과 쓰기 모델을 따로 두지 않는다. 같은 엔티티와 같은 DB를 쓴다.
+  - 도메인의 Repository는 그 도메인의 Reader/Writer만 쓴다. 다른 도메인은 그 Reader를 통해 읽는다.
+  - 예: `MemberReader.readActive`, `AccommodationReader.readPublished`.
+- **포트는 헥사고날 아키텍처 전체를 도입한다는 뜻이 아니다.**
+  - 계층 구조는 그대로이고, 순환 의존이 생기는 곳에만 의존 역전(DIP)을 쓴다.
+  - 필요로 하는 쪽 도메인이 인터페이스를 소유하고(`<도메인>/port`), 제공하는 쪽 도메인의 Implement 컴포넌트가 구현한다.
+  - 예: accommodation과 search는 위시리스트 포함 여부만 필요하다. 그래서 `AccommodationWishlistReader`와 `SearchWishlistReader`를 각자 소유하고, `WishlistReader`가 둘 다 구현한다.
+  - wishlist → accommodation 의존은 그대로 두면서 반대 방향만 없앤다.
+
 ### ArchUnit으로 규칙 강제
 
 규칙은 `core/core-api/src/test/java/kr/kro/airbob/architecture`의 ArchUnit 테스트가 강제한다.
@@ -120,6 +133,13 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 다른 도메인의 Repository 사용 | 35 (클래스 → Repository 쌍) |
 | 도메인 순환 | 26개 간선(13쌍): accommodation↔image·reservation·review·search·wishlist, auth↔member, image↔review, payment↔accommodation·reservation·search, reservation↔review·search, review↔search, search↔wishlist |
 | 엔티티·임베디드 타입의 DTO·service 의존 | 14 |
+
+진행 현황(저장소 기준):
+
+| 시점 | Repository 사용 | 순환 간선 | 엔티티 의존 |
+|---|---|---|---|
+| PR 6 (동결) | 35 | 26 | 14 |
+| PR 7a (wishlist 경계) | 30 | 22 (wishlist 관련 4개 해소) | 14 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -143,7 +163,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 4 | `clients/client-toss-payments`: 전송 계층만 분리하고 분류 로직은 core-api 어댑터에 남김 | payment runbook을 먼저 읽는다. `TossPaymentsAdapterTest`의 단언을 바꾸지 않는다 | 완료 |
 | 5 | `common.exception`, `common.dto`, `cursor`를 `core.support.*`로, `GlobalExceptionHandler`를 `core.api.controller`로 이동 | OpenAPI 스냅샷이 그대로인지 | 완료 |
 | 6 | ArchUnit 규칙: 새 패키지는 엄격, 레거시는 동결 | 동결 저장소 커밋 | 완료 |
-| 7 | wishlist 파일럿: Reader/Writer 추출, 입출력에서 DTO 제거, accommodation↔wishlist 순환을 포트로 해소. 도메인 이전 레시피 확정 | 동결 위반이 줄었는지 | |
+| 7a | wishlist 경계: `MemberReader`·`AccommodationReader` 추가, accommodation·search가 소유한 포트를 wishlist가 구현해 순환 해소, 다른 도메인의 wishlist Repository 사용 제거 | 동결 위반이 줄었는지 | 완료 |
+| 7b | wishlist 내부 계층화: `WishlistReader`/`WishlistWriter` 추출, Business 입출력에서 web DTO 제거, 목록 조회 projection을 도메인 레코드로 변경, 테스트 정리 | API 응답·OpenAPI 스냅샷 불변 | |
+| 7c | wishlist를 `core.api.controller.v1.wishlist`·`core.domain.wishlist`로 이동하고 도메인 이전 레시피 확정 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 8~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: commoncode, statistics → member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |

@@ -36,7 +36,7 @@ import co.elastic.clients.elasticsearch.core.search.TotalHits;
 import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
 
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.search.port.SearchWishlistReader;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.exception.SearchUnavailableException;
@@ -49,7 +49,7 @@ class AccommodationSearchServiceTest {
 	private ElasticsearchClient esClient;
 
 	@Mock
-	private WishlistAccommodationRepository wishlistRepository;
+	private SearchWishlistReader wishlistReader;
 
 	@Mock
 	private BookingWindowProvider bookingWindowProvider;
@@ -121,7 +121,7 @@ class AccommodationSearchServiceTest {
 			null
 		))
 			.isInstanceOf(SearchUnavailableException.class);
-		verifyNoInteractions(wishlistRepository);
+		verifyNoInteractions(wishlistReader);
 	}
 
 	@Test
@@ -140,7 +140,7 @@ class AccommodationSearchServiceTest {
 			null
 		))
 			.isInstanceOf(SearchUnavailableException.class);
-		verifyNoInteractions(wishlistRepository);
+		verifyNoInteractions(wishlistReader);
 	}
 
 	@Test

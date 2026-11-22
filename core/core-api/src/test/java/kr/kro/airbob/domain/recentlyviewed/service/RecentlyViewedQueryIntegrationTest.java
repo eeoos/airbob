@@ -43,6 +43,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
@@ -57,7 +58,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyView
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class, WishlistReader.class,
 	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")

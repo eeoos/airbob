@@ -15,13 +15,9 @@ import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
@@ -44,9 +40,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class WishlistService {
 
-	private final MemberRepository memberRepository;
+	private final MemberReader memberReader;
 	private final WishlistRepository wishlistRepository;
-	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReader accommodationReader;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
@@ -54,7 +50,7 @@ public class WishlistService {
 	@Transactional
 	public WishlistResponse.Create createWishlist(WishlistRequest.Create request, Long memberId) {
 
-		final Member member = findMemberById(memberId);
+		final Member member = memberReader.readActive(memberId);
 
 		Wishlist wishlist = Wishlist.builder()
 			.name(request.name())
@@ -147,7 +143,7 @@ public class WishlistService {
 		WishlistAccommodationRequest.Create request, Long memberId) {
 		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
-		Accommodation accommodation = findAccommodationByIdAndStatus(request.accommodationId());
+		Accommodation accommodation = accommodationReader.readPublished(request.accommodationId());
 		validateWishlistAccommodationDuplicate(wishlistId, accommodation.getId());
 
 
@@ -239,14 +235,6 @@ public class WishlistService {
 		);
 
 		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo, wishlist.name());
-	}
-
-	private Member findMemberById(Long loggedInMemberId) {
-		return memberRepository.findByIdAndStatus(loggedInMemberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
-	}
-
-	private Accommodation findAccommodationByIdAndStatus(Long accommodationId) {
-		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	private void validateWishlistAccommodationDuplicate(Long wishlistId, Long accommodationId) {

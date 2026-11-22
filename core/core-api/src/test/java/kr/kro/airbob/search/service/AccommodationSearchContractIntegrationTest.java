@@ -39,7 +39,7 @@ import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.search.port.SearchWishlistReader;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest.AccommodationSearchRequestDto;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest.MapBoundsDto;
@@ -63,7 +63,7 @@ class AccommodationSearchContractIntegrationTest {
 
 	private static RestClientTransport transport;
 	private static ElasticsearchClient client;
-	private WishlistAccommodationRepository wishlists;
+	private SearchWishlistReader wishlists;
 	private AccommodationSearchService service;
 
 	@BeforeAll
@@ -84,7 +84,7 @@ class AccommodationSearchContractIntegrationTest {
 	@BeforeEach
 	void fixture() throws Exception {
 		client.deleteByQuery(request -> request.index("accommodations").query(query -> query.matchAll(all -> all)).refresh(true));
-		wishlists = mock(WishlistAccommodationRepository.class);
+		wishlists = mock(SearchWishlistReader.class);
 		service = new AccommodationSearchService(client, wishlists,
 			new BookingWindowProvider(Clock.fixed(Instant.parse("2027-01-10T03:00:00Z"), ZoneOffset.UTC)));
 		index(List.of(
@@ -202,7 +202,7 @@ class AccommodationSearchContractIntegrationTest {
 		var anonymous = search(request("서울"), new MapBoundsDto(), 0, null);
 		assertThat(anonymous.staySearchResultListing()).allSatisfy(card -> assertThat(card.isInWishlist()).isFalse());
 		verifyNoInteractions(wishlists);
-		when(wishlists.findAccommodationIdsByMemberIdAndAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
+		when(wishlists.findWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
 		var authenticated = search(request("서울"), new MapBoundsDto(), 0, 7L);
 		assertThat(authenticated.staySearchResultListing()).allSatisfy(card -> assertThat(card.isInWishlist()).isEqualTo(card.id() == 2));
 	}
