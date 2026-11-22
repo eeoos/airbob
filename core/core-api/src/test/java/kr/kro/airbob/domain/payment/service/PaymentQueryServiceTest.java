@@ -16,7 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;

@@ -4,12 +4,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.api.security.SessionCookie;
+import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
 import kr.kro.airbob.domain.auth.service.AuthService;
-import kr.kro.airbob.domain.member.dto.MemberResponse;
-import kr.kro.airbob.domain.member.service.MemberService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -36,7 +36,7 @@ public class AuthController implements AuthApi {
 
     @Override
     public ResponseEntity<ApiResponse<MemberResponse.MeInfo>> getMyInfo(Long memberId) {
-        MemberResponse.MeInfo response = memberService.getMemberInfo(memberId);
+        MemberResponse.MeInfo response = MemberResponse.MeInfo.from(memberService.getMemberInfo(memberId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

@@ -12,6 +12,8 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
@@ -23,8 +25,6 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.ReviewImage;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;

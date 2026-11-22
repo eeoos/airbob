@@ -45,6 +45,7 @@ import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfo;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfos;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
+import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest.CursorPageRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse.PageInfo;
@@ -52,7 +53,6 @@ import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
-import kr.kro.airbob.domain.member.service.MemberReader;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers

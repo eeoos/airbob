@@ -18,13 +18,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.ReviewImage;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.review.entity.Review;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;

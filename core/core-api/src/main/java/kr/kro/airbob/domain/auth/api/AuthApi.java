@@ -14,13 +14,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.api.security.SessionCookie;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
 import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
-import kr.kro.airbob.domain.member.dto.MemberResponse;
 
 @Tag(name = "인증")
 @RequestMapping("/api")

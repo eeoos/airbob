@@ -8,6 +8,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -15,7 +16,6 @@ import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodatio
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
-import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.AccessLevel;
 import lombok.Builder;

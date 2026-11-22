@@ -4,10 +4,10 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.core.domain.wishlist.repository.WishlistRepository;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.member.entity.Member;
 import lombok.RequiredArgsConstructor;
 
 /**

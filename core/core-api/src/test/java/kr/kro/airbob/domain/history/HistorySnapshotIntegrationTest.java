@@ -36,6 +36,13 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
+import kr.kro.airbob.core.api.controller.v1.member.request.MemberRequest;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.MemberHistory;
+import kr.kro.airbob.core.domain.member.MemberService;
+import kr.kro.airbob.core.domain.member.MemberStatus;
+import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
@@ -44,13 +51,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryReposit
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
-import kr.kro.airbob.domain.member.dto.MemberRequest;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberHistory;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberHistoryRepository;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.member.service.MemberService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
@@ -125,7 +125,7 @@ class HistorySnapshotIntegrationTest {
 	void memberHistoryScd2() {
 		// 가입 → 첫 데이터(CREATE)부터 기록
 		memberService.createMember(MemberRequest.Signup.builder()
-			.nickname("kim").email("kim@test.com").password("password1").build());
+			.nickname("kim").email("kim@test.com").password("password1").build().toNewMember());
 		Member member = memberRepository.findAll().get(0);
 
 		List<MemberHistory> afterCreate = memberHistoryRepository.findAll();
@@ -160,7 +160,7 @@ class HistorySnapshotIntegrationTest {
 	@DisplayName("회원 탈퇴 시 해당 회원의 모든 세션만 Redis에서 제거한다")
 	void memberDeletionRevokesOnlyTargetMemberSessions() {
 		memberService.createMember(MemberRequest.Signup.builder()
-			.nickname("kim").email("session@test.com").password("password1").build());
+			.nickname("kim").email("session@test.com").password("password1").build().toNewMember());
 		Member member = memberRepository.findAll().getFirst();
 		sessionRedisRepository.saveSession("target-session-1", member.getId());
 		sessionRedisRepository.saveSession("target-session-2", member.getId());
@@ -184,7 +184,7 @@ class HistorySnapshotIntegrationTest {
 	@DisplayName("로그인과 탈퇴가 사용하는 회원 쓰기 잠금은 같은 회원에서 직렬화된다")
 	void memberWriteLocksSerializeLoginAndDeletion() throws Exception {
 		memberService.createMember(MemberRequest.Signup.builder()
-			.nickname("kim").email("concurrent-session@test.com").password("password1").build());
+			.nickname("kim").email("concurrent-session@test.com").password("password1").build().toNewMember());
 		Member member = memberRepository.findAll().getFirst();
 
 		CountDownLatch deletionLockAcquired = new CountDownLatch(1);

@@ -42,9 +42,9 @@ import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 
 @Testcontainers
 @SpringBootTest(

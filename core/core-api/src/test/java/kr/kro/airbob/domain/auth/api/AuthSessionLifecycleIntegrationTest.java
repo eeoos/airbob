@@ -37,17 +37,18 @@ import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.config.RedisConfig;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.MemberProfile;
+import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.domain.member.MemberService;
+import kr.kro.airbob.core.domain.member.MemberStatus;
+import kr.kro.airbob.core.domain.member.MemberWriter;
+import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.auth.service.AuthService;
 import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
 import kr.kro.airbob.domain.auth.service.SessionIssuanceService;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberHistoryRepository;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.member.repository.projection.MemberProfileProjection;
-import kr.kro.airbob.domain.member.service.MemberReader;
-import kr.kro.airbob.domain.member.service.MemberService;
 
 // Exercise real MVC, authentication, session storage and Redis serialization; only MySQL repositories are mocked.
 @Testcontainers
@@ -91,12 +92,12 @@ class AuthSessionLifecycleIntegrationTest {
         when(members.findByEmailAndStatus(EMAIL, MemberStatus.ACTIVE)).thenReturn(Optional.of(member));
         when(members.findByIdAndStatusForUpdate(10L, MemberStatus.ACTIVE)).thenReturn(Optional.of(member));
         when(members.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
-            .thenReturn(Optional.of(new MemberProfileProjection(10L, EMAIL, "여행자")));
+            .thenReturn(Optional.of(new MemberProfile(10L, EMAIL, "여행자")));
 
         SessionRedisRepository sessions = new SessionRedisRepository(redis);
         MemberReader memberReader = new MemberReader(members);
         AuthService authentication = new AuthService(memberReader, sessions, new SessionIssuanceService(memberReader, sessions));
-        MemberService profiles = new MemberService(members, mock(MemberHistoryRepository.class), sessions, Clock.systemUTC());
+        MemberService profiles = new MemberService(new MemberReader(members), new MemberWriter(members, mock(MemberHistoryRepository.class), Clock.systemUTC()), sessions);
         mvc = MockMvcBuilders.standaloneSetup(new AuthController(authentication, profiles))
             .setControllerAdvice(new GlobalExceptionHandler())
             .setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())

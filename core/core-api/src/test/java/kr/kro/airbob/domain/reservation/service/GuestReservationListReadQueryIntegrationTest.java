@@ -46,6 +46,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
@@ -57,8 +59,6 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse.GuestReservation
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;

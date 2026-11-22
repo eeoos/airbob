@@ -21,10 +21,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 
 @DataJpaTest
 @Testcontainers

@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
+import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
@@ -44,7 +45,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.geo.GeocodingService;

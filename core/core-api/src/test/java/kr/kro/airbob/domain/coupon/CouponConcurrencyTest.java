@@ -24,13 +24,13 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.coupon.common.*;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.*;
 import kr.kro.airbob.domain.coupon.repository.*;
 import kr.kro.airbob.domain.coupon.service.*;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 
 @Testcontainers
 @SpringBootTest(properties = {"spring.cloud.aws.s3.enabled=false", "spring.jpa.open-in-view=false"})

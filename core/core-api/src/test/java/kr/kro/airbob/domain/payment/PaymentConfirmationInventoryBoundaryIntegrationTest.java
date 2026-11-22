@@ -47,13 +47,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
