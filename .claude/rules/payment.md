@@ -1,6 +1,7 @@
 ---
 paths:
   - "**/src/**/domain/payment/**/*"
+  - "clients/client-toss-payments/**/*"
 ---
 
 # Payment confirmation and cancellation

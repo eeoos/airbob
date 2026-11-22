@@ -38,6 +38,7 @@ import org.springframework.retry.annotation.Retryable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.client.toss.TossPaymentsClient;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
@@ -88,8 +89,7 @@ class TossPaymentsAdapterTest {
 				new MapPropertySource("payment-guard-test", Map.of("payment.toss.enabled", false))
 			);
 			context.registerBean(
-				"tossPaymentRestClient", RestClient.class, () -> builder.build());
-			context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
+				TossPaymentsClient.class, () -> new TossPaymentsClient(builder.build(), new ObjectMapper()));
 			context.registerBean(
 				PaymentConfirmationFailureClassifier.class,
 				() -> new PaymentConfirmationFailureClassifier());
@@ -475,8 +475,7 @@ class TossPaymentsAdapterTest {
 
 	private TossPaymentsAdapter adapter(RestClient restClient, boolean enabled) {
 		return new TossPaymentsAdapter(
-			restClient,
-			new ObjectMapper(),
+			new TossPaymentsClient(restClient, new ObjectMapper()),
 			new PaymentConfirmationFailureClassifier(),
 			enabled);
 	}

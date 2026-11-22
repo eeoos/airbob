@@ -1,56 +1,37 @@
 package kr.kro.airbob.domain.payment.service;
 
-import java.io.IOException;
 import java.net.ConnectException;
 import java.net.http.HttpConnectTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import kr.kro.airbob.common.exception.ErrorCode;
-import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
+import kr.kro.airbob.client.toss.TossPaymentResponse;
+import kr.kro.airbob.client.toss.TossPaymentsApiException;
+import kr.kro.airbob.client.toss.TossPaymentsClient;
+import kr.kro.airbob.client.toss.TossPaymentsResponseParsingException;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.exception.TossPaymentResponseParsingException;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationFailureClassifier;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
+/**
+ * Translates Toss Payments outcomes into {@link PaymentGatewayResult}s.
+ * HTTP transport lives in {@link TossPaymentsClient} (clients:client-toss-payments); this adapter owns
+ * the classification of provider codes, response correlation, and normalization to domain values.
+ */
 @Component
 public class TossPaymentsAdapter implements PaymentProviderGateway {
 
-	public static final String PAYMENT_KEY = "paymentKey";
-	public static final String ORDER_ID = "orderId";
-	public static final String AMOUNT = "amount";
-	public static final String CANCEL_REASON = "cancelReason";
-	public static final String UNKNOWN_ERROR = "UNKNOWN_ERROR";
 	public static final String IDEMPOTENT_REQUEST_PROCESSING = "IDEMPOTENT_REQUEST_PROCESSING";
-	public static final String PARSING_FAILED_CODE = "PARSING_FAILED";
-	public static final String CONFIRM_PATH = "/v1/payments/confirm";
-	public static final String CANCEL_PATH = "/v1/payments/{paymentKey}/cancel";
-	public static final String CANCEL_AMOUNT = "cancelAmount";
-	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
-	public static final String GET_PATH_BY_PAYMENT_KEY = "/v1/payments/{paymentKey}";
 	private static final String SAFE_UNKNOWN_MESSAGE = "결제 결과를 확인하고 있습니다.";
 	private static final String SAFE_RETRYABLE_MESSAGE = "결제 서비스에 연결할 수 없어 다시 시도합니다.";
 	private static final String SAFE_NOT_FOUND_MESSAGE = "결제 정보를 찾을 수 없습니다.";
@@ -89,19 +70,16 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		"NOT_ALLOWED_PARTIAL_REFUND"
 	);
 
-	private final RestClient tossPaymentsRestClient;
-	private final ObjectMapper objectMapper;
+	private final TossPaymentsClient tossPaymentsClient;
 	private final PaymentConfirmationFailureClassifier confirmationFailureClassifier;
 	private final boolean enabled;
 
 	public TossPaymentsAdapter(
-		@Qualifier("tossPaymentRestClient") RestClient tossPaymentsRestClient,
-		ObjectMapper objectMapper,
+		TossPaymentsClient tossPaymentsClient,
 		PaymentConfirmationFailureClassifier confirmationFailureClassifier,
 		@Value("${payment.toss.enabled:true}") boolean enabled
 	) {
-		this.tossPaymentsRestClient = tossPaymentsRestClient;
-		this.objectMapper = objectMapper;
+		this.tossPaymentsClient = tossPaymentsClient;
 		this.confirmationFailureClassifier = confirmationFailureClassifier;
 		this.enabled = enabled;
 	}
@@ -110,29 +88,21 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	public PaymentGatewayResult confirm(PaymentProviderCommand command) {
 		requireEnabled();
 
-		Map<String, Object> payload = new HashMap<>();
-		payload.put(PAYMENT_KEY, command.paymentKey());
-		payload.put(ORDER_ID, command.orderId());
-		payload.put(AMOUNT, command.amount());
-
 		try {
-			TossPaymentResponse response = tossPaymentsRestClient.post()
-				.uri(CONFIRM_PATH)
-				.header(IDEMPOTENCY_KEY_HEADER, command.providerIdempotencyKey())
-				.body(payload)
-				.retrieve()
-				.onStatus(HttpStatusCode::isError, (request, httpResponse) -> {
-					throw providerHttpException(httpResponse);
-				})
-				.body(TossPaymentResponse.class);
+			TossPaymentResponse response = tossPaymentsClient.confirm(
+				command.paymentKey(),
+				command.orderId(),
+				command.amount(),
+				command.providerIdempotencyKey()
+			);
 
 			return approvedOrUnknown(command, response);
-		} catch (ProviderHttpException exception) {
+		} catch (TossPaymentsApiException exception) {
 			if (exception.statusCode() >= 500) {
 				return outcomeUnknown("PROVIDER_ERROR");
 			}
 			return confirmationFailureClassifier.classify(exception.code(), null);
-		} catch (TossPaymentResponseParsingException | RestClientException exception) {
+		} catch (TossPaymentsResponseParsingException | RestClientException exception) {
 			return classifyTransportFailure(exception);
 		}
 	}
@@ -142,13 +112,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		requireEnabled();
 
 		try {
-			TossPaymentResponse response = tossPaymentsRestClient.get()
-				.uri(GET_PATH_BY_PAYMENT_KEY, command.paymentKey())
-				.retrieve()
-				.onStatus(HttpStatusCode::isError, (request, httpResponse) -> {
-					throw providerHttpException(httpResponse);
-				})
-				.body(TossPaymentResponse.class);
+			TossPaymentResponse response = tossPaymentsClient.getPayment(command.paymentKey());
 
 			if (!isCorrelated(command, response)) {
 				return outcomeUnknown("PAYMENT_RESPONSE_MISMATCH");
@@ -163,12 +127,12 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 					new PaymentGatewayResult.Declined(status.name(), SAFE_TERMINAL_MESSAGE);
 				default -> outcomeUnknown(status.name());
 			};
-		} catch (ProviderHttpException exception) {
+		} catch (TossPaymentsApiException exception) {
 			if (exception.statusCode() == 404) {
 				return new PaymentGatewayResult.NotFound(exception.code(), SAFE_NOT_FOUND_MESSAGE);
 			}
 			return outcomeUnknown(exception.code());
-		} catch (TossPaymentResponseParsingException | RestClientException exception) {
+		} catch (TossPaymentsResponseParsingException | RestClientException exception) {
 			return classifyTransportFailure(exception);
 		}
 	}
@@ -265,55 +229,26 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		return new PaymentGatewayResult.OutcomeUnknown(code, SAFE_UNKNOWN_MESSAGE);
 	}
 
-	private ProviderHttpException providerHttpException(ClientHttpResponse response) throws IOException {
-		return new ProviderHttpException(response.getStatusCode().value(), readErrorCode(response));
-	}
-
-	private static final class ProviderHttpException extends RuntimeException {
-		private final int statusCode;
-		private final String code;
-
-		private ProviderHttpException(int statusCode, String code) {
-			this.statusCode = statusCode;
-			this.code = code == null || code.isBlank() ? UNKNOWN_ERROR : code;
-		}
-
-		private int statusCode() {
-			return statusCode;
-		}
-
-		private String code() {
-			return code;
-		}
-	}
-
 	@Override
 	public PaymentGatewayResult cancel(PaymentProviderCommand command) {
 		requireEnabled();
 
-		Map<String, Object> payload = new HashMap<>();
-		payload.put(CANCEL_REASON, command.cancellationReason());
-		payload.put(CANCEL_AMOUNT, command.amount());
-
 		try {
-			TossPaymentResponse response = tossPaymentsRestClient.post()
-				.uri(CANCEL_PATH, command.paymentKey())
-				.header(IDEMPOTENCY_KEY_HEADER, command.providerIdempotencyKey())
-				.body(payload)
-				.retrieve()
-				.onStatus(HttpStatusCode::isError, (request, httpResponse) -> {
-					throw providerHttpException(httpResponse);
-				})
-				.body(TossPaymentResponse.class);
+			TossPaymentResponse response = tossPaymentsClient.cancel(
+				command.paymentKey(),
+				command.cancellationReason(),
+				command.amount(),
+				command.providerIdempotencyKey()
+			);
 			return cancelledOrReview(command, response, false);
-		} catch (ProviderHttpException exception) {
+		} catch (TossPaymentsApiException exception) {
 			return classifyCancellationFailure(exception);
-		} catch (TossPaymentResponseParsingException | RestClientException exception) {
+		} catch (TossPaymentsResponseParsingException | RestClientException exception) {
 			return classifyTransportFailure(exception);
 		}
 	}
 
-	private PaymentGatewayResult classifyCancellationFailure(ProviderHttpException exception) {
+	private PaymentGatewayResult classifyCancellationFailure(TossPaymentsApiException exception) {
 		String code = exception.code();
 		if (exception.statusCode() >= 500
 			|| CANCELLATION_INQUIRY_REQUIRED_CODES.contains(code)) {
@@ -334,21 +269,15 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		requireEnabled();
 
 		try {
-			TossPaymentResponse response = tossPaymentsRestClient.get()
-				.uri(GET_PATH_BY_PAYMENT_KEY, command.paymentKey())
-				.retrieve()
-				.onStatus(HttpStatusCode::isError, (request, httpResponse) -> {
-					throw providerHttpException(httpResponse);
-				})
-				.body(TossPaymentResponse.class);
+			TossPaymentResponse response = tossPaymentsClient.getPayment(command.paymentKey());
 			return cancelledOrReview(command, response, true);
-		} catch (ProviderHttpException exception) {
+		} catch (TossPaymentsApiException exception) {
 			if (exception.statusCode() == 404) {
 				return new PaymentGatewayResult.NotFound(
 					exception.code(), SAFE_NOT_FOUND_MESSAGE);
 			}
 			return outcomeUnknown(exception.code());
-		} catch (TossPaymentResponseParsingException | RestClientException exception) {
+		} catch (TossPaymentsResponseParsingException | RestClientException exception) {
 			return classifyTransportFailure(exception);
 		}
 	}
@@ -415,30 +344,6 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	private PaymentGatewayResult.ManualReviewRequired cancellationReview(String code) {
 		return new PaymentGatewayResult.ManualReviewRequired(
 			code, SAFE_CANCELLATION_REVIEW_MESSAGE);
-	}
-
-	private String readErrorCode(ClientHttpResponse response) {
-		try {
-			return parseErrorCode(new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8));
-		} catch (IOException e) {
-			log.error("토스페이먼츠 에러 응답 읽기 실패: type={}", e.getClass().getSimpleName());
-			throw new TossPaymentResponseParsingException(ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
-		}
-	}
-
-	private String parseErrorCode(String errorBody) {
-		try {
-			JsonNode root = objectMapper.readTree(errorBody);
-			String topLevelCode = root.path("code").asText(null);
-			if (topLevelCode != null) {
-				return topLevelCode;
-			}
-
-			return root.path("failure").path("code").asText(UNKNOWN_ERROR);
-		} catch (JsonProcessingException e) {
-			log.error("토스페이먼츠 에러 응답 파싱 실패: type={}", e.getClass().getSimpleName());
-			throw new TossPaymentResponseParsingException(ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
-		}
 	}
 
 	private void requireEnabled() {
