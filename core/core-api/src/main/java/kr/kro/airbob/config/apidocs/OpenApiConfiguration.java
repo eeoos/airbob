@@ -42,9 +42,10 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.api.security.SessionCookie;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.cursor.annotation.CursorParam;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "springdoc.api-docs.enabled", havingValue = "true")
@@ -73,7 +74,7 @@ public class OpenApiConfiguration {
 			.servers(List.of(new Server().url("/")))
 			.components(new Components()
 				.addSecuritySchemes(SESSION_AUTH, new SecurityScheme().type(SecurityScheme.Type.APIKEY)
-					.in(SecurityScheme.In.COOKIE).name("SESSION_ID")
+					.in(SecurityScheme.In.COOKIE).name(SessionCookie.NAME)
 					.description("같은 서버의 POST /api/v1/auth/login에 성공하면 브라우저가 자동 저장·전송하는 HttpOnly 세션 쿠키입니다. "
 						+ "이 입력란에 쿠키를 붙여 넣지 않습니다. 자물쇠 표시는 실제 세션 상태를 나타내지 않으며, "
 						+ "GET /api/v1/auth/me의 200 응답으로 로그인 상태를 확인합니다."))

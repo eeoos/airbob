@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.exception;
+package kr.kro.airbob.core.api.security;
 
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.ErrorCode;

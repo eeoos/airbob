@@ -14,10 +14,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse;
 

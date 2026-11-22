@@ -1,5 +1,9 @@
 package kr.kro.airbob.domain.member.entity;
 
+import java.util.Objects;
+
+import org.mindrot.jbcrypt.BCrypt;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -56,6 +60,26 @@ public class Member extends BaseEntity {
 				.thumbnailImageUrl(request.getThumbnailImageUrl())
 				.role(MemberRole.MEMBER)
 				.build();
+	}
+
+	/** 입력한 비밀번호가 저장된 BCrypt 해시와 맞는지. 값이 없거나 해시 형식이 잘못되었으면 false다. */
+	public boolean matchesPassword(String rawPassword) {
+		if (rawPassword == null || password == null) {
+			return false;
+		}
+		try {
+			return BCrypt.checkpw(rawPassword, password);
+		} catch (IllegalArgumentException exception) {
+			return false;
+		}
+	}
+
+	/**
+	 * 비밀번호 해시가 그대로인지. 비밀번호 확인과 세션 발급 사이에 비밀번호가 바뀌었는지 확인하는 데 쓴다.
+	 * 해시는 비교만 하며 다시 검증하지 않는다.
+	 */
+	public boolean hasPasswordHash(String passwordHash) {
+		return Objects.equals(password, passwordHash);
 	}
 
 	public void delete() {

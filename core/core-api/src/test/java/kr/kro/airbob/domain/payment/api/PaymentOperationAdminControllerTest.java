@@ -33,11 +33,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
-import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
-import kr.kro.airbob.domain.member.common.MemberRole;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.domain.member.service.MemberService;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
@@ -58,7 +56,7 @@ class PaymentOperationAdminControllerTest {
 
 	@Mock private PaymentOperationManualReviewQueryRepository queryRepository;
 	@Mock private PaymentOperationManualReviewCommandService commandService;
-	@Mock private MemberRepository memberRepository;
+	@Mock private MemberService memberService;
 
 	private MockMvc mockMvc;
 
@@ -70,7 +68,7 @@ class PaymentOperationAdminControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 		PaymentOperationManualReviewQueryService queryService =
 			new PaymentOperationManualReviewQueryService(queryRepository);
-		AdminAuthInterceptor adminAuthInterceptor = new AdminAuthInterceptor(memberRepository);
+		AdminAuthInterceptor adminAuthInterceptor = new AdminAuthInterceptor(memberService);
 		mockMvc = MockMvcBuilders.standaloneSetup(
 				new PaymentOperationAdminController(queryService, commandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
@@ -270,8 +268,7 @@ class PaymentOperationAdminControllerTest {
 			.andExpect(jsonPath("$.error.code").value("M006"));
 
 		UserContext.set(new UserInfo(10L));
-		given(memberRepository.existsByIdAndStatusAndRole(
-			10L, MemberStatus.ACTIVE, MemberRole.ADMIN)).willReturn(false);
+		given(memberService.isActiveAdmin(10L)).willReturn(false);
 		mockMvc.perform(get("/api/v1/admin/payment-operations/manual-review"))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.error.code").value("M006"));
@@ -284,7 +281,6 @@ class PaymentOperationAdminControllerTest {
 
 	private void allowAdmin() {
 		UserContext.set(new UserInfo(ADMIN_ID));
-		given(memberRepository.existsByIdAndStatusAndRole(
-			ADMIN_ID, MemberStatus.ACTIVE, MemberRole.ADMIN)).willReturn(true);
+		given(memberService.isActiveAdmin(ADMIN_ID)).willReturn(true);
 	}
 }

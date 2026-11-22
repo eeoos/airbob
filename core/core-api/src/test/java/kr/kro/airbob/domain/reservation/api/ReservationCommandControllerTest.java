@@ -26,7 +26,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;

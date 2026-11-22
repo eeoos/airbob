@@ -9,12 +9,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.support.cursor.annotation.CursorParam;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 

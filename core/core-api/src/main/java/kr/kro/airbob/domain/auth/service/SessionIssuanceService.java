@@ -1,14 +1,11 @@
 package kr.kro.airbob.domain.auth.service;
 
-import java.util.Objects;
 import java.util.UUID;
 
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,15 +13,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class SessionIssuanceService {
-    private final MemberRepository memberRepository;
+    private final MemberReader memberReader;
     private final SessionRedisRepository sessionRedisRepository;
 
     @Transactional
     public String issue(Long memberId, String verifiedPasswordHash) {
-        Member member = memberRepository.findByIdAndStatusForUpdate(memberId, MemberStatus.ACTIVE)
-            .orElseThrow(MemberNotFoundException::new);
+        Member member = memberReader.readActiveForUpdate(memberId);
 
-        if (!Objects.equals(member.getPassword(), verifiedPasswordHash)) {
+        if (!member.hasPasswordHash(verifiedPasswordHash)) {
             throw new InvalidPasswordException();
         }
 

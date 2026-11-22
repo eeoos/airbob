@@ -32,19 +32,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.config.RedisConfig;
-import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.auth.service.AuthService;
+import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
 import kr.kro.airbob.domain.auth.service.SessionIssuanceService;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.repository.projection.MemberProfileProjection;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.member.service.MemberService;
 
 // Exercise real MVC, authentication, session storage and Redis serialization; only MySQL repositories are mocked.
@@ -92,13 +94,14 @@ class AuthSessionLifecycleIntegrationTest {
             .thenReturn(Optional.of(new MemberProfileProjection(10L, EMAIL, "여행자")));
 
         SessionRedisRepository sessions = new SessionRedisRepository(redis);
-        AuthService authentication = new AuthService(members, sessions, new SessionIssuanceService(members, sessions));
+        MemberReader memberReader = new MemberReader(members);
+        AuthService authentication = new AuthService(memberReader, sessions, new SessionIssuanceService(memberReader, sessions));
         MemberService profiles = new MemberService(members, mock(MemberHistoryRepository.class), sessions, Clock.systemUTC());
         mvc = MockMvcBuilders.standaloneSetup(new AuthController(authentication, profiles))
             .setControllerAdvice(new GlobalExceptionHandler())
             .setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
             .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
-            .addFilter(new SessionAuthFilter(redis, mapper), "/api/v1/*")
+            .addFilter(new SessionAuthFilter(new SessionAuthenticationService(sessions), mapper), "/api/v1/*")
             .build();
     }
 

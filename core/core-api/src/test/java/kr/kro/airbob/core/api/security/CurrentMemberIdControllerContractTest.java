@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.api;
+package kr.kro.airbob.core.api.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,7 +16,7 @@ import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistAccommodationContro
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistController;
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
 import kr.kro.airbob.domain.accommodation.api.AccommodationHostController;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
+import kr.kro.airbob.domain.auth.api.AuthController;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;

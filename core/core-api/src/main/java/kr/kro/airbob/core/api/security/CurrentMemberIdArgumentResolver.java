@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.resolver;
+package kr.kro.airbob.core.api.security;
 
 import org.springframework.core.MethodParameter;
 import org.springframework.stereotype.Component;
@@ -9,8 +9,6 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
-import kr.kro.airbob.domain.auth.exception.AuthenticationRequiredException;
 
 @Component
 public class CurrentMemberIdArgumentResolver implements HandlerMethodArgumentResolver {

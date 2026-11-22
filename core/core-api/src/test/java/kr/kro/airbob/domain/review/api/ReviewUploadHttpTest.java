@@ -45,10 +45,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.api.security.SessionAuthFilter;
+import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
+import kr.kro.airbob.domain.auth.service.SessionAuthenticationService;
 import kr.kro.airbob.domain.review.service.ReviewImageService;
 import kr.kro.airbob.domain.review.service.ReviewService;
-import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 
 @SpringBootTest(classes = ReviewUploadHttpTest.Application.class,
@@ -157,7 +159,8 @@ class ReviewUploadHttpTest {
 	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class, ServletWebServerFactoryAutoConfiguration.class,
 		DispatcherServletAutoConfiguration.class, WebMvcAutoConfiguration.class, MultipartAutoConfiguration.class,
 		JacksonAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class})
-	@Import({ReviewController.class, GlobalExceptionHandler.class, SessionAuthFilter.class, CurrentMemberIdArgumentResolver.class})
+	@Import({ReviewController.class, GlobalExceptionHandler.class, SessionAuthFilter.class,
+		SessionAuthenticationService.class, SessionRedisRepository.class, CurrentMemberIdArgumentResolver.class})
 	static class Application {
 		@Bean
 		WebMvcConfigurer memberIdResolver(CurrentMemberIdArgumentResolver resolver) {

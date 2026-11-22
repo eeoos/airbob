@@ -1,44 +1,29 @@
 package kr.kro.airbob.domain.auth.service;
 
-import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final MemberRepository memberRepository;
+    private final MemberReader memberReader;
     private final SessionRedisRepository sessionRedisRepository;
     private final SessionIssuanceService sessionIssuanceService;
 
     public String login(String email, String password) {
-        Member member = memberRepository.findByEmailAndStatus(email, MemberStatus.ACTIVE)
-            .orElseThrow(MemberNotFoundException::new);
+        Member member = memberReader.readActiveByEmail(email);
 
-        if (!matchesPassword(password, member.getPassword())) {
+        if (!member.matchesPassword(password)) {
             throw new InvalidPasswordException();
         }
 
         return sessionIssuanceService.issue(member.getId(), member.getPassword());
-    }
-
-    private boolean matchesPassword(String rawPassword, String storedPassword) {
-        if (rawPassword == null || storedPassword == null) {
-            return false;
-        }
-        try {
-            return BCrypt.checkpw(rawPassword, storedPassword);
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
     }
 
     public void logout(String sessionId) {

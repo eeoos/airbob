@@ -9,10 +9,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
+import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
-import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
-import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 
 @DisplayName("예약 세션 인증 경계 테스트")
 class WebMvcConfigReservationProtectionTest {

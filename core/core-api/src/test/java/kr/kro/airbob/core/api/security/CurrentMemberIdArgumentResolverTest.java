@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.resolver;
+package kr.kro.airbob.core.api.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,8 +13,6 @@ import org.springframework.core.MethodParameter;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.support.error.ErrorCode;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
-import kr.kro.airbob.domain.auth.exception.AuthenticationRequiredException;
 
 @DisplayName("현재 회원 ID argument resolver 테스트")
 class CurrentMemberIdArgumentResolverTest {

@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth.interceptor;
+package kr.kro.airbob.core.api.security;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
@@ -10,15 +10,13 @@ import org.junit.jupiter.api.Test;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
-import kr.kro.airbob.domain.member.common.MemberRole;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberService;
 
 @DisplayName("관리자 인가 인터셉터 단위 테스트")
 class AdminAuthInterceptorTest {
 
-	private final MemberRepository memberRepository = mock(MemberRepository.class);
-	private final AdminAuthInterceptor interceptor = new AdminAuthInterceptor(memberRepository);
+	private final MemberService memberService = mock(MemberService.class);
+	private final AdminAuthInterceptor interceptor = new AdminAuthInterceptor(memberService);
 
 	@AfterEach
 	void tearDown() {
@@ -29,8 +27,7 @@ class AdminAuthInterceptorTest {
 	@DisplayName("ADMIN 회원이면 통과한다")
 	void adminPasses() {
 		UserContext.set(new UserInfo(1L));
-		given(memberRepository.existsByIdAndStatusAndRole(
-			1L, MemberStatus.ACTIVE, MemberRole.ADMIN)).willReturn(true);
+		given(memberService.isActiveAdmin(1L)).willReturn(true);
 
 		assertThat(interceptor.preHandle(null, null, new Object())).isTrue();
 	}
@@ -39,8 +36,7 @@ class AdminAuthInterceptorTest {
 	@DisplayName("일반 회원이면 403(AdminAccessDeniedException)")
 	void memberRejected() {
 		UserContext.set(new UserInfo(1L));
-		given(memberRepository.existsByIdAndStatusAndRole(
-			1L, MemberStatus.ACTIVE, MemberRole.ADMIN)).willReturn(false);
+		given(memberService.isActiveAdmin(1L)).willReturn(false);
 
 		assertThatThrownBy(() -> interceptor.preHandle(null, null, new Object()))
 			.isInstanceOf(AdminAccessDeniedException.class);
@@ -50,8 +46,7 @@ class AdminAuthInterceptorTest {
 	@DisplayName("비활성 관리자면 403(AdminAccessDeniedException)")
 	void inactiveAdminRejected() {
 		UserContext.set(new UserInfo(1L));
-		given(memberRepository.existsByIdAndStatusAndRole(
-			1L, MemberStatus.ACTIVE, MemberRole.ADMIN)).willReturn(false);
+		given(memberService.isActiveAdmin(1L)).willReturn(false);
 
 		assertThatThrownBy(() -> interceptor.preHandle(null, null, new Object()))
 			.isInstanceOf(AdminAccessDeniedException.class);
@@ -68,8 +63,7 @@ class AdminAuthInterceptorTest {
 	@DisplayName("회원을 찾을 수 없으면 거부한다")
 	void memberNotFoundRejected() {
 		UserContext.set(new UserInfo(99L));
-		given(memberRepository.existsByIdAndStatusAndRole(
-			99L, MemberStatus.ACTIVE, MemberRole.ADMIN)).willReturn(false);
+		given(memberService.isActiveAdmin(99L)).willReturn(false);
 
 		assertThatThrownBy(() -> interceptor.preHandle(null, null, new Object()))
 			.isInstanceOf(AdminAccessDeniedException.class);

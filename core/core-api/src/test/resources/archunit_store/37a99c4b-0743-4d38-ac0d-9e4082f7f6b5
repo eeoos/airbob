@@ -2,10 +2,8 @@ Domain dependency cycle edge: accommodation -> image
 Domain dependency cycle edge: accommodation -> reservation
 Domain dependency cycle edge: accommodation -> review
 Domain dependency cycle edge: accommodation -> search
-Domain dependency cycle edge: auth -> member
 Domain dependency cycle edge: image -> accommodation
 Domain dependency cycle edge: image -> review
-Domain dependency cycle edge: member -> auth
 Domain dependency cycle edge: payment -> accommodation
 Domain dependency cycle edge: payment -> reservation
 Domain dependency cycle edge: payment -> search

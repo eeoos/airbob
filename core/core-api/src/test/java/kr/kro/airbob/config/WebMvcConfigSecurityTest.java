@@ -13,10 +13,10 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.handler.MappedInterceptor;
 
 import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
+import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
+import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
-import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
-import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
-import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 
 @DisplayName("MVC 인증 및 인가 설정 테스트")
 class WebMvcConfigSecurityTest {

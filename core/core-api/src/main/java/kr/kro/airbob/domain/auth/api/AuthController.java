@@ -3,8 +3,8 @@ package kr.kro.airbob.domain.auth.api;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.core.api.security.SessionCookie;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
 import kr.kro.airbob.domain.auth.service.AuthService;
@@ -23,11 +23,7 @@ public class AuthController implements AuthApi {
     public ResponseEntity<ApiResponse<Void>> login(Login request, HttpServletResponse response) {
         String sessionId = authService.login(request.getEmail(), request.getPassword());
 
-        Cookie cookie = new Cookie("SESSION_ID", sessionId);
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(3600); // 1시간
-        response.addCookie(cookie);
+        response.addCookie(SessionCookie.create(sessionId));
 
         return ResponseEntity.ok(ApiResponse.success());
     }

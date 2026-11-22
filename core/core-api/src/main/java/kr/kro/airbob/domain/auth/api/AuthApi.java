@@ -14,10 +14,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.api.security.SessionCookie;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
-import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 
@@ -57,7 +58,7 @@ public interface AuthApi {
             """)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공", useReturnTypeSchema = true)
     @PostMapping("/v1/auth/logout")
-    ResponseEntity<ApiResponse<Void>> logout(@Parameter(hidden = true) @CookieValue("SESSION_ID") String sessionId);
+    ResponseEntity<ApiResponse<Void>> logout(@Parameter(hidden = true) @CookieValue(SessionCookie.NAME) String sessionId);
 
     @Operation(operationId = "Auth.getMyInfo", summary = "로그인 회원 조회",
         description = "현재 세션의 활성 회원 ID, 이메일, 닉네임을 조회합니다. memberId를 직접 입력하지 않습니다. "
