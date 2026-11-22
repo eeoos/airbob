@@ -7,8 +7,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
-import kr.kro.airbob.domain.member.service.MemberService;
 import lombok.RequiredArgsConstructor;
 
 /**

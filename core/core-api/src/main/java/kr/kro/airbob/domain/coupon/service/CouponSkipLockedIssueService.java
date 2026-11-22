@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 
+import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
@@ -29,7 +30,6 @@ import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricResultResolver;
 import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
-import kr.kro.airbob.domain.member.service.MemberReader;
 
 @Service
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

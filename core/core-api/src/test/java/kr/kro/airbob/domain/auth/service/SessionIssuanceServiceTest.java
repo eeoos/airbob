@@ -7,13 +7,13 @@ import static org.mockito.BDDMockito.then;
 
 import java.util.Optional;
 
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.MemberNotFoundException;
+import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.domain.member.MemberStatus;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
-import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.member.service.MemberReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

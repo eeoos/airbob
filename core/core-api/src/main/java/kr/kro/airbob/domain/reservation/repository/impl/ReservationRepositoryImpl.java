@@ -2,7 +2,7 @@ package kr.kro.airbob.domain.reservation.repository.impl;
 
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
-import static kr.kro.airbob.domain.member.entity.QMember.*;
+import static kr.kro.airbob.core.domain.member.QMember.*;
 import static kr.kro.airbob.domain.payment.entity.QPayment.payment;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
@@ -22,7 +22,7 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import jakarta.persistence.EntityManager;
-import kr.kro.airbob.domain.member.entity.QMember;
+import kr.kro.airbob.core.domain.member.QMember;
 import kr.kro.airbob.domain.reservation.dto.QReservationDateRange;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;

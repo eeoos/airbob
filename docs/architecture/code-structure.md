@@ -46,7 +46,7 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
   세션 쿠키 이름과 속성은 `SessionCookie`가 정한다.
 - 탈퇴 시 세션 무효화는 member가 소유한 포트(`SessionInvalidator`)를 auth가 구현하는 기존 방식을 유지한다.
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -58,6 +58,8 @@ commoncode도 같은 배치다. 공개 조회 `CommonCodeService`와 관리 `Com
 accommodation은 숙소 유형·편의시설 코드 검증에 `CommonCodeReader.isValidCode`를 쓴다.
 statistics는 `RevenueStatsService`가 `RevenueStatsReader`(사전 집계 조회)와 `RevenueStatsWriter`(일자별 재집계)를 쓰고,
 진입점 `StatisticsScheduler`가 매일 04:00 UTC에 `RevenueStatsService.recompute`를 호출한다.
+member는 `MemberService`(가입·탈퇴·프로필·관리자 확인)와 `MemberAdminService`(역할 변경)가 `MemberReader`와 `MemberWriter`(변경과 이력 SCD2 기록)를 쓴다.
+탈퇴 시 세션 무효화 포트는 `core.domain.member.port.SessionInvalidator`에 둔다.
 
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
 그리고 위 도메인들을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
@@ -151,6 +153,7 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 - **다른 도메인이 쓰는 기능**: Service가 아니라 Reader/Writer에 둔다. Service는 Controller용 흐름만 갖는다.
   예: 숙소의 코드 검증은 `CommonCodeService`가 아니라 `CommonCodeReader.isValidCode`를 쓴다. 이전 구조 도메인의 Service도 마찬가지다.
 - **값 정규화 규칙**: 코드 대문자화처럼 저장 값의 규칙은 엔티티 정적 메서드에 둔다(예: `CommonCode.normalizeCode`). 요청 DTO의 공백 제거는 검증 전에 필요하므로 그대로 둔다.
+- **잠금 후 다시 읽기**: `EntityManager.refresh(..., PESSIMISTIC_WRITE)`처럼 영속성 컨텍스트를 직접 다루는 일은 Repository 커스텀 메서드에 둔다(예: `MemberRepository.refreshWithWriteLock`). Business·Implement는 `EntityManager`를 직접 쓰지 않는다.
 - **도메인 레코드 위치**: Business가 반환하는 조회 결과는 도메인 루트 패키지에 둔다(예: `WishlistSummary`, `WishlistAccommodationItem`).
   QueryDSL이 `@QueryProjection`으로 바로 만들어도 된다. Implement 안에서만 쓰는 projection(소유자 확인용 헤더, native query 인터페이스)은 `repository/projection`에 남긴다.
   `repository` 패키지의 타입은 엄격 규칙에서 Data Access로 분류되므로 Business가 직접 받으면 안 된다.
@@ -190,6 +193,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 7a (wishlist 경계) | 30 | 22 (wishlist 관련 4개 해소) | 14 |
 | PR 10a (auth·member 경계) | 27 | 20 (auth ↔ member 해소) | 14 |
 | PR 10b-1 (member Repository 사용 정리) | 22 | 20 | 14 |
+| PR 10b-2 (member 이전) | 22 | 20 | 13 (`Member` → 가입 요청 DTO 해소) |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -220,7 +224,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 9 | statistics 이전: `RevenueStatsReader`·`RevenueStatsWriter` 추출, 조회 결과를 도메인 레코드 `DailyRevenueTotal`로, 스케줄러를 진입점으로 분류하는 ArchUnit 규칙 추가 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 10a | auth·member 경계: 웹 보안을 `core.api.security`로 옮겨 순환 해소, auth의 member Repository 사용을 `MemberReader`로, 비밀번호 검증을 `Member`로, 필터의 세션 조회를 `SessionAuthenticationService`로, 관리자 확인을 `MemberService.isActiveAdmin`으로 | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 10b-1 | member 경계: accommodation·coupon·reservation(2)·review의 `MemberRepository` 사용을 `MemberReader`(`readActive`, `readActiveForUpdate`, `readReference`)로. 옮길 때 동결 위반 메시지(클래스 전체 이름)가 바뀌어 새 위반이 되지 않도록 먼저 없앤다 | 동결 위반 감소, 쿼리 불변 | 완료 |
-| 10b-2 | member 이전: 내부 계층화(Reader/Writer, 입출력 레코드, 엔티티의 요청 DTO 의존 제거)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 10b-2 | member 이전: 내부 계층화(Reader/Writer, 입출력 레코드, 엔티티의 요청 DTO 의존 제거)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 10c | auth 이전: 내부 계층화(세션 저장소가 직접 구현하던 `SessionInvalidator`를 Implement로, 쓰이지 않는 `NotEqualHostException` 정리)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 11~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
@@ -261,6 +265,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
    | `domain.<도메인>.{entity,exception,service}`, 도메인 레코드 | `core.domain.<도메인>` (하위 패키지 없이) |
    | `domain.<도메인>.repository` | `core.domain.<도메인>.repository` (`querydsl`, `projection` 유지) |
    | `domain.<도메인>.scheduler` 등 진입점 | `core.domain.<도메인>` (Business만 호출) |
+   | `domain.<도메인>.port` | `core.domain.<도메인>.port` (포트 관례 유지) |
 
 2. 패키지 문자열을 더 구체적인 경로부터 바꾼다(`...api` → `...dto.XxxRequest` → `...dto.XxxResponse` → `...{entity,exception,service}` → 나머지).
    - 이 치환으로 JPQL `select new` FQCN과 QueryDSL `import static ...QXxx.*`도 함께 바뀐다.

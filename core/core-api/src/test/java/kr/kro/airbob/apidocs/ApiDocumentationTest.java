@@ -84,6 +84,7 @@ import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
+import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
@@ -91,6 +92,14 @@ import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.domain.commoncode.*;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeAdminService;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeService;
+import kr.kro.airbob.core.domain.member.DuplicatedEmailException;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.MemberAdminService;
+import kr.kro.airbob.core.domain.member.MemberNotFoundException;
+import kr.kro.airbob.core.domain.member.MemberProfile;
+import kr.kro.airbob.core.domain.member.MemberRole;
+import kr.kro.airbob.core.domain.member.MemberRoleChangeNotAllowedException;
+import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.domain.statistics.DailyRevenueTotal;
 import kr.kro.airbob.core.domain.statistics.RevenueStatsService;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccessDeniedException;
@@ -108,14 +117,6 @@ import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
-import kr.kro.airbob.domain.member.dto.MemberResponse;
-import kr.kro.airbob.domain.member.dto.MemberAdminRequest;
-import kr.kro.airbob.domain.member.dto.MemberAdminResponse;
-import kr.kro.airbob.domain.member.common.MemberRole;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.exception.MemberRoleChangeNotAllowedException;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -123,7 +124,6 @@ import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.member.entity.Member;
 import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse;
@@ -165,8 +165,6 @@ import kr.kro.airbob.domain.coupon.service.CouponQueryService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
-import kr.kro.airbob.domain.member.service.MemberAdminService;
-import kr.kro.airbob.domain.member.service.MemberService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryService;
@@ -469,7 +467,7 @@ class ApiDocumentationTest {
 	@Test
 	void authenticationProfileDocumentsNullableLegacyFields() throws Exception {
 		when(context.getBean(MemberService.class).getMemberInfo(10L))
-			.thenReturn(new MemberResponse.MeInfo(10L, null, null));
+			.thenReturn(new MemberProfile(10L, null, null));
 		String profile = mvc.perform(get("/api/v1/auth/me").cookie(SESSION))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(specification("client"), "/api/v1/auth/me", "get", "200", profile);
@@ -493,7 +491,7 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.readTree("{\"success\":true}"));
 		assertThat(response.getHeader("Set-Cookie")).isNull();
 		verify(context.getBean(MemberService.class)).createMember(argThat(signup ->
-			signup.getEmail().equals("docs@example.invalid") && signup.getThumbnailImageUrl() == null));
+			signup.email().equals("docs@example.invalid") && signup.thumbnailImageUrl() == null));
 	}
 
 	@Test
@@ -544,13 +542,13 @@ class ApiDocumentationTest {
 
 		when(context.getBean(MemberService.class).isActiveAdmin(10L))
 			.thenReturn(true);
-		when(service.changeRole(10L, 20L, new MemberAdminRequest.ChangeRole(MemberRole.ADMIN, "운영 관리자 지정")))
-			.thenReturn(new MemberAdminResponse.RoleChanged(20L, MemberRole.ADMIN));
+		when(service.changeRole(10L, 20L, MemberRole.ADMIN, "운영 관리자 지정"))
+			.thenReturn(MemberRole.ADMIN);
 		String body = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "patch", "200", body);
 		assertThat(mapper.readTree(body)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"member_id\":20,\"role\":\"ADMIN\"}}"));
-		verify(service).changeRole(10L, 20L, new MemberAdminRequest.ChangeRole(MemberRole.ADMIN, "운영 관리자 지정"));
+		verify(service).changeRole(10L, 20L, MemberRole.ADMIN, "운영 관리자 지정");
 	}
 
 	@Test
@@ -571,11 +569,11 @@ class ApiDocumentationTest {
 		assertDocumentedError(spec, path, "patch", "400", "C004", invalidId.getContentAsString());
 		MemberAdminService service = context.getBean(MemberAdminService.class);
 		verifyNoInteractions(service);
-		doThrow(new MemberNotFoundException()).when(service).changeRole(anyLong(), anyLong(), any());
+		doThrow(new MemberNotFoundException()).when(service).changeRole(anyLong(), anyLong(), any(), any());
 		var missing = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isNotFound()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "404", "M001", missing.getContentAsString());
-		doThrow(new MemberRoleChangeNotAllowedException()).when(service).changeRole(anyLong(), anyLong(), any());
+		doThrow(new MemberRoleChangeNotAllowedException()).when(service).changeRole(anyLong(), anyLong(), any(), any());
 		var selfDemotion = mvc.perform(patch(path, 10).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isConflict()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "409", "M007", selfDemotion.getContentAsString());

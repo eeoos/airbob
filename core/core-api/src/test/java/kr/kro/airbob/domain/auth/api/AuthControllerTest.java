@@ -12,9 +12,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.domain.member.MemberProfile;
+import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.domain.auth.service.AuthService;
-import kr.kro.airbob.domain.member.dto.MemberResponse;
-import kr.kro.airbob.domain.member.service.MemberService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -91,7 +91,7 @@ class AuthControllerTest {
 
     @Test
     void getMyInfoUsesCurrentMemberAndExposesOnlyViewerFields() throws Exception {
-        MemberResponse.MeInfo me = new MemberResponse.MeInfo(
+        MemberProfile me = new MemberProfile(
             10L, "guest@airbob.test", "guest");
         given(memberService.getMemberInfo(10L)).willReturn(me);
 

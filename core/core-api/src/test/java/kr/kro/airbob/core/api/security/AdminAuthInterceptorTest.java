@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
-import kr.kro.airbob.domain.member.service.MemberService;
 
 @DisplayName("관리자 인가 인터셉터 단위 테스트")
 class AdminAuthInterceptorTest {
