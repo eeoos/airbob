@@ -13,13 +13,13 @@ import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.dto.PolicyResponse;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 
 @JsonTest

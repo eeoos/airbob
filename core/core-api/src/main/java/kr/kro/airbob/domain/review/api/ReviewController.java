@@ -7,9 +7,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;

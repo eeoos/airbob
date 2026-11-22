@@ -3,8 +3,8 @@ package kr.kro.airbob.domain.accommodation.dto;
 import java.time.LocalTime;
 import java.util.List;
 
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 
 /**

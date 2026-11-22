@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image.service;
+package kr.kro.airbob.core.domain.image;
 
 import static org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT;
 import static org.springframework.transaction.event.TransactionPhase.AFTER_ROLLBACK;
@@ -6,8 +6,8 @@ import static org.springframework.transaction.event.TransactionPhase.AFTER_ROLLB
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageDeletionRequested;
-import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageUploaded;
+import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageDeletionRequested;
+import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageUploaded;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

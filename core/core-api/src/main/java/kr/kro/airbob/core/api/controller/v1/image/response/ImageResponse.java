@@ -1,9 +1,9 @@
-package kr.kro.airbob.domain.image.dto;
+package kr.kro.airbob.core.api.controller.v1.image.response;
 
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import kr.kro.airbob.domain.image.entity.Image;
+import kr.kro.airbob.core.domain.image.Image;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;

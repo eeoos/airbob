@@ -19,19 +19,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
+import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageDeletionRequested;
+import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageUploaded;
+import kr.kro.airbob.core.domain.image.ImageUploadException;
+import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationImage;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
-import kr.kro.airbob.domain.image.entity.AccommodationImage;
-import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageDeletionRequested;
-import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageUploaded;
-import kr.kro.airbob.domain.image.exception.ImageUploadException;
-import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)

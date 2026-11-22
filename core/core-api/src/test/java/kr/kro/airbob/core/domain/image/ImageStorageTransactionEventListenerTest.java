@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image.service;
+package kr.kro.airbob.core.domain.image;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.doThrow;
@@ -23,8 +23,8 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageDeletionRequested;
-import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageUploaded;
+import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageDeletionRequested;
+import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageUploaded;
 
 @SpringJUnitConfig(ImageStorageTransactionEventListenerTest.TestConfiguration.class)
 @DisplayName("이미지 저장소 트랜잭션 이벤트 테스트")

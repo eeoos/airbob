@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.error.ErrorCode;
@@ -27,7 +28,6 @@ import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
 
 @Tag(name = "숙소")
 @RequestMapping("/api")

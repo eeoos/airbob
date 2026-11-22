@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
@@ -15,7 +16,6 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
 import lombok.RequiredArgsConstructor;
 
 @RestController

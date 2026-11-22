@@ -32,8 +32,8 @@ import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationImage;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.image.entity.AccommodationImage;
 
 @DataJpaTest
 @Testcontainers

@@ -5,7 +5,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import kr.kro.airbob.domain.image.entity.ReviewImage;
+import kr.kro.airbob.domain.review.entity.ReviewImage;
 
 public interface ReviewImageRepository extends JpaRepository<ReviewImage, Long> {
 

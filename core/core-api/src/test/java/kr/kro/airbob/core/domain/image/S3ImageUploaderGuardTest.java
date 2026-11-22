@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image.service;
+package kr.kro.airbob.core.domain.image;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.then;

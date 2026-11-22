@@ -46,7 +46,7 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
   세션 쿠키 이름과 속성은 `SessionCookie`가 정한다.
 - 탈퇴 시 세션 무효화는 member가 소유한 포트(`SessionInvalidator`)를 auth의 `SessionWriter`가 구현한다.
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -64,6 +64,10 @@ auth는 `AuthService`(로그인·로그아웃)와 `SessionAuthenticationService`
 `SessionWriter`(세션 생성·삭제·회원 세션 전체 무효화), `SessionIssuer`(발급)를 쓴다.
 로그인은 비밀번호 비교를 트랜잭션 밖에서 하므로, `SessionIssuer.issue`는 Implement이지만 자기 트랜잭션에서 회원을 잠그고
 그 사이 탈퇴하거나 비밀번호가 바뀌지 않았는지 다시 확인한 뒤 세션을 만든다.
+image는 숙소·리뷰 이미지가 함께 쓰는 저장 기능만 둔다. 공통 매핑 `Image`, S3 업로드·삭제(`S3ImageUploader`),
+트랜잭션 결과에 맞춘 저장소 정리(`ImageStorageTransactionEvents`와 리스너: 커밋 후 삭제, 롤백 후 업로드 객체 정리), 이미지 검증 예외가 `core.domain.image`에 있다.
+숙소·리뷰 이미지 엔티티(`AccommodationImage`, `ReviewImage`)는 Repository와 함께 각 소유 도메인에 둔다.
+그래서 image는 accommodation과 review에 의존하지 않는다. 공통 응답 DTO `ImageResponse`는 `core.api.controller.v1.image.response`에 있다.
 
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
 그리고 위 도메인들을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
@@ -198,6 +202,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 10a (auth·member 경계) | 27 | 20 (auth ↔ member 해소) | 14 |
 | PR 10b-1 (member Repository 사용 정리) | 22 | 20 | 14 |
 | PR 10b-2 (member 이전) | 22 | 20 | 13 (`Member` → 가입 요청 DTO 해소) |
+| PR 11 (image 이전) | 22 | 16 (image ↔ accommodation, image ↔ review 해소) | 13 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -230,7 +235,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 10b-1 | member 경계: accommodation·coupon·reservation(2)·review의 `MemberRepository` 사용을 `MemberReader`(`readActive`, `readActiveForUpdate`, `readReference`)로. 옮길 때 동결 위반 메시지(클래스 전체 이름)가 바뀌어 새 위반이 되지 않도록 먼저 없앤다 | 동결 위반 감소, 쿼리 불변 | 완료 |
 | 10b-2 | member 이전: 내부 계층화(Reader/Writer, 입출력 레코드, 엔티티의 요청 DTO 의존 제거)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 10c | auth 이전: `SessionReader`·`SessionWriter`·`SessionIssuer`(Implement) 추출, 세션 저장소가 직접 구현하던 `SessionInvalidator`를 `SessionWriter`로, 쓰이지 않던 `NotEqualHostException` 삭제, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 11~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 11 | image 이전: 숙소·리뷰 이미지 엔티티를 Repository가 있는 소유 도메인으로 옮겨 순환 해소, 저장 기능(`Image`, S3 업로더, 저장소 정리 이벤트·리스너, 예외)은 `core.domain.image`로, `ImageResponse`는 `core.api.controller.v1.image.response`로 | 동결 위반 감소, 스냅샷 불변 | 완료 |
+| 12~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 
@@ -244,6 +250,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 1. 다른 도메인이 이 도메인의 Repository를 쓰던 곳을 이 도메인의 Reader로 바꾼다.
 2. 이 도메인이 다른 도메인의 Repository를 쓰던 곳은 그 도메인의 Reader(`MemberReader.readActive` 등)로 바꾼다.
 3. 순환이 생기면 필요한 쪽이 소유한 포트를 이 도메인의 Reader가 구현한다.
+   다만 순환의 원인이 이 도메인에 있는, 다른 도메인에 속한 자식 엔티티라면 포트 대신 그 엔티티를 Repository가 있는 소유 도메인으로 옮긴다
+   (예: PR 11의 `AccommodationImage`, `ReviewImage`). 클래스 이름이 같으면 테이블 이름과 JPQL은 바뀌지 않는다.
 4. 동결 저장소에서 줄어든 위반을 함께 커밋한다.
 5. 저장소에서 이 도메인의 클래스 이름이 들어간 위반을 찾는다(`grep <도메인> archunit_store/*`).
    위반 메시지에는 클래스 전체 이름이 들어가므로, 남은 채로 옮기면 기존 위반은 "해결"되고 같은 내용이 새 위반으로 잡혀 실패한다.
@@ -280,6 +288,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
    - `.claude/rules`의 `paths`: `**/src/**/domain/<도메인>/**/*`는 `core/domain/<도메인>`도 잡지만 컨트롤러는 잡지 못한다. 규칙 파일이 있는 도메인이면 `**/src/**/controller/v1/<도메인>/**/*`를 추가한다.
    - `docs/`의 소스 링크.
    - `ApiDocumentationTest`의 컨트롤러 스캔은 `core.api.controller.v1`을 이미 포함한다.
+   - 직렬화된 값에 클래스 이름이 들어가는지 확인한다. 들어가면 배포 시 이미 저장된 값을 읽지 못한다.
+     현재 일반 Redis 템플릿(`GenericJackson2JsonRedisSerializer`, `@class` 저장)에는 세션의 `Long`·`Boolean`·`String`만 저장된다. 최근 본 숙소는 문자열 템플릿을 쓴다.
+     숙소 상세 캐시는 `AccommodationDetailCacheValue` 타입을 지정해 읽으므로 클래스 이름을 저장하지 않는다.
 5. 전체 빌드로 확인한다.
    - 전체 테스트와 `verifyOpenApi`(스냅샷 불변)
    - ArchUnit: 엄격 규칙이 이 도메인에 적용되고 통과하는지, 동결 저장소에 새 위반이 없는지
