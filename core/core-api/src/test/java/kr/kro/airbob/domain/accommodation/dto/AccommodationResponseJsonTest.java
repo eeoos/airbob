@@ -17,8 +17,8 @@ import org.springframework.core.io.ClassPathResource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
 
 @JsonTest
 @DisplayName("숙소 상세 응답 JSON 테스트")

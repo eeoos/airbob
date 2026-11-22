@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image.exception;
+package kr.kro.airbob.core.domain.image;
 
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.ErrorCode;

@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image.entity;
+package kr.kro.airbob.core.domain.image;
 
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;

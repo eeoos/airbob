@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image.event;
+package kr.kro.airbob.core.domain.image;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

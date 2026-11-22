@@ -19,6 +19,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeGroups;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
+import kr.kro.airbob.core.domain.image.InsufficientImageCountException;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.error.InvalidInputException;
@@ -47,7 +48,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.image.exception.InsufficientImageCountException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.geo.GeocodingService;

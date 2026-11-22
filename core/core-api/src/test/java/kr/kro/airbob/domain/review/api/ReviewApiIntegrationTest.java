@@ -42,6 +42,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
@@ -53,7 +54,6 @@ import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
-import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;

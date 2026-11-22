@@ -30,14 +30,14 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import kr.kro.airbob.core.domain.image.ImageStorageTransactionEventListener;
+import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationImage;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.image.entity.AccommodationImage;
-import kr.kro.airbob.domain.image.service.ImageStorageTransactionEventListener;
-import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @SpringJUnitConfig(AccommodationImageServiceTransactionIntegrationTest.TestConfiguration.class)

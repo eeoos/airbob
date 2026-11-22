@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import kr.kro.airbob.domain.image.entity.AccommodationImage;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationImage;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationImageProjection;
 
 public interface AccommodationImageRepository extends JpaRepository<AccommodationImage, Long> {

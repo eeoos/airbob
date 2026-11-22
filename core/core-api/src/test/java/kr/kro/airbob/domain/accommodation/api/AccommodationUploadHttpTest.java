@@ -45,6 +45,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.domain.auth.SessionAuthenticationService;
@@ -53,7 +54,6 @@ import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
 
 @SpringBootTest(classes = AccommodationUploadHttpTest.Application.class,
 	webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)

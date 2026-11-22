@@ -18,14 +18,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
+import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
+import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.image.dto.ImageResponse;
-import kr.kro.airbob.domain.image.entity.ReviewImage;
-import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.review.entity.Review;
+import kr.kro.airbob.domain.review.entity.ReviewImage;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
@@ -89,7 +89,7 @@ class ReviewImageServiceTest {
 		var valid = new MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
 		var invalid = new MockMultipartFile("images", "invalid.txt", "text/plain", new byte[] {1});
 		assertThatThrownBy(() -> reviewImageService.uploadReviewImages(10L, List.of(valid, invalid), 2L))
-			.isInstanceOf(kr.kro.airbob.domain.image.exception.InvalidImageFormatException.class);
+			.isInstanceOf(kr.kro.airbob.core.domain.image.InvalidImageFormatException.class);
 		verifyNoInteractions(s3ImageUploader, reviewImageRepository);
 	}
 
