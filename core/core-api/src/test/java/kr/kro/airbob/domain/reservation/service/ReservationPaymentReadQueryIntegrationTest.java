@@ -53,6 +53,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
@@ -132,7 +133,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			""", RESERVATION_UID.toString());
 		service = new ReservationTransactionService(
 			mock(AccommodationSearchRefreshPublisher.class), mock(CursorPageInfoCreator.class),
-			mock(MemberRepository.class), reviewRepository, reservationRepository,
+			new MemberReader(mock(MemberRepository.class)), reviewRepository, reservationRepository,
 			mock(AccommodationRepository.class), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageService.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),

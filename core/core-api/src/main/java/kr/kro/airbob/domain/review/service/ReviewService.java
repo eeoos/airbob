@@ -24,9 +24,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.ReviewImage;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
@@ -48,7 +46,7 @@ import lombok.RequiredArgsConstructor;
 public class ReviewService {
 
 	private final ReviewRepository reviewRepository;
-	private final MemberRepository memberRepository;
+	private final MemberReader memberReader;
 	private final ReviewImageRepository reviewImageRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
@@ -203,7 +201,7 @@ public class ReviewService {
 	}
 
 	private Member lockActiveMember(Long memberId) {
-		return memberRepository.findByIdAndStatusForUpdate(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
+		return memberReader.readActiveForUpdate(memberId);
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {

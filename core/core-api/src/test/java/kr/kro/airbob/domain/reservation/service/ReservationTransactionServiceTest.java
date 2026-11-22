@@ -37,6 +37,7 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -111,7 +112,7 @@ class ReservationTransactionServiceTest {
 		transactionService = new ReservationTransactionService(
 			searchRefreshPublisher,
 			cursorPageInfoCreator,
-			memberRepository,
+			new MemberReader(memberRepository),
 			reviewRepository,
 			reservationRepository,
 			accommodationRepository,

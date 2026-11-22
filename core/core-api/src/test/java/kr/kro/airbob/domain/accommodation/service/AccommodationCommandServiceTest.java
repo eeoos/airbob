@@ -44,7 +44,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.geo.GeocodingService;
@@ -67,7 +67,7 @@ class AccommodationCommandServiceTest {
 	@Mock private CommonCodeReader commonCodeReader;
 	@Mock private GeocodingService geocodingService;
 	@Mock private TimeZoneResolver timeZoneResolver;
-	@Mock private MemberRepository memberRepository;
+	@Mock private MemberReader memberReader;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	@Mock private AccommodationInventorySeedService inventorySeedService;

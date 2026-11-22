@@ -46,7 +46,7 @@ import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.geo.GeocodingService;
@@ -63,7 +63,7 @@ class AccommodationHostControllerValidationTest {
 	@Mock AddressRepository addresses;
 	@Mock OccupancyPolicyRepository policies;
 	@Mock ReservationRepository reservations;
-	@Mock MemberRepository members;
+	@Mock MemberReader members;
 	@Mock CommonCodeReader codes;
 	@Mock GeocodingService geocoding;
 	@Mock TimeZoneResolver timeZones;

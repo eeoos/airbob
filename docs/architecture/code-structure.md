@@ -189,6 +189,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 6 (동결) | 35 | 26 | 14 |
 | PR 7a (wishlist 경계) | 30 | 22 (wishlist 관련 4개 해소) | 14 |
 | PR 10a (auth·member 경계) | 27 | 20 (auth ↔ member 해소) | 14 |
+| PR 10b-1 (member Repository 사용 정리) | 22 | 20 | 14 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -218,7 +219,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 8 | commoncode 이전: 레시피 3단계를 한 PR로. `CommonCodeReader`(캐시·조회)·`CommonCodeWriter` 추출, 입출력 도메인 레코드, accommodation이 Reader로 코드 검증 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 9 | statistics 이전: `RevenueStatsReader`·`RevenueStatsWriter` 추출, 조회 결과를 도메인 레코드 `DailyRevenueTotal`로, 스케줄러를 진입점으로 분류하는 ArchUnit 규칙 추가 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 10a | auth·member 경계: 웹 보안을 `core.api.security`로 옮겨 순환 해소, auth의 member Repository 사용을 `MemberReader`로, 비밀번호 검증을 `Member`로, 필터의 세션 조회를 `SessionAuthenticationService`로, 관리자 확인을 `MemberService.isActiveAdmin`으로 | 동결 위반 감소, 스냅샷 불변 | 완료 |
-| 10b | member 이전: 내부 계층화(Reader/Writer, 입출력 레코드, 엔티티의 요청 DTO 의존 제거)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 10b-1 | member 경계: accommodation·coupon·reservation(2)·review의 `MemberRepository` 사용을 `MemberReader`(`readActive`, `readActiveForUpdate`, `readReference`)로. 옮길 때 동결 위반 메시지(클래스 전체 이름)가 바뀌어 새 위반이 되지 않도록 먼저 없앤다 | 동결 위반 감소, 쿼리 불변 | 완료 |
+| 10b-2 | member 이전: 내부 계층화(Reader/Writer, 입출력 레코드, 엔티티의 요청 DTO 의존 제거)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 10c | auth 이전: 내부 계층화(세션 저장소가 직접 구현하던 `SessionInvalidator`를 Implement로, 쓰이지 않는 `NotEqualHostException` 정리)와 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 11~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
@@ -235,6 +237,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 2. 이 도메인이 다른 도메인의 Repository를 쓰던 곳은 그 도메인의 Reader(`MemberReader.readActive` 등)로 바꾼다.
 3. 순환이 생기면 필요한 쪽이 소유한 포트를 이 도메인의 Reader가 구현한다.
 4. 동결 저장소에서 줄어든 위반을 함께 커밋한다.
+5. 저장소에서 이 도메인의 클래스 이름이 들어간 위반을 찾는다(`grep <도메인> archunit_store/*`).
+   위반 메시지에는 클래스 전체 이름이 들어가므로, 남은 채로 옮기면 기존 위반은 "해결"되고 같은 내용이 새 위반으로 잡혀 실패한다.
+   다른 도메인이 이 도메인의 Repository를 쓰는 위반은 이동 전에 Reader로 바꾼다(예: PR 10b-1).
 
 **2단계: 내부 계층화** (wishlist는 PR 7b)
 

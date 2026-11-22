@@ -22,6 +22,11 @@ public class MemberReader {
 			.orElseThrow(MemberNotFoundException::new);
 	}
 
+	/** 조회 없이 회원 참조(프록시)를 만든다. 존재 확인이 필요 없는 연관관계 저장용이다. */
+	public Member readReference(Long memberId) {
+		return memberRepository.getReferenceById(memberId);
+	}
+
 	/** 로그인용: 이메일로 활성 회원을 찾는다. */
 	public Member readActiveByEmail(String email) {
 		return memberRepository.findByEmailAndStatus(email, MemberStatus.ACTIVE)

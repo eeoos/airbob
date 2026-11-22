@@ -51,6 +51,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -70,7 +71,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, ReviewService.class, ReviewImageService.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, ReviewService.class, MemberReader.class, ReviewImageService.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
