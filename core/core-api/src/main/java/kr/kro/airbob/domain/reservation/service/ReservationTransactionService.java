@@ -25,7 +25,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -78,7 +78,7 @@ public class ReservationTransactionService {
 	private final MemberReader memberReader;
 	private final ReservationReviewReader reviewReader;
 	private final ReservationRepository reservationRepository;
-	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReader accommodationReader;
 	private final ReservationHistoryRepository historyRepository;
 	private final CouponUsageService couponUsageService;
 	private final BookingWindowProvider bookingWindowProvider;
@@ -221,7 +221,7 @@ public class ReservationTransactionService {
 
 	private Accommodation findBookingSnapshotNowait(Long accommodationId) {
 		try {
-			return accommodationRepository.findBookingSnapshotForShare(
+			return accommodationReader.findBookingSnapshotForShare(
 				accommodationId, AccommodationStatus.PUBLISHED)
 				.orElseThrow(AccommodationNotFoundException::new);
 		} catch (RuntimeException exception) {

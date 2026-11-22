@@ -11,7 +11,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -33,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ReservationQuoteService {
 
-	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReader accommodationReader;
 	private final MemberReader memberReader;
 	private final ReservationInventoryService inventoryService;
 	private final ReservationQuoteRepository quoteRepository;
@@ -45,7 +45,7 @@ public class ReservationQuoteService {
 	public ReservationResponse.Quote createQuote(ReservationRequest.Quote request, Long memberId) {
 		memberReader.readActive(memberId);
 
-		Accommodation accommodation = accommodationRepository.findQuoteSnapshotByIdAndStatus(
+		Accommodation accommodation = accommodationReader.findQuoteSnapshotByIdAndStatus(
 			request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
 		validateOccupancy(accommodation, request.guestCount());

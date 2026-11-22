@@ -1,4 +1,3 @@
-kr.kro.airbob.domain.accommodation.service.AccommodationCommandService uses repository kr.kro.airbob.domain.reservation.repository.ReservationRepository
 kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService uses repository kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository
 kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService uses repository kr.kro.airbob.domain.reservation.repository.ReservationRepository
 kr.kro.airbob.domain.payment.service.PaymentOperationCommandService uses repository kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository
@@ -7,12 +6,4 @@ kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer uses repository k
 kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer uses repository kr.kro.airbob.domain.reservation.repository.ReservationRepository
 kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewTransactionService uses repository kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository
 kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewTransactionService uses repository kr.kro.airbob.domain.reservation.repository.ReservationRepository
-kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService uses repository kr.kro.airbob.domain.accommodation.repository.AccommodationRepository
-kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService uses repository kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection
-kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService uses repository kr.kro.airbob.domain.accommodation.repository.AccommodationRepository
-kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService uses repository kr.kro.airbob.domain.accommodation.repository.AccommodationRepository$InventorySeedTarget
-kr.kro.airbob.domain.reservation.service.ReservationQuoteService uses repository kr.kro.airbob.domain.accommodation.repository.AccommodationRepository
-kr.kro.airbob.domain.reservation.service.ReservationTransactionService uses repository kr.kro.airbob.domain.accommodation.repository.AccommodationRepository
-kr.kro.airbob.search.service.AccommodationDocumentBuilder uses repository kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository
-kr.kro.airbob.search.service.AccommodationDocumentBuilder uses repository kr.kro.airbob.domain.accommodation.repository.AccommodationRepository
 kr.kro.airbob.search.service.AccommodationDocumentBuilder uses repository kr.kro.airbob.domain.reservation.repository.ReservationRepository

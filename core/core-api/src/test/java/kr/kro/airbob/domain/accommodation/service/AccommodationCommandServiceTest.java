@@ -46,7 +46,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.geo.dto.GeocodeResult;
@@ -58,7 +58,7 @@ class AccommodationCommandServiceTest {
 	private static final Instant NOW = Instant.parse("2030-01-01T00:00:00Z");
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationRepository reservationRepository;
+	@Mock private ReservationReader reservationReader;
 	@Mock private AccommodationAmenityRepository accommodationAmenityRepository;
 	@Mock private AccommodationHistoryRepository accommodationHistoryRepository;
 	@Mock private AccommodationImageRepository accommodationImageRepository;
@@ -79,7 +79,7 @@ class AccommodationCommandServiceTest {
 	@BeforeEach
 	void setUpClock() {
 		lenient().when(clock.instant()).thenReturn(NOW);
-		lenient().when(reservationRepository.existsFutureInventoryReservation(anyLong(), eq(NOW)))
+		lenient().when(reservationReader.existsFutureInventoryReservation(anyLong(), eq(NOW)))
 			.thenReturn(false);
 	}
 
@@ -495,7 +495,7 @@ class AccommodationCommandServiceTest {
 			1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
 		when(clock.instant()).thenReturn(NOW);
-		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
@@ -520,7 +520,7 @@ class AccommodationCommandServiceTest {
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
-		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
@@ -559,7 +559,7 @@ class AccommodationCommandServiceTest {
 		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
 		when(timeZoneResolver.resolve(40.7128, -74.0060))
 			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
-		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
@@ -607,7 +607,7 @@ class AccommodationCommandServiceTest {
 
 		assertThat(accommodation.getAddress().getCity()).isEqualTo("Busan");
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
-		verify(reservationRepository, never()).existsFutureInventoryReservation(anyLong(), any());
+		verify(reservationReader, never()).existsFutureInventoryReservation(anyLong(), any());
 		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
 	}
 
@@ -629,7 +629,7 @@ class AccommodationCommandServiceTest {
 			1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
 		when(clock.instant()).thenReturn(NOW);
-		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
 
 		accommodationCommandService.updateAccommodation(1L, request, 2L);
 
@@ -738,7 +738,7 @@ class AccommodationCommandServiceTest {
 		when(timeZoneResolver.resolve(40.7128, -74.0060))
 			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
 		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		when(reservationRepository.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
 
 		accommodationCommandService.updateAccommodation(1L, request, 2L);
 

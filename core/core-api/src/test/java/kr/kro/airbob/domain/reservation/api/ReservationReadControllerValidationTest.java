@@ -25,7 +25,7 @@ import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
@@ -47,7 +47,7 @@ class ReservationReadControllerValidationTest {
 	@Mock MemberReader memberReader;
 	@Mock ReviewRepository reviewRepository;
 	@Mock ReservationRepository reservationRepository;
-	@Mock AccommodationRepository accommodationRepository;
+	@Mock AccommodationReader accommodationReader;
 	@Mock ReservationHistoryRepository historyRepository;
 	@Mock CouponUsageService couponUsageService;
 	@Mock BookingWindowProvider bookingWindowProvider;

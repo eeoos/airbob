@@ -18,4 +18,9 @@ public class ReservationReader {
 	public boolean existsPastCompletedReservationByGuest(Long accommodationId, Long memberId, Instant now) {
 		return reservationRepository.existsPastCompletedReservationByGuest(accommodationId, memberId, now);
 	}
+
+	/** 숙소에 체크아웃 전이면서 재고를 점유한 예약이 있는지. 잠그지 않는 조회다. */
+	public boolean existsFutureInventoryReservation(Long accommodationId, Instant now) {
+		return reservationRepository.existsFutureInventoryReservation(accommodationId, now);
+	}
 }

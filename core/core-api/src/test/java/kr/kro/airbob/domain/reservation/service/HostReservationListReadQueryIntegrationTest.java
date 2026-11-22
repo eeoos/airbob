@@ -59,6 +59,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest.CursorPageRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse.PageInfo;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse.HostReservationInfo;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse.HostReservationInfos;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
@@ -139,7 +140,7 @@ class HostReservationListReadQueryIntegrationTest {
 		service = new ReservationTransactionService(
 			mock(AccommodationSearchRefreshPublisher.class), cursorPageInfoCreator,
 			new MemberReader(mock(MemberRepository.class)), new ReviewReader(mock(ReviewRepository.class)), reservationRepository,
-			mock(AccommodationRepository.class), mock(ReservationHistoryRepository.class),
+			new AccommodationReader(mock(AccommodationRepository.class)), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageService.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
 			mock(ReservationInventoryService.class), Clock.fixed(NOW, ZoneOffset.UTC));

@@ -33,6 +33,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -136,7 +137,7 @@ class ReservationCheckInCutoffContractTest {
 			new MemberReader(memberRepository),
 			new ReviewReader(reviewRepository),
 			reservationRepository,
-			accommodationRepository,
+			new AccommodationReader(accommodationRepository),
 			historyRepository,
 			couponUsageService,
 			bookingWindowProvider,

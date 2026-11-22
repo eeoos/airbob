@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,6 +31,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -59,7 +59,7 @@ class ReservationQuoteServiceTest {
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private Clock clock;
 
-	@InjectMocks private ReservationQuoteService quoteService;
+	private ReservationQuoteService quoteService;
 
 	@Captor private ArgumentCaptor<ReservationQuote> quoteCaptor;
 
@@ -67,6 +67,8 @@ class ReservationQuoteServiceTest {
 
 	@BeforeEach
 	void setUp() {
+		quoteService = new ReservationQuoteService(new AccommodationReader(accommodationRepository), memberReader,
+			inventoryService, quoteRepository, couponUsageService, bookingWindowProvider, clock);
 		Member host = Member.builder().id(3L).build();
 		Member guest = Member.builder().id(MEMBER_ID).build();
 		accommodation = Accommodation.builder()

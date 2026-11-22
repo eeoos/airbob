@@ -23,9 +23,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,7 +48,7 @@ class AccommodationInventorySeedServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new AccommodationInventorySeedService(
-			accommodationRepository,
+			new AccommodationReader(accommodationRepository),
 			inventoryService,
 			inventoryRepository,
 			seedPolicy,
@@ -73,8 +75,8 @@ class AccommodationInventorySeedServiceTest {
 	@Test
 	@DisplayName("rolling batch는 ID cursor 뒤의 게시 숙소만 제한된 크기로 seed한다")
 	void seedsOneBoundedPublishedBatch() {
-		AccommodationRepository.InventorySeedTarget first = target(11L, "Asia/Seoul");
-		AccommodationRepository.InventorySeedTarget second = target(19L, "America/New_York");
+		InventorySeedTarget first = target(11L, "Asia/Seoul");
+		InventorySeedTarget second = target(19L, "America/New_York");
 		given(accommodationRepository.findInventorySeedTargets(
 			AccommodationStatus.PUBLISHED, 10L, PageRequest.of(0, 2)))
 			.willReturn(List.of(first, second));
@@ -119,7 +121,7 @@ class AccommodationInventorySeedServiceTest {
 	@Test
 	@DisplayName("a missing interior date is repaired and exact coverage is rechecked")
 	void verifiesCoverageAfterRepair() {
-		AccommodationRepository.InventorySeedTarget target = target(11L, "Asia/Seoul");
+		InventorySeedTarget target = target(11L, "Asia/Seoul");
 		given(accommodationRepository.findInventorySeedTargets(
 			AccommodationStatus.PUBLISHED, 0L, PageRequest.of(0, 1000)))
 			.willReturn(List.of(target));
@@ -142,7 +144,7 @@ class AccommodationInventorySeedServiceTest {
 	@Test
 	@DisplayName("failed post-insert coverage cannot be reported as a successful batch")
 	void failsClosedWhenRepairDoesNotCompleteCoverage() {
-		AccommodationRepository.InventorySeedTarget target = target(11L, "Asia/Seoul");
+		InventorySeedTarget target = target(11L, "Asia/Seoul");
 		given(accommodationRepository.findInventorySeedTargets(
 			AccommodationStatus.PUBLISHED, 0L, PageRequest.of(0, 1000)))
 			.willReturn(List.of(target));
@@ -153,9 +155,9 @@ class AccommodationInventorySeedServiceTest {
 			.isInstanceOf(ReservationInventoryNotReadyException.class);
 	}
 
-	private AccommodationRepository.InventorySeedTarget target(Long id, String timeZoneId) {
-		AccommodationRepository.InventorySeedTarget target =
-			mock(AccommodationRepository.InventorySeedTarget.class);
+	private InventorySeedTarget target(Long id, String timeZoneId) {
+		InventorySeedTarget target =
+			mock(InventorySeedTarget.class);
 		given(target.getAccommodationId()).willReturn(id);
 		given(target.getTimeZoneId()).willReturn(timeZoneId);
 		return target;

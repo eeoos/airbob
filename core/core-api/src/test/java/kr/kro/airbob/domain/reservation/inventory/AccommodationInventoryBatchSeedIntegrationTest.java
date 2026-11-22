@@ -37,8 +37,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.zaxxer.hikari.HikariDataSource;
 
+import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository.SeedDay;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
@@ -229,11 +231,11 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 			.willAnswer(invocation -> ids.stream()
 				.filter(id -> id > invocation.<Long>getArgument(1))
 				.limit(invocation.<Pageable>getArgument(2).getPageSize())
-				.map(id -> new AccommodationRepository.InventorySeedTarget() {
+				.map(id -> new InventorySeedTarget() {
 					@Override public Long getAccommodationId() { return id; }
 					@Override public String getTimeZoneId() { return "Asia/Seoul"; }
 				}).toList());
-		return new AccommodationInventorySeedService(accommodations,
+		return new AccommodationInventorySeedService(new AccommodationReader(accommodations),
 			new ReservationInventoryService(repository), repository, POLICY, CLOCK);
 	}
 

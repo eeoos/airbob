@@ -17,9 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository.SeedDay;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedPolicy.SeedRange;
@@ -27,20 +28,20 @@ import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedPoli
 @Service
 public class AccommodationInventorySeedService {
 
-	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReader accommodationReader;
 	private final ReservationInventoryService inventoryService;
 	private final AccommodationInventoryDayRepository inventoryRepository;
 	private final AccommodationInventorySeedPolicy seedPolicy;
 	private final Clock clock;
 
 	public AccommodationInventorySeedService(
-		AccommodationRepository accommodationRepository,
+		AccommodationReader accommodationReader,
 		ReservationInventoryService inventoryService,
 		AccommodationInventoryDayRepository inventoryRepository,
 		AccommodationInventorySeedPolicy seedPolicy,
 		Clock clock
 	) {
-		this.accommodationRepository = accommodationRepository;
+		this.accommodationReader = accommodationReader;
 		this.inventoryService = inventoryService;
 		this.inventoryRepository = inventoryRepository;
 		this.seedPolicy = seedPolicy;
@@ -60,8 +61,8 @@ public class AccommodationInventorySeedService {
 		if (batchSize < 1 || batchSize > AccommodationInventoryDayRepository.MAX_SEED_TARGETS) {
 			throw new IllegalArgumentException("inventory seed batch size must be between 1 and 1000");
 		}
-		List<AccommodationRepository.InventorySeedTarget> targets =
-			accommodationRepository.findInventorySeedTargets(
+		List<InventorySeedTarget> targets =
+			accommodationReader.findInventorySeedTargets(
 				AccommodationStatus.PUBLISHED,
 				afterAccommodationId,
 				PageRequest.of(0, batchSize)
@@ -73,7 +74,7 @@ public class AccommodationInventorySeedService {
 		Instant decisionAt = clock.instant();
 		Map<SeedRange, List<Long>> idsByRange = new LinkedHashMap<>();
 		long lastId = afterAccommodationId;
-		for (AccommodationRepository.InventorySeedTarget target : targets) {
+		for (InventorySeedTarget target : targets) {
 			Long id = target.getAccommodationId();
 			if (id == null || id <= lastId) {
 				throw new IllegalStateException("inventory seed targets must advance in primary-key order");

@@ -16,10 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
+import kr.kro.airbob.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,7 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RecentlyViewedService {
 
 	private final RedisTemplate<String, String> redisTemplate;
-	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReader accommodationReader;
 	private final WishlistReader wishlistReader;
 
 	private static final String RECENTLY_VIEWED_KEY_PREFIX = "recently_viewed:";
@@ -80,7 +80,7 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationRepository.findWithAddressAndReviewSummaryByIdInAndStatus(
+		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationReader.findWithAddressAndReviewSummaryByIdInAndStatus(
 			new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
 		Map<Long, RecentlyViewedAccommodationProjection> accommodationMap = accommodationsInDb.stream()
 			.collect(Collectors.toMap(RecentlyViewedAccommodationProjection::accommodationId, projection -> projection));

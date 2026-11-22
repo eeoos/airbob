@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
+import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
@@ -18,11 +19,6 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 
 public interface AccommodationRepository extends JpaRepository<Accommodation, Long>, AccommodationRepositoryCustom {
-	interface InventorySeedTarget {
-		Long getAccommodationId();
-		String getTimeZoneId();
-	}
-
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id")
 	Optional<Accommodation> findByIdForUpdate(@Param("id") Long id);
