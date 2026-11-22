@@ -25,9 +25,7 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -78,7 +76,7 @@ public class ReservationTransactionService {
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
-	private final MemberRepository memberRepository;
+	private final MemberReader memberReader;
 	private final ReviewRepository reviewRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
@@ -236,8 +234,7 @@ public class ReservationTransactionService {
 	}
 
 	private Member findActiveMember(Long memberId) {
-		return memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
-			.orElseThrow(MemberNotFoundException::new);
+		return memberReader.readActive(memberId);
 	}
 
 	private void validateOccupancy(Accommodation accommodation, int guestCount) {

@@ -28,7 +28,7 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.entity.Review;
@@ -45,7 +45,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 class ReviewServiceTest {
 
 	@Mock private ReviewRepository reviewRepository;
-	@Mock private MemberRepository memberRepository;
+	@Mock private MemberReader memberReader;
 	@Mock private ReviewImageRepository reviewImageRepository;
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private AccommodationRepository accommodationRepository;
@@ -61,8 +61,8 @@ class ReviewServiceTest {
 	@Test
 	@DisplayName("숙소가 비공개로 바뀌면 후기 작성과 집계 변경을 거부한다")
 	void rejectCreationWhenAccommodationIsNoLongerPublished() {
-		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
-			.thenReturn(Optional.of(member()));
+		when(memberReader.readActiveForUpdate(2L))
+			.thenReturn(member());
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.empty());
 
@@ -76,8 +76,8 @@ class ReviewServiceTest {
 	@DisplayName("작성 시점에도 본인의 체크아웃 완료 예약이 있어야 한다")
 	void recheckCompletedStayBeforeCreatingReview() {
 		Instant now = Instant.parse("2030-01-01T00:00:00Z");
-		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
-			.thenReturn(Optional.of(member()));
+		when(memberReader.readActiveForUpdate(2L))
+			.thenReturn(member());
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation()));
 		when(clock.instant()).thenReturn(now);
@@ -92,8 +92,8 @@ class ReviewServiceTest {
 	@DisplayName("조회 이후 게시된 후기가 생겼으면 실제 작성 시 중복을 거부한다")
 	void recheckPublishedReviewBeforeCreatingReview() {
 		Instant now = Instant.parse("2030-01-01T00:00:00Z");
-		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
-			.thenReturn(Optional.of(member()));
+		when(memberReader.readActiveForUpdate(2L))
+			.thenReturn(member());
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation()));
 		when(clock.instant()).thenReturn(now);
@@ -113,8 +113,8 @@ class ReviewServiceTest {
 		Accommodation accommodation = accommodation();
 		Member author = member();
 		Review savedReview = review(10L, 5, accommodation, author);
-		when(memberRepository.findByIdAndStatusForUpdate(2L, MemberStatus.ACTIVE))
-			.thenReturn(Optional.of(author));
+		when(memberReader.readActiveForUpdate(2L))
+			.thenReturn(author);
 		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation));
 		when(clock.instant()).thenReturn(Instant.parse("2030-01-01T00:00:00Z"));

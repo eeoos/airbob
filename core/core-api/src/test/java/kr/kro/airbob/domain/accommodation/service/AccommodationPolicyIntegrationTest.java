@@ -37,6 +37,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
@@ -48,7 +49,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationCommandService.class})
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationCommandService.class, MemberReader.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 정책 저장 후 호스트 조회 MySQL 계약")

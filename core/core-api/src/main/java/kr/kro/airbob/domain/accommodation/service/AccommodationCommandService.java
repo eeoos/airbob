@@ -47,9 +47,7 @@ import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.image.exception.InsufficientImageCountException;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.geo.GeocodingService;
@@ -70,7 +68,7 @@ public class AccommodationCommandService {
 	private final ReservationRepository reservationRepository;
 	private final CommonCodeReader commonCodeReader;
 	private final AddressRepository addressRepository;
-	private final MemberRepository memberRepository;
+	private final MemberReader memberReader;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final GeocodingService geocodingService;
 	private final TimeZoneResolver timeZoneResolver;
@@ -80,8 +78,7 @@ public class AccommodationCommandService {
 
 	@Transactional
 	public AccommodationResponse.Create createAccommodation(Long memberId) {
-		Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
-			.orElseThrow(MemberNotFoundException::new);
+		Member member = memberReader.readActive(memberId);
 
 		Accommodation accommodation = Accommodation.createAccommodation(member);
 		Accommodation savedAccommodation = accommodationRepository.save(accommodation);

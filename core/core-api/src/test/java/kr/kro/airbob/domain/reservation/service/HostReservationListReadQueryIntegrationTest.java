@@ -61,6 +61,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -136,7 +137,7 @@ class HostReservationListReadQueryIntegrationTest {
 			""");
 		service = new ReservationTransactionService(
 			mock(AccommodationSearchRefreshPublisher.class), cursorPageInfoCreator,
-			mock(MemberRepository.class), mock(ReviewRepository.class), reservationRepository,
+			new MemberReader(mock(MemberRepository.class)), mock(ReviewRepository.class), reservationRepository,
 			mock(AccommodationRepository.class), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageService.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),

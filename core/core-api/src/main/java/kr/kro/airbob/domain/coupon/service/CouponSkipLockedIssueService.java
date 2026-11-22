@@ -29,7 +29,7 @@ import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricResultResolver;
 import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 
 @Service
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -38,13 +38,13 @@ public class CouponSkipLockedIssueService {
 	private final CouponRepository coupons;
 	private final CouponIssueUnitStore units;
 	private final MemberCouponRepository memberCoupons;
-	private final MemberRepository members;
+	private final MemberReader members;
 	private final CouponIssueMetricRecorder metrics;
 	private final int maxAttempts;
 	private final long retryBudgetNanos;
 
 	public CouponSkipLockedIssueService(PlatformTransactionManager transactionManager, CouponRepository coupons,
-		CouponIssueUnitStore units, MemberCouponRepository memberCoupons, MemberRepository members,
+		CouponIssueUnitStore units, MemberCouponRepository memberCoupons, MemberReader members,
 		CouponIssueMetricRecorder metrics, @Value("${coupon.issue.max-attempts:3}") int maxAttempts,
 		@Value("${coupon.issue.retry-budget-ms:250}") long retryBudgetMillis) {
 		Assert.isTrue(maxAttempts >= 1 && maxAttempts <= 10, "coupon.issue.max-attempts must be 1..10");
@@ -107,7 +107,7 @@ public class CouponSkipLockedIssueService {
 				if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId)) throw new CouponAlreadyIssuedException();
 				var unit = units.lockAvailable(couponId).orElseThrow(NoAvailableUnitException::new);
 				units.consume(couponId, unit);
-				memberCoupons.saveAndFlush(MemberCoupon.issue(members.getReferenceById(memberId), coupon));
+				memberCoupons.saveAndFlush(MemberCoupon.issue(members.readReference(memberId), coupon));
 			});
 			result = DatabaseResult.SUCCESS;
 		} catch (RuntimeException failure) {

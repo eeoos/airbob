@@ -33,7 +33,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberReader;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
@@ -53,7 +53,7 @@ class ReservationQuoteServiceTest {
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private MemberRepository memberRepository;
+	@Mock private MemberReader memberReader;
 	@Mock private ReservationInventoryService inventoryService;
 	@Mock private ReservationQuoteRepository quoteRepository;
 	@Mock private CouponUsageService couponUsageService;
@@ -85,8 +85,8 @@ class ReservationQuoteServiceTest {
 			.build();
 
 		lenient().when(clock.instant()).thenReturn(NOW);
-		lenient().when(memberRepository.findByIdAndStatus(MEMBER_ID, MemberStatus.ACTIVE))
-			.thenReturn(Optional.of(guest));
+		lenient().when(memberReader.readActive(MEMBER_ID))
+			.thenReturn(guest);
 		lenient().when(accommodationRepository.findQuoteSnapshotByIdAndStatus(
 			ACCOMMODATION_ID, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation));
