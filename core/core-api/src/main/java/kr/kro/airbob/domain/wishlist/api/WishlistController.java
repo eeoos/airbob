@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.wishlist.WishlistSummaryPage;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
@@ -21,8 +22,9 @@ public class WishlistController implements WishlistApi {
 	public ResponseEntity<ApiResponse<WishlistResponse.Create>> createWishlist(
 		WishlistRequest.Create request,
 		Long memberId) {
-		WishlistResponse.Create response = wishlistService.createWishlist(request, memberId);
-		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+		Long wishlistId = wishlistService.createWishlist(request.name(), memberId);
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(ApiResponse.success(new WishlistResponse.Create(wishlistId)));
 	}
 
 	@Override
@@ -30,9 +32,9 @@ public class WishlistController implements WishlistApi {
 		Long wishlistId,
 		WishlistRequest.Update request,
 		Long memberId) {
-		WishlistResponse.Update response = wishlistService.updateWishlist(wishlistId, request, memberId);
+		Long updatedId = wishlistService.updateWishlist(wishlistId, request.name(), memberId);
 
-		return ResponseEntity.ok(ApiResponse.success(response));
+		return ResponseEntity.ok(ApiResponse.success(new WishlistResponse.Update(updatedId)));
 	}
 
 	@Override
@@ -48,7 +50,8 @@ public class WishlistController implements WishlistApi {
 		CursorRequest.CursorPageRequest request,
 		Long accommodationId,
 		Long memberId) {
-		WishlistResponse.WishlistInfos response = wishlistService.findWishlists(request, memberId, accommodationId);
-		return ResponseEntity.ok(ApiResponse.success(response));
+		WishlistSummaryPage page = wishlistService.findWishlists(request, memberId, accommodationId);
+		return ResponseEntity.ok(ApiResponse.success(
+			WishlistResponse.WishlistInfos.from(page, accommodationId != null)));
 	}
 }

@@ -5,12 +5,12 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
+import kr.kro.airbob.domain.wishlist.WishlistSummary;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
-import kr.kro.airbob.domain.wishlist.repository.projection.WishlistSummaryProjection;
 
 public interface WishlistRepositoryCustom {
 
-	Slice<WishlistSummaryProjection> findSummariesByMemberIdAndStatusWithCursor(
+	Slice<WishlistSummary> findSummariesByMemberIdAndStatusWithCursor(
 		Long memberId,
 		WishlistStatus status,
 		Long lastId,

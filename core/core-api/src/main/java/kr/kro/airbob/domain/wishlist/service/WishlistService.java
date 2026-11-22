@@ -1,12 +1,5 @@
 package kr.kro.airbob.domain.wishlist.service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Collections;
-import java.util.List;
-
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,258 +11,91 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.service.MemberReader;
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
-import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
-import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationItem;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationPage;
+import kr.kro.airbob.domain.wishlist.WishlistMembership;
+import kr.kro.airbob.domain.wishlist.WishlistSummary;
+import kr.kro.airbob.domain.wishlist.WishlistSummaryPage;
 import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
-import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
-import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
-import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationAccessDeniedException;
-import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
-import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
-import kr.kro.airbob.domain.wishlist.repository.WishlistRepository;
-import kr.kro.airbob.domain.wishlist.repository.projection.WishlistSummaryProjection;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Service
-@Slf4j
 @RequiredArgsConstructor
 public class WishlistService {
 
 	private final MemberReader memberReader;
-	private final WishlistRepository wishlistRepository;
 	private final AccommodationReader accommodationReader;
-	private final WishlistAccommodationRepository wishlistAccommodationRepository;
+	private final WishlistReader wishlistReader;
+	private final WishlistWriter wishlistWriter;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	@Transactional
-	public WishlistResponse.Create createWishlist(WishlistRequest.Create request, Long memberId) {
-
-		final Member member = memberReader.readActive(memberId);
-
-		Wishlist wishlist = Wishlist.builder()
-			.name(request.name())
-			.member(member)
-			.build();
-
-		Wishlist savedWishlist = wishlistRepository.save(wishlist);
-		return new WishlistResponse.Create(savedWishlist.getId());
+	public Long createWishlist(String name, Long memberId) {
+		Member member = memberReader.readActive(memberId);
+		return wishlistWriter.create(member, name).getId();
 	}
 
 	@Transactional
-	public WishlistResponse.Update updateWishlist(Long wishlistId, WishlistRequest.Update request, Long memberId) {
-
-		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
-
-		wishlist.updateName(request.name());
-
-		return new WishlistResponse.Update(wishlist.getId());
+	public Long updateWishlist(Long wishlistId, String name, Long memberId) {
+		Wishlist wishlist = wishlistReader.readOwnedForUpdate(wishlistId, memberId);
+		wishlist.updateName(name);
+		return wishlist.getId();
 	}
 
 	@Transactional
 	public void deleteWishlist(Long wishlistId, Long memberId) {
-		// 위시리스트 존재, 작성자 id 검증을 위한 조회
-		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
-
-		List<WishlistAccommodation> wishlistAccommodations =
-			wishlistAccommodationRepository.findAllByWishlistId(wishlist.getId());
-		wishlistAccommodationRepository.deleteAllInBatch(wishlistAccommodations);
-		wishlist.delete();
+		Wishlist wishlist = wishlistReader.readOwnedForUpdate(wishlistId, memberId);
+		wishlistWriter.delete(wishlist);
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistResponse.WishlistInfos findWishlists(
-		CursorRequest.CursorPageRequest request,
-		Long memberId,
+	public WishlistSummaryPage findWishlists(CursorRequest.CursorPageRequest page, Long memberId,
 		Long accommodationId) {
-
-		Long lastId = request.lastId();
-		LocalDateTime lastCreatedAt = request.lastCreatedAt();
-
-
-		Slice<WishlistSummaryProjection> wishlistSlice = wishlistRepository.findSummariesByMemberIdAndStatusWithCursor(
-			memberId,
-			WishlistStatus.ACTIVE,
-			lastId,
-			lastCreatedAt,
-			accommodationId,
-			PageRequest.of(0, request.size())
-		);
-
-		List<WishlistSummaryProjection> wishlists = wishlistSlice.getContent();
-		if (wishlists.isEmpty()) {
-			return WishlistResponse.WishlistInfos.builder()
-				.wishlists(Collections.emptyList())
-				.pageInfo(cursorPageInfoCreator.createPageInfo(
-					Collections.emptyList(),
-					false,
-					WishlistSummaryProjection::id,
-					WishlistSummaryProjection::createdAt
-				))
-				.build();
-		}
-
-		List<WishlistResponse.WishlistInfo> wishlistInfos = wishlists.stream()
-			.map(wishlist -> new WishlistResponse.WishlistInfo(
-				wishlist.id(),
-				wishlist.name(),
-				toUtcInstant(wishlist.createdAt()),
-				wishlist.accommodationCount().longValue(),
-				wishlist.thumbnailImageUrl(),
-				accommodationId == null ? null : wishlist.wishlistAccommodationId() != null,
-				wishlist.wishlistAccommodationId()
-			)).toList();
-
+		Slice<WishlistSummary> slice = wishlistReader.readSummaries(memberId, accommodationId, page);
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-			wishlistSlice.getContent(),
-			wishlistSlice.hasNext(),
-			WishlistSummaryProjection::id,
-			WishlistSummaryProjection::createdAt
-		);
-
-		return WishlistResponse.WishlistInfos.builder()
-			.wishlists(wishlistInfos)
-			.pageInfo(pageInfo)
-			.build();
+			slice.getContent(), slice.hasNext(), WishlistSummary::id, WishlistSummary::createdAt);
+		return new WishlistSummaryPage(slice.getContent(), pageInfo);
 	}
 
 	@Transactional
-	public WishlistAccommodationResponse.Create createWishlistAccommodation(Long wishlistId,
-		WishlistAccommodationRequest.Create request, Long memberId) {
-		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
-
-		Accommodation accommodation = accommodationReader.readPublished(request.accommodationId());
-		validateWishlistAccommodationDuplicate(wishlistId, accommodation.getId());
-
-
-		WishlistAccommodation wishlistAccommodation = WishlistAccommodation.builder()
-			.wishlist(wishlist)
-			.accommodation(accommodation)
-			.build();
-
-		WishlistAccommodation savedWishlistAccommodation
-			= wishlistAccommodationRepository.save(wishlistAccommodation);
-
-		// 반정규화: 개수 +1, 대표를 방금 추가한 숙소(=최신)로 설정
-		wishlistRepository.incrementCountAndSetRepresentative(wishlist.getId(), accommodation.getId());
-
-		return new WishlistAccommodationResponse.Create(savedWishlistAccommodation.getId());
+	public Long createWishlistAccommodation(Long wishlistId, Long accommodationId, Long memberId) {
+		Wishlist wishlist = wishlistReader.readOwnedForUpdate(wishlistId, memberId);
+		Accommodation accommodation = accommodationReader.readPublished(accommodationId);
+		return wishlistWriter.addAccommodation(wishlist, accommodation).getId();
 	}
 
 	@Transactional
-	public WishlistAccommodationResponse.Update updateWishlistAccommodation(
-		Long wishlistAccommodationId, WishlistAccommodationRequest.Update request, Long memberId) {
-
-		WishlistAccommodation wishlistAccommodation = findWishlistAccommodationForMember(wishlistAccommodationId, memberId);
-		wishlistAccommodation.updateMemo(request.memo());
-
-		return new WishlistAccommodationResponse.Update(wishlistAccommodation.getId());
+	public Long updateWishlistAccommodation(Long wishlistAccommodationId, String memo, Long memberId) {
+		WishlistAccommodation wishlistAccommodation =
+			wishlistReader.readOwnedAccommodationForUpdate(wishlistAccommodationId, memberId);
+		wishlistAccommodation.updateMemo(memo);
+		return wishlistAccommodation.getId();
 	}
 
 	@Transactional
 	public void deleteWishlistAccommodation(Long wishlistAccommodationId, Long memberId) {
-
-		WishlistAccommodation wishlistAccommodation = findWishlistAccommodationForMember(wishlistAccommodationId, memberId);
-
-		Long wishlistId = wishlistAccommodation.getWishlist().getId();
-		Long removedAccommodationId = wishlistAccommodation.getAccommodation().getId();
-		Long currentRepresentative = wishlistAccommodation.getWishlist().getRepresentativeAccommodationId();
-
-		wishlistAccommodationRepository.delete(wishlistAccommodation);
-		wishlistAccommodationRepository.flush(); // 대표 재선정 조회가 삭제 반영 후 실행되도록
-
-		wishlistRepository.decrementCount(wishlistId);
-
-		// 삭제된 숙소가 대표였을 때만 다음 최신 1건으로 재선정(없으면 null)
-		if (removedAccommodationId.equals(currentRepresentative)) {
-			Long newRepresentative = wishlistAccommodationRepository.findLatestAccommodationId(wishlistId);
-			wishlistRepository.updateRepresentative(wishlistId, newRepresentative);
-		}
+		WishlistAccommodation wishlistAccommodation =
+			wishlistReader.readOwnedAccommodationForUpdate(wishlistAccommodationId, memberId);
+		wishlistWriter.removeAccommodation(wishlistAccommodation);
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistResponse.Membership findMembership(Long memberId, Long accommodationId, Long wishlistId) {
-		var membership = wishlistAccommodationRepository.findMembership(memberId, accommodationId, wishlistId);
-		boolean targetFound = membership.getTargetWishlist() != 0;
-		return new WishlistResponse.Membership(membership.getAnyMembership() != 0,
-			targetFound ? membership.getTargetMembership() != 0 : null, targetFound);
+	public WishlistMembership findMembership(Long memberId, Long accommodationId, Long wishlistId) {
+		return wishlistReader.readMembership(memberId, accommodationId, wishlistId);
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodations(Long wishlistId,
-		CursorRequest.CursorPageRequest request, Long memberId) {
-
-		var wishlist = wishlistRepository.findDetailHeaderByIdAndStatus(wishlistId, WishlistStatus.ACTIVE)
-			.orElseThrow(WishlistNotFoundException::new);
-		if (!wishlist.memberId().equals(memberId)) {
-			throw new WishlistAccessDeniedException();
-		}
-
-		PageRequest pageable = PageRequest.of(0, request.size());
-		Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> slice =
-			wishlistAccommodationRepository.findAccommodationsInWishlist(
-				wishlistId, request.lastId(), request.lastCreatedAt(), pageable);
-
-		List<WishlistAccommodationResponse.WishlistAccommodationInfo> infos = slice.getContent();
-
-		if (infos.isEmpty()) {
-			CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-				infos,
-				slice.hasNext(),
-				WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
-				info -> toUtcDateTime(info.createdAt())
-			);
-			return new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), pageInfo, wishlist.name());
-		}
-
+	public WishlistAccommodationPage findWishlistAccommodations(Long wishlistId,
+		CursorRequest.CursorPageRequest page, Long memberId) {
+		String wishlistName = wishlistReader.readOwnedName(wishlistId, memberId);
+		Slice<WishlistAccommodationItem> slice = wishlistReader.readPublishedAccommodations(wishlistId, page);
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-			infos,
+			slice.getContent(),
 			slice.hasNext(),
-			WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
-			info -> toUtcDateTime(info.createdAt())
-		);
-
-		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo, wishlist.name());
-	}
-
-	private void validateWishlistAccommodationDuplicate(Long wishlistId, Long accommodationId) {
-		if (wishlistAccommodationRepository.existsByWishlistIdAndAccommodationId(wishlistId, accommodationId)) {
-			throw new WishlistAccommodationDuplicateException();
-		}
-	}
-
-	private Wishlist findWishlistByIdAndMemberId(Long wishlistId, Long memberId) {
-		// 모든 변경은 부모 목록을 먼저 잠가 이름·개수·대표 숙소와 연결 삭제를 함께 직렬화한다.
-		Wishlist wishlist = wishlistRepository.findByIdAndStatusForUpdate(wishlistId, WishlistStatus.ACTIVE)
-			.orElseThrow(WishlistNotFoundException::new);
-
-		if (!wishlist.getMember().getId().equals(memberId)) {
-			throw new WishlistAccessDeniedException();
-		}
-		return wishlist;
-	}
-
-	private WishlistAccommodation findWishlistAccommodationForMember(Long wishlistAccommodationId, Long memberId) {
-		Long wishlistId = wishlistAccommodationRepository.findWishlistIdByIdAndMemberId(wishlistAccommodationId, memberId)
-			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
-		wishlistRepository.findByIdAndStatusForUpdate(wishlistId, WishlistStatus.ACTIVE)
-			.filter(wishlist -> wishlist.getMember().getId().equals(memberId))
-			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
-		// 앞선 ID 조회가 만든 RR 스냅샷 대신 잠금 대기 후의 현재 연결을 다시 확인한다.
-		return wishlistAccommodationRepository.findByIdForUpdate(wishlistAccommodationId)
-			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
-	}
-
-	private static Instant toUtcInstant(LocalDateTime dateTime) {
-		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
-	}
-
-	private static LocalDateTime toUtcDateTime(Instant instant) {
-		return instant == null ? null : LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+			WishlistAccommodationItem::wishlistAccommodationId,
+			WishlistAccommodationItem::createdAt);
+		return new WishlistAccommodationPage(wishlistName, slice.getContent(), pageInfo);
 	}
 }

@@ -186,8 +186,11 @@ import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.exception.*;
 import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
 import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationItem;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationPage;
+import kr.kro.airbob.domain.wishlist.WishlistMembership;
+import kr.kro.airbob.domain.wishlist.WishlistSummary;
+import kr.kro.airbob.domain.wishlist.WishlistSummaryPage;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationAccessDeniedException;
@@ -1693,8 +1696,8 @@ class ApiDocumentationTest {
 			assertDocumentedError(spec, list, "patch", "400", "C001", renamed);
 		}
 		verifyNoInteractions(service);
-		when(service.createWishlist(any(), eq(10L))).thenReturn(new WishlistResponse.Create(42));
-		when(service.updateWishlist(eq(42L), any(), eq(10L))).thenReturn(new WishlistResponse.Update(42));
+		when(service.createWishlist(any(), eq(10L))).thenReturn(42L);
+		when(service.updateWishlist(eq(42L), any(), eq(10L))).thenReturn(42L);
 		for (int length : List.of(1, 255)) {
 			String request = mapper.createObjectNode().put("name", "가".repeat(length)).toString();
 			String created = mvc.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
@@ -1729,13 +1732,13 @@ class ApiDocumentationTest {
 		assertThat(schema.path("required").toString()).isEqualTo("[\"memo\"]");
 		assertThat(schema.at("/properties/memo/minLength").asInt()).isEqualTo(1);
 		assertThat(schema.at("/properties/memo/maxLength").asInt()).isEqualTo(1024);
-		when(service.createWishlistAccommodation(eq(42L), any(), eq(10L))).thenReturn(new WishlistAccommodationResponse.Create(501));
-		when(service.updateWishlistAccommodation(eq(501L), any(), eq(10L))).thenReturn(new WishlistAccommodationResponse.Update(501));
+		when(service.createWishlistAccommodation(eq(42L), any(), eq(10L))).thenReturn(501L);
+		when(service.updateWishlistAccommodation(eq(501L), any(), eq(10L))).thenReturn(501L);
 		String created = mvc.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"accommodation_id\":101}"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, items, "post", "200", created);
 		assertThat(mapper.readTree(created).at("/data/id").asLong()).isEqualTo(501);
-		verify(service).createWishlistAccommodation(42L, new WishlistAccommodationRequest.Create(101L), 10L);
+		verify(service).createWishlistAccommodation(42L, 101L, 10L);
 		for (int length : List.of(1, 1024)) {
 			String request = mapper.createObjectNode().put("memo", "나".repeat(length)).toString();
 			String updated = mvc.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
@@ -1763,15 +1766,16 @@ class ApiDocumentationTest {
 		}
 		WishlistService service = context.getBean(WishlistService.class);
 		verifyNoInteractions(service);
-		for (WishlistResponse.Membership membership : List.of(new WishlistResponse.Membership(true, true, true),
-			new WishlistResponse.Membership(true, false, true), new WishlistResponse.Membership(false, null, false))) {
+		for (WishlistMembership membership : List.of(new WishlistMembership(true, true, true),
+			new WishlistMembership(true, false, true), new WishlistMembership(false, null, false))) {
 			when(service.findMembership(10L, 101L, 42L)).thenReturn(membership);
 			String response = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("wishlistId", "42").param("memberId", "999"))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, "get", "200", response);
-			assertThat(mapper.readTree(response).path("data")).isEqualTo(mapper.valueToTree(membership));
+			assertThat(mapper.readTree(response).path("data"))
+				.isEqualTo(mapper.valueToTree(WishlistResponse.Membership.from(membership)));
 		}
-		when(service.findMembership(10L, 101L, null)).thenReturn(new WishlistResponse.Membership(true, null, false));
+		when(service.findMembership(10L, 101L, null)).thenReturn(new WishlistMembership(true, null, false));
 		String omitted = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", omitted);
@@ -1784,17 +1788,17 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		String path = "/api/v1/members/wishlists";
 		WishlistService service = context.getBean(WishlistService.class);
-		when(service.findWishlists(any(), eq(10L), isNull())).thenReturn(new WishlistResponse.WishlistInfos(List.of(
-			new WishlistResponse.WishlistInfo(42, "서울 여행", Instant.parse("2027-01-10T02:00:00.123456Z"), 2L, null, null, null),
-			new WishlistResponse.WishlistInfo(43, "옛 목록", null, 0L, null, null, null)), new CursorResponse.PageInfo(false, null, 2)));
+		when(service.findWishlists(any(), eq(10L), isNull())).thenReturn(new WishlistSummaryPage(List.of(
+			new WishlistSummary(42L, "서울 여행", LocalDateTime.parse("2027-01-10T02:00:00.123456"), 2, null, null),
+			new WishlistSummary(43L, "옛 목록", null, 0, null, null)), new CursorResponse.PageInfo(false, null, 2)));
 		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		assertThat(mapper.readTree(response).at("/data/wishlists/0/created_at").asText()).isEqualTo("2027-01-10T02:00:00.123456Z");
 		assertThat(mapper.readTree(response).at("/data/wishlists/0/is_contained").isNull()).isTrue();
 		verify(service).findWishlists(argThat(request -> request.size() == 20 && request.lastId() == null), eq(10L), isNull());
-		when(service.findWishlists(any(), eq(10L), eq(101L))).thenReturn(new WishlistResponse.WishlistInfos(List.of(
-			new WishlistResponse.WishlistInfo(42, "서울 여행", Instant.parse("2027-01-10T02:00:00Z"), 2L, null, true, 501L),
-			new WishlistResponse.WishlistInfo(43, "다음 여행", Instant.parse("2027-01-09T02:00:00Z"), 0L, null, false, null)), new CursorResponse.PageInfo(false, null, 2)));
+		when(service.findWishlists(any(), eq(10L), eq(101L))).thenReturn(new WishlistSummaryPage(List.of(
+			new WishlistSummary(42L, "서울 여행", LocalDateTime.parse("2027-01-10T02:00:00"), 2, null, 501L),
+			new WishlistSummary(43L, "다음 여행", LocalDateTime.parse("2027-01-09T02:00:00"), 0, null, null)), new CursorResponse.PageInfo(false, null, 2)));
 		String selection = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("size", "50"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", selection);
@@ -1817,18 +1821,17 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		String path = "/api/v1/members/wishlists/accommodations/{id}";
 		WishlistService service = context.getBean(WishlistService.class);
-		var info = new WishlistAccommodationResponse.WishlistAccommodationInfo(501, null,
-			Instant.parse("2027-01-10T02:00:00.123456Z"), new AccommodationResponse.AccommodationBasicInfo(101, "서울 하우스", null),
-			new AddressResponse.AddressSummaryInfo("대한민국", null, "서울", null), ReviewResponse.ReviewSummary.of(null, null), true);
+		var item = new WishlistAccommodationItem(501, null, 101, "서울 하우스", null, "대한민국", null, "서울", null,
+			null, null, LocalDateTime.parse("2027-01-10T02:00:00.123456"));
 		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
-			.thenReturn(new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(info), new CursorResponse.PageInfo(false, null, 1), "서울 여행"));
+			.thenReturn(new WishlistAccommodationPage("서울 여행", List.of(item), new CursorResponse.PageInfo(false, null, 1)));
 		String response = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/review_summary/total_count").asInt()).isZero();
 		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/is_in_wishlist").asBoolean()).isTrue();
 		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/memo").isNull()).isTrue();
 		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
-			.thenReturn(new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), new CursorResponse.PageInfo(false, null, 0), "서울 여행"));
+			.thenReturn(new WishlistAccommodationPage("서울 여행", List.of(), new CursorResponse.PageInfo(false, null, 0)));
 		String empty = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/wishlist_name").asText()).isEqualTo("서울 여행");

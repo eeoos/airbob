@@ -52,11 +52,12 @@ import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse.WishlistAccommodationInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse.WishlistAccommodationInfos;
-import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
+import kr.kro.airbob.domain.wishlist.service.WishlistWriter;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -65,7 +66,8 @@ import kr.kro.airbob.domain.wishlist.service.WishlistService;
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
 	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
-	WishlistService.class, MemberReader.class, AccommodationReader.class, CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
+	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
+	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	WishlistDetailQueryIntegrationTest.ReadTestConfig.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -140,7 +142,7 @@ class WishlistDetailQueryIntegrationTest {
 		insertItem(501, WISHLIST_ID, 31);
 		insertReviewSummary(31, 4, 19, "4.75");
 		findFirstPage(20);
-		service.updateWishlist(WISHLIST_ID, new WishlistRequest.Update("가을 여행"), OWNER_ID);
+		service.updateWishlist(WISHLIST_ID, "가을 여행", OWNER_ID);
 		jdbc.update("UPDATE wishlist_accommodation SET memo = NULL WHERE id = 501");
 		jdbc.update("UPDATE accommodation SET name = '춘천 호수집', thumbnail_url = NULL WHERE id = 31");
 		jdbc.update("UPDATE address SET state = '강원특별자치도', city = '춘천', district = '남산면' WHERE id = 21");
@@ -209,9 +211,9 @@ class WishlistDetailQueryIntegrationTest {
 		boolean inAny = false;
 		boolean inTarget = false;
 		do {
-			var page = service.findWishlists(CursorPageRequest.builder().size(20)
+			var page = WishlistResponse.WishlistInfos.from(service.findWishlists(CursorPageRequest.builder().size(20)
 				.lastId(cursor == null ? null : cursor.id())
-				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), OWNER_ID, 31L);
+				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), OWNER_ID, 31L), true);
 			pages++;
 			inAny |= page.wishlists().stream().anyMatch(w -> Boolean.TRUE.equals(w.isContained()));
 			inTarget |= page.wishlists().stream()
@@ -278,7 +280,7 @@ class WishlistDetailQueryIntegrationTest {
 
 	private WishlistResponse.Membership membership(long memberId, Long accommodationId, Long wishlistId) {
 		Statistics statistics = prepareMeasurement();
-		var result = service.findMembership(memberId, accommodationId, wishlistId);
+		var result = WishlistResponse.Membership.from(service.findMembership(memberId, accommodationId, wishlistId));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		return result;
@@ -436,7 +438,7 @@ class WishlistDetailQueryIntegrationTest {
 
 	private WishlistAccommodationInfos findPage(CursorPageRequest request) {
 		Statistics statistics = prepareMeasurement();
-		var result = service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID);
+		var result = WishlistAccommodationInfos.from(service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(selectedColumnCounts()).containsExactly(2, 12);

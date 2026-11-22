@@ -112,6 +112,20 @@ kr.kro.airbob
   - 예: accommodation과 search는 위시리스트 포함 여부만 필요하다. 그래서 `AccommodationWishlistReader`와 `SearchWishlistReader`를 각자 소유하고, `WishlistReader`가 둘 다 구현한다.
   - wishlist → accommodation 의존은 그대로 두면서 반대 방향만 없앤다.
 
+#### Business 입출력과 도메인 레코드
+
+wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준을 따른다.
+
+- **입력**: Business는 요청 DTO 대신 원시값이나 도메인 값을 받는다. 예: `createWishlist(String name, Long memberId)`.
+  Controller가 `request.name()`처럼 꺼내 넘긴다. 필드가 많으면 요청 DTO에 `toXxx()`를 두고 도메인 입력 record를 만든다.
+- **출력**: 엔티티 ID나 도메인 레코드를 돌려준다. 응답 DTO는 `XxxResponse.from(도메인 레코드)`로 Controller에서 만든다.
+  UTC `LocalDateTime` → `Instant` 변환이나 요청에 따라 필드를 null로 비우는 일처럼 응답 모양만 바꾸는 규칙은 `from`에 둔다.
+- **도메인 레코드 위치**: Business가 반환하는 조회 결과는 도메인 루트 패키지에 둔다(예: `WishlistSummary`, `WishlistAccommodationItem`).
+  QueryDSL이 `@QueryProjection`으로 바로 만들어도 된다. Implement 안에서만 쓰는 projection(소유자 확인용 헤더, native query 인터페이스)은 `repository/projection`에 남긴다.
+  `repository` 패키지의 타입은 엄격 규칙에서 Data Access로 분류되므로 Business가 직접 받으면 안 된다.
+- **커서 페이징**: `CursorRequest`, `CursorResponse.PageInfo`, `CursorPageInfoCreator`는 도메인과 무관한 `core.support` 타입이다.
+  그래서 Business가 `CursorPageRequest`를 받고, 도메인 레코드 목록과 `PageInfo`를 묶은 결과(예: `WishlistSummaryPage`)를 돌려준다.
+
 ### ArchUnit으로 규칙 강제
 
 규칙은 `core/core-api/src/test/java/kr/kro/airbob/architecture`의 ArchUnit 테스트가 강제한다.
@@ -164,7 +178,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 5 | `common.exception`, `common.dto`, `cursor`를 `core.support.*`로, `GlobalExceptionHandler`를 `core.api.controller`로 이동 | OpenAPI 스냅샷이 그대로인지 | 완료 |
 | 6 | ArchUnit 규칙: 새 패키지는 엄격, 레거시는 동결 | 동결 저장소 커밋 | 완료 |
 | 7a | wishlist 경계: `MemberReader`·`AccommodationReader` 추가, accommodation·search가 소유한 포트를 wishlist가 구현해 순환 해소, 다른 도메인의 wishlist Repository 사용 제거 | 동결 위반이 줄었는지 | 완료 |
-| 7b | wishlist 내부 계층화: `WishlistReader`/`WishlistWriter` 추출, Business 입출력에서 web DTO 제거, 목록 조회 projection을 도메인 레코드로 변경, 테스트 정리 | API 응답·OpenAPI 스냅샷 불변 | |
+| 7b | wishlist 내부 계층화: `WishlistReader`/`WishlistWriter` 추출, Business 입출력에서 web DTO 제거, 목록 조회 projection을 도메인 레코드로 변경, 테스트 정리 | API 응답·OpenAPI 스냅샷 불변 | 완료 |
 | 7c | wishlist를 `core.api.controller.v1.wishlist`·`core.domain.wishlist`로 이동하고 도메인 이전 레시피 확정 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 8~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: commoncode, statistics → member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
@@ -178,7 +192,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
    - Repository → `core.domain.<도메인>.repository`
 2. JPQL의 `select new kr.kro.airbob...` FQCN 문자열을 고친다. `./gradlew compileJava`로 Q-클래스를 다시 생성한다.
 3. Service의 세부 구현을 Reader/Writer/Validator로 추출한다. Service에는 흐름만 남긴다.
+   잠금 순서와 트랜잭션 경계는 그대로 둔다. 잠금을 잡는 조회는 Reader의 `...ForUpdate` 메서드로 옮기고, Business가 그 순서대로 호출한다.
 4. Business 시그니처에서 Request/Response를 제거한다. 변환은 Controller와 DTO 팩토리가 맡는다.
+   기준은 위의 "Business 입출력과 도메인 레코드"를 따른다. 서비스를 직접 호출하는 통합 테스트는 결과를 `XxxResponse.from`으로 바꿔 기존 JSON 계약 단언을 유지한다.
 5. 다른 도메인이 이 도메인의 Repository를 쓰던 곳을 이 도메인의 Reader로 바꾼다. 순환이 생기면 포트로 끊는다.
 6. 테스트 패키지와 `ApiDocumentationTest`의 컴포넌트 스캔, `.claude/rules` 경로를 갱신한다.
 7. 전체 테스트, `verifyOpenApi`(스냅샷 불변), ArchUnit(동결 위반 감소)을 확인한다.

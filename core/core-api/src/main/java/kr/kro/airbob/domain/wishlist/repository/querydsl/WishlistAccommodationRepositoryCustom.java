@@ -7,10 +7,10 @@ import java.util.Set;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationItem;
 
 public interface WishlistAccommodationRepositoryCustom {
-	Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> findAccommodationsInWishlist(
+	Slice<WishlistAccommodationItem> findAccommodationsInWishlist(
 		Long wishlistId, Long lastId, LocalDateTime lastCreatedAt, Pageable pageable
 	);
 

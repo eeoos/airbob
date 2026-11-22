@@ -26,8 +26,6 @@ import org.testcontainers.utility.DockerImageName;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
-import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -82,7 +80,7 @@ class WishlistDenormalizationIntegrationTest {
 		acc1 = insertAccommodation("url-1");
 		acc2 = insertAccommodation("url-2");
 		acc3 = insertAccommodation("url-3");
-		wishlistId = wishlistService.createWishlist(new WishlistRequest.Create("내 위시리스트"), host).id();
+		wishlistId = wishlistService.createWishlist("내 위시리스트", host);
 	}
 
 	@AfterEach
@@ -107,8 +105,8 @@ class WishlistDenormalizationIntegrationTest {
 		add(acc2);
 		add(acc3);
 
-		WishlistResponse.WishlistInfos result = wishlistService.findWishlists(
-			CursorRequest.CursorPageRequest.builder().size(20).build(), host, null);
+		WishlistResponse.WishlistInfos result = WishlistResponse.WishlistInfos.from(wishlistService.findWishlists(
+			CursorRequest.CursorPageRequest.builder().size(20).build(), host, null), false);
 
 		assertThat(result.wishlists()).hasSize(1);
 		WishlistResponse.WishlistInfo info = result.wishlists().get(0);
@@ -126,7 +124,7 @@ class WishlistDenormalizationIntegrationTest {
 			CursorRequest.CursorPageRequest.builder().size(20).build();
 
 		WishlistResponse.WishlistInfos after =
-			wishlistService.findWishlists(request, host, acc2);
+			WishlistResponse.WishlistInfos.from(wishlistService.findWishlists(request, host, acc2), true);
 
 		assertThat(after.wishlists()).singleElement().satisfies(info -> {
 			assertThat(info.isContained()).isTrue();
@@ -149,7 +147,7 @@ class WishlistDenormalizationIntegrationTest {
 			CursorRequest.CursorPageRequest.builder().size(20).build();
 
 		WishlistResponse.WishlistInfos after =
-			wishlistService.findWishlists(request, host, null);
+			WishlistResponse.WishlistInfos.from(wishlistService.findWishlists(request, host, null), false);
 
 		assertThat(higherId).isGreaterThan(lowerId);
 		assertThat(after.wishlists().getFirst().thumbnailImageUrl()).isEqualTo("url-2");
@@ -193,7 +191,7 @@ class WishlistDenormalizationIntegrationTest {
 
 	private long add(long accommodationId) {
 		return wishlistService.createWishlistAccommodation(
-			wishlistId, new WishlistAccommodationRequest.Create(accommodationId), host).id();
+			wishlistId, accommodationId, host);
 	}
 
 	private long latestWaId(long accommodationId) {

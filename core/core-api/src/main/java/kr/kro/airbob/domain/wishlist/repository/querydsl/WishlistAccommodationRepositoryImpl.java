@@ -23,8 +23,8 @@ import com.querydsl.jpa.impl.JPAQuery;
 import jakarta.persistence.LockModeType;
 
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.wishlist.dto.QWishlistAccommodationResponse_WishlistAccommodationInfo;
-import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.QWishlistAccommodationItem;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationItem;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import lombok.RequiredArgsConstructor;
 
@@ -34,11 +34,11 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 	private final JPAQueryFactory queryFactory;
 
 	@Override
-	public Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> findAccommodationsInWishlist(Long wishlistId,
+	public Slice<WishlistAccommodationItem> findAccommodationsInWishlist(Long wishlistId,
 		Long lastId, LocalDateTime lastCreatedAt, Pageable pageable) {
 
-		JPAQuery<WishlistAccommodationResponse.WishlistAccommodationInfo> query = queryFactory
-			.select(new QWishlistAccommodationResponse_WishlistAccommodationInfo(
+		JPAQuery<WishlistAccommodationItem> query = queryFactory
+			.select(new QWishlistAccommodationItem(
 				wishlistAccommodation.id,
 				wishlistAccommodation.memo,
 				accommodation.id,
@@ -57,7 +57,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.join(accommodation.address, address)
 			.leftJoin(accommodationReviewSummary)
 				.on(accommodationReviewSummary.accommodationId.eq(accommodation.id));
-		List<WishlistAccommodationResponse.WishlistAccommodationInfo> content = query.where(
+		List<WishlistAccommodationItem> content = query.where(
 				wishlistAccommodation.wishlist.id.eq(wishlistId),
 				accommodation.status.eq(AccommodationStatus.PUBLISHED),
 				cursorCondition(lastId, lastCreatedAt)

@@ -1,18 +1,16 @@
 package kr.kro.airbob.domain.wishlist.dto;
 
-import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-
-import com.querydsl.core.annotations.QueryProjection;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationItem;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationPage;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -42,6 +40,12 @@ public class WishlistAccommodationResponse {
 		@Schema(description = "현재 위시리스트 이름. 빈 목록에서도 반환합니다.", example = "서울 여행", requiredMode = Schema.RequiredMode.REQUIRED)
 		String wishlistName
 	) {
+		public static WishlistAccommodationInfos from(WishlistAccommodationPage page) {
+			return new WishlistAccommodationInfos(
+				page.accommodations().stream().map(WishlistAccommodationInfo::from).toList(),
+				page.pageInfo(),
+				page.wishlistName());
+		}
 	}
 
 	@Schema(name = "WishlistAccommodationResponseWishlistAccommodationInfo")
@@ -61,29 +65,16 @@ public class WishlistAccommodationResponse {
 		@Schema(description = "이 목록에 저장된 항목이므로 항상 true", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
 		Boolean isInWishlist
 	) {
-		@QueryProjection
-		public WishlistAccommodationInfo(
-			long wishlistAccommodationId,
-			String memo,
-			long accommodationId,
-			String accommodationName,
-			String thumbnailUrl,
-			String country,
-			String state,
-			String city,
-			String district,
-			BigDecimal averageRating,
-			Integer reviewCount,
-			LocalDateTime createdAt) {
-
-			this(
-				wishlistAccommodationId,
-				memo,
-				createdAt == null ? null : createdAt.toInstant(ZoneOffset.UTC),
-				new AccommodationResponse.AccommodationBasicInfo(accommodationId, accommodationName, thumbnailUrl),
-				new AddressResponse.AddressSummaryInfo(country, state, city, district),
-				ReviewResponse.ReviewSummary.of(reviewCount, averageRating),
-				true // wishlist_accommodation 테이블에서 조회한 것이므로 true
+		public static WishlistAccommodationInfo from(WishlistAccommodationItem item) {
+			return new WishlistAccommodationInfo(
+				item.wishlistAccommodationId(),
+				item.memo(),
+				item.createdAt() == null ? null : item.createdAt().toInstant(ZoneOffset.UTC),
+				new AccommodationResponse.AccommodationBasicInfo(
+					item.accommodationId(), item.accommodationName(), item.thumbnailUrl()),
+				new AddressResponse.AddressSummaryInfo(item.country(), item.state(), item.city(), item.district()),
+				ReviewResponse.ReviewSummary.of(item.reviewCount(), item.averageRating()),
+				true // 위시리스트에 저장된 항목만 조회하므로 항상 true
 			);
 		}
 	}

@@ -1,10 +1,14 @@
 package kr.kro.airbob.domain.wishlist.dto;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.wishlist.WishlistMembership;
+import kr.kro.airbob.domain.wishlist.WishlistSummary;
+import kr.kro.airbob.domain.wishlist.WishlistSummaryPage;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -35,6 +39,10 @@ public class WishlistResponse {
 		@Schema(description = "wishlistId가 본인의 활성 목록인지 여부. 생략 시 false", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
 		boolean targetWishlistFound
 	) {
+		public static Membership from(WishlistMembership membership) {
+			return new Membership(membership.inAnyWishlist(), membership.targetWishlistContains(),
+				membership.targetWishlistFound());
+		}
 	}
 
 	@Builder
@@ -45,6 +53,12 @@ public class WishlistResponse {
 		@Schema(description = "다음 페이지 여부·커서·현재 목록 수", requiredMode = Schema.RequiredMode.REQUIRED)
 		CursorResponse.PageInfo pageInfo
 	) {
+		/** selection: 요청이 accommodationId를 지정했는지. 지정하지 않으면 isContained는 null이다. */
+		public static WishlistInfos from(WishlistSummaryPage page, boolean selection) {
+			return new WishlistInfos(
+				page.wishlists().stream().map(summary -> WishlistInfo.from(summary, selection)).toList(),
+				page.pageInfo());
+		}
 	}
 
 	@Builder
@@ -65,5 +79,15 @@ public class WishlistResponse {
 		@Schema(description = "해당 숙소의 연결 ID. 메모 수정·숙소 삭제에 사용합니다. accommodationId 생략 또는 미포함이면 null", nullable = true, example = "501", requiredMode = Schema.RequiredMode.REQUIRED)
 		Long wishlistAccommodationId
 	) {
+		public static WishlistInfo from(WishlistSummary summary, boolean selection) {
+			return new WishlistInfo(
+				summary.id(),
+				summary.name(),
+				summary.createdAt() == null ? null : summary.createdAt().toInstant(ZoneOffset.UTC),
+				summary.accommodationCount().longValue(),
+				summary.thumbnailImageUrl(),
+				selection ? summary.wishlistAccommodationId() != null : null,
+				summary.wishlistAccommodationId());
+		}
 	}
 }

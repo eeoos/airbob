@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.wishlist.WishlistAccommodationPage;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
@@ -22,8 +23,8 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 		Long accommodationId,
 		Long wishlistId,
 		Long memberId) {
-		return ResponseEntity.ok(ApiResponse.success(
-			wishlistService.findMembership(memberId, accommodationId, wishlistId)));
+		return ResponseEntity.ok(ApiResponse.success(WishlistResponse.Membership.from(
+			wishlistService.findMembership(memberId, accommodationId, wishlistId))));
 	}
 
 	@Override
@@ -31,9 +32,9 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 		Long wishlistId,
 		WishlistAccommodationRequest.Create request,
 		Long memberId) {
-		WishlistAccommodationResponse.Create response =
-			wishlistService.createWishlistAccommodation(wishlistId, request, memberId);
-		return ResponseEntity.ok(ApiResponse.success(response));
+		Long wishlistAccommodationId =
+			wishlistService.createWishlistAccommodation(wishlistId, request.accommodationId(), memberId);
+		return ResponseEntity.ok(ApiResponse.success(new WishlistAccommodationResponse.Create(wishlistAccommodationId)));
 	}
 
 	@Override
@@ -41,10 +42,10 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 		Long wishlistAccommodationId,
 		WishlistAccommodationRequest.Update request,
 		Long memberId) {
-		WishlistAccommodationResponse.Update response =
-			wishlistService.updateWishlistAccommodation(wishlistAccommodationId, request, memberId);
+		Long updatedId =
+			wishlistService.updateWishlistAccommodation(wishlistAccommodationId, request.memo(), memberId);
 
-		return ResponseEntity.ok(ApiResponse.success(response));
+		return ResponseEntity.ok(ApiResponse.success(new WishlistAccommodationResponse.Update(updatedId)));
 	}
 
 	@Override
@@ -62,9 +63,8 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 		Long wishlistId,
 		Long memberId
 	) {
-		WishlistAccommodationResponse.WishlistAccommodationInfos response
-			= wishlistService.findWishlistAccommodations(wishlistId, request, memberId);
+		WishlistAccommodationPage page = wishlistService.findWishlistAccommodations(wishlistId, request, memberId);
 
-		return ResponseEntity.ok(ApiResponse.success(response));
+		return ResponseEntity.ok(ApiResponse.success(WishlistAccommodationResponse.WishlistAccommodationInfos.from(page)));
 	}
 }

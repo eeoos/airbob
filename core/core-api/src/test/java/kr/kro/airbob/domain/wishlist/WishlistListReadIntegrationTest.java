@@ -51,16 +51,18 @@ import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
+import kr.kro.airbob.domain.wishlist.service.WishlistReader;
+import kr.kro.airbob.domain.wishlist.service.WishlistWriter;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, WishlistService.class, MemberReader.class, AccommodationReader.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
+	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	WishlistListReadIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -230,7 +232,7 @@ class WishlistListReadIntegrationTest {
 	@DisplayName("이름 변경과 마지막 저장 삭제 후 개수·사진·선택 상태를 다시 읽는다")
 	void reflectsRenameAndLastMembershipRemoval() {
 		read(OWNER_ID, 31L, firstPage(20));
-		service.updateWishlist(43L, new WishlistRequest.Update("변경한 여행"), OWNER_ID);
+		service.updateWishlist(43L, "변경한 여행", OWNER_ID);
 		service.deleteWishlistAccommodation(501L, OWNER_ID);
 
 		var result = read(OWNER_ID, 31L, firstPage(20));
@@ -253,7 +255,8 @@ class WishlistListReadIntegrationTest {
 		entityManager.clear();
 		entityManagerFactory.unwrap(SessionFactory.class).getStatistics().clear();
 		sqlCapture.statements.clear();
-		var result = service.findWishlists(request, memberId, accommodationId);
+		var result = WishlistResponse.WishlistInfos.from(
+			service.findWishlists(request, memberId, accommodationId), accommodationId != null);
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
