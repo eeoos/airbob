@@ -35,10 +35,12 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.domain.wishlist.Wishlist;
+import kr.kro.airbob.core.domain.wishlist.WishlistAccommodation;
+import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.config.AccommodationDetailRedisConfig;
@@ -62,8 +64,6 @@ import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
-import kr.kro.airbob.domain.wishlist.entity.Wishlist;
-import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 

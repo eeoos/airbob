@@ -67,6 +67,20 @@ class LayeredArchitectureTest {
 		.allowEmptyShould(true)
 		.as("@Component implement classes in core.domain should not depend on @Service classes");
 
+	/**
+	 * Rule 7 for the flat core.domain packages, where entities share a package with business and implement
+	 * classes and the frozen package-name check (dto/api/service) cannot tell them apart.
+	 */
+	@ArchTest
+	static final ArchRule entitiesDoNotDependOnBusinessOrImplement = noClasses()
+		.that(JavaClass.Predicates.resideInAPackage(CORE_DOMAIN).and(
+			annotatedWith("jakarta.persistence.Entity")
+				.or(annotatedWith("jakarta.persistence.Embeddable"))
+				.or(annotatedWith("jakarta.persistence.MappedSuperclass"))))
+		.should().dependOnClassesThat(annotatedWith(Service.class).or(annotatedWith(Component.class)))
+		.allowEmptyShould(true)
+		.as("entities in core.domain should not depend on @Service or @Component classes");
+
 	@ArchTest
 	static final ArchRule businessNaming = classes()
 		.that().resideInAPackage(CORE_DOMAIN).and().areAnnotatedWith(Service.class)

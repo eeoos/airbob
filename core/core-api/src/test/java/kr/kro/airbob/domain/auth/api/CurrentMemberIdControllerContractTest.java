@@ -12,6 +12,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotatedMethod;
 
+import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistAccommodationController;
+import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistController;
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
 import kr.kro.airbob.domain.accommodation.api.AccommodationHostController;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
@@ -24,8 +26,6 @@ import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
 import kr.kro.airbob.domain.reservation.api.ReservationHostController;
 import kr.kro.airbob.domain.review.api.ReviewController;
 import kr.kro.airbob.domain.settlement.api.SettlementController;
-import kr.kro.airbob.domain.wishlist.api.WishlistAccommodationController;
-import kr.kro.airbob.domain.wishlist.api.WishlistController;
 import kr.kro.airbob.search.api.AccommodationSearchController;
 
 class CurrentMemberIdControllerContractTest {
