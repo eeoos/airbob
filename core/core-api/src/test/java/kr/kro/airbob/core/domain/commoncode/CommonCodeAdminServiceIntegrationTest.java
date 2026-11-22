@@ -1,0 +1,406 @@
+package kr.kro.airbob.core.domain.commoncode;
+
+import static org.assertj.core.api.Assertions.*;
+
+import java.util.List;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+import kr.kro.airbob.core.support.error.BaseException;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import io.awspring.cloud.s3.S3Template;
+import kr.kro.airbob.core.domain.commoncode.repository.CommonCodeGroupRepository;
+import kr.kro.airbob.core.domain.commoncode.repository.CommonCodeRepository;
+import kr.kro.airbob.search.repository.AccommodationSearchRepository;
+
+/**
+ * 공통 코드 관리 서비스 통합 테스트.
+ * 관리자 쓰기는 DB에 즉시 반영하고, 이미 적재된 조회 캐시는 즉시 무효화하지 않는지 검증한다.
+ */
+@Testcontainers
+@SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
+@ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@DisplayName("공통 코드 관리 서비스 통합 테스트")
+class CommonCodeAdminServiceIntegrationTest {
+
+	@Autowired private CommonCodeAdminService adminService;
+	@Autowired private CommonCodeService commonCodeService;
+	@Autowired private CommonCodeReader commonCodeReader;
+	@Autowired private CommonCodeGroupRepository groupRepository;
+	@Autowired private CommonCodeRepository commonCodeRepository;
+
+	@MockitoBean private ElasticsearchClient elasticsearchClient;
+	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean private S3Template s3Template;
+
+	@Container
+	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
+		.withDatabaseName("airbobdb_test");
+
+	@Container
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
+
+	@DynamicPropertySource
+	static void setProperties(DynamicPropertyRegistry registry) {
+		registry.add("spring.datasource.url", mySQLContainer::getJdbcUrl);
+		registry.add("spring.datasource.username", mySQLContainer::getUsername);
+		registry.add("spring.datasource.password", mySQLContainer::getPassword);
+		registry.add("spring.flyway.url", mySQLContainer::getJdbcUrl);
+		registry.add("spring.flyway.user", mySQLContainer::getUsername);
+		registry.add("spring.flyway.password", mySQLContainer::getPassword);
+		registry.add("spring.data.redis.host", redisContainer::getHost);
+		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
+	}
+
+	@Test
+	@DisplayName("새 코드를 생성해도 이미 적재된 조회 캐시는 즉시 무효화되지 않는다")
+	void createDoesNotInvalidateCachedSnapshot() {
+		// 캐시 워밍업(생성 전 상태 적재)
+		assertThat(commonCodeReader.isValidCode(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isFalse();
+
+		adminService.create(CommonCodeGroups.AMENITY_TYPE,
+			new NewCommonCode("SAUNA", "사우나", null, 99, true));
+
+		assertThat(adminService.getAll(CommonCodeGroups.AMENITY_TYPE))
+			.anyMatch(code -> code.code().equals("SAUNA") && code.name().equals("사우나"));
+		assertThat(commonCodeReader.isValidCode(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isFalse();
+		assertThat(commonCodeReader.readLabel(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isEqualTo("SAUNA");
+	}
+
+	@Test
+	@DisplayName("라벨을 수정해도 이미 적재된 조회 캐시는 즉시 무효화되지 않는다")
+	void updateLabelDoesNotInvalidateCachedSnapshot() {
+		assertThat(commonCodeReader.readLabel(CommonCodeGroups.ACCOMMODATION_TYPE, "HOTEL_ROOM"))
+			.isEqualTo("호텔 객실");
+
+		adminService.update(CommonCodeGroups.ACCOMMODATION_TYPE, "HOTEL_ROOM",
+			new CommonCodePatch("호텔룸", null, null, null));
+
+		assertThat(adminService.getAll(CommonCodeGroups.ACCOMMODATION_TYPE))
+			.anyMatch(code -> code.code().equals("HOTEL_ROOM") && code.name().equals("호텔룸"));
+		assertThat(commonCodeReader.readLabel(CommonCodeGroups.ACCOMMODATION_TYPE, "HOTEL_ROOM"))
+			.isEqualTo("호텔 객실");
+	}
+
+	@Test
+	@DisplayName("코드를 비활성화해도 이미 적재된 조회 캐시는 즉시 무효화되지 않는다")
+	void deactivateDoesNotInvalidateCachedSnapshot() {
+		assertThat(commonCodeReader.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, "CASTLE")).isTrue();
+
+		adminService.update(CommonCodeGroups.ACCOMMODATION_TYPE, "CASTLE",
+			new CommonCodePatch(null, null, null, false));
+
+		assertThat(adminService.getAll(CommonCodeGroups.ACCOMMODATION_TYPE))
+			.anyMatch(code -> code.code().equals("CASTLE") && !code.active());
+		assertThat(commonCodeReader.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, "CASTLE")).isTrue();
+	}
+
+	@Test
+	@DisplayName("관리자 조회는 비활성 코드도 포함한다")
+	void adminListIncludesInactive() {
+		adminService.update(CommonCodeGroups.AMENITY_TYPE, "BALCONY",
+			new CommonCodePatch(null, null, null, false));
+
+		assertThat(adminService.getAll(CommonCodeGroups.AMENITY_TYPE))
+			.anyMatch(c -> c.code().equals("BALCONY") && !c.active());
+	}
+
+	@Test
+	@DisplayName("중복 코드 생성·없는 그룹·없는 코드 수정은 예외")
+	void invalidCases() {
+		assertThatThrownBy(() -> adminService.create(CommonCodeGroups.AMENITY_TYPE,
+			new NewCommonCode("WIFI", "중복", null, 1, true)))
+			.isInstanceOf(CommonCodeDuplicateException.class);
+
+		assertThatThrownBy(() -> adminService.getAll("NOT_A_GROUP"))
+			.isInstanceOf(CommonCodeGroupNotFoundException.class);
+
+		assertThatThrownBy(() -> adminService.update(CommonCodeGroups.AMENITY_TYPE, "NOPE",
+			new CommonCodePatch("x", null, null, null)))
+			.isInstanceOf(CommonCodeNotFoundException.class);
+	}
+
+	@Test
+	@DisplayName("그룹 목록은 비활성을 포함해 그룹 코드 순으로 반환한다")
+	void listGroupsInCodeOrder() {
+		adminService.createGroup(new NewCommonCodeGroup(
+			"ZZ_LIST_GROUP", "목록 그룹", null, false));
+
+		List<CommonCodeGroupDetail> groups = adminService.getGroups();
+
+		assertThat(groups)
+			.extracting(CommonCodeGroupDetail::groupCode)
+			.isSorted()
+			.contains("AMENITY_TYPE", "ACCOMMODATION_TYPE", "ZZ_LIST_GROUP");
+		assertThat(groups)
+			.anyMatch(group -> group.groupCode().equals("ZZ_LIST_GROUP") && !group.active());
+	}
+
+	@Test
+	@DisplayName("그룹 생성은 코드를 정규화하고 활성 기본값을 적용한다")
+	void createGroup() {
+		CommonCodeGroupDetail created = adminService.createGroup(
+			new NewCommonCodeGroup(" payment_method ", "결제 수단", null, null));
+
+		assertThat(created.groupCode()).isEqualTo("PAYMENT_METHOD");
+		assertThat(created.groupName()).isEqualTo("결제 수단");
+		assertThat(created.active()).isTrue();
+
+		CommonCodeGroup saved = groupRepository.findById("PAYMENT_METHOD").orElseThrow();
+		assertThat(saved.getGroupName()).isEqualTo("결제 수단");
+		assertThat(saved.isActive()).isTrue();
+	}
+
+	@Test
+	@DisplayName("이미 존재하는 그룹 코드는 생성할 수 없다")
+	void rejectDuplicateGroup() {
+		assertThatThrownBy(() -> adminService.createGroup(
+			new NewCommonCodeGroup("amenity_type", "중복 그룹", null, true)))
+			.isInstanceOf(CommonCodeGroupDuplicateException.class);
+	}
+
+	@Test
+	@DisplayName("중복 그룹 INSERT는 기존 그룹을 덮어쓰지 않는다")
+	void duplicateGroupInsertDoesNotOverwriteExistingGroup() {
+		adminService.createGroup(new NewCommonCodeGroup(
+			"INSERT_ONLY_GROUP", "최초 이름", "최초 설명", true));
+
+		CommonCodeGroup duplicate = CommonCodeGroup.builder()
+			.groupCode("INSERT_ONLY_GROUP")
+			.groupName("덮어쓴 이름")
+			.description("덮어쓴 설명")
+			.active(false)
+			.build();
+
+		assertThatThrownBy(() -> groupRepository.insert(duplicate))
+			.isInstanceOf(DataIntegrityViolationException.class);
+
+		CommonCodeGroup saved = groupRepository.findById("INSERT_ONLY_GROUP").orElseThrow();
+		assertThat(saved.getGroupName()).isEqualTo("최초 이름");
+		assertThat(saved.getDescription()).isEqualTo("최초 설명");
+		assertThat(saved.isActive()).isTrue();
+	}
+
+	@Test
+	@DisplayName("중복 코드 INSERT는 기존 공통 코드를 덮어쓰지 않는다")
+	void duplicateCodeInsertDoesNotOverwriteExistingCode() {
+		CommonCode duplicate = CommonCode.builder()
+			.groupCode(CommonCodeGroups.AMENITY_TYPE)
+			.code("WIFI")
+			.name("덮어쓴 이름")
+			.description("덮어쓴 설명")
+			.sortOrder(999)
+			.active(false)
+			.build();
+
+		assertThatThrownBy(() -> commonCodeRepository.insert(duplicate))
+			.isInstanceOf(DataIntegrityViolationException.class);
+
+		CommonCode saved = commonCodeRepository.findById(
+			new CommonCodeId(CommonCodeGroups.AMENITY_TYPE, "WIFI")).orElseThrow();
+		assertThat(saved.getName()).isEqualTo("무선 인터넷");
+		assertThat(saved.getDescription()).isNull();
+		assertThat(saved.getSortOrder()).isEqualTo(1);
+		assertThat(saved.isActive()).isTrue();
+	}
+
+	@Test
+	@DisplayName("그룹 수정은 전달된 필드만 변경한다")
+	void updateGroup() {
+		adminService.createGroup(new NewCommonCodeGroup(
+			"GROUP_UPDATE", "기존 이름", "기존 설명", true));
+
+		CommonCodeGroupDetail updated = adminService.updateGroup(
+			"group_update", new CommonCodeGroupPatch("새 이름", null, false));
+
+		assertThat(updated.groupCode()).isEqualTo("GROUP_UPDATE");
+		assertThat(updated.groupName()).isEqualTo("새 이름");
+		assertThat(updated.description()).isEqualTo("기존 설명");
+		assertThat(updated.active()).isFalse();
+
+		CommonCodeGroup saved = groupRepository.findById("GROUP_UPDATE").orElseThrow();
+		assertThat(saved.getGroupName()).isEqualTo("새 이름");
+		assertThat(saved.getDescription()).isEqualTo("기존 설명");
+		assertThat(saved.isActive()).isFalse();
+	}
+
+	@Test
+	@DisplayName("빈 설명으로 그룹 설명을 제거할 수 있다")
+	void clearGroupDescription() {
+		adminService.createGroup(new NewCommonCodeGroup(
+			"GROUP_CLEAR_DESCRIPTION", "설명 제거 그룹", "기존 설명", true));
+
+		CommonCodeGroupDetail updated = adminService.updateGroup(
+			"GROUP_CLEAR_DESCRIPTION", new CommonCodeGroupPatch(null, "", null));
+
+		assertThat(updated.groupName()).isEqualTo("설명 제거 그룹");
+		assertThat(updated.description()).isEmpty();
+		assertThat(updated.active()).isTrue();
+
+		CommonCodeGroup saved = groupRepository.findById("GROUP_CLEAR_DESCRIPTION").orElseThrow();
+		assertThat(saved.getDescription()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("존재하지 않는 그룹은 수정할 수 없다")
+	void rejectMissingGroupUpdate() {
+		assertThatThrownBy(() -> adminService.updateGroup(
+			"MISSING_GROUP", new CommonCodeGroupPatch("새 이름", null, null)))
+			.isInstanceOf(CommonCodeGroupNotFoundException.class);
+	}
+
+	@Test
+	@DisplayName("새 활성 그룹에 등록한 코드는 공개 조회에서 사용할 수 있다")
+	void useNewGroupFromPublicCache() {
+		adminService.createGroup(new NewCommonCodeGroup(
+			"DELIVERY_METHOD", "배송 방식", null, true));
+		adminService.create("DELIVERY_METHOD",
+			new NewCommonCode("QUICK", "퀵 배송", null, 1, true));
+
+		assertThat(commonCodeService.getCodes("DELIVERY_METHOD"))
+			.extracting(CommonCodeDetail::code)
+			.containsExactly("QUICK");
+	}
+
+	@Test
+	@DisplayName("비활성 그룹에 등록한 코드는 공개 조회에서 사용하지 않는다")
+	void hideCodesOfInactiveGroup() {
+		adminService.createGroup(new NewCommonCodeGroup(
+			"INACTIVE_DYNAMIC_GROUP", "비활성 동적 그룹", null, false));
+		adminService.create("INACTIVE_DYNAMIC_GROUP",
+			new NewCommonCode("HIDDEN", "숨김 코드", null, 1, true));
+
+		assertThat(commonCodeService.getCodes("INACTIVE_DYNAMIC_GROUP")).isEmpty();
+	}
+
+	@Test
+	void concurrentCreatesKeepOneGroupAndOneCodeAndReturnDomainConflicts() throws Exception {
+		var groups = race(() -> adminService.createGroup(new NewCommonCodeGroup("DOC_RACE_GROUP", "동시 그룹", null, null)));
+		assertThat(groups.stream().filter(CommonCodeGroupDetail.class::isInstance)).hasSize(1);
+		assertThat(groups.stream().filter(CommonCodeGroupDuplicateException.class::isInstance)).hasSize(7);
+		var codes = race(() -> adminService.create("DOC_RACE_GROUP", new NewCommonCode("RACE_CODE", "동시 코드", null, null, null)));
+		assertThat(codes.stream().filter(CommonCodeDetail.class::isInstance)).hasSize(1);
+		assertThat(codes.stream().filter(CommonCodeDuplicateException.class::isInstance)).hasSize(7);
+		assertThat(adminService.getAll("DOC_RACE_GROUP")).hasSize(1);
+	}
+
+	@Test
+	void cacheRetainsMissingAndInactiveSnapshotsUntilOneMinuteThenReloadsMysql() {
+		AtomicLong nanos = new AtomicLong();
+		var cached = CommonCodeReader.withTicker(groupRepository, commonCodeRepository, nanos::get);
+		assertThatThrownBy(() -> cached.readActiveCodes("DOC_CACHE_GROUP")).isInstanceOf(CommonCodeGroupNotFoundException.class);
+		adminService.createGroup(new NewCommonCodeGroup("DOC_CACHE_GROUP", "캐시 그룹", null, false));
+		adminService.create("DOC_CACHE_GROUP", new NewCommonCode("WIFI", "와이파이", null, 0, true));
+		assertThat(adminService.getAll("DOC_CACHE_GROUP")).hasSize(1);
+		nanos.addAndGet(Duration.ofSeconds(59).toNanos());
+		assertThatThrownBy(() -> cached.readActiveCodes("DOC_CACHE_GROUP")).isInstanceOf(CommonCodeGroupNotFoundException.class);
+		nanos.addAndGet(Duration.ofSeconds(2).toNanos());
+		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).isEmpty();
+		adminService.updateGroup("DOC_CACHE_GROUP", new CommonCodeGroupPatch(null, null, true));
+		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).isEmpty();
+		nanos.addAndGet(Duration.ofSeconds(61).toNanos());
+		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).extracting(CommonCodeDetail::code).containsExactly("WIFI");
+		adminService.update("DOC_CACHE_GROUP", "WIFI", new CommonCodePatch(null, null, null, false));
+		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).hasSize(1);
+		nanos.addAndGet(Duration.ofSeconds(61).toNanos());
+		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).isEmpty();
+	}
+
+	@Test
+	void createDefaultsAndPatchNullEmptyAndNegativeOrderMatchStoredValues() {
+		var group = adminService.createGroup(new NewCommonCodeGroup("DOC_PATCH_GROUP", "그룹", "설명", null));
+		assertThat(group.active()).isTrue();
+		var created = adminService.create("DOC_PATCH_GROUP", new NewCommonCode("wifi", "와이파이", "설명", null, null));
+		assertThat(created.code()).isEqualTo("WIFI");
+		assertThat(created.sortOrder()).isZero();
+		assertThat(created.active()).isTrue();
+		assertThat(adminService.update("DOC_PATCH_GROUP", "wifi", new CommonCodePatch(null, null, null, null))).isEqualTo(created);
+		assertThat(adminService.updateGroup("DOC_PATCH_GROUP", new CommonCodeGroupPatch(null, null, null))).isEqualTo(group);
+		var updated = adminService.update("DOC_PATCH_GROUP", "wifi", new CommonCodePatch(null, "", -1, false));
+		assertThat(updated.description()).isEmpty();
+		assertThat(updated.name()).isEqualTo("와이파이");
+		assertThat(updated.sortOrder()).isEqualTo(-1);
+		assertThat(updated.active()).isFalse();
+		assertThat(adminService.getAll("DOC_PATCH_GROUP")).containsExactly(updated);
+		assertThatThrownBy(() -> adminService.update("DOC_MISSING_GROUP", "WIFI", new CommonCodePatch(null, null, null, null)))
+			.isInstanceOf(CommonCodeNotFoundException.class);
+	}
+
+	@Test
+	@DisplayName("공개·관리자 코드 조회는 정렬 순서가 같으면 코드 오름차순으로 반환한다")
+	void publicAndAdminListsOrderBySortOrderThenCode() {
+		String groupCode = "CODE_ORDER_GROUP";
+		adminService.createGroup(new NewCommonCodeGroup(groupCode, "정렬 검증 그룹", null, true));
+		adminService.create(groupCode, new NewCommonCode("A_LAST", "마지막 코드", null, 1, true));
+		adminService.create(groupCode, new NewCommonCode("CHARLIE", "가 표시명", null, null, true));
+		adminService.create(groupCode, new NewCommonCode("BRAVO", "나 표시명", null, 0, false));
+		adminService.create(groupCode, new NewCommonCode("ALPHA", "다 표시명", null, null, true));
+		adminService.create(groupCode, new NewCommonCode("Z_FIRST", "첫 코드", null, -1, true));
+
+		assertThat(adminService.getAll(groupCode))
+			.extracting(CommonCodeDetail::code)
+			.containsExactly("Z_FIRST", "ALPHA", "BRAVO", "CHARLIE", "A_LAST");
+		assertThat(commonCodeService.getCodes(groupCode))
+			.extracting(CommonCodeDetail::code)
+			.containsExactly("Z_FIRST", "ALPHA", "CHARLIE", "A_LAST");
+	}
+
+	@Test
+	void maximumLengthValuesPersistAndCodeOrderUsesSignedIntegerBoundaries() {
+		String groupCode = "G".repeat(50), name = "이".repeat(100), description = "설".repeat(255);
+		var group = adminService.createGroup(new NewCommonCodeGroup(groupCode, name, description, null));
+		assertThat(group.groupName()).isEqualTo(name);
+		assertThat(group.description()).isEqualTo(description);
+		adminService.create(groupCode, new NewCommonCode("A".repeat(50), name, description, Integer.MAX_VALUE, true));
+		adminService.create(groupCode, new NewCommonCode("FIRST", "첫 코드", null, Integer.MIN_VALUE, true));
+		assertThat(adminService.getAll(groupCode)).extracting(CommonCodeDetail::code).containsExactly("FIRST", "A".repeat(50));
+		assertThat(commonCodeService.getCodes(groupCode)).extracting(CommonCodeDetail::sortOrder).containsExactly(Integer.MIN_VALUE, Integer.MAX_VALUE);
+	}
+
+	private List<Object> race(Supplier<?> action) throws Exception {
+		int workers = 8;
+		var ready = new CountDownLatch(workers);
+		var start = new CountDownLatch(1);
+		try (var executor = Executors.newFixedThreadPool(workers)) {
+			List<Future<Object>> futures = new ArrayList<>();
+			for (int i = 0; i < workers; i++) {
+				futures.add(executor.submit(() -> {
+					ready.countDown();
+					if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("race start timeout");
+					try { return action.get(); } catch (BaseException exception) { return exception; }
+				}));
+			}
+			assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+			start.countDown();
+			List<Object> results = new ArrayList<>();
+			for (var future : futures) results.add(future.get(20, TimeUnit.SECONDS));
+			return results;
+		}
+	}
+}

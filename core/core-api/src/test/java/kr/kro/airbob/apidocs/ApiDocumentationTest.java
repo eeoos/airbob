@@ -85,6 +85,9 @@ import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
+import kr.kro.airbob.core.domain.commoncode.*;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeAdminService;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeService;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccessDeniedException;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationAccessDeniedException;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationDuplicateException;
@@ -155,10 +158,6 @@ import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
 import kr.kro.airbob.domain.auth.service.AuthService;
-import kr.kro.airbob.domain.commoncode.dto.*;
-import kr.kro.airbob.domain.commoncode.exception.*;
-import kr.kro.airbob.domain.commoncode.service.CommonCodeAdminService;
-import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.coupon.service.CouponQueryService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
@@ -2116,7 +2115,7 @@ class ApiDocumentationTest {
 		String path = "/api/v1/common-codes/{group}";
 		JsonNode spec = specification("client");
 		var service = context.getBean(CommonCodeService.class);
-		when(service.getCodes("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeResponse("WIFI", "무선 인터넷", -1)));
+		when(service.getCodes("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeDetail("WIFI", "무선 인터넷", null, -1, true)));
 		String response = mvc.perform(get(path, "amenity_type")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		assertThat(mapper.readTree(response).at("/data/0/code").asText()).isEqualTo("WIFI");
@@ -2161,8 +2160,8 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("admin");
 		var service = context.getBean(CommonCodeAdminService.class);
 		String groups = "/api/v1/admin/common-code-groups", codes = "/api/v1/admin/common-codes/{group}";
-		when(service.getGroups()).thenReturn(List.of(new CommonCodeGroupResponse("AMENITY_TYPE", "편의시설", null, false)));
-		when(service.getAll("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeAdminResponse("WIFI", "무선 인터넷", null, 0, false)));
+		when(service.getGroups()).thenReturn(List.of(new CommonCodeGroupDetail("AMENITY_TYPE", "편의시설", null, false)));
+		when(service.getAll("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeDetail("WIFI", "무선 인터넷", null, 0, false)));
 		String groupBody = mvc.perform(get(groups).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		String codeBody = mvc.perform(get(codes, "amenity_type").cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, groups, "get", "200", groupBody);
@@ -2186,20 +2185,20 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("admin");
 		var service = context.getBean(CommonCodeAdminService.class);
 		String groups = "/api/v1/admin/common-code-groups", group = groups + "/{groupCode}";
-		when(service.createGroup(any())).thenReturn(new CommonCodeGroupResponse("EXAMPLE_GROUP", "예시 그룹", null, false));
+		when(service.createGroup(any())).thenReturn(new CommonCodeGroupDetail("EXAMPLE_GROUP", "예시 그룹", null, false));
 		var created = mvc.perform(post(groups).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"group_code\":\" example_group \",\"group_name\":\"예시 그룹\",\"is_active\":false}"))
 			.andExpect(status().isCreated()).andReturn().getResponse();
 		validateResponse(spec, groups, "post", "201", created.getContentAsString());
 		assertThat(created.getHeader("Location")).isNull();
-		verify(service).createGroup(new CommonCodeGroupRequest.Create("example_group", "예시 그룹", null, false));
-		when(service.updateGroup(eq("EXAMPLE_GROUP"), any())).thenReturn(new CommonCodeGroupResponse("EXAMPLE_GROUP", "예시 그룹", "", false));
+		verify(service).createGroup(new NewCommonCodeGroup("example_group", "예시 그룹", null, false));
+		when(service.updateGroup(eq("EXAMPLE_GROUP"), any())).thenReturn(new CommonCodeGroupDetail("EXAMPLE_GROUP", "예시 그룹", "", false));
 		for (String request : List.of("{}", "{\"group_name\":null,\"description\":\"\",\"is_active\":false}")) {
 			String updated = mvc.perform(patch(group, "example_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, group, "patch", "200", updated);
 		}
-		verify(service).updateGroup("EXAMPLE_GROUP", new CommonCodeGroupRequest.Update(null, "", false));
+		verify(service).updateGroup("EXAMPLE_GROUP", new CommonCodeGroupPatch(null, "", false));
 		validateInstance(spec, spec.at("/components/schemas/CommonCodeGroupRequestUpdate"), mapper.readTree("{\"group_name\":null,\"description\":null,\"is_active\":null}"));
 		when(service.createGroup(any())).thenThrow(new CommonCodeGroupDuplicateException());
 		String duplicate = mvc.perform(post(groups).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
@@ -2218,20 +2217,20 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("admin");
 		var service = context.getBean(CommonCodeAdminService.class);
 		String codes = "/api/v1/admin/common-codes/{group}", code = codes + "/{code}";
-		when(service.create(eq("AMENITY_TYPE"), any())).thenReturn(new CommonCodeAdminResponse("WIFI", "무선 인터넷", null, -1, false));
+		when(service.create(eq("AMENITY_TYPE"), any())).thenReturn(new CommonCodeDetail("WIFI", "무선 인터넷", null, -1, false));
 		String request = "{\"code\":\"　wifi　\",\"name\":\"무선 인터넷\",\"sort_order\":-1,\"is_active\":false}";
 		var created = mvc.perform(post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isCreated()).andReturn().getResponse();
 		validateResponse(spec, codes, "post", "201", created.getContentAsString());
 		assertThat(created.getHeader("Location")).isNull();
-		verify(service).create("AMENITY_TYPE", new CommonCodeRequest.Create("wifi", "무선 인터넷", null, -1, false));
-		when(service.update(eq("AMENITY_TYPE"), eq("wifi"), any())).thenReturn(new CommonCodeAdminResponse("WIFI", "무선 인터넷", "", 0, false));
+		verify(service).create("AMENITY_TYPE", new NewCommonCode("wifi", "무선 인터넷", null, -1, false));
+		when(service.update(eq("AMENITY_TYPE"), eq("wifi"), any())).thenReturn(new CommonCodeDetail("WIFI", "무선 인터넷", "", 0, false));
 		for (String patchBody : List.of("{}", "{\"name\":null,\"description\":\"\",\"sort_order\":0,\"is_active\":false}")) {
 			String updated = mvc.perform(patch(code, "amenity_type", "wifi").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(patchBody))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, code, "patch", "200", updated);
 		}
-		verify(service).update("AMENITY_TYPE", "wifi", new CommonCodeRequest.Update(null, "", 0, false));
+		verify(service).update("AMENITY_TYPE", "wifi", new CommonCodePatch(null, "", 0, false));
 		validateInstance(spec, spec.at("/components/schemas/CommonCodeRequestUpdate"), mapper.readTree("{\"name\":null,\"description\":null,\"sort_order\":null,\"is_active\":null}"));
 		when(service.create(eq("AMENITY_TYPE"), any())).thenThrow(new CommonCodeDuplicateException());
 		String duplicate = mvc.perform(post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
