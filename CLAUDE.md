@@ -23,7 +23,9 @@ properties, bean wiring, and the mapping of provider responses to domain outcome
 Versions live in `gradle/libs.versions.toml`. Build outputs stay at the
 repository root (`build/libs/airbob.jar`, `build/openapi`) because deployment and CI read them there.
 The target structure, layering rules, and the PR-by-PR migration roadmap are in
-`docs/architecture/code-structure.md`; follow it when moving code.
+`docs/architecture/code-structure.md`; follow it when moving code. `wishlist` is the first domain in
+the template layout (`core.api.controller.v1.wishlist`, `core.domain.wishlist`); use it as the
+reference when moving another domain.
 
 ArchUnit tests in `core/core-api/src/test/java/kr/kro/airbob/architecture` enforce the layer rules
 strictly for `kr.kro.airbob.core..` and freeze legacy violations (cross-domain repository use,

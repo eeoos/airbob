@@ -35,8 +35,16 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 | `cursor.*` | `core.support.cursor.*` |
 | `common.exception.GlobalExceptionHandler` | `core.api.controller` (Presentation이 도메인 예외를 아는 정방향 의존이 되어 `common` ↔ 도메인 순환이 사라졌다) |
 
+도메인 중에서는 wishlist가 템플릿 구조로 옮겨졌다(PR 7c). 다른 도메인을 옮길 때 기준으로 삼는다.
+
+| 계층 | wishlist 위치 |
+|---|---|
+| Presentation | `core.api.controller.v1.wishlist`(Controller, 문서 인터페이스), `.request`, `.response` |
+| Business·Implement·도메인 모델 | `core.domain.wishlist`(`WishlistService`, `WishlistReader`, `WishlistWriter`, 엔티티, enum, 예외, 도메인 레코드) |
+| Data Access | `core.domain.wishlist.repository`(Spring Data, `querydsl`, `projection`) |
+
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
-그리고 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
+그리고 wishlist를 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
 
 ### 경로 계약
 
@@ -134,6 +142,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 
 - **`LayeredArchitectureTest`(엄격)**: 새 패키지(`kr.kro.airbob.core..`)에 규칙 1~4와 이름 규칙을 적용한다.
   `core.support`가 도메인·Presentation·설정에 의존하지 않는지도 확인한다.
+  `core.domain.<도메인>`은 엔티티와 Service·Reader가 한 패키지에 있어서, 동결 테스트가 패키지 이름(`dto`·`api`·`service`)으로는 규칙 7을 검사하지 못한다.
+  그래서 엄격 테스트가 엔티티의 `@Service`·`@Component` 의존을 따로 막는다.
   아직 클래스가 없는 패키지의 규칙은 통과하고(`allowEmptyShould`), 도메인을 옮기는 순간부터 적용된다.
 - **`LegacyDependencyFreezeTest`(동결)**: 애플리케이션 전체에 규칙 5~7을 적용한다.
   - 현재 위반은 `core/core-api/src/test/resources/archunit_store`에 기록되어 있다.
@@ -179,22 +189,52 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 6 | ArchUnit 규칙: 새 패키지는 엄격, 레거시는 동결 | 동결 저장소 커밋 | 완료 |
 | 7a | wishlist 경계: `MemberReader`·`AccommodationReader` 추가, accommodation·search가 소유한 포트를 wishlist가 구현해 순환 해소, 다른 도메인의 wishlist Repository 사용 제거 | 동결 위반이 줄었는지 | 완료 |
 | 7b | wishlist 내부 계층화: `WishlistReader`/`WishlistWriter` 추출, Business 입출력에서 web DTO 제거, 목록 조회 projection을 도메인 레코드로 변경, 테스트 정리 | API 응답·OpenAPI 스냅샷 불변 | 완료 |
-| 7c | wishlist를 `core.api.controller.v1.wishlist`·`core.domain.wishlist`로 이동하고 도메인 이전 레시피 확정 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 7c | wishlist를 `core.api.controller.v1.wishlist`·`core.domain.wishlist`로 이동하고 도메인 이전 레시피 확정 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 8~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: commoncode, statistics → member+auth → image, review, accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 
-### 도메인 이전 레시피 (초안, PR 7에서 확정)
+### 도메인 이전 레시피 (wishlist 파일럿에서 확정, PR 7a~7c)
 
-1. 도메인 클래스를 옮긴다.
-   - Controller, 문서 인터페이스, DTO → `core.api.controller.v1.<도메인>(.request/.response)`
-   - 엔티티, enum, 예외, 서비스 → `core.domain.<도메인>`
-   - Repository → `core.domain.<도메인>.repository`
-2. JPQL의 `select new kr.kro.airbob...` FQCN 문자열을 고친다. `./gradlew compileJava`로 Q-클래스를 다시 생성한다.
-3. Service의 세부 구현을 Reader/Writer/Validator로 추출한다. Service에는 흐름만 남긴다.
+옮기는 순간부터 엄격 규칙이 적용된다. 그래서 경계와 내부 계층을 먼저 정리하고, 패키지 이동은 마지막에 한다.
+작은 도메인은 세 단계를 한 PR로 합쳐도 된다. 큰 도메인은 wishlist처럼 나눈다.
+
+**1단계: 경계 정리** (wishlist는 PR 7a)
+
+1. 다른 도메인이 이 도메인의 Repository를 쓰던 곳을 이 도메인의 Reader로 바꾼다.
+2. 이 도메인이 다른 도메인의 Repository를 쓰던 곳은 그 도메인의 Reader(`MemberReader.readActive` 등)로 바꾼다.
+3. 순환이 생기면 필요한 쪽이 소유한 포트를 이 도메인의 Reader가 구현한다.
+4. 동결 저장소에서 줄어든 위반을 함께 커밋한다.
+
+**2단계: 내부 계층화** (wishlist는 PR 7b)
+
+1. Service의 세부 구현을 Reader/Writer/Validator로 추출한다. Service에는 흐름만 남긴다.
    잠금 순서와 트랜잭션 경계는 그대로 둔다. 잠금을 잡는 조회는 Reader의 `...ForUpdate` 메서드로 옮기고, Business가 그 순서대로 호출한다.
-4. Business 시그니처에서 Request/Response를 제거한다. 변환은 Controller와 DTO 팩토리가 맡는다.
+2. Business 시그니처에서 Request/Response를 제거한다. 변환은 Controller와 DTO 팩토리가 맡는다.
    기준은 위의 "Business 입출력과 도메인 레코드"를 따른다. 서비스를 직접 호출하는 통합 테스트는 결과를 `XxxResponse.from`으로 바꿔 기존 JSON 계약 단언을 유지한다.
-5. 다른 도메인이 이 도메인의 Repository를 쓰던 곳을 이 도메인의 Reader로 바꾼다. 순환이 생기면 포트로 끊는다.
-6. 테스트 패키지와 `ApiDocumentationTest`의 컴포넌트 스캔, `.claude/rules` 경로를 갱신한다.
-7. 전체 테스트, `verifyOpenApi`(스냅샷 불변), ArchUnit(동결 위반 감소)을 확인한다.
+3. Business가 받는 조회 결과를 `repository` 패키지 밖의 도메인 레코드로 바꾼다. 응답 DTO의 `@QueryProjection`도 도메인 레코드로 옮긴다.
+
+**3단계: 패키지 이동** (wishlist는 PR 7c)
+
+1. `git mv`로 옮긴다.
+
+   | 이전 위치 | 새 위치 |
+   |---|---|
+   | `domain.<도메인>.api` | `core.api.controller.v1.<도메인>` |
+   | `domain.<도메인>.dto`의 요청 DTO | `core.api.controller.v1.<도메인>.request` |
+   | `domain.<도메인>.dto`의 응답 DTO | `core.api.controller.v1.<도메인>.response` |
+   | `domain.<도메인>.{entity,exception,service}`, 도메인 레코드 | `core.domain.<도메인>` (하위 패키지 없이) |
+   | `domain.<도메인>.repository` | `core.domain.<도메인>.repository` (`querydsl`, `projection` 유지) |
+
+2. 패키지 문자열을 더 구체적인 경로부터 바꾼다(`...api` → `...dto.XxxRequest` → `...dto.XxxResponse` → `...{entity,exception,service}` → 나머지).
+   - 이 치환으로 JPQL `select new` FQCN과 QueryDSL `import static ...QXxx.*`도 함께 바뀐다.
+   - 각 파일의 `package` 선언을 경로에 맞추고, 같은 패키지가 된 클래스의 import를 지운다.
+   - 이전 구조의 파일은 import 순서를 통째로 정렬하지 않고, 바뀐 줄만 제자리에 옮긴다(diff 최소화).
+3. 테스트를 옮긴다. 도메인·통합 테스트는 `core.domain.<도메인>`, 컨트롤러 테스트는 `core.api.controller.v1.<도메인>`.
+4. 경로 참조를 고친다.
+   - `.claude/rules`의 `paths`: `**/src/**/domain/<도메인>/**/*`는 `core/domain/<도메인>`도 잡지만 컨트롤러는 잡지 못한다. 규칙 파일이 있는 도메인이면 `**/src/**/controller/v1/<도메인>/**/*`를 추가한다.
+   - `docs/`의 소스 링크.
+   - `ApiDocumentationTest`의 컨트롤러 스캔은 `core.api.controller.v1`을 이미 포함한다.
+5. 전체 빌드로 확인한다.
+   - 전체 테스트와 `verifyOpenApi`(스냅샷 불변)
+   - ArchUnit: 엄격 규칙이 이 도메인에 적용되고 통과하는지, 동결 저장소에 새 위반이 없는지

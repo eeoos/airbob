@@ -84,6 +84,17 @@ import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
+import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
+import kr.kro.airbob.core.domain.wishlist.WishlistAccessDeniedException;
+import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationAccessDeniedException;
+import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationDuplicateException;
+import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationItem;
+import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationPage;
+import kr.kro.airbob.core.domain.wishlist.WishlistMembership;
+import kr.kro.airbob.core.domain.wishlist.WishlistNotFoundException;
+import kr.kro.airbob.core.domain.wishlist.WishlistService;
+import kr.kro.airbob.core.domain.wishlist.WishlistSummary;
+import kr.kro.airbob.core.domain.wishlist.WishlistSummaryPage;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
@@ -186,17 +197,6 @@ import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.exception.*;
 import kr.kro.airbob.domain.statistics.service.RevenueStatsService;
 import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
-import kr.kro.airbob.domain.wishlist.WishlistAccommodationItem;
-import kr.kro.airbob.domain.wishlist.WishlistAccommodationPage;
-import kr.kro.airbob.domain.wishlist.WishlistMembership;
-import kr.kro.airbob.domain.wishlist.WishlistSummary;
-import kr.kro.airbob.domain.wishlist.WishlistSummaryPage;
-import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
-import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
-import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationAccessDeniedException;
-import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
-import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
-import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.search.service.AccommodationSearchService;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse;
 import kr.kro.airbob.search.document.AccommodationDocument;
@@ -2704,7 +2704,7 @@ class ApiDocumentationTest {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	@ComponentScan(basePackages = {"kr.kro.airbob.domain", "kr.kro.airbob.search"}, useDefaultFilters = false,
+	@ComponentScan(basePackages = {"kr.kro.airbob.core.api.controller.v1", "kr.kro.airbob.domain", "kr.kro.airbob.search"}, useDefaultFilters = false,
 		includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = RestController.class),
 		excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*\\$.*"))
 	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class, WebMvcAutoConfiguration.class,

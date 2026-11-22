@@ -11,7 +11,7 @@
 | 숙소 편의시설 | 기존 편의시설별 DELETE | 숙소 ID 조건의 JPQL DELETE |
 | 만료 예약 이력 | JPA `save()`를 건별 호출 | 제한된 크기의 JDBC batch INSERT |
 
-[위시리스트 삭제](../../core/core-api/src/main/java/kr/kro/airbob/domain/wishlist/service/WishlistService.java)는 존재·소유권과
+[위시리스트 삭제](../../core/core-api/src/main/java/kr/kro/airbob/core/domain/wishlist/WishlistService.java)는 존재·소유권과
 삭제 대상을 조회한 뒤 연결 행을 지운다. 대상 조회 자체를 제거한 최적화는 아니다.
 연결 숙소 N개를 개별 삭제하던 경로와 비교하면 DELETE는 N회에서 1회가 된다.
 N=1,000의 `1,000 → 1회`는 DELETE 횟수이며 전체 요청의 SQL 수나 지연 감소율이 아니다.

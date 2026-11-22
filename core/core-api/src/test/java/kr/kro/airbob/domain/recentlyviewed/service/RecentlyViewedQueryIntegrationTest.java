@@ -43,10 +43,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfos;
 

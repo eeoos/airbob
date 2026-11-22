@@ -30,10 +30,10 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
-import kr.kro.airbob.domain.wishlist.service.WishlistReader;
 
 @Testcontainers
 class RecentlyViewedHistoryIntegrationTest {
