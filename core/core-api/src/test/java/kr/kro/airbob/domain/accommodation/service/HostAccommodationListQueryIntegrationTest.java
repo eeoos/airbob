@@ -54,6 +54,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.HostAccommod
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.HostAccommodationInfos;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse.AddressSummaryInfo;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
@@ -63,7 +64,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
-	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class,
+	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class, ReservationAvailabilityReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	HostAccommodationListQueryIntegrationTest.SqlCaptureConfig.class
 })

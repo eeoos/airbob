@@ -26,9 +26,9 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationImage;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,7 +46,7 @@ public class AccommodationImageService {
 	private final S3ImageUploader s3ImageUploader;
 	private final ApplicationEventPublisher applicationEventPublisher;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 
 	@Transactional
 	public ImageResponse.ImageUploadResult uploadImages(

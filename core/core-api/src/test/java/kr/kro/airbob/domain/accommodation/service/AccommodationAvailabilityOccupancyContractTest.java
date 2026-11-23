@@ -8,10 +8,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,6 +20,7 @@ import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
+import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -40,8 +41,14 @@ class AccommodationAvailabilityOccupancyContractTest {
 	@Mock private AccommodationDetailCache accommodationDetailCache;
 	@Mock private Clock clock;
 
-	@InjectMocks
 	private AccommodationQueryService service;
+
+	@BeforeEach
+	void setUp() {
+		service = new AccommodationQueryService(accommodationRepository,
+			new ReservationAvailabilityReader(bookingWindowProvider, inventoryService, clock), cursorPageInfoCreator,
+			accommodationDetailReader, accommodationDetailCache);
+	}
 
 	@Test
 	@DisplayName("직접 availability는 reservation overlap 대신 조회 시각을 포함한 inventory snapshot을 사용한다")

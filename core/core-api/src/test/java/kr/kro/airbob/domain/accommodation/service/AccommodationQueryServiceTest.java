@@ -9,11 +9,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,6 +26,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
+import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -46,8 +47,14 @@ class AccommodationQueryServiceTest {
 	@Mock private AccommodationDetailCache accommodationDetailCache;
 	@Mock private Clock clock;
 
-	@InjectMocks
 	private AccommodationQueryService accommodationQueryService;
+
+	@BeforeEach
+	void setUp() {
+		accommodationQueryService = new AccommodationQueryService(accommodationRepository,
+			new ReservationAvailabilityReader(bookingWindowProvider, inventoryService, clock), cursorPageInfoCreator,
+			accommodationDetailReader, accommodationDetailCache);
+	}
 
 	@Test
 	@DisplayName("비로그인 숙소 상세 조회는 찜 여부를 조회하지 않고 false를 반환한다")

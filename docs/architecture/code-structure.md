@@ -58,6 +58,21 @@ review는 accommodation(리뷰 대상), reservation(작성 자격), search(색�
 - **리뷰 작성 가능 여부**: 게스트 예약 상세가 이미 게시한 리뷰가 있는지 확인한다. reservation이 소유한 포트 `ReservationReviewReader`를 review의 `ReviewReader`가 구현한다.
 - review가 쓰는 숙소·예약 조회는 `AccommodationReader.readPublished`와 `ReservationReader.existsPastCompletedReservationByGuest`를 거친다.
 
+#### accommodation의 경계 (PR 13a, 13b)
+
+reservation(예약 대상), search(검색 문서), review, recentlyviewed, payment가 accommodation에 의존한다. accommodation은 이들에 의존하지 않는다.
+
+- 다른 도메인은 `AccommodationReader`(숙소, 견적·체크아웃 스냅샷, 재고 seed 대상, 최근 본 숙소)와 `AccommodationAmenityReader`로 읽는다.
+  체크아웃의 `FOR SHARE NOWAIT` 스냅샷도 같은 트랜잭션에서 Reader를 거쳐 읽으며, NOWAIT 분류는 `ReservationTransactionService`가 그대로 한다.
+- accommodation이 필요로 하는 다른 도메인 기능은 accommodation이 소유한 포트(`domain.accommodation.port`)로 쓴다.
+
+  | 포트 | 쓰는 곳 | 구현 |
+  |---|---|---|
+  | `AccommodationSearchRefreshRequester` | 숙소·이미지 변경 시 검색 갱신 요청 | search의 `AccommodationSearchRefreshPublisher`(outbox 발행기)가 이 포트를 확장 |
+  | `AccommodationInventorySeeder` | 게시·시간대 변경 시 같은 트랜잭션에서 재고 seed | reservation의 `AccommodationInventorySeedService` |
+  | `AccommodationReservationReader` | 시간 설정 변경 전 미래 재고 예약 확인 | reservation의 `ReservationReader` |
+  | `AccommodationAvailabilityReader` | 예약 가능일 조회 | reservation의 `ReservationAvailabilityReader`(예약 기간 계산 → 조회 시각 → 재고 스냅샷의 불가 구간) |
+
 템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
@@ -222,6 +237,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 12a (review 경계) | 18 | 10 (review ↔ accommodation, review ↔ reservation, review ↔ search 해소) | 13 |
 | PR 12b (review 이전) | 18 | 10 | 13 |
 | PR 13a (accommodation Repository 사용 정리) | 9 | 10 | 13 |
+| PR 13b (accommodation 순환 정리) | 9 | 5 (accommodation ↔ reservation, accommodation ↔ search, payment → accommodation 해소) | 13 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -258,7 +274,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 12a | review 경계: 리뷰 요약(엔티티·Repository·응답 DTO)을 accommodation으로 옮기고 `AccommodationReviewSummaryReader`·`AccommodationReviewSummaryWriter` 추가, review의 숙소·예약 Repository 사용을 `AccommodationReader`·`ReservationReader`로, reservation의 리뷰 확인을 포트 `ReservationReviewReader`(구현 `ReviewReader`)로 | 동결 위반 감소, 쿼리·스냅샷 불변 | 완료 |
 | 12b | review 이전: `ReviewReader`·`ReviewWriter`·`ReviewImageReader`·`ReviewImageWriter` 추출, Business 입출력을 원시값과 도메인 레코드(`ReviewItem`, `ReviewPage`, `StoredImage`)로, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 13a | accommodation Repository 사용 정리: reservation(견적·체크아웃·재고 seed)·search·recentlyviewed의 accommodation Repository 사용을 `AccommodationReader`·`AccommodationAmenityReader`로, accommodation의 예약 조회를 `ReservationReader`로. 다른 도메인이 받는 projection(`InventorySeedTarget`, `RecentlyViewedAccommodationProjection`)은 repository 패키지 밖 도메인 루트로 | 동결 위반 감소, 쿼리·잠금 순서 불변 | 완료 |
-| 13b | accommodation 순환 정리: accommodation ↔ reservation, accommodation ↔ search, payment → accommodation | 동결 위반 감소 | |
+| 13b | accommodation 순환 정리: accommodation이 소유한 포트(검색 갱신 요청, 재고 seed, 미래 예약 확인, 예약 가능일)를 search·reservation이 구현해 accommodation → reservation·search 간선 제거, 검색 문서 → 주소 응답 변환을 search로 | 동결 위반 감소, 트랜잭션 경계 불변 | 완료 |
 | 13c | accommodation 내부 계층화: 엔티티의 요청 DTO·`GeocodeResult` 의존 제거, Reader/Writer, Business 입출력 | 엄격 규칙 준비, 스냅샷 불변 | |
 | 13d | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | |
 | 14~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |

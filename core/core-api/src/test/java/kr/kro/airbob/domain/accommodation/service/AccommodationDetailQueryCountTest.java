@@ -57,6 +57,7 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -74,7 +75,8 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	AccommodationQueryService.class,
 	AccommodationDetailReader.class, WishlistReader.class,
 	AccommodationInventoryDayRepository.class,
-	ReservationInventoryService.class
+	ReservationInventoryService.class,
+	ReservationAvailabilityReader.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 상세 조회 쿼리 테스트")

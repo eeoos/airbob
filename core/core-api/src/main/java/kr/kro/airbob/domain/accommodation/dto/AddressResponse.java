@@ -2,7 +2,6 @@ package kr.kro.airbob.domain.accommodation.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.domain.accommodation.entity.Address;
-import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -49,15 +48,6 @@ public class AddressResponse {
 				.state(address.getState())
 				.city(address.getCity())
 				.district(address.getDistrict())
-				.build();
-		}
-
-		public static AddressSummaryInfo from(AccommodationDocument document) {
-			return AddressSummaryInfo.builder()
-				.country(document.country())
-				.state(document.state())
-				.city(document.city())
-				.district(document.district())
 				.build();
 		}
 	}
