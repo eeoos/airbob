@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import kr.kro.airbob.common.validation.NotBlankWhenPresent;
 import kr.kro.airbob.domain.accommodation.AccommodationPatch;
+import kr.kro.airbob.domain.accommodation.AccommodationUpdate;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest.AmenityInfo;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -68,6 +69,16 @@ public class AccommodationRequest {
     ){
         public AccommodationPatch toPatch() {
             return new AccommodationPatch(name, description, basePrice, currency, type, checkInTime, checkOutTime);
+        }
+
+        public AccommodationUpdate toUpdate() {
+            return new AccommodationUpdate(
+                toPatch(),
+                addressInfo == null ? null : addressInfo.toNewAddress(),
+                amenityInfos == null ? null : amenityInfos.stream()
+                    .map(info -> info == null ? null : info.toNewAmenity())
+                    .toList(),
+                occupancyPolicyInfo == null ? null : occupancyPolicyInfo.toNewOccupancyPolicy());
         }
     }
 }

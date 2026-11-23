@@ -30,6 +30,20 @@ public class AccommodationReader {
 			.orElseThrow(AccommodationNotFoundException::new);
 	}
 
+	/** 호스트의 삭제되지 않은 숙소를 쓰기 잠금으로 읽는다. 없거나 다른 호스트의 숙소면 AccommodationNotFoundException. */
+	public Accommodation readOwnedForUpdate(Long accommodationId, Long hostId) {
+		return accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			accommodationId, hostId, AccommodationStatus.DELETED
+		).orElseThrow(AccommodationNotFoundException::new);
+	}
+
+	/** 호스트의 삭제되지 않은 숙소. 잠그지 않는다. 없거나 다른 호스트의 숙소면 AccommodationNotFoundException. */
+	public Accommodation readOwned(Long accommodationId, Long hostId) {
+		return accommodationRepository.findByIdAndMemberIdAndStatusNot(
+			accommodationId, hostId, AccommodationStatus.DELETED
+		).orElseThrow(AccommodationNotFoundException::new);
+	}
+
 	/** 예약 견적용 숙소와 숙박 인원 정책. 잠그지 않는다. */
 	public Optional<Accommodation> findQuoteSnapshotByIdAndStatus(Long accommodationId, AccommodationStatus status) {
 		return accommodationRepository.findQuoteSnapshotByIdAndStatus(accommodationId, status);

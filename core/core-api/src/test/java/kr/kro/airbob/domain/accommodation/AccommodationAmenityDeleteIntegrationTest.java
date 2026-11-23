@@ -46,6 +46,7 @@ import kr.kro.airbob.common.monitoring.SqlQueryType;
 import kr.kro.airbob.common.monitoring.QueryCountContext;
 import kr.kro.airbob.common.monitoring.QueryCountContextHolder;
 import kr.kro.airbob.common.monitoring.QueryCountSnapshot;
+import kr.kro.airbob.domain.accommodation.AccommodationUpdate;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
@@ -228,7 +229,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 			.build();
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
-			fixture.targetAccommodationId(), request, ownerId
+			fixture.targetAccommodationId(), request.toUpdate(), ownerId
 		)).isInstanceOf(InvalidAccommodationAmenityException.class);
 
 		assertThat(amenityMap(fixture.targetAccommodationId())).isEqualTo(targetBefore);
@@ -258,7 +259,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 			null
 		);
 
-		accommodationCommandService.updateAccommodation(fixture.targetAccommodationId(), request, ownerId);
+		accommodationCommandService.updateAccommodation(fixture.targetAccommodationId(), request.toUpdate(), ownerId);
 
 		Map<String, Object> parent = parentSnapshot(fixture.targetAccommodationId());
 		assertThat(parent.get("name")).isEqualTo("managed parent after bulk delete");
@@ -430,10 +431,10 @@ class AccommodationAmenityDeleteIntegrationTest {
 		List<String> activeAmenityCodes, String controlAmenityCode, int controlAmenityCount) {
 	}
 
-	private AccommodationRequest.Update update(List<AmenityRequest.AmenityInfo> amenities) {
+	private AccommodationUpdate update(List<AmenityRequest.AmenityInfo> amenities) {
 		return new AccommodationRequest.Update(
 			null, null, null, null, null, amenities, null, null, null, null
-		);
+		).toUpdate();
 	}
 
 	private List<String> activeAmenityCodes() {

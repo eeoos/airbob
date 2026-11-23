@@ -45,9 +45,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
-import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
+import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.domain.auth.SessionAuthenticationService;
 import kr.kro.airbob.core.domain.auth.SessionReader;
 import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
@@ -84,7 +84,7 @@ class AccommodationUploadHttpTest {
 	@Test
 	void repeatedImagePartsBindToRealController() throws Exception {
 		when(imageService.uploadImages(eq(101L), anyList(), eq(10L)))
-			.thenReturn(new ImageResponse.ImageUploadResult(List.of(new ImageResponse.ImageInfo(1L, "https://example.invalid/image.png"))));
+			.thenReturn(List.of(new StoredImage(1L, "https://example.invalid/image.png")));
 		var response = upload(2, 3);
 		assertThat(response.statusCode()).isEqualTo(201);
 		assertThat(mapper.readTree(response.body()).at("/data/uploaded_images/0/id").asLong()).isEqualTo(1L);

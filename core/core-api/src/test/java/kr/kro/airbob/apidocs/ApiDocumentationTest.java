@@ -85,7 +85,6 @@ import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
-import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
@@ -608,8 +607,8 @@ class ApiDocumentationTest {
 			""";
 		validateInstance(spec, schema, mapper.readTree(times));
 		mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(times)).andExpect(status().isOk());
-		verify(context.getBean(AccommodationCommandService.class)).updateAccommodation(eq(101L), argThat(request ->
-			java.time.LocalTime.of(15, 0).equals(request.checkInTime()) && java.time.LocalTime.of(11, 0).equals(request.checkOutTime())), eq(10L));
+		verify(context.getBean(AccommodationCommandService.class)).updateAccommodation(eq(101L), argThat(update ->
+			java.time.LocalTime.of(15, 0).equals(update.patch().checkInTime()) && java.time.LocalTime.of(11, 0).equals(update.patch().checkOutTime())), eq(10L));
 	}
 
 	@Test
@@ -709,7 +708,7 @@ class ApiDocumentationTest {
 	void accommodationCreationAndPublishingDocumentActualInputsAndErrors() throws Exception {
 		JsonNode spec = specification("client");
 		AccommodationCommandService service = context.getBean(AccommodationCommandService.class);
-		when(service.createAccommodation(10L)).thenReturn(new AccommodationResponse.Create(101L));
+		when(service.createAccommodation(10L)).thenReturn(101L);
 		String created = mvc.perform(post("/api/v1/accommodations").cookie(SESSION)).andExpect(status().isCreated())
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, "/api/v1/accommodations", "post", "201", created);
@@ -747,7 +746,7 @@ class ApiDocumentationTest {
 		assertDocumentedError(spec, path, "post", "415", "C011", unsupported.getContentAsString());
 		verifyNoInteractions(service);
 		when(service.uploadImages(eq(101L), anyList(), eq(10L)))
-			.thenReturn(new ImageResponse.ImageUploadResult(List.of(new ImageResponse.ImageInfo(301L, "https://example.invalid/room.png"))));
+			.thenReturn(List.of(new StoredImage(301L, "https://example.invalid/room.png")));
 		var file = new MockMultipartFile("images", "room.png", "image/png", new byte[] {1});
 		String uploaded = mvc.perform(multipart(path, 101).file(file).cookie(SESSION)).andExpect(status().isCreated())
 			.andReturn().getResponse().getContentAsString();

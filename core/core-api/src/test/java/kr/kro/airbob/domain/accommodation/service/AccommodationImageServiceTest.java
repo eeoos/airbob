@@ -8,18 +8,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 
-import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
+import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageDeletionRequested;
 import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageUploaded;
 import kr.kro.airbob.core.domain.image.ImageUploadException;
@@ -46,8 +46,14 @@ class AccommodationImageServiceTest {
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Captor private ArgumentCaptor<List<AccommodationImage>> imagesCaptor;
 
-	@InjectMocks
 	private AccommodationImageService accommodationImageService;
+
+	@BeforeEach
+	void setUp() {
+		accommodationImageService = new AccommodationImageService(new AccommodationReader(accommodationRepository),
+			new AccommodationImageReader(accommodationImageRepository), new AccommodationImageWriter(accommodationImageRepository),
+			s3ImageUploader, applicationEventPublisher, cacheInvalidationPublisher, searchRefreshPublisher);
+	}
 
 	@Test
 	@DisplayName("이미지를 저장하고 가장 먼저 저장된 이미지를 썸네일로 지정한다")
@@ -74,7 +80,7 @@ class AccommodationImageServiceTest {
 		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
 			.thenReturn(List.of(savedFirst, savedSecond));
 
-		ImageResponse.ImageUploadResult response = accommodationImageService.uploadImages(
+		List<StoredImage> response = accommodationImageService.uploadImages(
 			1L, List.of(firstFile, secondFile), 2L
 		);
 
@@ -85,9 +91,9 @@ class AccommodationImageServiceTest {
 		assertThat(imagesCaptor.getValue())
 			.extracting(AccommodationImage::getAccommodation)
 			.containsOnly(accommodation);
-		assertThat(response.uploadedImages()).containsExactly(
-			new ImageResponse.ImageInfo(10L, savedFirst.getImageUrl()),
-			new ImageResponse.ImageInfo(11L, savedSecond.getImageUrl())
+		assertThat(response).containsExactly(
+			new StoredImage(10L, savedFirst.getImageUrl()),
+			new StoredImage(11L, savedSecond.getImageUrl())
 		);
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(savedFirst.getImageUrl());
 		verify(applicationEventPublisher).publishEvent(new ImageUploaded(savedFirst.getImageUrl()));
