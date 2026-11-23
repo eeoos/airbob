@@ -30,7 +30,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheJitter;
 import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheProperties;
 import kr.kro.airbob.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 
 @Testcontainers
 @DisplayName("숙소 상세 캐시 조회·무효화 경합 통합 테스트")

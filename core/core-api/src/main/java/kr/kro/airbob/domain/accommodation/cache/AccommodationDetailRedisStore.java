@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheJitter;
 import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheProperties;
 import kr.kro.airbob.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 import lombok.extern.slf4j.Slf4j;
 
 /**

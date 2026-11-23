@@ -13,7 +13,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -109,8 +109,12 @@ public class AccommodationQueryService {
 		HostAccommodationDetailProjection accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
 			.orElseThrow(AccommodationNotFoundException::new);
 
-		List<AmenityResponse.AmenityInfo> amenityInfos = accommodationDetailReader.loadAmenities(accommodationId);
-		List<ImageResponse.ImageInfo> imageInfos = accommodationDetailReader.loadImages(accommodationId);
+		List<AmenityResponse.AmenityInfo> amenityInfos = accommodationDetailReader.loadAmenities(accommodationId).stream()
+			.map(amenity -> new AmenityResponse.AmenityInfo(amenity.type(), amenity.count()))
+			.toList();
+		List<ImageResponse.ImageInfo> imageInfos = accommodationDetailReader.loadImages(accommodationId).stream()
+			.map(ImageResponse.ImageInfo::from)
+			.toList();
 
 		return AccommodationResponse.HostDetail.from(
 			accommodation,

@@ -5,13 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
-import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
-import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
-import kr.kro.airbob.domain.accommodation.dto.PolicyResponse;
+import kr.kro.airbob.core.domain.image.StoredImage;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
@@ -40,8 +35,8 @@ public class AccommodationDetailReader {
 
 	private AccommodationDetailSnapshot toSnapshot(Long accommodationId,
 		PublicAccommodationDetailProjection projection) {
-		List<AmenityResponse.AmenityInfo> amenities = loadAmenities(accommodationId);
-		List<ImageResponse.ImageInfo> images = loadImages(accommodationId);
+		List<AccommodationDetailSnapshot.Amenity> amenities = loadAmenities(accommodationId);
+		List<StoredImage> images = loadImages(accommodationId);
 
 		return new AccommodationDetailSnapshot(
 			projection.id(),
@@ -53,14 +48,14 @@ public class AccommodationDetailReader {
 			projection.checkInTime(),
 			projection.checkOutTime(),
 			projection.timeZoneId(),
-			new AddressResponse.AddressSummaryInfo(
+			new AccommodationDetailSnapshot.AddressSummary(
 				projection.country(), projection.state(), projection.city(), projection.district()),
-			new AddressResponse.Coordinate(projection.latitude(), projection.longitude()),
-			new MemberResponse.MemberInfo(projection.hostId(), projection.hostNickname(), projection.hostThumbnailImageUrl()),
-			new PolicyResponse.PolicyInfo(projection.maxOccupancy(), projection.infantOccupancy(), projection.petOccupancy()),
+			new AccommodationDetailSnapshot.Coordinate(projection.latitude(), projection.longitude()),
+			new AccommodationDetailSnapshot.Host(projection.hostId(), projection.hostNickname(), projection.hostThumbnailImageUrl()),
+			new AccommodationDetailSnapshot.Policy(projection.maxOccupancy(), projection.infantOccupancy(), projection.petOccupancy()),
 			amenities,
 			images,
-			AccommodationResponse.ReviewSummary.of(projection.totalReviewCount(), projection.averageRating())
+			AccommodationDetailSnapshot.ReviewSummary.of(projection.totalReviewCount(), projection.averageRating())
 		);
 	}
 
@@ -69,17 +64,17 @@ public class AccommodationDetailReader {
 		return wishlistReader.isInWishlist(accommodationId, viewerId);
 	}
 
-	List<AmenityResponse.AmenityInfo> loadAmenities(Long accommodationId) {
+	List<AccommodationDetailSnapshot.Amenity> loadAmenities(Long accommodationId) {
 		return accommodationAmenityRepository.findDetailAmenitiesByAccommodationId(accommodationId)
 			.stream()
-			.map(amenity -> new AmenityResponse.AmenityInfo(amenity.type(), amenity.count()))
+			.map(amenity -> new AccommodationDetailSnapshot.Amenity(amenity.type(), amenity.count()))
 			.toList();
 	}
 
-	List<ImageResponse.ImageInfo> loadImages(Long accommodationId) {
+	List<StoredImage> loadImages(Long accommodationId) {
 		return accommodationImageRepository.findDetailImagesByAccommodationIdOrderByIdAsc(accommodationId)
 			.stream()
-			.map(image -> new ImageResponse.ImageInfo(image.id(), image.imageUrl()))
+			.map(image -> new StoredImage(image.id(), image.imageUrl()))
 			.toList();
 	}
 }

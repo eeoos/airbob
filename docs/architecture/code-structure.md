@@ -75,6 +75,10 @@ reservation(예약 대상), search(검색 문서), review, recentlyviewed, payme
 - 숙소 쓰기(PR 13d): `AccommodationCommandService`와 `AccommodationImageService`에는 흐름만 남았다.
   - 세부 구현은 Implement가 맡는다: `AccommodationReader`(호스트 숙소 조회·잠금), `AccommodationWriter`(생성, 위치·인원 정책·편의시설 교체, 이력 SCD2), `AccommodationValidator`(유형·편의시설 코드, 체크인·체크아웃, 게시 필수 항목, 미래 예약이 있을 때 시간 설정 변경 금지), `AccommodationLocationResolver`(지오코딩 → 시간대), `AccommodationImageReader`·`AccommodationImageWriter`(썸네일 갱신 포함).
   - 입출력은 `AccommodationUpdate`(기본 정보 `AccommodationPatch`, `NewAddress`, `NewAmenity` 목록, `NewOccupancyPolicy`), 숙소 ID, `StoredImage` 목록이다. 변환은 Controller와 요청 DTO의 `toUpdate()`가 맡는다.
+- 숙소 상세 캐시 값(PR 13e): `AccommodationDetailSnapshot`은 도메인 루트의 레코드이고, 중첩 값도 응답 DTO 대신 도메인 레코드(주소 요약, 좌표, 호스트, 인원 정책, 편의시설, `StoredImage`, 리뷰 요약)다.
+  - 캐시는 클래스 이름 없이 JSON으로 저장되므로, 필드 이름과 구조를 바꾸지 않는 한 타입을 옮겨도 이미 저장된 값을 읽는다.
+  - `AccommodationDetailCacheValueJsonTest`가 저장된 JSON 문자열 그대로를 쓰고 읽는지 확인한다. 캐시 값을 바꿀 때는 이 테스트를 먼저 본다.
+  - 응답 DTO 변환은 `AccommodationResponse.DetailInfo.from`이 맡는다.
 
 템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
@@ -244,6 +248,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 13b (accommodation 순환 정리) | 9 | 5 (accommodation ↔ reservation, accommodation ↔ search, payment → accommodation 해소) | 13 |
 | PR 13c (accommodation 엔티티 입력) | 9 | 5 | 9 (`Accommodation`·`Address`·`OccupancyPolicy` → 요청 DTO·`GeocodeResult` 해소) |
 | PR 13d (accommodation 쓰기 계층화) | 9 | 5 | 9 |
+| PR 13e (accommodation 상세 캐시 값) | 9 | 5 | 9 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -283,8 +288,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 13b | accommodation 순환 정리: accommodation이 소유한 포트(검색 갱신 요청, 재고 seed, 미래 예약 확인, 예약 가능일)를 search·reservation이 구현해 accommodation → reservation·search 간선 제거, 검색 문서 → 주소 응답 변환을 search로 | 동결 위반 감소, 트랜잭션 경계 불변 | 완료 |
 | 13c | accommodation 엔티티 입력: 엔티티가 받던 요청 DTO를 도메인 입력 레코드(`AccommodationPatch`, `NewAddress`, `NewOccupancyPolicy`)로, `Address`는 `GeocodeResult` 대신 좌표를 받음 | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 13d | accommodation 쓰기 계층화: `AccommodationWriter`·`AccommodationValidator`·`AccommodationLocationResolver`·`AccommodationImageReader`·`AccommodationImageWriter` 추출, 쓰기 Business 입출력을 `AccommodationUpdate`·숙소 ID·`StoredImage`로 | 호출 순서·트랜잭션 경계·스냅샷 불변 | 완료 |
-| 13e | accommodation 조회 계층화: 조회 Business 출력과 상세 캐시 값(`AccommodationDetailSnapshot`)을 도메인 레코드로. 캐시 JSON 계약 테스트를 그대로 통과시켜 저장된 캐시 값과 호환 | 엄격 규칙 준비, 캐시 JSON·스냅샷 불변 | |
-| 13f | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | |
+| 13e | accommodation 상세 캐시 값: `AccommodationDetailSnapshot`을 도메인 루트로 옮기고 중첩 값을 도메인 레코드로. 바꾸기 전 캐시 JSON을 문자열로 고정한 테스트를 추가해 저장된 값과 호환 확인 | 캐시 JSON·스냅샷 불변 | 완료 |
+| 13f | accommodation 조회 출력: 공개 상세·가용일·호스트 목록·호스트 상세의 Business 출력을 도메인 레코드로(repository 패키지 projection 포함) | 엄격 규칙 준비, 스냅샷 불변 | |
+| 13g | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | |
 | 14~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |

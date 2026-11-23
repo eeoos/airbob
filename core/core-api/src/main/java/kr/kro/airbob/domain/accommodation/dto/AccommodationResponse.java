@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
@@ -146,14 +147,41 @@ public class AccommodationResponse {
 				.checkOutTime(snapshot.checkOutTime())
 				.timeZoneId(snapshot.timeZoneId())
 				.isInWishlist(isInWishlist)
-				.addressSummary(snapshot.addressSummary())
-				.coordinate(snapshot.coordinate())
-				.host(snapshot.host())
-				.policy(snapshot.policy())
-				.amenities(snapshot.amenities())
-				.images(snapshot.images())
-				.reviewSummary(snapshot.reviewSummary())
+				.addressSummary(toAddressSummary(snapshot.addressSummary()))
+				.coordinate(toCoordinate(snapshot.coordinate()))
+				.host(toHost(snapshot.host()))
+				.policy(toPolicy(snapshot.policy()))
+				.amenities(snapshot.amenities().stream()
+					.map(amenity -> new AmenityResponse.AmenityInfo(amenity.type(), amenity.count()))
+					.toList())
+				.images(snapshot.images().stream().map(ImageResponse.ImageInfo::from).toList())
+				.reviewSummary(toReviewSummary(snapshot.reviewSummary()))
 				.build();
+		}
+
+		private static AddressResponse.AddressSummaryInfo toAddressSummary(
+			AccommodationDetailSnapshot.AddressSummary address) {
+			return address == null ? null : new AddressResponse.AddressSummaryInfo(
+				address.country(), address.state(), address.city(), address.district());
+		}
+
+		private static AddressResponse.Coordinate toCoordinate(AccommodationDetailSnapshot.Coordinate coordinate) {
+			return coordinate == null ? null
+				: new AddressResponse.Coordinate(coordinate.latitude(), coordinate.longitude());
+		}
+
+		private static MemberResponse.MemberInfo toHost(AccommodationDetailSnapshot.Host host) {
+			return host == null ? null
+				: new MemberResponse.MemberInfo(host.id(), host.nickname(), host.thumbnailImageUrl());
+		}
+
+		private static PolicyResponse.PolicyInfo toPolicy(AccommodationDetailSnapshot.Policy policy) {
+			return policy == null ? null : new PolicyResponse.PolicyInfo(
+				policy.maxOccupancy(), policy.infantOccupancy(), policy.petOccupancy());
+		}
+
+		private static ReviewSummary toReviewSummary(AccommodationDetailSnapshot.ReviewSummary summary) {
+			return summary == null ? null : new ReviewSummary(summary.totalCount(), summary.averageRating());
 		}
 
 	}
