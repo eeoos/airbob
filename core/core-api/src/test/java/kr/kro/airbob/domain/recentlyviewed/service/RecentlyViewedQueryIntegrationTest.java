@@ -46,10 +46,10 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.RecentlyViewedAccommodationInfo;
+import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.RecentlyViewedAccommodationInfos;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfo;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfos;
-import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 
 @DataJpaTest(showSql = false, properties = {
 	"spring.jpa.properties.hibernate.generate_statistics=true",

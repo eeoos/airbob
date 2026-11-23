@@ -6,8 +6,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.RequiredArgsConstructor;
 

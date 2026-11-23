@@ -19,7 +19,7 @@ import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.search.port.SearchWishlistReader;
 import kr.kro.airbob.search.document.AccommodationDocument;

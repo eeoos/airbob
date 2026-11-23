@@ -10,11 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 
 @Tag(name = "최근 본 숙소")
 @RequestMapping("/api")

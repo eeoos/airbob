@@ -6,8 +6,8 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.domain.accommodation.port.AccommodationAvailability;
-import kr.kro.airbob.domain.accommodation.port.AccommodationAvailabilityReader;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationAvailability;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationAvailabilityReader;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import lombok.RequiredArgsConstructor;

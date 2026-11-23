@@ -1,0 +1,796 @@
+package kr.kro.airbob.core.domain.accommodation;
+
+import static kr.kro.airbob.core.domain.commoncode.CommonCodeGroups.*;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+
+import kr.kro.airbob.core.api.controller.v1.accommodation.request.AccommodationRequest;
+import kr.kro.airbob.core.api.controller.v1.accommodation.request.AddressRequest;
+import kr.kro.airbob.core.api.controller.v1.accommodation.request.AmenityRequest;
+import kr.kro.airbob.core.api.controller.v1.accommodation.request.PolicyRequest;
+import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
+import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationAmenityRepository;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationHistoryRepository;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationImageRepository;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.core.domain.accommodation.repository.AddressRepository;
+import kr.kro.airbob.core.domain.accommodation.repository.OccupancyPolicyRepository;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
+import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
+import kr.kro.airbob.geo.GeocodingService;
+import kr.kro.airbob.geo.TimeZoneResolver;
+import kr.kro.airbob.geo.dto.GeocodeResult;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("숙소 명령 서비스 단위 테스트")
+class AccommodationCommandServiceTest {
+	private static final Instant NOW = Instant.parse("2030-01-01T00:00:00Z");
+
+	@Mock private AccommodationRepository accommodationRepository;
+	@Mock private ReservationReader reservationReader;
+	@Mock private AccommodationAmenityRepository accommodationAmenityRepository;
+	@Mock private AccommodationHistoryRepository accommodationHistoryRepository;
+	@Mock private AccommodationImageRepository accommodationImageRepository;
+	@Mock private AddressRepository addressRepository;
+	@Mock private OccupancyPolicyRepository occupancyPolicyRepository;
+	@Mock private CommonCodeReader commonCodeReader;
+	@Mock private GeocodingService geocodingService;
+	@Mock private TimeZoneResolver timeZoneResolver;
+	@Mock private MemberReader memberReader;
+	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	@Mock private AccommodationInventorySeedService inventorySeedService;
+	@Mock private Clock clock;
+
+	private AccommodationCommandService accommodationCommandService;
+
+	@BeforeEach
+	void setUpClock() {
+		accommodationCommandService = new AccommodationCommandService(
+			new AccommodationReader(accommodationRepository),
+			new AccommodationWriter(accommodationRepository, accommodationHistoryRepository, addressRepository,
+				occupancyPolicyRepository, accommodationAmenityRepository, clock),
+			new AccommodationValidator(commonCodeReader, reservationReader, accommodationImageRepository, clock),
+			new AccommodationLocationResolver(geocodingService, timeZoneResolver),
+			memberReader, searchRefreshPublisher, cacheInvalidationPublisher, inventorySeedService);
+		lenient().when(clock.instant()).thenReturn(NOW);
+		lenient().when(reservationReader.existsFutureInventoryReservation(anyLong(), eq(NOW)))
+			.thenReturn(false);
+	}
+
+	@Test
+	@DisplayName("게시 숙소의 기존 정책을 수정하면 같은 정책을 갱신하고 조회 캐시와 색인을 갱신한다")
+	void updateExistingPolicyAndRefreshReadModels() {
+		OccupancyPolicy policy = OccupancyPolicy.builder()
+			.id(9L).maxOccupancy(4).infantOccupancy(1).petOccupancy(0).build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L).accommodationUid(UUID.randomUUID()).status(AccommodationStatus.PUBLISHED)
+			.occupancyPolicy(policy).build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		accommodationCommandService.updateAccommodation(1L, AccommodationRequest.Update.builder()
+			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(6, 2, 3)).build().toUpdate(), 2L);
+
+		assertThat(accommodation.getOccupancyPolicy()).isSameAs(policy);
+		assertThat(policy.getMaxOccupancy()).isEqualTo(6);
+		assertThat(policy.getInfantOccupancy()).isEqualTo(2);
+		assertThat(policy.getPetOccupancy()).isEqualTo(3);
+		verifyNoInteractions(occupancyPolicyRepository);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		verify(cacheInvalidationPublisher).publish(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+	}
+
+	@Test
+	@DisplayName("주소가 바뀌면 해석된 좌표와 시간대를 함께 갱신한다")
+	void updateAddressAndTimeZoneTogether() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.name("기존 숙소")
+			.status(AccommodationStatus.DRAFT)
+			.build();
+		AddressRequest.AddressInfo addressInfo = seoulAddressInfo();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.addressInfo(addressInfo)
+			.build();
+		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울", null);
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
+		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
+		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
+
+		assertThat(accommodation.getAddress().getLatitude()).isEqualTo(37.5665);
+		assertThat(accommodation.getAddress().getLongitude()).isEqualTo(126.9780);
+		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		InOrder resolutionOrder = inOrder(geocodingService, timeZoneResolver, addressRepository);
+		resolutionOrder.verify(geocodingService).getCoordinates(anyString());
+		resolutionOrder.verify(timeZoneResolver).resolve(37.5665, 126.9780);
+		resolutionOrder.verify(addressRepository).save(any(Address.class));
+	}
+
+	@Test
+	@DisplayName("지오코딩 실패는 A008로 거부하고 숙소와 주소를 바꾸지 않는다")
+	void rejectGeocodingFailureBeforeAnyMutation() {
+		Address currentAddress = Address.builder()
+			.country("KR")
+			.city("Busan")
+			.street("Old street")
+			.postalCode("48000")
+			.latitude(35.1796)
+			.longitude(129.0756)
+			.build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.name("기존 이름")
+			.address(currentAddress)
+			.status(AccommodationStatus.DRAFT)
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.name("바뀐 이름")
+			.addressInfo(seoulAddressInfo())
+			.build();
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(geocodingService.getCoordinates(anyString())).thenReturn(GeocodeResult.fail());
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A008");
+			});
+		assertThat(accommodation.getName()).isEqualTo("기존 이름");
+		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
+		verifyNoInteractions(timeZoneResolver, addressRepository);
+	}
+
+	@Test
+	@DisplayName("게시 숙소의 시간대 해석 실패는 A008로 거부하고 전체 변경을 중단한다")
+	void rejectTimeZoneResolutionFailureForPublishedAccommodation() {
+		Address currentAddress = Address.builder()
+			.country("KR")
+			.city("Busan")
+			.street("Old street")
+			.postalCode("48000")
+			.latitude(35.1796)
+			.longitude(129.0756)
+			.build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.name("공개 중인 숙소")
+			.address(currentAddress)
+			.status(AccommodationStatus.PUBLISHED)
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.name("바뀐 이름")
+			.addressInfo(seoulAddressInfo())
+			.build();
+		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울", null);
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
+		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A008");
+			});
+		assertThat(accommodation.getName()).isEqualTo("공개 중인 숙소");
+		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
+		verifyNoInteractions(addressRepository, searchRefreshPublisher);
+	}
+
+	@Test
+	@DisplayName("주소가 같아도 시간대가 없으면 위치를 다시 해석해 복구한다")
+	void recoverMissingTimeZoneEvenWhenAddressIsUnchanged() {
+		AddressRequest.AddressInfo addressInfo = seoulAddressInfo();
+		Address currentAddress = Address.builder()
+			.country(addressInfo.country())
+			.state(addressInfo.state())
+			.city(addressInfo.city())
+			.district(addressInfo.district())
+			.street(addressInfo.street())
+			.detail(addressInfo.detail())
+			.postalCode(addressInfo.postalCode())
+			.latitude(1.0)
+			.longitude(2.0)
+			.build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.address(currentAddress)
+			.status(AccommodationStatus.DRAFT)
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.addressInfo(addressInfo)
+			.build();
+		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울", null);
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
+		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
+		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
+
+		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
+		assertThat(accommodation.getAddress().getLatitude()).isEqualTo(37.5665);
+	}
+
+	@Test
+	@DisplayName("시간대가 없으면 숙소 게시를 거부한다")
+	void rejectPublishingWithoutTimeZone() {
+		Accommodation accommodation = publishableAccommodation();
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
+			});
+		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
+		verifyNoInteractions(searchRefreshPublisher);
+	}
+
+	@Test
+	@DisplayName("IANA 식별자로 해석할 수 없는 시간대면 숙소 게시를 거부한다")
+	void rejectPublishingWithInvalidTimeZoneId() {
+		Accommodation accommodation = publishableAccommodation("Mars/Olympus_Mons");
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
+			});
+		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
+	}
+
+	@ParameterizedTest(name = "{0} 고정 offset 식별자는 게시할 수 없다")
+	@ValueSource(strings = {"+09:00", "GMT+09:00"})
+	@DisplayName("IANA region ID가 아닌 고정 offset 시간대면 숙소 게시를 거부한다")
+	void rejectPublishingWithFixedOffsetTimeZoneId(String timeZoneId) {
+		Accommodation accommodation = publishableAccommodation(timeZoneId);
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		lenient().when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
+			});
+		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
+		verifyNoInteractions(searchRefreshPublisher);
+	}
+
+	@Test
+	@DisplayName("공백 시간대 식별자면 숙소 게시를 거부한다")
+	void rejectPublishingWithBlankTimeZoneId() {
+		Accommodation accommodation = publishableAccommodation("   ");
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
+			});
+		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
+		verifyNoInteractions(searchRefreshPublisher);
+	}
+
+	@Test
+	@DisplayName("유효하지 않은 숙소 유형은 A004와 400 응답용 예외로 거부한다")
+	void rejectInvalidAccommodationTypeAsBadRequest() {
+		Accommodation accommodation = mock(Accommodation.class);
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.type("not_a_type")
+			.build();
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "NOT_A_TYPE"))
+			.thenReturn(false);
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A004");
+			});
+	}
+
+	@Test
+	@DisplayName("체크아웃이 체크인보다 늦어 인접 숙박이 겹치는 시간 설정은 거부한다")
+	void rejectOverlappingTurnoverTimesOnUpdate() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.status(AccommodationStatus.DRAFT)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.checkInTime(LocalTime.of(10, 0))
+			.checkOutTime(LocalTime.of(12, 0))
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception ->
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
+
+		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
+		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
+		verifyNoInteractions(searchRefreshPublisher);
+	}
+
+	@Test
+	@DisplayName("체크인만 수정해도 기존 체크아웃과 비교해 인접 숙박 겹침을 검증한다")
+	void rejectOverlappingTurnoverTimesOnPartialUpdate() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.status(AccommodationStatus.DRAFT)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.checkInTime(LocalTime.of(10, 0))
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception ->
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
+
+		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
+		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
+		verifyNoInteractions(searchRefreshPublisher);
+	}
+
+	@Test
+	@DisplayName("인접 숙박의 실제 시각이 겹치는 숙소는 게시할 수 없다")
+	void rejectPublishingWithOverlappingTurnoverTimes() {
+		Accommodation accommodation = publishableAccommodation(
+			"Asia/Seoul", LocalTime.of(10, 0), LocalTime.of(12, 0));
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception ->
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009"));
+
+		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
+		verifyNoInteractions(searchRefreshPublisher);
+	}
+
+	@Test
+	@DisplayName("유효하지 않은 편의시설 코드가 하나라도 있으면 A007 400으로 전체 수정을 거부한다")
+	void rejectInvalidAmenityBeforeMutation() {
+		Accommodation accommodation = mock(Accommodation.class);
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.addressInfo(new AddressRequest.AddressInfo(
+				"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"
+			))
+			.amenityInfos(List.of(
+				new AmenityRequest.AmenityInfo("wifi", 1),
+				new AmenityRequest.AmenityInfo("not_a_real_amenity", 1)
+			))
+			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(4, 1, 0))
+			.build();
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(commonCodeReader.isValidCode(eq(AMENITY_TYPE), anyString()))
+			.thenAnswer(invocation -> "WIFI".equals(invocation.getArgument(1)));
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A007");
+			});
+
+		verify(accommodation, never()).updateAccommodation(any());
+		verify(accommodationAmenityRepository, never()).deleteByAccommodationIdInBulk(anyLong());
+		verify(accommodationAmenityRepository, never()).saveAll(any());
+		verifyNoInteractions(geocodingService, addressRepository, occupancyPolicyRepository);
+	}
+
+	@Test
+	@DisplayName("숙소 공통 코드 식별자는 JVM Locale과 무관하게 ASCII 대문자로 정규화한다")
+	void normalizeCommonCodeIdentifiersWithRootLocale() {
+		Locale previousLocale = Locale.getDefault();
+		try {
+			Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+			Accommodation accommodation = Accommodation.builder()
+				.id(1L)
+				.status(AccommodationStatus.DRAFT)
+				.build();
+			AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+				.type("private_room")
+				.amenityInfos(List.of(new AmenityRequest.AmenityInfo("wifi", 1)))
+				.build();
+
+			when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+				1L, 2L, AccommodationStatus.DELETED))
+				.thenReturn(Optional.of(accommodation));
+			when(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "PRIVATE_ROOM"))
+				.thenReturn(true);
+			when(commonCodeReader.isValidCode(AMENITY_TYPE, "WIFI"))
+				.thenReturn(true);
+
+			accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
+
+			assertThat(accommodation.getType()).isEqualTo("PRIVATE_ROOM");
+			verify(accommodationAmenityRepository).saveAll(argThat(amenities -> {
+				AccommodationAmenity amenity = amenities.iterator().next();
+				return amenity.getAmenityCode().equals("WIFI");
+			}));
+		} finally {
+			Locale.setDefault(previousLocale);
+		}
+	}
+
+	@Test
+	@DisplayName("체크인 시간이 바뀌는 수정은 기존 예약 절대 시각을 보호하기 위해 거부한다")
+	void rejectCheckInTimeChangeThatInvalidatesReservationSnapshot() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.status(AccommodationStatus.PUBLISHED)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.checkInTime(LocalTime.of(16, 0))
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(clock.instant()).thenReturn(NOW);
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
+
+		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
+	}
+
+	@Test
+	@DisplayName("체크아웃 시간이 바뀌는 수정은 기존 예약 절대 시각을 보호하기 위해 거부한다")
+	void rejectCheckOutTimeChangeThatInvalidatesReservationSnapshot() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("33333333-3333-3333-3333-333333333333"))
+			.status(AccommodationStatus.PUBLISHED)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.checkOutTime(LocalTime.of(10, 0))
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
+
+		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
+	}
+
+	@Test
+	@DisplayName("주소 해석 결과 시간대가 바뀌면 기존 예약 절대 시각을 보호하기 위해 거부한다")
+	void rejectResolvedTimeZoneChangeThatInvalidatesReservationSnapshot() {
+		Address currentAddress = Address.builder()
+			.country("KR")
+			.city("Seoul")
+			.street("Old street")
+			.postalCode("04500")
+			.latitude(37.5)
+			.longitude(127.0)
+			.build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.address(currentAddress)
+			.status(AccommodationStatus.DRAFT)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
+			.build();
+		AddressRequest.AddressInfo addressInfo = new AddressRequest.AddressInfo(
+			"10001", "US", "New York", "NY", "Manhattan", "Broadway", "1");
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.addressInfo(addressInfo)
+			.build();
+		GeocodeResult geocodeResult = GeocodeResult.success(40.7128, -74.0060, "New York", null);
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
+		when(timeZoneResolver.resolve(40.7128, -74.0060))
+			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
+			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
+
+		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
+		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
+		verify(addressRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("주소가 바뀌어도 해석된 시간대가 같으면 미래 예약이 있어도 수정할 수 있다")
+	void allowAddressChangeWhenResolvedTimeZoneStaysTheSame() {
+		Address currentAddress = Address.builder()
+			.country("KR")
+			.city("Seoul")
+			.street("Old street")
+			.postalCode("04500")
+			.latitude(37.5)
+			.longitude(127.0)
+			.build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("44444444-4444-4444-4444-444444444444"))
+			.address(currentAddress)
+			.status(AccommodationStatus.PUBLISHED)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
+			.build();
+		AddressRequest.AddressInfo addressInfo = new AddressRequest.AddressInfo(
+			"48000", "KR", "Busan", "Busan", "Haeundae", "Dalmaji-gil", "1");
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.addressInfo(addressInfo)
+			.build();
+		GeocodeResult geocodeResult = GeocodeResult.success(35.1796, 129.0756, "Busan", null);
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
+		when(timeZoneResolver.resolve(35.1796, 129.0756))
+			.thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
+		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
+
+		assertThat(accommodation.getAddress().getCity()).isEqualTo("Busan");
+		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
+		verify(reservationReader, never()).existsFutureInventoryReservation(anyLong(), any());
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+	}
+
+	@Test
+	@DisplayName("미래 유효 예약이 없으면 체크인 시간을 변경할 수 있다")
+	void allowCheckInTimeChangeWithoutFutureActiveReservation() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("22222222-2222-2222-2222-222222222222"))
+			.status(AccommodationStatus.PUBLISHED)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.checkInTime(LocalTime.of(16, 0))
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(clock.instant()).thenReturn(NOW);
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
+
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
+
+		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(16, 0));
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+	}
+
+	@Test
+	@DisplayName("숙소를 삭제하면 상세 캐시 무효화 이벤트를 발행한다")
+	void invalidateDetailCacheWhenAccommodationIsDeleted() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+			.status(AccommodationStatus.PUBLISHED)
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		accommodationCommandService.deleteAccommodation(1L, 2L);
+
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		verifyNoInteractions(inventorySeedService);
+	}
+
+	@Test
+	@DisplayName("숙소를 게시하면 상세 캐시 무효화 이벤트를 발행한다")
+	void invalidateDetailCacheWhenAccommodationIsPublished() {
+		Accommodation accommodation = publishableAccommodation("Asia/Seoul");
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
+
+		accommodationCommandService.publishAccommodation(1L, 2L);
+
+		verify(inventorySeedService).seedCurrentHorizon(accommodation);
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+	}
+
+	@Test
+	@DisplayName("숙소 게시를 중단하면 상세 캐시 무효화 이벤트를 발행한다")
+	void invalidateDetailCacheWhenAccommodationIsUnpublished() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+			.status(AccommodationStatus.PUBLISHED)
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		accommodationCommandService.unpublishAccommodation(1L, 2L);
+
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		verifyNoInteractions(inventorySeedService);
+	}
+
+	@Test
+	@DisplayName("inventory horizon seed가 실패하면 숙소를 게시 상태로 바꾸지 않는다")
+	void seedFailurePreventsPublishing() {
+		Accommodation accommodation = publishableAccommodation("Asia/Seoul");
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
+		doThrow(new IllegalStateException("seed failed"))
+			.when(inventorySeedService).seedCurrentHorizon(accommodation);
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessage("seed failed");
+
+		assertThat(accommodation.getStatus()).isNotEqualTo(AccommodationStatus.PUBLISHED);
+		verifyNoInteractions(searchRefreshPublisher, cacheInvalidationPublisher);
+	}
+
+	@Test
+	@DisplayName("게시 숙소의 시간대가 바뀌면 새 현지 booking horizon을 seed한다")
+	void seedsNewHorizonAfterPublishedTimeZoneChange() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("33333333-3333-3333-3333-333333333333"))
+			.status(AccommodationStatus.PUBLISHED)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
+			.address(Address.builder()
+				.country("KR").city("Seoul").street("old").postalCode("04524")
+				.latitude(37.5665).longitude(126.9780).build())
+			.build();
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.addressInfo(new AddressRequest.AddressInfo(
+				"10001", "US", "New York", "NY", "Manhattan", "5th Ave", "1"))
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED)).thenReturn(Optional.of(accommodation));
+		when(geocodingService.getCoordinates(anyString()))
+			.thenReturn(GeocodeResult.success(40.7128, -74.0060, "New York", null));
+		when(timeZoneResolver.resolve(40.7128, -74.0060))
+			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
+		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
+
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
+
+		assertThat(accommodation.getTimeZoneId()).isEqualTo("America/New_York");
+		verify(inventorySeedService).seedCurrentHorizon(accommodation);
+	}
+
+	private AddressRequest.AddressInfo seoulAddressInfo() {
+		return new AddressRequest.AddressInfo(
+			"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"
+		);
+	}
+
+	private Accommodation publishableAccommodation() {
+		return publishableAccommodation(null);
+	}
+
+	private Accommodation publishableAccommodation(String timeZoneId) {
+		return publishableAccommodation(
+			timeZoneId, LocalTime.of(15, 0), LocalTime.of(11, 0));
+	}
+
+	private Accommodation publishableAccommodation(
+		String timeZoneId,
+		LocalTime checkInTime,
+		LocalTime checkOutTime
+	) {
+		return Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+			.name("게시 가능한 숙소")
+			.description("설명")
+			.basePrice(100_000L)
+			.currency("KRW")
+			.type("ENTIRE_HOME")
+			.timeZoneId(timeZoneId)
+			.address(Address.builder()
+				.country("KR")
+				.city("Seoul")
+				.street("Sejong-daero")
+				.postalCode("04524")
+				.latitude(37.5665)
+				.longitude(126.9780)
+				.build())
+			.occupancyPolicy(OccupancyPolicy.builder()
+				.maxOccupancy(4)
+				.infantOccupancy(1)
+				.petOccupancy(0)
+				.build())
+			.checkInTime(checkInTime)
+			.checkOutTime(checkOutTime)
+			.status(AccommodationStatus.DRAFT)
+			.build();
+	}
+}

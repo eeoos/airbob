@@ -16,9 +16,9 @@
 연결 숙소 N개를 개별 삭제하던 경로와 비교하면 DELETE는 N회에서 1회가 된다.
 N=1,000의 `1,000 → 1회`는 DELETE 횟수이며 전체 요청의 SQL 수나 지연 감소율이 아니다.
 
-[편의시설 저장소](../../core/core-api/src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationAmenityRepository.java)는
+[편의시설 저장소](../../core/core-api/src/main/java/kr/kro/airbob/core/domain/accommodation/repository/AccommodationAmenityRepository.java)는
 `DELETE ... WHERE accommodation.id = :accommodationId`로 기존 항목을 지운다.
-[숙소 수정 서비스](../../core/core-api/src/main/java/kr/kro/airbob/domain/accommodation/service/AccommodationCommandService.java)에서
+[숙소 수정 서비스](../../core/core-api/src/main/java/kr/kro/airbob/core/domain/accommodation/AccommodationCommandService.java)에서
 `amenityInfos=null`은 기존 값 유지, 빈 목록은 전체 삭제, 값이 있으면 삭제 후 재등록한다.
 
 [예약 이력 writer](../../core/core-api/src/main/java/kr/kro/airbob/domain/reservation/repository/ReservationHistoryBatchWriter.java)는

@@ -12,12 +12,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotatedMethod;
 
+import kr.kro.airbob.core.api.controller.v1.accommodation.AccommodationController;
+import kr.kro.airbob.core.api.controller.v1.accommodation.AccommodationHostController;
 import kr.kro.airbob.core.api.controller.v1.auth.AuthController;
 import kr.kro.airbob.core.api.controller.v1.review.ReviewController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistAccommodationController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistController;
-import kr.kro.airbob.domain.accommodation.api.AccommodationController;
-import kr.kro.airbob.domain.accommodation.api.AccommodationHostController;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;

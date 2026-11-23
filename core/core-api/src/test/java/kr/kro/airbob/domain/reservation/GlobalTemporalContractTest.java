@@ -15,7 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedPolicy;
