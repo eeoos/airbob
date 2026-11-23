@@ -23,19 +23,19 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import jakarta.persistence.EntityManager;
 import kr.kro.airbob.core.domain.member.QMember;
+import kr.kro.airbob.domain.reservation.GuestReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.HostReservationListProjection;
+import kr.kro.airbob.domain.reservation.QGuestReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.QGuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.QHostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.dto.QReservationDateRange;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationListProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationDetailProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -207,7 +207,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		// HQL 파생 테이블로 후보 제한 후 동일 SQL 스냅샷에서 표시 정보 조인
 		// 게스트 조인을 뒤로 미루기 위한 전제: guest_id NOT NULL 및 외래 키
 		var query = entityManager.createQuery("""
-			select new kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection(
+			select new kr.kro.airbob.domain.reservation.HostReservationListProjection(
 				r.id, r.reservationUid, r.reservationCode, r.totalPrice, r.currency, r.guestCount,
 				r.checkInDate, r.checkOutDate, r.timeZoneId, r.status, r.createdAt,
 				guest.id, guest.nickname, guest.thumbnailImageUrl,

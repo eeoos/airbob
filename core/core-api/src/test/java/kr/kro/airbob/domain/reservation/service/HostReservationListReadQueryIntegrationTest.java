@@ -49,11 +49,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
-import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
-import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
@@ -66,14 +61,9 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse.HostReservationI
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse.HostReservationInfos;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
-import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
+import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -112,7 +102,7 @@ class HostReservationListReadQueryIntegrationTest {
 	@Autowired private ObjectMapper objectMapper;
 	@Autowired private CursorPageInfoCreator cursorPageInfoCreator;
 	@Autowired private CursorDecoder cursorDecoder;
-	private ReservationTransactionService service;
+	private ReservationQueryService service;
 
 	@BeforeEach
 	void fixture() {
@@ -137,13 +127,8 @@ class HostReservationListReadQueryIntegrationTest {
 			       (32, 11, '타인 숙소', UUID_TO_BIN(UUID()), 'DRAFT', null, null,
 				'15:00:00', '11:00:00', 'Asia/Seoul', NOW(6))
 			""");
-		service = new ReservationTransactionService(
-			mock(AccommodationSearchRefreshPublisher.class), cursorPageInfoCreator,
-			new MemberReader(mock(MemberRepository.class)), new ReviewReader(mock(ReviewRepository.class)), reservationRepository,
-			new AccommodationReader(mock(AccommodationRepository.class)), mock(ReservationHistoryRepository.class),
-			mock(CouponUsageManager.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
-			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
-			mock(ReservationInventoryManager.class), Clock.fixed(NOW, ZoneOffset.UTC));
+		service = new ReservationQueryService(new ReservationReader(reservationRepository),
+			new ReviewReader(mock(ReviewRepository.class)), cursorPageInfoCreator, Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@ParameterizedTest
@@ -317,9 +302,9 @@ class HostReservationListReadQueryIntegrationTest {
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
 		sqlCapture.statements.clear();
-		HostReservationInfos result = service.findHostReservations(hostId,
+		HostReservationInfos result = HostReservationInfos.from(service.findHostReservations(hostId,
 			new CursorPageRequest(size, cursor == null ? null : cursor.id(),
-				cursor == null ? null : cursor.lastCreatedAt()), filter);
+				cursor == null ? null : cursor.lastCreatedAt()), filter));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).hasSize(1);
 		String sql = sqlCapture.statements.getFirst();

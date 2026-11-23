@@ -48,12 +48,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
-import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
-import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.ReviewStatus;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
@@ -62,16 +57,12 @@ import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
+import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
-import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
+import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -110,7 +101,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 	@Autowired private PaymentTransactionRepository transactionRepository;
 	@Autowired private ReviewRepository reviewRepository;
 	@Autowired private ObjectMapper objectMapper;
-	private ReservationTransactionService service;
+	private ReservationQueryService service;
 
 	@BeforeEach
 	void fixture() {
@@ -133,13 +124,8 @@ class ReservationPaymentReadQueryIntegrationTest {
 				'PAYMENT_PROCESSING', '2026-09-01 10:10:00', '2026-09-01 10:00:00',
 				'2026-09-01 10:02:00', 'KRW')
 			""", RESERVATION_UID.toString());
-		service = new ReservationTransactionService(
-			mock(AccommodationSearchRefreshPublisher.class), mock(CursorPageInfoCreator.class),
-			new MemberReader(mock(MemberRepository.class)), new ReviewReader(reviewRepository), reservationRepository,
-			new AccommodationReader(mock(AccommodationRepository.class)), mock(ReservationHistoryRepository.class),
-			mock(CouponUsageManager.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
-			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
-			mock(ReservationInventoryManager.class), Clock.fixed(NOW, ZoneOffset.UTC));
+		service = new ReservationQueryService(new ReservationReader(reservationRepository),
+			new ReviewReader(reviewRepository), mock(CursorPageInfoCreator.class), Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@ParameterizedTest
@@ -147,7 +133,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 	void pendingCardReservationDoesNotNeedPaymentInfo(ReservationStatus status) {
 		jdbc.update("UPDATE reservation SET status = ? WHERE id = 40", status.name());
 		Statistics statistics = prepareMeasurement();
-		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+		var detail = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID));
 		assertThat(detail.status()).isEqualTo(status);
 		assertThat(detail.payment()).isNull();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
@@ -163,7 +149,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		jdbc.update("UPDATE payment_transaction SET virtual_account_number = 'synthetic-account' WHERE id = 61");
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment()).isNull();
+		assertThat(ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).payment()).isNull();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
 		assertThat(transactionRepository.findById(61L).orElseThrow().getTransactionType())
@@ -188,7 +174,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertTransaction(64, "VIRTUAL_ISSUED", null, null, "2026-09-01 08:00:00");
 		Statistics statistics = prepareMeasurement();
 
-		var payment = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment();
+		var payment = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).payment();
 		assertGuestQuery(statistics, false);
 		assertThat(payment.totalAmount()).isEqualTo(100000L);
 		assertThat(payment.method()).isEqualTo("카드");
@@ -203,7 +189,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 	@Test
 	void doesNotReadPaymentOrLedgerForAnotherGuestsReservation() {
 		Statistics statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findMyReservationDetail(RESERVATION_UID.toString(), 999L))
+		assertThatThrownBy(() -> ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), 999L)))
 			.isInstanceOf(ReservationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains(" from payment"));
@@ -224,7 +210,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		}
 		Statistics statistics = prepareMeasurement();
 
-		var detail = service.findHostReservationDetail(RESERVATION_UID.toString(), 10L);
+		var detail = ReservationResponse.HostDetail.from(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L));
 
 		assertThat(detail.payment().totalAmount()).isEqualTo(100001L);
 		assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail.payment())))
@@ -252,7 +238,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			""");
 		Statistics statistics = prepareMeasurement();
 
-		var detail = service.findHostReservationDetail(RESERVATION_UID.toString(), 10L);
+		var detail = ReservationResponse.HostDetail.from(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L));
 		assertThat(detail.payment()).isNull();
 		assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail.address())))
 			.isEqualTo(objectMapper.readTree("""
@@ -260,7 +246,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 				"""));
 		assertHostProjectionQuery(statistics);
 		statistics = prepareMeasurement();
-		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment()).isNull();
+		assertThat(ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).payment()).isNull();
 		assertGuestQuery(statistics, false);
 	}
 
@@ -269,7 +255,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertPayment(0L, 0L, "DONE");
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L).payment().totalAmount())
+		assertThat(ReservationResponse.HostDetail.from(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L)).payment().totalAmount())
 			.isZero();
 		assertHostProjectionQuery(statistics);
 	}
@@ -280,7 +266,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertPayment(100001L, 100001L, "DONE");
 		Statistics statistics = prepareMeasurement();
 
-		assertThatThrownBy(() -> service.findHostReservationDetail(RESERVATION_UID.toString(), memberId))
+		assertThatThrownBy(() -> ReservationResponse.HostDetail.from(service.findHostReservationDetail(RESERVATION_UID.toString(), memberId)))
 			.isInstanceOf(ReservationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
@@ -290,7 +276,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 	void hostGetsNotFoundForUnknownReservation() {
 		Statistics statistics = prepareMeasurement();
 
-		assertThatThrownBy(() -> service.findHostReservationDetail(UUID.randomUUID().toString(), 10L))
+		assertThatThrownBy(() -> ReservationResponse.HostDetail.from(service.findHostReservationDetail(UUID.randomUUID().toString(), 10L)))
 			.isInstanceOf(ReservationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
@@ -318,7 +304,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertPayment(100001L, 100001L, "DONE");
 		Statistics statistics = prepareMeasurement();
 
-		var detail = service.findHostReservationDetail(RESERVATION_UID.toString(), 10L);
+		var detail = ReservationResponse.HostDetail.from(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L));
 
 		try (var fixture = new ClassPathResource("contracts/host-reservation-stay-payment.json").getInputStream()) {
 			ObjectNode expected = (ObjectNode)objectMapper.readTree(fixture);
@@ -358,7 +344,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertTransaction(63, "FAIL", 50L, null, "2026-09-01 10:01:00");
 		Statistics statistics = prepareMeasurement();
 
-		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+		var detail = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID));
 
 		try (var fixture = new ClassPathResource("contracts/guest-reservation-detail-payment.json").getInputStream()) {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail)))
@@ -376,7 +362,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			java.sql.Timestamp.from(expiry));
 		Statistics statistics = prepareMeasurement();
 
-		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+		var detail = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID));
 
 		assertThat(detail.status()).isEqualTo(expectedStatus);
 		assertThat(detail.paymentAllowed()).isEqualTo(paymentAllowed);
@@ -394,7 +380,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			status.name());
 		Statistics statistics = prepareMeasurement();
 
-		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+		var detail = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID));
 
 		assertThat(detail.status()).isEqualTo(status);
 		assertThat(detail.paymentAllowed()).isFalse();
@@ -407,7 +393,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		jdbc.update("UPDATE reservation SET status = 'PAYMENT_PENDING', total_price = 0 WHERE id = 40");
 		Statistics statistics = prepareMeasurement();
 
-		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+		var detail = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID));
 
 		assertThat(detail.paymentAllowed()).isFalse();
 		assertThat(detail.payment()).isNull();
@@ -427,7 +413,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			java.sql.Timestamp.from(NOW.plus(checkoutOffsetMicros, ChronoUnit.MICROS)));
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).canWriteReview())
+		assertThat(ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).canWriteReview())
 			.isEqualTo(canWriteReview);
 		assertGuestQuery(statistics, canWriteReview);
 	}
@@ -444,7 +430,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			""", status.name());
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).canWriteReview())
+		assertThat(ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).canWriteReview())
 			.isEqualTo(status != ReviewStatus.PUBLISHED);
 		assertGuestQuery(statistics, true);
 	}
@@ -457,7 +443,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			java.sql.Timestamp.from(NOW));
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).canWriteReview()).isFalse();
+		assertThat(ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).canWriteReview()).isFalse();
 		assertGuestQuery(statistics, false);
 	}
 
@@ -468,7 +454,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertTransaction(61, "CANCEL", 50L, 100000L, "2026-09-01 10:00:00");
 		Statistics statistics = prepareMeasurement();
 
-		assertThatThrownBy(() -> service.findMyReservationDetail(RESERVATION_UID.toString(), memberId))
+		assertThatThrownBy(() -> ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), memberId)))
 			.isInstanceOf(ReservationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
@@ -477,7 +463,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 	@Test
 	void guestGetsNotFoundForUnknownReservation() {
 		Statistics statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findMyReservationDetail(UUID.randomUUID().toString(), GUEST_ID))
+		assertThatThrownBy(() -> ReservationResponse.GuestDetail.from(service.findMyReservationDetail(UUID.randomUUID().toString(), GUEST_ID)))
 			.isInstanceOf(ReservationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 	}
@@ -489,7 +475,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertTransaction(61, "CANCEL", 50L, 100001L - balanceAmount, "2026-09-01 10:00:00");
 		Statistics statistics = prepareMeasurement();
 
-		var payment = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment();
+		var payment = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).payment();
 
 		assertThat(payment.totalAmount()).isEqualTo(100001L);
 		assertThat(payment.status().name()).isEqualTo(status);
@@ -501,7 +487,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		insertPayment(0L, 0L, "DONE");
 		Statistics statistics = prepareMeasurement();
 
-		var payment = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment();
+		var payment = ReservationResponse.GuestDetail.from(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID)).payment();
 
 		assertThat(payment.totalAmount()).isZero();
 		assertThat(payment.approvedAt()).isEqualTo(Instant.parse("2026-09-01T09:00:00Z"));

@@ -164,6 +164,12 @@ import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
+import kr.kro.airbob.domain.reservation.GuestReservationDetail;
+import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.GuestReservationPage;
+import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.HostReservationListProjection;
+import kr.kro.airbob.domain.reservation.HostReservationPage;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -197,6 +203,7 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
+import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.core.support.error.BaseException;
@@ -240,6 +247,7 @@ import kr.kro.airbob.search.exception.SearchUnavailableException;
 	RecentlyViewedService.class,
 	ReservationHoldCommandService.class,
 	ReservationQuoteService.class,
+	ReservationQueryService.class,
 	ReservationService.class,
 	RevenueStatsService.class,
 	ReviewImageService.class,
@@ -902,8 +910,8 @@ class ApiDocumentationTest {
 		JsonNode example = spec.at("/components/schemas/ReservationResponseGuestDetail/example");
 		assertThat(example.path("status").asText()).isEqualTo("PAYMENT_PENDING");
 		assertThat(example.path("payment").isNull()).isTrue();
-		when(context.getBean(ReservationService.class).findMyReservationDetail(uid, 10L))
-			.thenReturn(ReservationResponse.GuestDetail.from(guestDetail(pending), false, now));
+		when(context.getBean(ReservationQueryService.class).findMyReservationDetail(uid, 10L))
+			.thenReturn(GuestReservationDetail.of(guestDetail(pending), false, now));
 		String detail = mvc.perform(get(guestPath, uid).cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, guestPath, "get", "200", detail);
@@ -911,19 +919,20 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(detail).at("/data/check_out_date_time").asText()).isEqualTo("2027-01-12T11:00:00");
 		assertThat(mapper.readTree(detail).at("/data/status").asText()).isEqualTo("EXPIRED");
 		assertThat(mapper.readTree(detail).at("/data/payment").isNull()).isTrue();
-		var guest = ReservationResponse.GuestDetail.from(guestDetail(pending), false, now);
-		when(context.getBean(ReservationService.class).findHostReservationDetail(uid, 10L))
-			.thenReturn(ReservationResponse.HostDetail.builder().reservationUid(uid).reservationCode("AB12CD")
-				.status(ReservationStatus.PAYMENT_PENDING).createdAt(guest.createdAt()).guestCount(2)
-				.checkInDateTime(guest.checkInDateTime()).checkOutDateTime(guest.checkOutDateTime())
-				.timeZoneId("Asia/Seoul").accommodation(guest.accommodation()).address(guest.address())
-				.guest(guest.host()).build());
+		var guestRow = guestDetail(pending);
+		when(context.getBean(ReservationQueryService.class).findHostReservationDetail(uid, 10L))
+			.thenReturn(new HostReservationDetailProjection(UUID.fromString(uid), "AB12CD",
+				ReservationStatus.PAYMENT_PENDING, guestRow.createdAt(), 2, guestRow.checkInAt(), guestRow.checkOutAt(),
+				"Asia/Seoul", null, guestRow.accommodationId(), guestRow.accommodationName(),
+				guestRow.accommodationThumbnailUrl(), guestRow.country(), guestRow.state(), guestRow.city(),
+				guestRow.district(), guestRow.street(), guestRow.addressDetail(), guestRow.postalCode(),
+				guestRow.hostId(), guestRow.hostNickname(), guestRow.hostThumbnailImageUrl(), null));
 		String host = mvc.perform(get(hostPath, uid).cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, hostPath, "get", "200", host);
 		assertThat(mapper.readTree(host).at("/data/status").asText()).isEqualTo("PAYMENT_PENDING");
-		when(context.getBean(ReservationService.class).findMyReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
-		when(context.getBean(ReservationService.class).findHostReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
+		when(context.getBean(ReservationQueryService.class).findMyReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
+		when(context.getBean(ReservationQueryService.class).findHostReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
 		for (String path : List.of(guestPath, hostPath)) {
 			String missing = mvc.perform(get(path, uid).cookie(SESSION)).andExpect(status().isNotFound())
 				.andReturn().getResponse().getContentAsString();
@@ -940,13 +949,15 @@ class ApiDocumentationTest {
 		var page = new CursorResponse.PageInfo(false, null, 1);
 		LocalDate checkIn = LocalDate.parse("2027-01-10");
 		LocalDate checkOut = LocalDate.parse("2027-01-12");
-		when(context.getBean(ReservationService.class).findMyReservations(eq(10L), any(), any()))
-			.thenReturn(new ReservationResponse.GuestReservationInfos(List.of(new ReservationResponse.GuestReservationInfo(
-				201L, uid, checkIn, checkOut, "Asia/Seoul", ReservationStatus.EXPIRED, null, accommodation)), page));
-		when(context.getBean(ReservationService.class).findHostReservations(eq(10L), any(), any()))
-			.thenReturn(new ReservationResponse.HostReservationInfos(List.of(new ReservationResponse.HostReservationInfo(
-				uid, "AB12CD", 190000L, "KRW", 2, checkIn, checkOut, "Asia/Seoul", ReservationStatus.CONFIRMED,
-				null, new MemberResponse.MemberInfo(20L, null, null), accommodation)), page));
+		when(context.getBean(ReservationQueryService.class).findMyReservations(eq(10L), any(), any()))
+			.thenReturn(new GuestReservationPage(List.of(new GuestReservationPage.Item(new GuestReservationListProjection(
+				201L, UUID.fromString(uid), checkIn, checkOut, "Asia/Seoul", ReservationStatus.EXPIRED, null, null,
+				accommodation.id(), accommodation.name(), accommodation.thumbnailUrl()), ReservationStatus.EXPIRED)), page));
+		when(context.getBean(ReservationQueryService.class).findHostReservations(eq(10L), any(), any()))
+			.thenReturn(new HostReservationPage(List.of(new HostReservationListProjection(
+				201L, UUID.fromString(uid), "AB12CD", 190000L, "KRW", 2, checkIn, checkOut, "Asia/Seoul",
+				ReservationStatus.CONFIRMED, null, 20L, null, null, accommodation.id(), accommodation.name(),
+				accommodation.thumbnailUrl())), page));
 		for (String role : List.of("guest", "host")) {
 			String path = "/api/v1/profile/" + role + "/reservations";
 			assertThat(spec.path("paths").path(path).path("get").path("parameters").findValuesAsText("name"))

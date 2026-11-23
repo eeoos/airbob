@@ -59,6 +59,8 @@ import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestSto
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
@@ -107,15 +109,14 @@ class ReservationTransactionServiceTest {
 	private Long memberId;
 
 	private Member host;
+	private ReservationQueryService queryService;
 
 	@BeforeEach
 	void setUp() {
 		holdPolicy = new ReservationHoldPolicy(Duration.ofMinutes(7));
 		transactionService = new ReservationTransactionService(
 			searchRefreshPublisher,
-			cursorPageInfoCreator,
 			new MemberReader(memberRepository),
-			new ReviewReader(reviewRepository),
 			reservationRepository,
 			new AccommodationReader(accommodationRepository),
 			historyRepository,
@@ -127,6 +128,8 @@ class ReservationTransactionServiceTest {
 			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
+		queryService = new ReservationQueryService(new ReservationReader(reservationRepository),
+			new ReviewReader(reviewRepository), cursorPageInfoCreator, Clock.fixed(NOW, ZoneOffset.UTC));
 		memberId = 1L;
 
 		guest = Member.builder()
@@ -195,7 +198,7 @@ class ReservationTransactionServiceTest {
 			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(false);
 
-		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
+		var response = queryService.findMyReservationDetail(reservationUid.toString(), memberId);
 
 		assertThat(response.canWriteReview()).isTrue();
 	}
@@ -209,7 +212,7 @@ class ReservationTransactionServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
+		var response = queryService.findMyReservationDetail(reservationUid.toString(), memberId);
 
 		assertThat(response.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
@@ -227,7 +230,7 @@ class ReservationTransactionServiceTest {
 			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(false);
 
-		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
+		var response = queryService.findMyReservationDetail(reservationUid.toString(), memberId);
 
 		assertThat(response.canWriteReview()).isTrue();
 	}
@@ -244,7 +247,7 @@ class ReservationTransactionServiceTest {
 			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(true);
 
-		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 	}
 
@@ -259,7 +262,7 @@ class ReservationTransactionServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
 	}
@@ -273,7 +276,7 @@ class ReservationTransactionServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
 	}
@@ -288,7 +291,7 @@ class ReservationTransactionServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
 	}

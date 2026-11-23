@@ -23,11 +23,13 @@ import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.Address;
 import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.domain.reservation.GuestReservationDetail;
+import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.GuestReservationPage;
+import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 
 @JsonTest
 @DisplayName("예약 응답 시간대 테스트")
@@ -84,11 +86,11 @@ class ReservationResponseTest {
 		try (var fixture = new ClassPathResource("contracts/guest-reservation-reviewable.json").getInputStream()) {
 			JsonNode expected = objectMapper.readTree(fixture);
 			JsonNode actual = objectMapper.readTree(objectMapper.writeValueAsString(
-				ReservationResponse.GuestDetail.from(guestDetail(reservation), true, SERVER_TIME)));
+				ReservationResponse.GuestDetail.from(GuestReservationDetail.of(guestDetail(reservation), true, SERVER_TIME))));
 			assertThat(actual).isEqualTo(expected);
 		}
 		JsonNode denied = objectMapper.valueToTree(
-			ReservationResponse.GuestDetail.from(guestDetail(reservation), false, SERVER_TIME));
+			ReservationResponse.GuestDetail.from(GuestReservationDetail.of(guestDetail(reservation), false, SERVER_TIME)));
 		assertThat(denied.get("can_write_review").isBoolean()).isTrue();
 		assertThat(denied.get("can_write_review").booleanValue()).isFalse();
 	}
@@ -173,7 +175,7 @@ class ReservationResponseTest {
 			SERVER_TIME, null, 10L, "expired stay", null);
 
 		ReservationResponse.GuestReservationInfo response =
-			ReservationResponse.GuestReservationInfo.from(reservation, SERVER_TIME);
+			ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(reservation, SERVER_TIME));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(reservation.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -217,18 +219,18 @@ class ReservationResponseTest {
 			.createdAt(createdAt)
 			.build();
 
-		ReservationResponse.GuestDetail guestDetail = ReservationResponse.GuestDetail.from(
-			guestDetail(reservation), true, SERVER_TIME);
+		ReservationResponse.GuestDetail guestDetail = ReservationResponse.GuestDetail.from(GuestReservationDetail.of(
+			guestDetail(reservation), true, SERVER_TIME));
 		ReservationResponse.HostDetail hostDetail = ReservationResponse.HostDetail.from(
 			new HostReservationDetailProjection(reservation.getReservationUid(), reservation.getReservationCode(),
 				reservation.getStatus(), createdAt, 2, reservation.getCheckInAt(), reservation.getCheckOutAt(),
 				reservationZone.getId(), reservation.getMessage(), 10L, accommodation.getName(), null,
 				null, null, null, null, null, null, null, 2L, guest.getNickname(), null, null));
 		ReservationResponse.GuestReservationInfo guestInfo =
-			ReservationResponse.GuestReservationInfo.from(new GuestReservationListProjection(
+			ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(new GuestReservationListProjection(
 				reservation.getId(), reservation.getReservationUid(), reservation.getCheckInDate(),
 				reservation.getCheckOutDate(), reservation.getTimeZoneId(), reservation.getStatus(),
-				reservation.getExpiresAt(), createdAt, accommodation.getId(), accommodation.getName(), null), SERVER_TIME);
+				reservation.getExpiresAt(), createdAt, accommodation.getId(), accommodation.getName(), null), SERVER_TIME));
 		ReservationResponse.HostReservationInfo hostInfo =
 			ReservationResponse.HostReservationInfo.from(new HostReservationListProjection(
 				reservation.getId(), reservation.getReservationUid(), reservation.getReservationCode(),

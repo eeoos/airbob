@@ -1,7 +1,7 @@
 package kr.kro.airbob.domain.reservation;
 
+import kr.kro.airbob.domain.reservation.GuestReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
 
 public final class ReservationReadTestFixtures {
 	private ReservationReadTestFixtures() {

@@ -133,9 +133,7 @@ class ReservationCheckInCutoffContractTest {
 	private ReservationTransactionService serviceAt(Instant now) {
 		return new ReservationTransactionService(
 			searchRefreshPublisher,
-			cursorPageInfoCreator,
 			new MemberReader(memberRepository),
-			new ReviewReader(reviewRepository),
 			reservationRepository,
 			new AccommodationReader(accommodationRepository),
 			historyRepository,
