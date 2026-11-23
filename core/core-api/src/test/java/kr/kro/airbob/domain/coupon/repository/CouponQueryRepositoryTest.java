@@ -23,8 +23,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
-import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
+import kr.kro.airbob.domain.coupon.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.MemberCouponProjection;
 
 @DataJpaTest
 @Testcontainers

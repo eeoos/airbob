@@ -11,32 +11,27 @@ import kr.kro.airbob.domain.coupon.NewCoupon;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponConfigurationLockedException;
 import kr.kro.airbob.domain.coupon.exception.CouponInvalidConfigurationException;
-import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
-import kr.kro.airbob.domain.coupon.repository.CouponRepository;
-import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import lombok.RequiredArgsConstructor;
 
 /** API commands carry instants; entity values and database comparisons use UTC. */
 @Service
 @RequiredArgsConstructor
 public class CouponService {
-	private final CouponRepository couponRepository;
-	private final MemberCouponRepository memberCouponRepository;
-	private final CouponIssueUnitStore units;
+	private final CouponReader couponReader;
+	private final CouponWriter couponWriter;
 
 	@Transactional
 	public Long createCoupon(NewCoupon dto) {
 		var coupon = Coupon.of(dto);
 		coupon.validateConfiguration();
-		if (!units.databaseNow().isBefore(coupon.getIssueStartAt())) throw new CouponInvalidConfigurationException();
-		return couponRepository.save(coupon).getId();
+		if (!couponReader.databaseNow().isBefore(coupon.getIssueStartAt())) throw new CouponInvalidConfigurationException();
+		return couponWriter.create(coupon);
 	}
 
 	@Transactional
 	public void updateCoupon(CouponPatch dto, Long couponId) {
-		var coupon = lock(couponId);
-		var now = units.databaseNow();
+		var coupon = couponReader.readForUpdate(couponId);
+		var now = couponReader.databaseNow();
 		if (coupon.changesPreparedIssuanceConfiguration(dto)) requireBeforeStart(coupon, now);
 		Integer previous = coupon.getTotalQuantity();
 		coupon.update(dto);
@@ -50,8 +45,8 @@ public class CouponService {
 	@Transactional
 	public void changeQuantity(Long couponId, Integer quantity) {
 		Coupon.validateQuantity(quantity);
-		var coupon = lock(couponId);
-		requireBeforeStart(coupon, units.databaseNow());
+		var coupon = couponReader.readForUpdate(couponId);
+		requireBeforeStart(coupon, couponReader.databaseNow());
 		Integer previous = coupon.getTotalQuantity();
 		coupon.changeTotalQuantity(quantity);
 		if (!Objects.equals(previous, quantity)) adjustPreparedUnits(coupon, previous);
@@ -59,20 +54,16 @@ public class CouponService {
 
 	@Transactional
 	public void deleteCoupon(Long couponId) {
-		var coupon = lock(couponId);
-		requireBeforeStart(coupon, units.databaseNow());
-		if (coupon.isStockPrepared()) units.removeAbove(couponId, 0);
+		var coupon = couponReader.readForUpdate(couponId);
+		requireBeforeStart(coupon, couponReader.databaseNow());
+		if (coupon.isStockPrepared()) couponWriter.removeUnitsAbove(couponId, 0);
 		// Only an unstarted, never-issued campaign may be discarded.
-		couponRepository.delete(coupon);
-	}
-
-	private Coupon lock(Long id) {
-		return couponRepository.findByIdForUpdate(id).orElseThrow(CouponNotFoundException::new);
+		couponWriter.delete(coupon);
 	}
 
 	private void requireBeforeStart(Coupon coupon, LocalDateTime now) {
 		if (!now.isBefore(coupon.getIssueStartAt())
-			|| memberCouponRepository.countByCouponId(coupon.getId()) != 0) {
+			|| couponReader.countIssued(coupon.getId()) != 0) {
 			throw new CouponConfigurationLockedException();
 		}
 	}
@@ -82,8 +73,8 @@ public class CouponService {
 		Coupon.validateQuantity(previous);
 		int target = coupon.getTotalQuantity();
 		if (target > previous) {
-			units.insertRange(coupon.getId(), previous + 1, target);
-		} else if (units.removeAbove(coupon.getId(), target) != previous - target) {
+			couponWriter.addUnits(coupon.getId(), previous + 1, target);
+		} else if (couponWriter.removeUnitsAbove(coupon.getId(), target) != previous - target) {
 			throw new IllegalStateException("쿠폰 감량 건수가 저장된 총수량과 일치하지 않습니다.");
 		}
 	}

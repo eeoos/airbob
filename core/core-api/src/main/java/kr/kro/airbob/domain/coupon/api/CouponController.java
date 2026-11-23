@@ -22,7 +22,7 @@ public class CouponController implements CouponApi {
 	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findCouponCampaigns(
 		CursorRequest.CouponCampaignCursorPageRequest request
 	) {
-		CouponResponse.CouponInfos coupons = couponQueryService.findCouponCampaigns(request);
+		CouponResponse.CouponInfos coupons = CouponResponse.CouponInfos.from(couponQueryService.findCouponCampaigns(request));
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 
@@ -31,7 +31,8 @@ public class CouponController implements CouponApi {
 		Long memberId,
 		CursorRequest.CursorPageRequest request
 	) {
-		CouponResponse.MemberCouponInfos coupons = couponQueryService.findMyCoupons(memberId, request);
+		CouponResponse.MemberCouponInfos coupons = CouponResponse.MemberCouponInfos.from(
+			couponQueryService.findMyCoupons(memberId, request));
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 

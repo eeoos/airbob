@@ -8,9 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,10 +38,13 @@ import kr.kro.airbob.core.support.cursor.resolver.CouponCampaignCursorParamArgum
 import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.coupon.CouponCampaignPage;
+import kr.kro.airbob.domain.coupon.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.MemberCouponPage;
+import kr.kro.airbob.domain.coupon.MemberCouponProjection;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
-import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponQueryService;
 
@@ -94,8 +95,8 @@ class CouponControllerTest {
 	@Test
 	@DisplayName("쿠폰 캠페인 목록에 현재 발급 상태를 포함한다")
 	void findsCouponCampaigns() throws Exception {
-		Instant issueStartAt = Instant.parse("2026-08-20T01:00:00Z");
-		CouponResponse.CouponInfo info = new CouponResponse.CouponInfo(
+		LocalDateTime issueStartAt = LocalDateTime.of(2026, 8, 20, 1, 0);
+		CouponCampaignProjection campaign = new CouponCampaignProjection(
 			1L,
 			"오전 10시 선착순 쿠폰",
 			null,
@@ -104,14 +105,15 @@ class CouponControllerTest {
 			50_000,
 			null,
 			issueStartAt,
-			issueStartAt.plus(10, ChronoUnit.MINUTES),
+			issueStartAt.plusMinutes(10),
 			issueStartAt,
-			issueStartAt.plus(30, ChronoUnit.DAYS),
+			issueStartAt.plusDays(30),
 			100,
-			CouponIssuanceStatus.UPCOMING);
+			true);
 		var request = new CursorRequest.CouponCampaignCursorPageRequest(20, null, null);
 		when(couponQueryService.findCouponCampaigns(request))
-			.thenReturn(new CouponResponse.CouponInfos(List.of(info), new CursorResponse.PageInfo(false, null, 1)));
+			.thenReturn(new CouponCampaignPage(List.of(new CouponCampaignPage.Item(campaign, CouponIssuanceStatus.UPCOMING)),
+				new CursorResponse.PageInfo(false, null, 1)));
 
 		mockMvc.perform(get("/api/v1/coupons"))
 			.andExpect(status().isOk())
@@ -128,8 +130,10 @@ class CouponControllerTest {
 	@Test
 	@DisplayName("로그인 회원이 발급받은 쿠폰 목록을 조회한다")
 	void findsMyCoupons() throws Exception {
-		Instant usableFrom = Instant.parse("2026-08-20T01:00:00Z");
-		CouponResponse.MemberCouponInfo info = new CouponResponse.MemberCouponInfo(
+		LocalDateTime usableFrom = LocalDateTime.of(2026, 8, 20, 1, 0);
+		MemberCouponProjection owned = new MemberCouponProjection(
+			7L,
+			usableFrom.minusDays(1),
 			1L,
 			"오전 10시 선착순 쿠폰",
 			null,
@@ -138,11 +142,13 @@ class CouponControllerTest {
 			50_000,
 			null,
 			usableFrom,
-			usableFrom.plus(30, ChronoUnit.DAYS),
-			MemberCouponStatus.AVAILABLE);
+			usableFrom.plusDays(30),
+			false,
+			true);
 		var request = new CursorRequest.CursorPageRequest(20, null, null);
 		when(couponQueryService.findMyCoupons(10L, request))
-			.thenReturn(new CouponResponse.MemberCouponInfos(List.of(info), new CursorResponse.PageInfo(false, null, 1)));
+			.thenReturn(new MemberCouponPage(List.of(new MemberCouponPage.Item(owned, MemberCouponStatus.AVAILABLE)),
+				new CursorResponse.PageInfo(false, null, 1)));
 
 		mockMvc.perform(get("/api/v1/members/me/coupons"))
 			.andExpect(status().isOk())
@@ -164,7 +170,7 @@ class CouponControllerTest {
 		LocalDateTime issueStartAt = LocalDateTime.of(2026, 10, 17, 1, 0, 0, 123456000);
 		var request = new CursorRequest.CouponCampaignCursorPageRequest(5, 17L, issueStartAt);
 		when(couponQueryService.findCouponCampaigns(request))
-			.thenReturn(new CouponResponse.CouponInfos(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+			.thenReturn(new CouponCampaignPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 
 		mockMvc.perform(get("/api/v1/coupons").param("size", "5")
 				.param("cursor", cursorEncoder.encode(new CouponCampaignCursorData(17L, issueStartAt))))
@@ -181,7 +187,7 @@ class CouponControllerTest {
 		LocalDateTime createdAt = LocalDateTime.of(2026, 10, 17, 1, 0, 0, 654321000);
 		var request = new CursorRequest.CursorPageRequest(50, 201L, createdAt);
 		when(couponQueryService.findMyCoupons(10L, request))
-			.thenReturn(new CouponResponse.MemberCouponInfos(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+			.thenReturn(new MemberCouponPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 
 		mockMvc.perform(get("/api/v1/members/me/coupons").param("size", "50")
 				.param("cursor", cursorEncoder.encode(new CursorData(201L, createdAt))))

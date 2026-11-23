@@ -200,6 +200,8 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 - **출력**: 엔티티 ID나 도메인 레코드를 돌려준다. 엔티티는 Business 밖으로 내보내지 않는다. 응답 DTO는 `XxxResponse.from(도메인 레코드)`로 Controller에서 만든다.
   UTC `LocalDateTime` → `Instant` 변환이나 요청에 따라 필드를 null로 비우는 일처럼 응답 모양만 바꾸는 규칙은 `from`에 둔다.
   엔티티 전체 값이 필요한 응답은 `XxxDetail.from(엔티티)` 레코드를 쓴다(예: `CommonCodeDetail`).
+- **기준 시각에 따른 값**: 조회 결과의 상태처럼 기준 시각으로 정해지는 값은 Business가 계산해 도메인 레코드에 담는다(예: `CouponCampaignPage.Item.of(projection, now)`). 응답 DTO는 담긴 값을 옮기기만 한다.
+- **시도마다 새 트랜잭션을 여는 흐름**: 재시도 횟수·시간 예산과 시도별 트랜잭션 설정(`TransactionTemplate`의 전파·격리 수준·제한 시간)은 Business에 둔다. 시도 한 번의 데이터 작업은 Implement에 둔다(예: `CouponSkipLockedIssueService`와 `CouponIssuer`). 잠금과 트랜잭션 계약을 한 곳에서 볼 수 있게 하기 위해서다.
 - **다른 도메인이 쓰는 기능**: Service가 아니라 Reader/Writer에 둔다. Service는 Controller용 흐름만 갖는다.
   예: 숙소의 코드 검증은 `CommonCodeService`가 아니라 `CommonCodeReader.isValidCode`를 쓴다. 이전 구조 도메인의 Service도 마찬가지다.
 - **값 정규화 규칙**: 코드 대문자화처럼 저장 값의 규칙은 엔티티 정적 메서드에 둔다(예: `CommonCode.normalizeCode`). 요청 DTO의 공백 제거는 검증 전에 필요하므로 그대로 둔다.
@@ -256,6 +258,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 13f (accommodation 조회 출력) | 9 | 5 | 9 |
 | PR 13g (accommodation 이전) | 9 | 5 | 9 |
 | PR 14a (coupon 입력과 사용 처리) | 9 | 5 | 7 (`Coupon` → 요청 DTO 해소) |
+| PR 14b (coupon 계층화) | 9 | 5 | 7 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -299,7 +302,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 13f | accommodation 조회 출력: 공개 상세·가용일·호스트 목록·호스트 상세의 Business 출력을 도메인 레코드로(repository 패키지 projection 포함) | 엄격 규칙 준비, 스냅샷 불변 | 완료 |
 | 13g | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 14a | coupon 입력과 사용 처리: `Coupon`이 요청 DTO 대신 `NewCoupon`·`CouponPatch`를 받음, 관리 서비스 입력을 도메인 레코드로, 다른 도메인이 쓰는 `CouponUsageService`를 Implement `CouponUsageManager`로(트랜잭션 참여 방식 그대로) | 동결 위반 감소, 스냅샷 불변 | 완료 |
-| 14b | coupon 계층화: 발급(`SKIP LOCKED`, 재시도, 트랜잭션 템플릿)·재고 준비·조회의 Repository 사용을 Implement로, 조회 출력을 도메인 레코드로 | `coupon.md`의 잠금·트랜잭션 계약 불변 | |
+| 14b | coupon 계층화: 관리·재고 준비·조회의 Repository 사용을 `CouponReader`·`CouponWriter`로, 발급 시도 한 번의 데이터 작업을 `CouponIssuer`로(재시도와 시도별 트랜잭션은 Business에 그대로), 조회 출력을 도메인 레코드(`CouponCampaignPage`, `MemberCouponPage`)로 | `coupon.md`의 잠금·트랜잭션 계약 불변 | 완료 |
 | 14c | coupon 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 15~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |

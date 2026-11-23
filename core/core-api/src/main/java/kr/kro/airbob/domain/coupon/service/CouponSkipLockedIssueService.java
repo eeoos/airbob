@@ -13,47 +13,30 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 
-import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.domain.coupon.entity.Coupon;
-import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
 import kr.kro.airbob.domain.coupon.exception.CouponIssueContendedException;
-import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
-import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
-import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
-import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.DatabaseResult;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.IssueResult;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricResultResolver;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
-import kr.kro.airbob.domain.coupon.repository.CouponRepository;
-import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 
 @Service
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 public class CouponSkipLockedIssueService {
 	private final PlatformTransactionManager transactionManager;
-	private final CouponRepository coupons;
-	private final CouponIssueUnitStore units;
-	private final MemberCouponRepository memberCoupons;
-	private final MemberReader members;
+	private final CouponIssuer issuer;
 	private final CouponIssueMetricRecorder metrics;
 	private final int maxAttempts;
 	private final long retryBudgetNanos;
 
-	public CouponSkipLockedIssueService(PlatformTransactionManager transactionManager, CouponRepository coupons,
-		CouponIssueUnitStore units, MemberCouponRepository memberCoupons, MemberReader members,
+	public CouponSkipLockedIssueService(PlatformTransactionManager transactionManager, CouponIssuer issuer,
 		CouponIssueMetricRecorder metrics, @Value("${coupon.issue.max-attempts:3}") int maxAttempts,
 		@Value("${coupon.issue.retry-budget-ms:250}") long retryBudgetMillis) {
 		Assert.isTrue(maxAttempts >= 1 && maxAttempts <= 10, "coupon.issue.max-attempts must be 1..10");
 		Assert.isTrue(retryBudgetMillis >= 1 && retryBudgetMillis <= 5000, "Invalid coupon retry budget");
 		this.transactionManager = transactionManager;
-		this.coupons = coupons;
-		this.units = units;
-		this.memberCoupons = memberCoupons;
-		this.members = members;
+		this.issuer = issuer;
 		this.metrics = metrics;
 		this.maxAttempts = maxAttempts;
 		this.retryBudgetNanos = TimeUnit.MILLISECONDS.toNanos(retryBudgetMillis);
@@ -69,7 +52,7 @@ public class CouponSkipLockedIssueService {
 					attempt(couponId, memberId);
 					result = IssueResult.SUCCESS;
 					return;
-				} catch (NoAvailableUnitException busy) {
+				} catch (CouponIssuer.NoAvailableUnitException busy) {
 					retry = RetryReason.EMPTY_UNIT;
 				} catch (RuntimeException failure) {
 					if (CouponIssueFailureClassifier.duplicateMemberCoupon(failure)) throw new CouponAlreadyIssuedException();
@@ -98,20 +81,10 @@ public class CouponSkipLockedIssueService {
 		long started = System.nanoTime();
 		DatabaseResult result = DatabaseResult.ERROR;
 		try {
-			transaction(false).executeWithoutResult(status -> {
-				// OSIV can retain first-level entities even across newly started transactions.
-				// The locked policy read must reflect this attempt's database state.
-				units.clearPersistenceContext();
-				Coupon coupon = coupons.findByIdForShareNowait(couponId).orElseThrow(CouponNotFoundException::new);
-				validate(coupon);
-				if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId)) throw new CouponAlreadyIssuedException();
-				var unit = units.lockAvailable(couponId).orElseThrow(NoAvailableUnitException::new);
-				units.consume(couponId, unit);
-				memberCoupons.saveAndFlush(MemberCoupon.issue(members.readReference(memberId), coupon));
-			});
+			transaction(false).executeWithoutResult(status -> issuer.issue(couponId, memberId));
 			result = DatabaseResult.SUCCESS;
 		} catch (RuntimeException failure) {
-			result = failure instanceof NoAvailableUnitException || CouponIssueFailureClassifier.retryReason(failure) != null
+			result = failure instanceof CouponIssuer.NoAvailableUnitException || CouponIssueFailureClassifier.retryReason(failure) != null
 				? DatabaseResult.RETRY : CouponIssueMetricResultResolver.databaseResult(failure);
 			throw failure;
 		} finally {
@@ -120,21 +93,7 @@ public class CouponSkipLockedIssueService {
 	}
 
 	private void classifyEmptyOrContended(Long couponId, Long memberId) {
-		transaction(true).executeWithoutResult(status -> {
-			units.clearPersistenceContext();
-			if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId)) throw new CouponAlreadyIssuedException();
-			Coupon coupon = coupons.findById(couponId).orElseThrow(CouponNotFoundException::new);
-			validate(coupon);
-			if (!units.hasRemaining(couponId)) throw new CouponSoldOutException();
-		});
-	}
-
-	private void validate(Coupon coupon) {
-		if (coupon.getTotalQuantity() == null || coupon.getTotalQuantity() < 1
-			|| !Boolean.TRUE.equals(coupon.getIsActive()) || !coupon.isIssueOpen(units.databaseNow())) {
-			throw new CouponNotIssuableException();
-		}
-		if (!coupon.isStockPrepared()) throw new CouponStockNotPreparedException();
+		transaction(true).executeWithoutResult(status -> issuer.classifyFailedAttempt(couponId, memberId));
 	}
 
 	private TransactionTemplate transaction(boolean readOnly) {
@@ -145,6 +104,4 @@ public class CouponSkipLockedIssueService {
 		template.setTimeout(1);
 		return template;
 	}
-
-	private static final class NoAvailableUnitException extends RuntimeException { }
 }

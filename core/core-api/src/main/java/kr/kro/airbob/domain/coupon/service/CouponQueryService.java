@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.coupon.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,49 +11,43 @@ import kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.coupon.dto.CouponResponse;
-import kr.kro.airbob.domain.coupon.repository.CouponRepository;
-import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
-import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
-import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
+import kr.kro.airbob.domain.coupon.CouponCampaignPage;
+import kr.kro.airbob.domain.coupon.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.MemberCouponPage;
+import kr.kro.airbob.domain.coupon.MemberCouponProjection;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class CouponQueryService {
 
-	private final CouponRepository couponRepository;
-	private final MemberCouponRepository memberCouponRepository;
+	private final CouponReader couponReader;
 	private final CouponTimeProvider timeProvider;
-	private final CouponIssueUnitStore units;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	@Transactional(readOnly = true)
-	public CouponResponse.CouponInfos findCouponCampaigns(CursorRequest.CouponCampaignCursorPageRequest request) {
-		LocalDateTime now = units.databaseNow();
-		Slice<CouponCampaignProjection> slice = couponRepository.findCampaignsWithCursor(
-			now, request.lastId(), request.lastIssueStartAt(), PageRequest.of(0, request.size()));
-		List<CouponResponse.CouponInfo> infos = slice.getContent().stream()
-			.map(coupon -> CouponResponse.CouponInfo.of(coupon, now))
+	public CouponCampaignPage findCouponCampaigns(CursorRequest.CouponCampaignCursorPageRequest request) {
+		LocalDateTime now = couponReader.databaseNow();
+		Slice<CouponCampaignProjection> slice = couponReader.readCampaigns(now, request);
+		List<CouponCampaignPage.Item> campaigns = slice.getContent().stream()
+			.map(coupon -> CouponCampaignPage.Item.of(coupon, now))
 			.toList();
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			slice.getContent(), slice.hasNext(),
 			coupon -> new CouponCampaignCursorData(coupon.id(), coupon.issueStartAt()));
-		return new CouponResponse.CouponInfos(infos, pageInfo);
+		return new CouponCampaignPage(campaigns, pageInfo);
 	}
 
 	@Transactional(readOnly = true)
-	public CouponResponse.MemberCouponInfos findMyCoupons(Long memberId, CursorRequest.CursorPageRequest request) {
+	public MemberCouponPage findMyCoupons(Long memberId, CursorRequest.CursorPageRequest request) {
 		LocalDateTime now = timeProvider.now();
-		Slice<MemberCouponProjection> slice = memberCouponRepository.findByMemberIdWithCursor(
-			memberId, request.lastId(), request.lastCreatedAt(), PageRequest.of(0, request.size()));
-		List<CouponResponse.MemberCouponInfo> infos = slice.getContent().stream()
-			.map(memberCoupon -> CouponResponse.MemberCouponInfo.of(memberCoupon, now))
+		Slice<MemberCouponProjection> slice = couponReader.readMemberCoupons(memberId, request);
+		List<MemberCouponPage.Item> coupons = slice.getContent().stream()
+			.map(memberCoupon -> MemberCouponPage.Item.of(memberCoupon, now))
 			.toList();
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			slice.getContent(), slice.hasNext(), MemberCouponProjection::memberCouponId,
 			MemberCouponProjection::createdAt);
-		return new CouponResponse.MemberCouponInfos(infos, pageInfo);
+		return new MemberCouponPage(coupons, pageInfo);
 	}
 }

@@ -43,15 +43,18 @@ import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
+import kr.kro.airbob.domain.coupon.service.CouponReader;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
+import kr.kro.airbob.domain.coupon.service.CouponWriter;
 
 @DataJpaTest
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, CouponService.class,
-	CouponStockPreparationService.class, CouponIssueUnitStore.class})
+	CouponStockPreparationService.class, CouponReader.class, CouponWriter.class,
+	CouponIssueUnitStore.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class CouponAdministrationIntegrationTest {
