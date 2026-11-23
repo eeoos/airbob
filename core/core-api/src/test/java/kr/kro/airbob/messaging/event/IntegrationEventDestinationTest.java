@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.core.domain.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
-import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 
 class IntegrationEventDestinationTest {
 

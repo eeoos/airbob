@@ -219,14 +219,15 @@ import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import kr.kro.airbob.core.domain.search.AccommodationDocument;
+import kr.kro.airbob.core.domain.search.AccommodationSearchItem;
+import kr.kro.airbob.core.domain.search.AccommodationSearchPage;
+import kr.kro.airbob.core.domain.search.AccommodationSearchService;
+import kr.kro.airbob.core.domain.search.SearchUnavailableException;
 import kr.kro.airbob.core.domain.settlement.*;
 import kr.kro.airbob.core.domain.settlement.Settlement;
 import kr.kro.airbob.core.domain.settlement.SettlementService;
 import kr.kro.airbob.core.domain.settlement.SettlementStatus;
-import kr.kro.airbob.search.document.AccommodationDocument;
-import kr.kro.airbob.search.dto.AccommodationSearchResponse;
-import kr.kro.airbob.search.exception.SearchUnavailableException;
-import kr.kro.airbob.search.service.AccommodationSearchService;
 
 @SpringBootTest(classes = ApiDocumentationTest.MvcApplication.class, properties = {
 	"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"
@@ -2026,6 +2027,8 @@ class ApiDocumentationTest {
 	@Test
 	void searchBindsCamelCaseFiltersIsoDatesAndOptionalSessionIdentity() throws Exception {
 		var service = context.getBean(AccommodationSearchService.class);
+		when(service.searchAccommodations(any(), any(), any()))
+			.thenReturn(AccommodationSearchPage.empty(org.springframework.data.domain.PageRequest.of(0, 18)));
 		String path = "/api/v1/search/accommodations";
 		mvc.perform(get(path).param("destination", "서울").param("checkIn", "2027-01-10").param("checkOut", "2027-01-12")
 			.param("minPrice", "0").param("maxPrice", "200000").param("adultOccupancy", "2").param("childOccupancy", "1")
@@ -2033,24 +2036,26 @@ class ApiDocumentationTest {
 			.param("accommodationTypes", "APT").param("topLeftLat", "38").param("topLeftLng", "126")
 			.param("bottomRightLat", "37").param("bottomRightLng", "128").param("memberId", "999"))
 			.andExpect(status().isOk());
-		verify(service).searchAccommodations(argThat(request -> request.getDestination().equals("서울")
-			&& request.getCheckIn().equals(LocalDate.parse("2027-01-10")) && request.getCheckOut().equals(LocalDate.parse("2027-01-12"))
-			&& request.getMinPrice() == 0 && request.getMaxPrice() == 200000 && request.getAdultOccupancy() == 2
-			&& request.getChildOccupancy() == 1 && request.getInfantOccupancy() == 1 && request.getPetOccupancy() == 1
-			&& request.getAmenityTypes().equals(List.of("WIFI", "PARKING")) && request.getAccommodationTypes().equals(List.of("APT"))),
-			argThat(bounds -> bounds.getTopLeftLat() == 38 && bounds.getTopLeftLng() == 126
-				&& bounds.getBottomRightLat() == 37 && bounds.getBottomRightLng() == 128),
+		verify(service).searchAccommodations(argThat(condition -> condition.destination().equals("서울")
+			&& condition.checkIn().equals(LocalDate.parse("2027-01-10")) && condition.checkOut().equals(LocalDate.parse("2027-01-12"))
+			&& condition.minPrice() == 0 && condition.maxPrice() == 200000 && condition.adultOccupancy() == 2
+			&& condition.childOccupancy() == 1 && condition.infantOccupancy() == 1 && condition.petOccupancy() == 1
+			&& condition.amenityTypes().equals(List.of("WIFI", "PARKING")) && condition.accommodationTypes().equals(List.of("APT"))
+			&& condition.mapArea().topLeftLat() == 38 && condition.mapArea().topLeftLng() == 126
+			&& condition.mapArea().bottomRightLat() == 37 && condition.mapArea().bottomRightLng() == 128),
 			argThat(page -> page.getPageNumber() == 0 && page.getPageSize() == 18), isNull());
 		mvc.perform(get(path).cookie(SESSION).param("memberId", "999")).andExpect(status().isOk());
-		verify(service).searchAccommodations(any(), any(), any(), eq(10L));
+		verify(service).searchAccommodations(any(), any(), eq(10L));
 		mvc.perform(get(path).cookie(new Cookie("SESSION_ID", "expired"))).andExpect(status().isOk());
-		verify(service, org.mockito.Mockito.times(2)).searchAccommodations(any(), any(), any(), isNull());
+		verify(service, org.mockito.Mockito.times(2)).searchAccommodations(any(), any(), isNull());
 		assertThat(specification("client").path("paths").path(path).path("get").path("security").isEmpty()).isTrue();
 	}
 
 	@Test
 	void searchNormalizesPageAndSizeWithoutAcceptingUserSort() throws Exception {
 		var service = context.getBean(AccommodationSearchService.class);
+		when(service.searchAccommodations(any(), any(), any()))
+			.thenReturn(AccommodationSearchPage.empty(org.springframework.data.domain.PageRequest.of(0, 18)));
 		String path = "/api/v1/search/accommodations";
 		String[][] values = {{"-1", "0", "0"}, {"invalid", "invalid", "0"}, {"15", "100", "14"},
 			{"2147483647", "1", "14"}, {"2", "18", "2"}};
@@ -2059,7 +2064,7 @@ class ApiDocumentationTest {
 				.andExpect(status().isOk());
 		}
 		var pages = org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
-		verify(service, org.mockito.Mockito.times(values.length)).searchAccommodations(any(), any(), pages.capture(), isNull());
+		verify(service, org.mockito.Mockito.times(values.length)).searchAccommodations(any(), pages.capture(), isNull());
 		assertThat(pages.getAllValues()).extracting(page -> page.getPageNumber()).containsExactly(0, 0, 14, 14, 2);
 		assertThat(pages.getAllValues()).allSatisfy(page -> assertThat(page.getPageSize()).isEqualTo(18));
 	}
@@ -2113,10 +2118,10 @@ class ApiDocumentationTest {
 		var service = context.getBean(AccommodationSearchService.class);
 		JsonNode spec = specification("client");
 		String path = "/api/v1/search/accommodations";
-		var card = AccommodationSearchResponse.AccommodationSearchInfo.from(AccommodationDocument.builder().accommodationId(101L).build(), false);
-		var page = new AccommodationSearchResponse.PageInfo(18, 0, 1, 1, true, true, false, false);
-		when(service.searchAccommodations(any(), any(), any(), isNull()))
-			.thenReturn(new AccommodationSearchResponse.AccommodationSearchInfos(List.of(card), page));
+		var card = new AccommodationSearchItem(AccommodationDocument.builder().accommodationId(101L).build(), false);
+		var page = new AccommodationSearchPage(List.of(card), 18, 0, 1, 1L, false);
+		when(service.searchAccommodations(any(), any(), isNull()))
+			.thenReturn(page);
 		String response = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		JsonNode item = mapper.readTree(response).at("/data/stay_search_result_listing/0");
@@ -2130,13 +2135,13 @@ class ApiDocumentationTest {
 		assertThat(item.path("is_in_wishlist").asBoolean()).isFalse();
 		assertThat(mapper.readTree(response).at("/data/page_info/is_first").asBoolean()).isTrue();
 		assertThat(mapper.readTree(response).at("/data/page_info/is_last").asBoolean()).isTrue();
-		when(service.searchAccommodations(any(), any(), any(), isNull()))
-			.thenReturn(new AccommodationSearchResponse.AccommodationSearchInfos(List.of(), AccommodationSearchResponse.PageInfo.fail(18, 0)));
+		when(service.searchAccommodations(any(), any(), isNull()))
+			.thenReturn(AccommodationSearchPage.empty(org.springframework.data.domain.PageRequest.of(0, 18)));
 		String empty = mvc.perform(get(path)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/stay_search_result_listing").isEmpty()).isTrue();
 		assertThat(mapper.readTree(empty).at("/data/page_info/total_elements").asLong()).isZero();
-		when(service.searchAccommodations(any(), any(), any(), isNull())).thenThrow(new SearchUnavailableException(new java.io.IOException("synthetic unavailable")));
+		when(service.searchAccommodations(any(), any(), isNull())).thenThrow(new SearchUnavailableException(new java.io.IOException("synthetic unavailable")));
 		var unavailable = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isServiceUnavailable()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "get", "503", "SE001", unavailable.getContentAsString());
 		assertThat(unavailable.getHeader("Retry-After")).isNull();
@@ -2735,7 +2740,7 @@ class ApiDocumentationTest {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	@ComponentScan(basePackages = {"kr.kro.airbob.core.api.controller.v1", "kr.kro.airbob.domain", "kr.kro.airbob.search"}, useDefaultFilters = false,
+	@ComponentScan(basePackages = "kr.kro.airbob.core.api.controller.v1", useDefaultFilters = false,
 		includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = RestController.class),
 		excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*\\$.*"))
 	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class, WebMvcAutoConfiguration.class,

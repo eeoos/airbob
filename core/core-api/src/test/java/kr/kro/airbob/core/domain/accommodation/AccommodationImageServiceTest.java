@@ -28,8 +28,8 @@ import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageUpload
 import kr.kro.airbob.core.domain.image.ImageUploadException;
 import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.domain.image.StoredImage;
+import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 이미지 서비스 단위 테스트")

@@ -51,9 +51,9 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.request.AddressRequest
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.AmenityRequest;
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.PolicyRequest;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationAmenityRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.dto.GeocodeResult;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest(properties = {

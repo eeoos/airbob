@@ -50,13 +50,13 @@ import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.inventory.AccommodationInventoryDayRepository;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchWriter;
+import kr.kro.airbob.core.domain.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.infrastructure.outbox.MysqlOperatorAlertOutboxAppender;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
-import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
 
 @DataJpaTest
 @Testcontainers

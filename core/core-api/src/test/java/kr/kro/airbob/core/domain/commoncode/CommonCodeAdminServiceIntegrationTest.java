@@ -34,7 +34,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.core.domain.commoncode.repository.CommonCodeGroupRepository;
 import kr.kro.airbob.core.domain.commoncode.repository.CommonCodeRepository;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 
 /**
  * 공통 코드 관리 서비스 통합 테스트.

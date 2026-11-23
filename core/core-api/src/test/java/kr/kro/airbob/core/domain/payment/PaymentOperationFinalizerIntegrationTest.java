@@ -72,8 +72,8 @@ import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManag
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest
 @Testcontainers

@@ -26,7 +26,7 @@ import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 
 /**
  * 예약 취소 시 쿠폰 복원, 취소 보상(취소 실패) 시 재사용 라운드트립 검증.

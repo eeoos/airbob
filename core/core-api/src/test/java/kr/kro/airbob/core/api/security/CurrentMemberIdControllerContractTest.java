@@ -23,10 +23,10 @@ import kr.kro.airbob.core.api.controller.v1.reservation.ReservationCommandContro
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationGuestController;
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationHostController;
 import kr.kro.airbob.core.api.controller.v1.review.ReviewController;
+import kr.kro.airbob.core.api.controller.v1.search.AccommodationSearchController;
 import kr.kro.airbob.core.api.controller.v1.settlement.SettlementController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistAccommodationController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistController;
-import kr.kro.airbob.search.api.AccommodationSearchController;
 
 class CurrentMemberIdControllerContractTest {
 

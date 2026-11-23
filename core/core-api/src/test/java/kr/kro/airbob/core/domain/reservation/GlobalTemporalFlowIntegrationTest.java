@@ -72,6 +72,7 @@ import kr.kro.airbob.core.api.controller.v1.reservation.ReservationGuestControll
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationHostController;
 import kr.kro.airbob.core.api.controller.v1.reservation.request.ReservationRequest;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
+import kr.kro.airbob.core.api.controller.v1.search.request.AccommodationSearchRequest;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
@@ -83,12 +84,11 @@ import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.core.domain.search.AccommodationDocument;
+import kr.kro.airbob.core.domain.search.AccommodationSearchService;
+import kr.kro.airbob.core.domain.search.AccommodationSearchSnapshotReader;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.geo.TimeZoneResolver;
-import kr.kro.airbob.search.document.AccommodationDocument;
-import kr.kro.airbob.search.dto.AccommodationSearchRequest;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
-import kr.kro.airbob.search.service.AccommodationSearchService;
-import kr.kro.airbob.search.service.AccommodationSearchSnapshotReader;
 
 /** Real MySQL/services/MVC serialization; authentication is preset and Elasticsearch transport is mocked. */
 @Testcontainers
@@ -370,7 +370,7 @@ class GlobalTemporalFlowIntegrationTest {
 		request.setDestination("Temporal");
 		request.setCheckIn(expected.checkIn());
 		request.setCheckOut(expected.checkOut());
-		searchService.searchAccommodations(request, new AccommodationSearchRequest.MapBoundsDto(), PageRequest.of(0, 18), null);
+		searchService.searchAccommodations(request.toCondition(new AccommodationSearchRequest.MapBoundsDto()), PageRequest.of(0, 18), null);
 		ArgumentCaptor<SearchRequest> captured = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(elasticsearchClient).search(captured.capture(), eq(AccommodationDocument.class));
 		Query query = captured.getValue().query();
