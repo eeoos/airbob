@@ -34,9 +34,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.reservation.ReservationHistory;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 
 @JdbcTest(properties = {
 	"spring.flyway.enabled=false",

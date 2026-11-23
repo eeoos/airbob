@@ -6,7 +6,6 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.accommodation.AccommodationLocationResolver.ResolvedLocation;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
@@ -14,6 +13,7 @@ import kr.kro.airbob.core.domain.accommodation.port.AccommodationInventorySeeder
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 import lombok.RequiredArgsConstructor;
 
 @Service

@@ -26,7 +26,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
@@ -52,6 +51,7 @@ import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationCheckoutService 테스트")

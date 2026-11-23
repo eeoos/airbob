@@ -44,20 +44,20 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.domain.member.Member;
-import kr.kro.airbob.core.domain.member.MemberRole;
 import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.domain.member.MemberRole;
 import kr.kro.airbob.core.domain.member.MemberService;
-import kr.kro.airbob.core.domain.member.MemberWriter;
 import kr.kro.airbob.core.domain.member.MemberStatus;
+import kr.kro.airbob.core.domain.member.MemberWriter;
 import kr.kro.airbob.core.domain.member.port.SessionInvalidator;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 
 @DataJpaTest(showSql = false)
 @Testcontainers

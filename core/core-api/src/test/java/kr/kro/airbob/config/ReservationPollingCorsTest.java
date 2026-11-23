@@ -14,11 +14,11 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.filter.CorsFilter;
 
-import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
+import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
 
 @DisplayName("예약·결제 응답 헤더 CORS 계약 테스트")
 class ReservationPollingCorsTest {

@@ -9,9 +9,9 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.settlement.repository.SettlementRepository;
 import kr.kro.airbob.core.domain.settlement.repository.projection.HostMonthlyAggregate;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 import lombok.RequiredArgsConstructor;
 
 /**

@@ -32,8 +32,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
@@ -55,6 +53,8 @@ import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 

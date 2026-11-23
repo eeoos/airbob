@@ -20,8 +20,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Status;
@@ -30,6 +28,8 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationCommandService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.core.domain.payment.PaymentOperationStatus;
 import kr.kro.airbob.core.domain.payment.PaymentQueryService;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.core.support.response.ApiResponse;
 
 @ExtendWith(MockitoExtension.class)

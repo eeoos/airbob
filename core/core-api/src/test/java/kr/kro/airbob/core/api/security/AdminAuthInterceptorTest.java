@@ -7,9 +7,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.domain.member.MemberService;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
 
 @DisplayName("관리자 인가 인터셉터 단위 테스트")

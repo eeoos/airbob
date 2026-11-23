@@ -28,8 +28,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.reservation.request.ReservationRequest;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
@@ -41,6 +39,8 @@ import kr.kro.airbob.core.domain.reservation.ReservationQuoteDetail;
 import kr.kro.airbob.core.domain.reservation.ReservationQuoteService;
 import kr.kro.airbob.core.domain.reservation.ReservationReady;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("예약 견적·checkout API 테스트")

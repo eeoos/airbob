@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
@@ -25,6 +24,7 @@ import kr.kro.airbob.core.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.core.domain.reservation.policy.ReservationStayPricePolicy;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

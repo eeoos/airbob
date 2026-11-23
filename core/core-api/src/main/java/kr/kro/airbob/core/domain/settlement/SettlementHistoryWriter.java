@@ -2,8 +2,8 @@ package kr.kro.airbob.core.domain.settlement;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.settlement.repository.SettlementHistoryRepository;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 import lombok.RequiredArgsConstructor;
 
 /** 정산 이력 기록 구현 컴포넌트. 호출한 쪽 트랜잭션 안에서 돈다. */

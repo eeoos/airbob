@@ -67,8 +67,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
@@ -101,6 +99,8 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryReposi
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.domain.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.core.domain.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;

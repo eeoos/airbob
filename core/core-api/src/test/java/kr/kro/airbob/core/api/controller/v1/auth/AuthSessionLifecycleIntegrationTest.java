@@ -32,7 +32,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.config.RedisConfig;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
@@ -51,6 +50,7 @@ import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.MemberWriter;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.support.context.UserContext;
 
 // Exercise real MVC, authentication, session storage and Redis serialization; only MySQL repositories are mocked.
 @Testcontainers

@@ -64,8 +64,6 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationCommandController;
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationGuestController;
@@ -88,6 +86,8 @@ import kr.kro.airbob.core.domain.search.AccommodationDocument;
 import kr.kro.airbob.core.domain.search.AccommodationSearchService;
 import kr.kro.airbob.core.domain.search.AccommodationSearchSnapshotReader;
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.geo.TimeZoneResolver;
 
 /** Real MySQL/services/MVC serialization; authentication is preset and Elasticsearch transport is mocked. */

@@ -80,8 +80,6 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
-import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
@@ -194,6 +192,8 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
+import kr.kro.airbob.core.support.monitoring.QueryCountMetricRecorder;
 import static kr.kro.airbob.core.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import kr.kro.airbob.core.domain.payment.Payment;
 import kr.kro.airbob.core.domain.payment.PaymentMethod;

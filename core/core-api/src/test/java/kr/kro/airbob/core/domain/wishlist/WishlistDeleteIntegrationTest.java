@@ -35,12 +35,12 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import jakarta.persistence.EntityManager;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.common.monitoring.QueryCountContext;
-import kr.kro.airbob.common.monitoring.QueryCountContextHolder;
-import kr.kro.airbob.common.monitoring.SqlQueryType;
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
+import kr.kro.airbob.core.support.monitoring.QueryCountContext;
+import kr.kro.airbob.core.support.monitoring.QueryCountContextHolder;
+import kr.kro.airbob.core.support.monitoring.SqlQueryType;
 
 @Testcontainers
 @SpringBootTest(properties = {
