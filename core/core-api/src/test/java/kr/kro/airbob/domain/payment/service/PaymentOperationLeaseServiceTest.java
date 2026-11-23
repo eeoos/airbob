@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.domain.payment.config.PaymentOperationConfiguration;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.config.TossPaymentClientProperties;
@@ -33,7 +34,6 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 

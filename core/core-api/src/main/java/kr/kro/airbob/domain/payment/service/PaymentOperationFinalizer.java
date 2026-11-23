@@ -11,6 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
+import kr.kro.airbob.core.domain.reservation.Reservation;
+import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
@@ -26,11 +31,6 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
 
 @Service
 public class PaymentOperationFinalizer {

@@ -88,6 +88,7 @@ import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
+import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
@@ -137,6 +138,25 @@ import kr.kro.airbob.core.domain.member.MemberProfile;
 import kr.kro.airbob.core.domain.member.MemberRole;
 import kr.kro.airbob.core.domain.member.MemberRoleChangeNotAllowedException;
 import kr.kro.airbob.core.domain.member.MemberService;
+import kr.kro.airbob.core.domain.reservation.GuestReservationDetail;
+import kr.kro.airbob.core.domain.reservation.GuestReservationListProjection;
+import kr.kro.airbob.core.domain.reservation.GuestReservationPage;
+import kr.kro.airbob.core.domain.reservation.HostReservationDetailProjection;
+import kr.kro.airbob.core.domain.reservation.HostReservationListProjection;
+import kr.kro.airbob.core.domain.reservation.HostReservationPage;
+import kr.kro.airbob.core.domain.reservation.Reservation;
+import kr.kro.airbob.core.domain.reservation.ReservationCheckoutService;
+import kr.kro.airbob.core.domain.reservation.ReservationHoldCommandService;
+import kr.kro.airbob.core.domain.reservation.ReservationHoldRelease;
+import kr.kro.airbob.core.domain.reservation.ReservationInventoryBusyException;
+import kr.kro.airbob.core.domain.reservation.ReservationNotFoundException;
+import kr.kro.airbob.core.domain.reservation.ReservationPaymentAttempt;
+import kr.kro.airbob.core.domain.reservation.ReservationPaymentAttemptTooLateException;
+import kr.kro.airbob.core.domain.reservation.ReservationQueryService;
+import kr.kro.airbob.core.domain.reservation.ReservationQuoteDetail;
+import kr.kro.airbob.core.domain.reservation.ReservationQuoteService;
+import kr.kro.airbob.core.domain.reservation.ReservationReady;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.core.domain.review.ReviewAccessDeniedException;
 import kr.kro.airbob.core.domain.review.ReviewAlreadyExistsException;
 import kr.kro.airbob.core.domain.review.ReviewCreationForbiddenException;
@@ -165,22 +185,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
-import kr.kro.airbob.domain.reservation.GuestReservationDetail;
-import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
-import kr.kro.airbob.domain.reservation.GuestReservationPage;
-import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.HostReservationListProjection;
-import kr.kro.airbob.domain.reservation.HostReservationPage;
-import kr.kro.airbob.domain.reservation.ReservationHoldRelease;
-import kr.kro.airbob.domain.reservation.ReservationPaymentAttempt;
-import kr.kro.airbob.domain.reservation.ReservationQuoteDetail;
-import kr.kro.airbob.domain.reservation.ReservationReady;
-import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
-import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
-import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
-import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
+import static kr.kro.airbob.core.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
@@ -207,11 +212,6 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
-import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
-import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
-import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
@@ -1023,8 +1023,8 @@ class ApiDocumentationTest {
 			assertThat(mapper.readTree(body).at("/data/status_url").asText()).isEqualTo("/api/v1/payment-operations/" + DOCUMENTATION_OPERATION_ID);
 		}
 		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new PaymentAccessDeniedException(),
-			new ReservationNotFoundException(), new kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException(),
-			new kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException(),
+			new ReservationNotFoundException(), new kr.kro.airbob.core.domain.reservation.InvalidReservationPaymentAttemptException(),
+			new kr.kro.airbob.core.domain.reservation.ExpiredReservationConfirmationException(),
 			new PaymentOperationConflictException(), new kr.kro.airbob.core.support.error.InvalidInputException("mismatch"))) {
 			doThrow(error).when(service).requestConfirmation(any(), eq(10L));
 			var response = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))

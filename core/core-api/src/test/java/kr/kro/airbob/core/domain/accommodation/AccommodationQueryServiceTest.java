@@ -21,11 +21,11 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.response.Accommodation
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.projection.AccommodationBookingProjection;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationAvailabilityReader;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.core.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.policy.BookingWindow;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 조회 서비스 단위 테스트")

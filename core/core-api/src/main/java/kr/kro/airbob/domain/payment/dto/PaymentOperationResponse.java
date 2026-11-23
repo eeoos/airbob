@@ -6,12 +6,12 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import kr.kro.airbob.core.domain.reservation.Reservation;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

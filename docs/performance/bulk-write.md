@@ -21,7 +21,7 @@ N=1,000의 `1,000 → 1회`는 DELETE 횟수이며 전체 요청의 SQL 수나 �
 [숙소 수정 서비스](../../core/core-api/src/main/java/kr/kro/airbob/core/domain/accommodation/AccommodationCommandService.java)에서
 `amenityInfos=null`은 기존 값 유지, 빈 목록은 전체 삭제, 값이 있으면 삭제 후 재등록한다.
 
-[예약 이력 writer](../../core/core-api/src/main/java/kr/kro/airbob/domain/reservation/repository/ReservationHistoryBatchWriter.java)는
+[예약 이력 writer](../../core/core-api/src/main/java/kr/kro/airbob/core/domain/reservation/repository/ReservationHistoryBatchWriter.java)는
 `JdbcTemplate.batchUpdate()`를 사용한다. 예약 상태·소유 재고 해제·쿠폰 복원과 이력 저장은
 같은 만료 정리 트랜잭션에서 처리한다. JDBC batch 호출 수와 MySQL이 실행한 SQL 문장 수는 구분한다.
 실제 드라이버 전송 방식은 측정 당시의 `rewriteBatchedStatements` 등 JDBC 설정과 함께 해석한다.

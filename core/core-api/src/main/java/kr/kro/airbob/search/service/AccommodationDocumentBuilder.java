@@ -14,9 +14,9 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummary;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummaryReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.core.domain.reservation.policy.ReservationIndexingWindow;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.RequiredArgsConstructor;
 

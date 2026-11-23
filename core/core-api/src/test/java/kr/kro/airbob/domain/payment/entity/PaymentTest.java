@@ -9,9 +9,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
 
 @DisplayName("Payment 엔티티 테스트")
 class PaymentTest {

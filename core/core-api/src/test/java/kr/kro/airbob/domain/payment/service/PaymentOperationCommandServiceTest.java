@@ -24,6 +24,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.reservation.ExpiredReservationConfirmationException;
+import kr.kro.airbob.core.domain.reservation.Reservation;
+import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
+import kr.kro.airbob.core.domain.reservation.ReservationInventoryInvariantViolationException;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchWriter;
+import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
+import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
@@ -34,16 +44,6 @@ import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
-import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantViolationException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @ExtendWith(MockitoExtension.class)

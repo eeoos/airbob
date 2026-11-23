@@ -16,10 +16,10 @@ import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationD
 import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 
