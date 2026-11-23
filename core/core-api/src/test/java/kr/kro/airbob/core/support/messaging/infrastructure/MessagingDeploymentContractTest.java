@@ -17,12 +17,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.kafka.AccommodationDetailCacheInvalidationKafkaListener;
+import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertRequestedV1;
+import kr.kro.airbob.core.domain.operatoralert.infrastructure.kafka.OperatorAlertKafkaListener;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.core.domain.payment.messaging.kafka.PaymentOperationExecutionListener;
 import kr.kro.airbob.core.domain.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.core.domain.search.messaging.kafka.AccommodationSearchRefreshListener;
-import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
-import kr.kro.airbob.messaging.alert.infrastructure.kafka.OperatorAlertKafkaListener;
 
 class MessagingDeploymentContractTest {
 

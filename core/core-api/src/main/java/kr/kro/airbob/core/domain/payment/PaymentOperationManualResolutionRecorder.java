@@ -6,9 +6,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertOutboxPublisher;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertRequest;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationResolutionRepository;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 
 @Component
 @Transactional(propagation = Propagation.MANDATORY)

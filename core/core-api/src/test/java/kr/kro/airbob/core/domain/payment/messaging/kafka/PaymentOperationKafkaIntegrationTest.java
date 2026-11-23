@@ -52,6 +52,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.read.ListAppender;
 
+import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.core.domain.payment.PaymentOperationDltIncidentService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationExecutionService;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
@@ -59,7 +60,6 @@ import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
 import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.kafka.MessagingKafkaConfiguration;
 import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFactory;
-import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 
 @SpringJUnitConfig(PaymentOperationKafkaIntegrationTest.KafkaTestConfiguration.class)
 @TestPropertySource(properties = {

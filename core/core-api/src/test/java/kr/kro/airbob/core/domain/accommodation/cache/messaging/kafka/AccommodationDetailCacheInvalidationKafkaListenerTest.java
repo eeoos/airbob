@@ -31,11 +31,11 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertEnqueueService;
+import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertKind;
 import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
 import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.event.InvalidIntegrationEventException;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
-import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
 
 @ExtendWith(MockitoExtension.class)
 class AccommodationDetailCacheInvalidationKafkaListenerTest {

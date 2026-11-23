@@ -77,6 +77,7 @@ import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationRes
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.core.domain.payment.gateway.CancelledPayment;
 import kr.kro.airbob.core.domain.payment.gateway.ConfirmedPayment;
@@ -105,7 +106,6 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
 import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMessage;
 import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 
 @DataJpaTest
 @Testcontainers

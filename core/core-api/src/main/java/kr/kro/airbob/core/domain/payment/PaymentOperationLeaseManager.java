@@ -8,10 +8,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertOutboxPublisher;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertRequest;
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 
 @Component
 public class PaymentOperationLeaseManager {

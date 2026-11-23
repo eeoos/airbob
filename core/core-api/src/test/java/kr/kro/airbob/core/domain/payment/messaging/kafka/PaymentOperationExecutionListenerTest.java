@@ -28,12 +28,12 @@ import org.springframework.kafka.support.KafkaHeaders;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.core.domain.payment.PaymentOperationDltIncidentService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationExecutionService;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.event.InvalidIntegrationEventException;
-import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("payment-operation Kafka 소비자 테스트")

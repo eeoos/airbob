@@ -15,15 +15,15 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertEnqueueService;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertRequest;
+import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.core.domain.search.AccommodationIndexingService;
 import kr.kro.airbob.core.domain.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
 import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.event.InvalidIntegrationEventException;
 import kr.kro.airbob.core.support.messaging.kafka.KafkaRetryHeaders;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
-import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import lombok.RequiredArgsConstructor;
 
 @Component
