@@ -161,8 +161,8 @@ reservation·payment는 자기 트랜잭션 안에서 `CouponUsageManager`(사�
 reservation은 Business(`ReservationQuoteService`, `ReservationCheckoutService`, `ReservationHoldCommandService`, `ReservationQueryService`, 만료·견적 정리 서비스)와 Implement가 `core.domain.reservation`에 있다.
 날짜 재고(`inventory`), 예약 기간·보유·결제 시도 정책(`policy`), 체크아웃 멱등성(`idempotency`), review가 쓰는 포트(`port`)는 하위 패키지로 둔다. 자세한 경계는 위 "reservation의 경계"를 본다.
 
-`common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
-그리고 위 도메인들을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
+PR 17j 기준으로 core-api의 애플리케이션 코드는 모두 템플릿 구조(`core.api`, `core.domain`, `core.support`)에 있다.
+최상위 패키지에는 `AirbobApplication`만 남았고, 이전 구조 패키지(`kr.kro.airbob.domain`, `common`, `config`, `geo`, `search`, `messaging`)는 없다.
 
 ### 경로 계약
 
@@ -198,6 +198,8 @@ airbob/
 
 ```
 kr.kro.airbob
+├─ core.api.config                         앱 설정, OpenAPI 설정(apidocs)
+├─ core.api.security                       세션 인증 필터, 관리자 인터셉터, @CurrentMemberId
 ├─ core.api.controller                     전역 예외 처리, 공통 웹 설정
 ├─ core.api.controller.v1.<도메인>         Controller, Swagger/문서 인터페이스
 │   ├─ request/                            요청 DTO (toXxx()로 도메인 입력을 만든다)
@@ -255,7 +257,7 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 - **기준 시각에 따른 값**: 조회 결과의 상태처럼 기준 시각으로 정해지는 값은 Business가 계산해 도메인 레코드에 담는다(예: `CouponCampaignPage.Item.of(projection, now)`). 응답 DTO는 담긴 값을 옮기기만 한다.
 - **시도마다 새 트랜잭션을 여는 흐름**: 재시도 횟수·시간 예산과 시도별 트랜잭션 설정(`TransactionTemplate`의 전파·격리 수준·제한 시간)은 Business에 둔다. 시도 한 번의 데이터 작업은 Implement에 둔다(예: `CouponSkipLockedIssueService`와 `CouponIssuer`). 잠금과 트랜잭션 계약을 한 곳에서 볼 수 있게 하기 위해서다.
 - **다른 도메인이 쓰는 기능**: Service가 아니라 Reader/Writer에 둔다. Service는 Controller용 흐름만 갖는다.
-  예: 숙소의 코드 검증은 `CommonCodeService`가 아니라 `CommonCodeReader.isValidCode`를 쓴다. 이전 구조 도메인의 Service도 마찬가지다.
+  예: 숙소의 코드 검증은 `CommonCodeService`가 아니라 `CommonCodeReader.isValidCode`를 쓴다.
 - **값 정규화 규칙**: 코드 대문자화처럼 저장 값의 규칙은 엔티티 정적 메서드에 둔다(예: `CommonCode.normalizeCode`). 요청 DTO의 공백 제거는 검증 전에 필요하므로 그대로 둔다.
 - **엔티티 입력**: 엔티티 팩터리와 변경 메서드는 요청 DTO나 외부 연동 결과(`GeocodeResult` 등) 대신 도메인 입력 레코드나 값을 받는다(예: `Address.createAddress(NewAddress, 위도, 경도)`). 변환은 요청 DTO의 `toXxx()`가 맡는다.
 - **잠금 후 다시 읽기**: `EntityManager.refresh(..., PESSIMISTIC_WRITE)`처럼 영속성 컨텍스트를 직접 다루는 일은 Repository 커스텀 메서드에 둔다(예: `MemberRepository.refreshWithWriteLock`). Business·Implement는 `EntityManager`를 직접 쓰지 않는다.
@@ -271,12 +273,13 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 실행된다.
 Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행한다.
 
-- **`LayeredArchitectureTest`(엄격)**: 새 패키지(`kr.kro.airbob.core..`)에 규칙 1~4와 이름 규칙을 적용한다.
+- **`LayeredArchitectureTest`(엄격)**: 애플리케이션 코드(`kr.kro.airbob.core..`)에 규칙 1~4와 이름 규칙을 적용한다.
   `core.support`가 도메인·Presentation·설정에 의존하지 않는지도 확인한다.
   `core.domain.<도메인>`은 엔티티와 Service·Reader가 한 패키지에 있어서, 동결 테스트가 패키지 이름(`dto`·`api`·`service`)으로는 규칙 7을 검사하지 못한다.
   그래서 엄격 테스트가 엔티티의 `@Service`·`@Component` 의존을 따로 막는다.
   `@Scheduled`·`@KafkaListener` 메서드를 가진 컴포넌트는 진입점으로 보고 Implement 규칙(4)에서 빼며, 대신 `core..`의 어떤 클래스도 진입점에 의존하지 못하게 한다.
-  아직 클래스가 없는 패키지의 규칙은 통과하고(`allowEmptyShould`), 도메인을 옮기는 순간부터 적용된다.
+  모든 규칙은 적어도 한 클래스에 적용되어야 통과한다. 패키지 이름이 바뀌어 규칙이 아무것도 검사하지 않게 되면 실패한다.
+  이전 중에는 빈 패키지를 허용했지만(`allowEmptyShould`) 이전이 끝나 PR 17j에서 뺐다.
 - **`LegacyDependencyFreezeTest`(동결)**: 애플리케이션 전체에 규칙 5~7을 적용한다.
   - 현재 위반은 `core/core-api/src/test/resources/archunit_store`에 기록되어 있다.
   - 기록에 없는 위반이 생기면 실패한다.
@@ -333,6 +336,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 17g (운영 알림 이전) | 0 | 2 | 0 |
 | PR 17h (geo 정리) | 0 | 2 | 0 |
 | PR 17i (Google Geocoding client 모듈) | 0 | 2 | 0 |
+| PR 17j (마무리) | 0 | 2 (동결로 남긴 reservation ↔ payment. 위 "reservation의 경계" 참고) | 0 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -399,9 +403,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 17g | 운영 알림(`messaging.alert`)을 도메인 `core.domain.operatoralert`로 | `messaging.md`의 알림 불변식 | 완료 |
 | 17h | geo 포트·어댑터를 소비 도메인 `core.domain.accommodation.location`으로(`GeocodingGateway`, `GoogleGeocodingAdapter`), 도메인 결과에서 Google 타입 viewport 제거 | 위치 확인 동작 불변 | 완료 |
 | 17i | Google Geocoding HTTP 전송을 `clients/client-google-geocoding`으로(client-toss-payments 방식). URL 조립·호출·응답 DTO는 모듈로, 키·활성화·`OK` 판정·실패 매핑은 `GoogleGeocodingAdapter`에 | CI scope, 모듈 테스트 | 완료 |
-| 17j | 마무리: ArchUnit의 레거시 패키지 참조 정리, 현재 상태·목표 구조·CLAUDE.md 갱신 | 동결 저장소 | |
+| 17j | 마무리: ArchUnit의 레거시 패키지 참조와 엄격 규칙의 `allowEmptyShould` 정리, 현재 상태·목표 구조·CLAUDE.md 갱신 | 동결 저장소 | 완료 |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
-| 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
+| 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 
 ### 도메인 이전 레시피 (wishlist 파일럿에서 확정, PR 7a~7c)
 

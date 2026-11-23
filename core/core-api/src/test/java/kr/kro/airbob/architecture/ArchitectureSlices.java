@@ -9,16 +9,14 @@ import com.tngtech.archunit.core.domain.JavaClass;
 
 /**
  * Classifies application classes into domain slices for the dependency rules.
- * A domain keeps one name across the legacy and template layouts:
- * {@code domain.<x>}, {@code core.domain.<x>}, and {@code core.api.controller.v1.<x>} all belong to {@code <x>}.
- * {@code search} and {@code messaging} are slices as well.
+ * {@code core.domain.<x>} and {@code core.api.controller.v1.<x>} both belong to {@code <x>}.
  */
 final class ArchitectureSlices {
 
 	static final String ROOT_PACKAGE = "kr.kro.airbob";
 
 	private static final Pattern DOMAIN_PACKAGE = Pattern.compile(
-		"^kr\\.kro\\.airbob\\.(?:domain|core\\.domain|core\\.api\\.controller\\.v1)\\.([a-z0-9]+)(?:\\..*)?$");
+		"^kr\\.kro\\.airbob\\.(?:core\\.domain|core\\.api\\.controller\\.v1)\\.([a-z0-9]+)(?:\\..*)?$");
 	private static final Pattern TOP_LEVEL_PACKAGE = Pattern.compile(
 		"^kr\\.kro\\.airbob\\.(core\\.[a-z0-9]+|[a-z0-9]+)(?:\\..*)?$");
 	private static final Pattern REPOSITORY_PACKAGE = Pattern.compile("^.*\\.repository(?:\\..*)?$");
@@ -28,23 +26,13 @@ final class ArchitectureSlices {
 	private ArchitectureSlices() {
 	}
 
-	/** The domain slice of a class, or empty for shared packages (common, config, geo, core.support, ...). */
+	/** The domain slice of a class, or empty for shared packages (core.support, core.api.config, clients, ...). */
 	static Optional<String> domainOf(JavaClass javaClass) {
-		String packageName = javaClass.getPackageName();
-		Matcher domain = DOMAIN_PACKAGE.matcher(packageName);
-		if (domain.matches()) {
-			return Optional.of(domain.group(1));
-		}
-		if (packageName.equals(ROOT_PACKAGE + ".search") || packageName.startsWith(ROOT_PACKAGE + ".search.")) {
-			return Optional.of("search");
-		}
-		if (packageName.equals(ROOT_PACKAGE + ".messaging") || packageName.startsWith(ROOT_PACKAGE + ".messaging.")) {
-			return Optional.of("messaging");
-		}
-		return Optional.empty();
+		Matcher domain = DOMAIN_PACKAGE.matcher(javaClass.getPackageName());
+		return domain.matches() ? Optional.of(domain.group(1)) : Optional.empty();
 	}
 
-	/** The domain slice of a class, or its top-level package (for example common, config, core.support). */
+	/** The domain slice of a class, or its top-level package (for example core.support, core.api, client). */
 	static String ownerOf(JavaClass javaClass) {
 		return domainOf(javaClass).orElseGet(() -> {
 			Matcher topLevel = TOP_LEVEL_PACKAGE.matcher(javaClass.getPackageName());
