@@ -11,8 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.core.domain.reservation.Reservation;
-import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.gateway.ConfirmedPayment;
 
 @DisplayName("결제 거래 시각 테스트")
 class PaymentTransactionTimeTest {

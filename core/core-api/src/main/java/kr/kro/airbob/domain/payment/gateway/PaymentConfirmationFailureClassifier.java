@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.service.gateway;
+package kr.kro.airbob.domain.payment.gateway;
 
 import java.util.Set;
 

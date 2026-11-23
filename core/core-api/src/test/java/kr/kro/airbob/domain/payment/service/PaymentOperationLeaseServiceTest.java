@@ -1,7 +1,7 @@
 package kr.kro.airbob.domain.payment.service;
 
-import static kr.kro.airbob.domain.payment.service.PaymentExecutionMode.CONFIRM;
-import static kr.kro.airbob.domain.payment.service.PaymentExecutionMode.INQUIRE_CONFIRM;
+import static kr.kro.airbob.domain.payment.PaymentExecutionMode.CONFIRM;
+import static kr.kro.airbob.domain.payment.PaymentExecutionMode.INQUIRE_CONFIRM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.reservation.Reservation;
+import kr.kro.airbob.domain.payment.PaymentExecutionMode;
 import kr.kro.airbob.domain.payment.config.PaymentOperationConfiguration;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.config.TossPaymentClientProperties;
@@ -32,8 +33,8 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
+import kr.kro.airbob.domain.payment.gateway.PaymentProviderCommand;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 

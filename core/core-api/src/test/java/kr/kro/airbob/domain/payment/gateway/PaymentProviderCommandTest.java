@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.service.gateway;
+package kr.kro.airbob.domain.payment.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;

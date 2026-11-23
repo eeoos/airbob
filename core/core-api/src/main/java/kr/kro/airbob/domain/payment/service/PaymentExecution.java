@@ -2,8 +2,9 @@ package kr.kro.airbob.domain.payment.service;
 
 import java.util.UUID;
 
+import kr.kro.airbob.domain.payment.PaymentExecutionMode;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
+import kr.kro.airbob.domain.payment.gateway.PaymentProviderCommand;
 
 public record PaymentExecution(
 	UUID operationUid,

@@ -67,6 +67,7 @@ import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManag
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.payment.PaymentExecutionMode;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
@@ -76,11 +77,11 @@ import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
+import kr.kro.airbob.domain.payment.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
-import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
-import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
