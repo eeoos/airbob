@@ -22,10 +22,10 @@ tags) and `support/logging` (`logging.yml`: log levels) are imported by core-api
 properties, bean wiring, and the mapping of provider responses to domain outcomes.
 Versions live in `gradle/libs.versions.toml`. Build outputs stay at the
 repository root (`build/libs/airbob.jar`, `build/openapi`) because deployment and CI read them there.
-The target structure, layering rules, and the PR-by-PR migration roadmap are in
-`docs/architecture/code-structure.md`; follow it when moving code. `wishlist` is the first domain in
-the template layout (`core.api.controller.v1.wishlist`, `core.domain.wishlist`); use it as the
-reference when moving another domain.
+All application code is in the template layout: `core.api` (`controller.v1.<domain>`, `config`,
+`security`), `core.domain.<domain>`, and `core.support`. The layering rules, the domain recipe
+(Business inputs and outputs as domain records), and the PR-by-PR roadmap are in
+`docs/architecture/code-structure.md`; follow it when adding or moving code.
 
 ArchUnit tests in `core/core-api/src/test/java/kr/kro/airbob/architecture` enforce the layer rules
 strictly for `kr.kro.airbob.core..` and freeze legacy violations (cross-domain repository use,

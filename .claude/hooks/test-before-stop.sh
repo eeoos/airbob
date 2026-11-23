@@ -18,11 +18,10 @@ fingerprint=$({ git diff HEAD -- "${sources[@]}"; git ls-files --others --exclud
 
 # Map each changed core-api file to its area: a domain package in the template layout
 # (core/domain/<x>, core/api/controller/v1/<x>, core/support/<x>), another core/<x> package,
-# a legacy domain/<x> package, another top-level package, or migrations.
+# another top-level package, or migrations.
 areas=$(echo "$changed" | sed -nE \
   -e "s#^$app/src/(main|test)/java/(kr/kro/airbob/core/(domain|support|api/controller/v1)/[^/]+)/.*#\\2#p" \
   -e "s#^$app/src/(main|test)/java/(kr/kro/airbob/core/[^/]+)/.*#\\2#p" \
-  -e "s#^$app/src/(main|test)/java/(kr/kro/airbob/domain/[^/]+)/.*#\\2#p" \
   -e "s#^$app/src/(main|test)/java/(kr/kro/airbob/[^/]+)/.*#\\2#p" \
   -e "s#^$app/src/main/resources/db/migration/.*#kr/kro/airbob/migration#p" | sort -u)
 
