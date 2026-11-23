@@ -35,7 +35,7 @@ import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
 import co.elastic.clients.elasticsearch.core.search.TotalHits;
 import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
 
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.search.port.SearchWishlistReader;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.document.AccommodationDocument;

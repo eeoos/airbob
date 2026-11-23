@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
 public record PaymentOperationDetailRow(
 	UUID operationUid,

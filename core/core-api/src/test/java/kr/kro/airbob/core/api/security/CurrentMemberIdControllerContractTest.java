@@ -16,15 +16,15 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.AccommodationControlle
 import kr.kro.airbob.core.api.controller.v1.accommodation.AccommodationHostController;
 import kr.kro.airbob.core.api.controller.v1.auth.AuthController;
 import kr.kro.airbob.core.api.controller.v1.coupon.CouponController;
+import kr.kro.airbob.core.api.controller.v1.reservation.ReservationCommandController;
+import kr.kro.airbob.core.api.controller.v1.reservation.ReservationGuestController;
+import kr.kro.airbob.core.api.controller.v1.reservation.ReservationHostController;
 import kr.kro.airbob.core.api.controller.v1.review.ReviewController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistAccommodationController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;
 import kr.kro.airbob.domain.recentlyviewed.api.RecentlyViewedController;
-import kr.kro.airbob.domain.reservation.api.ReservationCommandController;
-import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
-import kr.kro.airbob.domain.reservation.api.ReservationHostController;
 import kr.kro.airbob.domain.settlement.api.SettlementController;
 import kr.kro.airbob.search.api.AccommodationSearchController;
 

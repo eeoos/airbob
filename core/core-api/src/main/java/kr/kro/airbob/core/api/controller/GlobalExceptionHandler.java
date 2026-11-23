@@ -20,6 +20,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import kr.kro.airbob.core.domain.accommodation.PublishingFieldRequiredException;
+import kr.kro.airbob.core.domain.reservation.ReservationInventoryBusyException;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.response.ApiResponse;
@@ -27,7 +28,6 @@ import kr.kro.airbob.core.support.response.ErrorResponse;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.code.TossErrorCode;
-import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

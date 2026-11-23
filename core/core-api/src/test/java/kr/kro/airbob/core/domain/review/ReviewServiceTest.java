@@ -31,11 +31,11 @@ import kr.kro.airbob.core.domain.accommodation.repository.AccommodationReviewSum
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.member.MemberStatus;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)

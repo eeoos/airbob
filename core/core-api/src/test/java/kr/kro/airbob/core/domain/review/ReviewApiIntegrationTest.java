@@ -51,14 +51,14 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummaryWriter;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.ReviewCursorData;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.core.support.error.BaseException;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest(showSql = false)

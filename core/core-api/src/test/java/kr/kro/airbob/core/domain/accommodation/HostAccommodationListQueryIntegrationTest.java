@@ -47,15 +47,15 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.response.Accommodation
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.HostAccommodationInfos;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse.AddressSummaryInfo;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationAvailabilityReader;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest.CursorPageRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse.PageInfo;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers

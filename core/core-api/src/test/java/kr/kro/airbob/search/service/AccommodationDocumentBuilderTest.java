@@ -29,11 +29,11 @@ import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationReviewSummaryRepository;
-import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.ReservationDateRange;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.core.domain.reservation.policy.ReservationIndexingWindow;
+import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
 
 @ExtendWith(MockitoExtension.class)

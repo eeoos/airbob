@@ -104,7 +104,7 @@ payment(결제할 예약의 잠금과 상태 전이), search(검색 문서의 �
 - 남은 순환은 reservation ↔ payment다. 게스트·호스트 예약 상세가 결제 정보를 결제 테이블 left join으로 한 쿼리에 읽고(쿼리 수 테스트가 SQL 1개를 고정), 응답에 결제 DTO와 결제 enum을 담는다.
   읽기 전용 간선이고 쿼리를 둘로 나누면 계약이 바뀌므로 동결로 남긴다. 예약 취소 요청·응답도 결제 DTO(`PaymentRequest.Cancel`, `PaymentOperationResponse.Cancellation`)를 쓴다.
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b), accommodation(PR 13g), coupon(PR 14c)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b), accommodation(PR 13g), coupon(PR 14c), reservation(PR 15d)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -136,6 +136,8 @@ coupon은 관리 `CouponService`·`CouponStockPreparationService`, 조회 `Coupo
 (정책 `FOR SHARE NOWAIT`, `SKIP LOCKED` 재고 소비, 회원 쿠폰 저장, 실패 뒤 매진·경합 판별)은 `CouponIssuer`가 맡는다.
 reservation·payment는 자기 트랜잭션 안에서 `CouponUsageManager`(사용·미리보기·복원·재사용)를 쓴다. 목록은 `CouponCampaignPage`·`MemberCouponPage`로 돌려주고
 발급·보유 상태는 도메인 레코드가 계산한다. 발급 지표 기록기는 `core.domain.coupon.monitoring`에 둔다.
+reservation은 Business(`ReservationQuoteService`, `ReservationCheckoutService`, `ReservationHoldCommandService`, `ReservationQueryService`, 만료·견적 정리 서비스)와 Implement가 `core.domain.reservation`에 있다.
+날짜 재고(`inventory`), 예약 기간·보유·결제 시도 정책(`policy`), 체크아웃 멱등성(`idempotency`), review가 쓰는 포트(`port`)는 하위 패키지로 둔다. 자세한 경계는 위 "reservation의 경계"를 본다.
 
 `common`의 나머지(`context`, `domain`, `history`, `monitoring`, `validation`)와 `config`, `geo`, `search`, `messaging`,
 그리고 위 도메인들을 뺀 각 도메인 패키지(`kr.kro.airbob.domain.<도메인>/{api,service,repository,entity,dto}`)는 아직 이전 구조다.
@@ -292,6 +294,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 15c-2 (reservation 조회) | 0 | 2 | 6 |
 | PR 15c-3 (reservation 체크아웃) | 0 | 2 | 6 |
 | PR 15c-4 (reservation 견적·홀드·정리) | 0 | 2 | 6 |
+| PR 15d (reservation 이전) | 0 | 2 | 6 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -343,7 +346,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 15c-2 | 예약 조회: 게스트·호스트 목록과 상세를 `ReservationQueryService`로 옮기고 `ReservationReader`로 읽음, 출력을 도메인 레코드(`GuestReservationPage`, `GuestReservationDetail`, `HostReservationPage`, 호스트 상세 projection)로 | 스냅샷·쿼리 수 불변 | 완료 |
 | 15c-3 | 체크아웃: `ReservationService`와 `ReservationTransactionService`를 `ReservationCheckoutService`로 합침, Repository 사용을 `ReservationReader`·`ReservationWriter`·`ReservationHistoryWriter`·`ReservationQuoteReader`로, 입력 `ReservationCheckout`·출력 `ReservationReady` | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | 완료 |
 | 15c-4 | 견적·홀드·만료 정리·견적 정리: Repository 사용을 `ReservationReader`·`ReservationHistoryWriter`(배치 기록 포함)·`ReservationQuoteWriter`로, 견적 입력 `NewReservationQuote`, 출력 `ReservationQuoteDetail`·`ReservationHoldRelease`·`ReservationPaymentAttempt` | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | 완료 |
-| 15d | reservation 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 15d | reservation 패키지 이동: 도메인 루트·`entity`·`exception`·`service`·`command`·`scheduler`는 `core.domain.reservation`으로 합치고, `inventory`·`policy`·`idempotency`·`port`·`repository`·`config`는 하위 패키지로 둠 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 16~ | payment 이전(경계·계층화·이동) → settlement, search, messaging, 나머지 공통 패키지 | `payment.md`의 실행 펜스와 수동 처리 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |

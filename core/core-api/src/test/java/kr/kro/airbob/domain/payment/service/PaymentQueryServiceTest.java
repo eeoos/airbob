@@ -17,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
@@ -25,7 +26,6 @@ import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PaymentQueryService 테스트")

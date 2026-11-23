@@ -11,6 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
+import kr.kro.airbob.core.domain.reservation.Reservation;
+import kr.kro.airbob.core.domain.reservation.ReservationCancellationDeadlinePassedException;
+import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
@@ -26,12 +32,6 @@ import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolation
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.ReservationCancellationDeadlinePassedException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
-import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @Service

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Detail;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.NextAction;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
@@ -25,7 +26,6 @@ import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationQueryServiceTest {

@@ -4,9 +4,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.core.domain.reservation.port.ReservationReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.reservation.port.ReservationReviewReader;
 import lombok.RequiredArgsConstructor;
 
 /** 리뷰 조회 구현 컴포넌트. 다른 도메인은 ReviewRepository 대신 이 컴포넌트(또는 이 컴포넌트가 구현한 포트)로 읽는다. */
