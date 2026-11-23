@@ -1,6 +1,7 @@
 ---
 paths:
   - "**/src/**/messaging/**/*"
+  - "**/src/**/domain/operatoralert/**/*"
   - "**/src/**/domain/payment/**/*"
   - "docker/kafka/**/*"
   - "docker/debezium/**/*"

@@ -40,6 +40,7 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 | `config`(앱 설정), `config.apidocs` | `core.api.config`, `core.api.config.apidocs` (PR 17e. 템플릿의 `core.api.config` 자리. JPA 설정은 템플릿에서 storage/db-core에 있으나 엔티티와 함께 선택 단계에서 옮긴다) |
 | `config.AccommodationDetailRedisConfig`·`AccommodationDetailRedisProperties` | `core.domain.accommodation.cache.config` (PR 17e. 숙소 상세 캐시 전용 Redis라 도메인이 자기 설정을 갖는다) |
 | `messaging.event`, `messaging.outbox`, `messaging.infrastructure.kafka` | `core.support.messaging.event`, `.outbox`, `.kafka` (PR 17f. 모든 도메인이 쓰는 기술 인프라이고 도메인에 의존하지 않는다. 배포·스크립트 계약 테스트는 `core.support.messaging.infrastructure`) |
+| `messaging.alert` | `core.domain.operatoralert` (PR 17g. 수동 확인·DLT 사고를 Slack까지 전달하는 업무 기능이라 도메인으로 둔다. `application`은 도메인 루트로, `event`·`infrastructure.{kafka,outbox,slack}`·`monitoring`은 하위 패키지로) |
 | `common.exception.GlobalExceptionHandler` | `core.api.controller` (Presentation이 도메인 예외를 아는 정방향 의존이 되어 `common` ↔ 도메인 순환이 사라졌다) |
 | `domain.auth`의 웹 보안(`SessionAuthFilter`, `AdminAuthInterceptor`, `@CurrentMemberId`와 리졸버, `AuthenticationRequiredException`, `SessionUtil` → `SessionCookie`) | `core.api.security` (PR 10a. 모든 Controller가 쓰는 웹 인프라라서 auth 도메인에서 뺐다. 이 때문에 생기던 member → auth 간선이 사라져 순환이 끊겼다) |
 
@@ -325,6 +326,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 17d (common 이전) | 0 | 2 | 0 |
 | PR 17e (config 이전) | 0 | 2 | 0 |
 | PR 17f (messaging 인프라 이전) | 0 | 2 | 0 |
+| PR 17g (운영 알림 이전) | 0 | 2 | 0 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -388,7 +390,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 17d | common 이전: `context`·`persistence`(BaseEntity, 이력 기반)·`monitoring`·`validation`을 `core.support.*`로 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 17e | config 이전: 앱 설정을 `core.api.config`로(템플릿 위치), 숙소 상세 캐시 전용 Redis 설정은 `core.domain.accommodation.cache.config`로, `config.apidocs`는 `core.api.config.apidocs`로 | 스냅샷 불변 | 완료 |
 | 17f | messaging 기술 인프라(`event`, `outbox`, `infrastructure.kafka`)를 `core.support.messaging`으로 | `messaging.md`의 outbox·토픽 불변식 | 완료 |
-| 17g | 운영 알림(`messaging.alert`)을 도메인 `core.domain.operatoralert`로 | `messaging.md`의 알림 불변식 | |
+| 17g | 운영 알림(`messaging.alert`)을 도메인 `core.domain.operatoralert`로 | `messaging.md`의 알림 불변식 | 완료 |
 | 17h | geo 포트·어댑터를 소비 도메인 `core.domain.accommodation.location`으로(`GeocodingGateway`, `GoogleGeocodingAdapter`), 도메인 결과에서 Google 타입 viewport 제거 | 위치 확인 동작 불변 | |
 | 17i | Google Geocoding HTTP 전송을 `clients/client-google-geocoding`으로(client-toss-payments 방식) | CI scope, 모듈 테스트 | |
 | 17j | 마무리: ArchUnit의 레거시 패키지 참조 정리, 현재 상태·목표 구조·CLAUDE.md 갱신 | 동결 저장소 | |

@@ -43,6 +43,10 @@ import kr.kro.airbob.core.api.config.JpaAuditingConfig;
 import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertOutboxAppender;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertOutboxPublisher;
+import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertRequestedV1;
+import kr.kro.airbob.core.domain.operatoralert.infrastructure.outbox.MysqlOperatorAlertOutboxAppender;
 import kr.kro.airbob.core.domain.payment.gateway.ConfirmedPayment;
 import kr.kro.airbob.core.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFence;
 import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
@@ -53,10 +57,6 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchW
 import kr.kro.airbob.core.domain.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
-import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
-import kr.kro.airbob.messaging.alert.infrastructure.outbox.MysqlOperatorAlertOutboxAppender;
 
 @DataJpaTest
 @Testcontainers

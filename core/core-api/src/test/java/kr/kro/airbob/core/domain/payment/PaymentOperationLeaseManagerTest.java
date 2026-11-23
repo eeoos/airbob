@@ -22,14 +22,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertOutboxPublisher;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertRequest;
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationConfiguration;
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.core.domain.payment.config.TossPaymentClientProperties;
 import kr.kro.airbob.core.domain.payment.gateway.PaymentProviderCommand;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.core.domain.reservation.Reservation;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationLeaseManagerTest {

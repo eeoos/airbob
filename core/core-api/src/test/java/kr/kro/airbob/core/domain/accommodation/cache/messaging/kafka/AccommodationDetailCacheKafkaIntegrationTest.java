@@ -57,13 +57,13 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertEnqueueService;
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertRequest;
+import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
 import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.kafka.MessagingKafkaConfiguration;
 import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFactory;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
-import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 
 @SpringJUnitConfig(AccommodationDetailCacheKafkaIntegrationTest.KafkaTestConfiguration.class)
 @TestPropertySource(properties = {

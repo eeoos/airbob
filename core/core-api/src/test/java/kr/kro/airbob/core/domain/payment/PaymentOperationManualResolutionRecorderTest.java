@@ -19,8 +19,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
 
+import kr.kro.airbob.core.domain.operatoralert.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationResolutionRepository;
-import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 
 @SpringJUnitConfig(PaymentOperationManualResolutionRecorderTest.TestConfiguration.class)
 class PaymentOperationManualResolutionRecorderTest {
