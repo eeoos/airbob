@@ -1,0 +1,11 @@
+package kr.kro.airbob.core.domain.settlement;
+
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.core.support.error.ErrorCode;
+
+public class SettlementMonthNotClosedException extends BaseException {
+
+	public SettlementMonthNotClosedException() {
+		super(ErrorCode.SETTLEMENT_MONTH_NOT_CLOSED);
+	}
+}
