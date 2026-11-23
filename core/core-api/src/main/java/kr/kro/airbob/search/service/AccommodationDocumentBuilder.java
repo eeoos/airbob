@@ -14,9 +14,9 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummary;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummaryReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +26,7 @@ public class AccommodationDocumentBuilder {
 
 	private final AccommodationReader accommodationReader;
 	private final AccommodationAmenityReader amenityReader;
-	private final ReservationRepository reservationRepository;
+	private final ReservationReader reservationReader;
 	private final AccommodationReviewSummaryReader reviewSummaryReader;
 	private final BookingWindowProvider bookingWindowProvider;
 
@@ -88,8 +88,8 @@ public class AccommodationDocumentBuilder {
 
 	private List<AccommodationDocument.DateRange> getReservationRanges(Long accommodationId) {
 		ReservationIndexingWindow window = bookingWindowProvider.currentIndexingWindow();
-		return reservationRepository
-			.findActiveReservationRangesByAccommodationId(
+		return reservationReader
+			.readActiveRanges(
 				accommodationId,
 				window.startInclusive(),
 				window.endExclusive()

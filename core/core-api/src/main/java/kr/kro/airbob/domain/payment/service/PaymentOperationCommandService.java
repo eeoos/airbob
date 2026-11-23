@@ -9,22 +9,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
-import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import lombok.RequiredArgsConstructor;
 
@@ -32,18 +30,17 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PaymentOperationCommandService {
 
-	private final ReservationRepository reservationRepository;
+	private final ReservationReader reservationReader;
 	private final ReservationInventoryService inventoryService;
 	private final PaymentOperationRepository paymentOperationRepository;
-	private final ReservationHistoryRepository historyRepository;
+	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final OutboxWriter outboxWriter;
 	private final Clock clock;
 
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Accepted requestConfirmation(PaymentRequest.Confirm request, Long memberId) {
 		UUID reservationUid = parseReservationUid(request.orderId());
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(reservationUid)
-			.orElseThrow(ReservationNotFoundException::new);
+		Reservation reservation = reservationReader.readByUidForUpdate(reservationUid);
 		if (!reservation.belongsToGuest(memberId)) {
 			throw new PaymentAccessDeniedException();
 		}
@@ -73,8 +70,8 @@ public class PaymentOperationCommandService {
 		PaymentOperation operation = PaymentOperation.createConfirmation(
 			reservation, memberId, request.paymentKey(), request.amount(), now);
 		paymentOperationRepository.save(operation);
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.STATUS_CHANGE, "결제 승인 처리 시작", "PAYMENT_OPERATION"));
+		reservationHistoryWriter.recordSystem(
+			reservation, ChangeType.STATUS_CHANGE, "결제 승인 처리 시작", "PAYMENT_OPERATION");
 		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
 			operation.getOperationUid(),
 			reservationUid,

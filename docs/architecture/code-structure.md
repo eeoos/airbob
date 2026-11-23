@@ -84,6 +84,16 @@ reservation(예약 대상), search(검색 문서), review, recentlyviewed, payme
   Controller가 `DetailInfo`·`Availability`·`HostAccommodationInfos`·`HostDetail`의 `from`으로 응답을 만든다.
   호스트 목록·상세 projection은 Business 출력에 담기므로 repository 패키지 밖 도메인 루트에 둔다.
 
+#### reservation의 경계 (PR 15a)
+
+payment(결제할 예약의 잠금과 상태 전이), search(검색 문서의 예약 구간), review(작성 자격)가 reservation을 쓴다.
+
+- 다른 도메인은 `ReservationReader`로 읽는다. 결제 흐름의 잠금 조회(`readForUpdate`, `readByUidForUpdate`)도 호출한 쪽 트랜잭션 안에서 Reader를 거치므로 예약 → 날짜 행 잠금 순서는 그대로다.
+- 결제가 남기는 예약 이력은 `ReservationHistoryWriter.recordSystem`으로 기록한다.
+- 숙소 검색 갱신 요청은 reservation·payment도 accommodation이 소유한 포트 `AccommodationSearchRefreshRequester`를 쓴다.
+  요청 내용이 숙소 UID 하나뿐이라 포트를 새로 만들지 않고 공유한다. reservation·payment는 이미 accommodation에 의존하므로 새 의존 방향이 생기지 않는다.
+- 남은 순환은 reservation ↔ payment다. 예약 취소 API가 결제 취소를 부르고, 게스트 예약 상세가 결제 정보를 담기 때문이다(15b에서 정리).
+
 템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b), accommodation(PR 13g), coupon(PR 14c)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
@@ -266,6 +276,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 14a (coupon 입력과 사용 처리) | 9 | 5 | 7 (`Coupon` → 요청 DTO 해소) |
 | PR 14b (coupon 계층화) | 9 | 5 | 7 |
 | PR 14c (coupon 이전) | 9 | 5 | 7 |
+| PR 15a (reservation 경계) | 0 (payment·search → reservation Repository 해소) | 2 (reservation ↔ search, payment → search 해소) | 7 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -311,7 +322,11 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 14a | coupon 입력과 사용 처리: `Coupon`이 요청 DTO 대신 `NewCoupon`·`CouponPatch`를 받음, 관리 서비스 입력을 도메인 레코드로, 다른 도메인이 쓰는 `CouponUsageService`를 Implement `CouponUsageManager`로(트랜잭션 참여 방식 그대로) | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 14b | coupon 계층화: 관리·재고 준비·조회의 Repository 사용을 `CouponReader`·`CouponWriter`로, 발급 시도 한 번의 데이터 작업을 `CouponIssuer`로(재시도와 시도별 트랜잭션은 Business에 그대로), 조회 출력을 도메인 레코드(`CouponCampaignPage`, `MemberCouponPage`)로 | `coupon.md`의 잠금·트랜잭션 계약 불변 | 완료 |
 | 14c | coupon 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 15~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 15a | reservation 경계: payment·search의 reservation Repository 사용을 `ReservationReader`(잠금 조회, 활성 예약 구간)·`ReservationHistoryWriter`로, reservation·payment의 search 발행기 사용을 accommodation 포트 `AccommodationSearchRefreshRequester`로 | 동결 위반 감소, 잠금 순서 불변 | 완료 |
+| 15b | reservation ↔ payment 순환 정리(예약 취소 API의 결제 취소 호출, 게스트 예약 상세의 결제 정보)와 `ReservationQuote` 엔티티 입력 | 동결 위반 감소, 스냅샷 불변 | |
+| 15c | reservation 계층화: 견적·체크아웃·홀드·만료 정리·조회 서비스의 Repository 사용을 Implement로, 출력을 도메인 레코드로. 범위가 크면 더 나눈다 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 15d | reservation 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 16~ | payment 이전(경계·계층화·이동) → settlement, search, messaging, 나머지 공통 패키지 | `payment.md`의 실행 펜스와 수동 처리 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 

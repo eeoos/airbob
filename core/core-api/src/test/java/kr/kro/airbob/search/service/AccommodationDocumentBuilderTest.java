@@ -33,6 +33,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.search.document.AccommodationDocument;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,7 +61,7 @@ class AccommodationDocumentBuilderTest {
 	void setUp() {
 		documentBuilder = new AccommodationDocumentBuilder(new AccommodationReader(accommodationRepository),
 			new AccommodationAmenityReader(amenityRepository),
-			reservationRepository, new AccommodationReviewSummaryReader(reviewSummaryRepository), bookingWindowProvider);
+			new ReservationReader(reservationRepository), new AccommodationReviewSummaryReader(reviewSummaryRepository), bookingWindowProvider);
 	}
 
 	@Test
