@@ -114,6 +114,15 @@ import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.core.domain.commoncode.*;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeAdminService;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeService;
+import kr.kro.airbob.core.domain.coupon.*;
+import kr.kro.airbob.core.domain.coupon.CouponCampaignPage;
+import kr.kro.airbob.core.domain.coupon.CouponIssuanceStatus;
+import kr.kro.airbob.core.domain.coupon.CouponQueryService;
+import kr.kro.airbob.core.domain.coupon.CouponService;
+import kr.kro.airbob.core.domain.coupon.CouponSkipLockedIssueService;
+import kr.kro.airbob.core.domain.coupon.CouponStockPreparationService;
+import kr.kro.airbob.core.domain.coupon.DiscountType;
+import kr.kro.airbob.core.domain.coupon.MemberCouponPage;
 import kr.kro.airbob.core.domain.image.EmptyImageFileException;
 import kr.kro.airbob.core.domain.image.ImageFileSizeExceededException;
 import kr.kro.airbob.core.domain.image.ImageUploadException;
@@ -154,8 +163,6 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
-import kr.kro.airbob.domain.coupon.CouponCampaignPage;
-import kr.kro.airbob.domain.coupon.MemberCouponPage;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -180,15 +187,8 @@ import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnav
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
-import kr.kro.airbob.domain.coupon.exception.*;
-import kr.kro.airbob.domain.coupon.common.DiscountType;
-import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.coupon.service.CouponQueryService;
-import kr.kro.airbob.domain.coupon.service.CouponService;
-import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
-import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryService;
@@ -366,7 +366,7 @@ class ApiDocumentationTest {
 		Instant now = Instant.parse("2027-01-01T00:00:00Z");
 		java.time.LocalDateTime couponStart = java.time.LocalDateTime.parse("2027-01-01T00:00:00");
 		when(context.getBean(CouponQueryService.class).findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(
-			List.of(new CouponCampaignPage.Item(new kr.kro.airbob.domain.coupon.CouponCampaignProjection(1L, "과거 쿠폰",
+			List.of(new CouponCampaignPage.Item(new kr.kro.airbob.core.domain.coupon.CouponCampaignProjection(1L, "과거 쿠폰",
 				null, DiscountType.FIXED_AMOUNT, 1000, null, null, couponStart, couponStart.plusDays(1), couponStart,
 				couponStart.plusDays(1), null, false), CouponIssuanceStatus.OPEN)),
 			new CursorResponse.PageInfo(false, null, 1)));
@@ -1270,7 +1270,7 @@ class ApiDocumentationTest {
 		java.time.LocalDateTime now = java.time.LocalDateTime.parse("2027-01-01T00:00:00.123456");
 		var campaignInfos = new java.util.ArrayList<CouponCampaignPage.Item>();
 		for (int index = 0; index < 4; index++) {
-			var row = new kr.kro.airbob.domain.coupon.CouponCampaignProjection(101L + index,
+			var row = new kr.kro.airbob.core.domain.coupon.CouponCampaignProjection(101L + index,
 				"쿠폰", null, DiscountType.FIXED_AMOUNT, 1000, null, null,
 				index == 0 ? now.plusHours(1) : now, now.plusDays(1), now, now.plusDays(30),
 				index == 3 ? null : 100, index == 2);
@@ -1290,7 +1290,7 @@ class ApiDocumentationTest {
 
 		var ownedInfos = new java.util.ArrayList<MemberCouponPage.Item>();
 		for (int index = 0; index < 5; index++) {
-			var row = new kr.kro.airbob.domain.coupon.MemberCouponProjection(201L + index, now,
+			var row = new kr.kro.airbob.core.domain.coupon.MemberCouponProjection(201L + index, now,
 				101L + index, "쿠폰", null, DiscountType.FIXED_AMOUNT, 1000, null, null,
 				index == 2 || index == 3 ? now.plusHours(1) : now.minusHours(1), index < 2 ? now : now.plusDays(1),
 				index == 0, index >= 3);

@@ -21,6 +21,7 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.Address;
 import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
+import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
@@ -36,7 +37,6 @@ import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationLi
 import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;

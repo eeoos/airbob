@@ -1,6 +1,7 @@
 ---
 paths:
   - "**/src/**/domain/coupon/**/*"
+  - "**/src/**/controller/v1/coupon/**/*"
 ---
 
 # Coupon issuance
