@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.payment.PaymentExecutionMode;
@@ -19,8 +19,8 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 
-@Service
-public class PaymentOperationLeaseService {
+@Component
+public class PaymentOperationLeaseManager {
 	private final PaymentOperationRepository repository;
 	private final PaymentOperationProperties properties;
 	private final PaymentRetryBackoff backoff;
@@ -28,7 +28,7 @@ public class PaymentOperationLeaseService {
 	private final OperatorAlertOutboxPublisher alertPublisher;
 	private final PaymentOperationManualResolutionRecorder resolutionRecorder;
 
-	public PaymentOperationLeaseService(
+	public PaymentOperationLeaseManager(
 		PaymentOperationRepository repository,
 		PaymentOperationProperties properties,
 		PaymentRetryBackoff backoff,

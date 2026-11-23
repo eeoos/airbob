@@ -80,8 +80,8 @@ class PaymentOperationManualReviewCommandServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		PaymentOperationManualReviewTransactionService transactionService =
-			new PaymentOperationManualReviewTransactionService(
+		PaymentOperationManualReviewProcessor manualReviewProcessor =
+			new PaymentOperationManualReviewProcessor(
 				operationRepository,
 				new ReservationReader(reservationRepository),
 				inventoryManager,
@@ -94,7 +94,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 				resolutionRecorder,
 				Clock.fixed(NOW, ZoneOffset.UTC));
 		service = new PaymentOperationManualReviewCommandService(
-			transactionService, new ImmediatePaymentOperationExecutionFence());
+			manualReviewProcessor, new ImmediatePaymentOperationExecutionFence());
 	}
 
 	@Test

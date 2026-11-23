@@ -39,7 +39,7 @@ import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 
 @ExtendWith(MockitoExtension.class)
-class PaymentOperationLeaseServiceTest {
+class PaymentOperationLeaseManagerTest {
 
 	private static final UUID OPERATION_UID = UUID.fromString("45d633d0-20ac-4f46-b757-d851fba3f7df");
 	private static final UUID RESERVATION_UID = UUID.fromString("018290b8-d807-7a2e-8f41-114c7d0a4a21");
@@ -50,13 +50,13 @@ class PaymentOperationLeaseServiceTest {
 	@Mock private PaymentOperationManualResolutionRecorder resolutionRecorder;
 
 	private PaymentOperation operation;
-	private PaymentOperationLeaseService service;
+	private PaymentOperationLeaseManager service;
 
 	@BeforeEach
 	void setUp() {
 		operation = operation(PaymentOperationStatus.QUEUED);
 		PaymentOperationProperties properties = properties();
-		service = new PaymentOperationLeaseService(
+		service = new PaymentOperationLeaseManager(
 			repository,
 			properties,
 			new PaymentRetryBackoff(properties.retryInitialDelay(), properties.retryMaxDelay()),

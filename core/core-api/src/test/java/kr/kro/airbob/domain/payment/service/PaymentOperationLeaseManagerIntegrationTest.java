@@ -64,17 +64,17 @@ import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
 @Import({
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
-	PaymentOperationLeaseService.class,
+	PaymentOperationLeaseManager.class,
 	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationDltIncidentService.class,
 	JpaOutboxWriter.class,
 	MysqlOperatorAlertOutboxAppender.class,
 	OperatorAlertOutboxPublisher.class,
-	PaymentOperationLeaseServiceIntegrationTest.LeaseTestConfiguration.class
+	PaymentOperationLeaseManagerIntegrationTest.LeaseTestConfiguration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class PaymentOperationLeaseServiceIntegrationTest {
+class PaymentOperationLeaseManagerIntegrationTest {
 
 	private static final UUID OPERATION_UID = UUID.fromString("183e6e9c-a9ad-4e64-bb73-4fb6e359aa51");
 	private static final UUID RESERVATION_UID = UUID.fromString("65fb488c-a7b5-4d9c-b099-d818eea0b8ee");
@@ -96,7 +96,7 @@ class PaymentOperationLeaseServiceIntegrationTest {
 	}
 
 	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PaymentOperationLeaseService service;
+	@Autowired private PaymentOperationLeaseManager service;
 	@Autowired private HoldingClaimTransaction holdingClaimTransaction;
 	@Autowired private ControllableAlertOutboxAppender alertOutboxAppender;
 	@Autowired private IntegrationEventCodec codec;
@@ -485,7 +485,7 @@ class PaymentOperationLeaseServiceIntegrationTest {
 		}
 
 		@Bean
-		HoldingClaimTransaction holdingClaimTransaction(PaymentOperationLeaseService service) {
+		HoldingClaimTransaction holdingClaimTransaction(PaymentOperationLeaseManager service) {
 			return new HoldingClaimTransaction(service);
 		}
 	}
@@ -512,9 +512,9 @@ class PaymentOperationLeaseServiceIntegrationTest {
 	}
 
 	static class HoldingClaimTransaction {
-		private final PaymentOperationLeaseService service;
+		private final PaymentOperationLeaseManager service;
 
-		HoldingClaimTransaction(PaymentOperationLeaseService service) {
+		HoldingClaimTransaction(PaymentOperationLeaseManager service) {
 			this.service = service;
 		}
 

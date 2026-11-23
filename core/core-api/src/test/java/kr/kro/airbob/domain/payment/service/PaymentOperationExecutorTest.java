@@ -64,7 +64,7 @@ class PaymentOperationExecutorTest {
 	private PaymentOperationExecutor executor;
 
 	@Autowired
-	private PaymentOperationLeaseService leaseService;
+	private PaymentOperationLeaseManager leaseManager;
 
 	@Autowired
 	private PaymentProviderGateway gateway;
@@ -77,7 +77,7 @@ class PaymentOperationExecutorTest {
 
 	@BeforeEach
 	void resetDoubles() {
-		reset(leaseService, gateway, finalizer);
+		reset(leaseManager, gateway, finalizer);
 		executionFence.reset();
 	}
 
@@ -88,26 +88,26 @@ class PaymentOperationExecutorTest {
 		assertThatThrownBy(() -> executor.execute(OPERATION_UID, 1))
 			.isInstanceOf(PaymentOperationExecutionFenceUnavailableException.class);
 
-		then(leaseService).shouldHaveNoInteractions();
+		then(leaseManager).shouldHaveNoInteractions();
 		then(gateway).shouldHaveNoInteractions();
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void terminalOperationIsNoOpWhenClaimReturnsEmpty() {
-		given(leaseService.claim(OPERATION_UID, 1)).willReturn(Optional.empty());
+		given(leaseManager.claim(OPERATION_UID, 1)).willReturn(Optional.empty());
 
 		executor.execute(OPERATION_UID, 1);
 
 		then(gateway).shouldHaveNoInteractions();
 		then(finalizer).shouldHaveNoInteractions();
-		then(leaseService).should(never()).scheduleRetry(any(), any(), any());
-		then(leaseService).should(never()).markOutcomeUnknown(any(), any(), any());
+		then(leaseManager).should(never()).scheduleRetry(any(), any(), any());
+		then(leaseManager).should(never()).markOutcomeUnknown(any(), any(), any());
 	}
 
 	@Test
 	void operationWithAnotherActiveLeaseIsNoOpWhenClaimReturnsEmpty() {
-		given(leaseService.claim(OPERATION_UID, 1)).willReturn(Optional.empty());
+		given(leaseManager.claim(OPERATION_UID, 1)).willReturn(Optional.empty());
 
 		executor.execute(OPERATION_UID, 1);
 
@@ -119,25 +119,25 @@ class PaymentOperationExecutorTest {
 	void approvedConfirmationFinalizesAfterClaimReturns() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
 		ConfirmedPayment confirmed = confirmedPayment();
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.Approved(confirmed));
 
 		executor.execute(OPERATION_UID, 1);
 
-		InOrder order = inOrder(leaseService, gateway, finalizer);
-		order.verify(leaseService).claim(OPERATION_UID, 1);
+		InOrder order = inOrder(leaseManager, gateway, finalizer);
+		order.verify(leaseManager).claim(OPERATION_UID, 1);
 		order.verify(gateway).confirm(execution.gatewayCommand());
 		order.verify(finalizer).applyApproved(execution, confirmed);
-		then(leaseService).should(never()).markOutcomeUnknown(any(), any(), any());
+		then(leaseManager).should(never()).markOutcomeUnknown(any(), any(), any());
 	}
 
 	@Test
 	void approvedInquiryUsesInquiryAndFinalizes() {
 		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE_CONFIRM);
 		ConfirmedPayment confirmed = confirmedPayment();
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.Approved(confirmed));
@@ -152,7 +152,7 @@ class PaymentOperationExecutorTest {
 	void cancellationCallsProviderOnceAndFinalizesNormalizedEvidence() {
 		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.CANCEL);
 		CancelledPayment cancelled = cancelledPayment();
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.cancel(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.Cancelled(cancelled));
@@ -167,28 +167,28 @@ class PaymentOperationExecutorTest {
 	@Test
 	void cancellationTimeoutMovesDurablyToCancellationInquiry() {
 		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.CANCEL);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.cancel(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.OutcomeUnknown("READ_TIMEOUT", "unknown"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(execution, "READ_TIMEOUT", "unknown");
+		then(leaseManager).should().markOutcomeUnknown(execution, "READ_TIMEOUT", "unknown");
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void cancellationInquirySeeingAnActivePaymentSchedulesAnotherCancelGeneration() {
 		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireCancellation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.PaymentActive("PAYMENT_ACTIVE", "active"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().scheduleRetry(execution, "PAYMENT_ACTIVE", "active");
+		then(leaseManager).should().scheduleRetry(execution, "PAYMENT_ACTIVE", "active");
 		then(gateway).should(never()).cancel(any());
 		then(finalizer).shouldHaveNoInteractions();
 	}
@@ -196,31 +196,31 @@ class PaymentOperationExecutorTest {
 	@Test
 	void manualCancellationInquirySeeingActivePaymentReturnsToReviewWithoutCancelling() {
 		PaymentExecution execution = manualCancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireCancellation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.PaymentActive("PAYMENT_ACTIVE", "active"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().returnManualReconciliationToReview(
+		then(leaseManager).should().returnManualReconciliationToReview(
 			execution, "PAYMENT_ACTIVE", "active", false);
 		then(gateway).should(never()).cancel(any());
-		then(leaseService).should(never()).scheduleRetry(any(), any(), any());
+		then(leaseManager).should(never()).scheduleRetry(any(), any(), any());
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void inconsistentCancellationEvidenceStopsInManualReviewImmediately() {
 		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireCancellation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.ManualReviewRequired(
 				"PARTIAL_CANCELLATION_RESPONSE", "review"));
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markManualReview(
+		then(leaseManager).should().markManualReview(
 			execution, "PARTIAL_CANCELLATION_RESPONSE", "review");
 		then(finalizer).shouldHaveNoInteractions();
 	}
@@ -228,7 +228,7 @@ class PaymentOperationExecutorTest {
 	@Test
 	void finalDeclineExpiresReservationThroughFinalizer() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.Declined("REJECT_CARD_PAYMENT", "card rejected"));
@@ -236,78 +236,78 @@ class PaymentOperationExecutorTest {
 		executor.execute(OPERATION_UID, 1);
 
 		then(finalizer).should().applyDeclined(execution, "REJECT_CARD_PAYMENT", "card rejected");
-		then(leaseService).should(never()).scheduleRetry(any(), any(), any());
-		then(leaseService).should(never()).markOutcomeUnknown(any(), any(), any());
+		then(leaseManager).should(never()).scheduleRetry(any(), any(), any());
+		then(leaseManager).should(never()).markOutcomeUnknown(any(), any(), any());
 	}
 
 	@Test
 	void retryableConfirmationSchedulesSafeRetry() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.RetryableFailure("CONNECTION_FAILED", "try later"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().scheduleRetry(execution, "CONNECTION_FAILED", "try later");
+		then(leaseManager).should().scheduleRetry(execution, "CONNECTION_FAILED", "try later");
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void retryableInquiryRemainsUnknownSoItCannotReconfirm() {
 		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE_CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.RetryableFailure("CONNECTION_FAILED", "try later"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(execution, "CONNECTION_FAILED", "try later");
-		then(leaseService).should(never()).scheduleRetry(any(), any(), any());
+		then(leaseManager).should().markOutcomeUnknown(execution, "CONNECTION_FAILED", "try later");
+		then(leaseManager).should(never()).scheduleRetry(any(), any(), any());
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void readTimeoutBecomesDurableUnknownAndDoesNotExpireReservation() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.OutcomeUnknown("READ_TIMEOUT", "response lost"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(execution, "READ_TIMEOUT", "response lost");
+		then(leaseManager).should().markOutcomeUnknown(execution, "READ_TIMEOUT", "response lost");
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void unknownInquiryNotFoundReturnsToSafeConfirmRetry() {
 		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE_CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.NotFound("NOT_FOUND_PAYMENT", "not found"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().scheduleRetry(execution, "NOT_FOUND_PAYMENT", "not found");
-		then(leaseService).should(never()).markOutcomeUnknown(any(), any(), any());
+		then(leaseManager).should().scheduleRetry(execution, "NOT_FOUND_PAYMENT", "not found");
+		then(leaseManager).should(never()).markOutcomeUnknown(any(), any(), any());
 	}
 
 	@Test
 	void manualConfirmationInquiryNotFoundReturnsToReviewAndEnablesNotPaidResolution() {
 		PaymentExecution execution = manualExecution(PaymentExecutionMode.INQUIRE_CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.NotFound("NOT_FOUND_PAYMENT", "not found"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().returnManualReconciliationToReview(
+		then(leaseManager).should().returnManualReconciliationToReview(
 			execution, "NOT_FOUND_PAYMENT", "not found", true);
 		then(gateway).should(never()).confirm(any());
 		then(finalizer).shouldHaveNoInteractions();
@@ -316,14 +316,14 @@ class PaymentOperationExecutorTest {
 	@Test
 	void manualCancellationInquiryNotFoundReturnsToReviewWithoutIssuingCancel() {
 		PaymentExecution execution = manualCancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.inquireCancellation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.NotFound("NOT_FOUND_PAYMENT", "not found"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().returnManualReconciliationToReview(
+		then(leaseManager).should().returnManualReconciliationToReview(
 			execution, "NOT_FOUND_PAYMENT", "not found", false);
 		then(gateway).should(never()).cancel(any());
 		then(finalizer).shouldHaveNoInteractions();
@@ -332,13 +332,13 @@ class PaymentOperationExecutorTest {
 	@Test
 	void malformedManualCycleCannotInvokeMutationGatewayMethods() {
 		PaymentExecution execution = manualExecution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 
 		executor.execute(OPERATION_UID, 1);
 
 		then(gateway).shouldHaveNoInteractions();
-		then(leaseService).should().markManualReview(
+		then(leaseManager).should().markManualReview(
 			execution,
 			"INVALID_MANUAL_RECONCILIATION_MODE",
 			"Manual reconciliation must use a provider inquiry."
@@ -349,15 +349,15 @@ class PaymentOperationExecutorTest {
 	@Test
 	void unexpectedNotFoundDuringConfirmationBecomesDurableUnknown() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.NotFound("NOT_FOUND_PAYMENT", "not found"));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(execution, "NOT_FOUND_PAYMENT", "not found");
-		then(leaseService).should(never()).scheduleRetry(any(), any(), any());
+		then(leaseManager).should().markOutcomeUnknown(execution, "NOT_FOUND_PAYMENT", "not found");
+		then(leaseManager).should(never()).scheduleRetry(any(), any(), any());
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
@@ -368,14 +368,14 @@ class PaymentOperationExecutorTest {
 		ConfirmedPayment mismatched
 	) {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.Approved(mismatched));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(
+		then(leaseManager).should().markOutcomeUnknown(
 			execution,
 			"PROVIDER_RESPONSE_MISMATCH",
 			"Provider approval did not match the payment operation."
@@ -386,14 +386,14 @@ class PaymentOperationExecutorTest {
 	@Test
 	void unexpectedGatewayFailureBecomesUnknownWithoutPersistingSensitiveMessage() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willThrow(new IllegalStateException("Authorization: secret-token paymentKey=" + PAYMENT_KEY));
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(
+		then(leaseManager).should().markOutcomeUnknown(
 			execution,
 			"UNCLASSIFIED_GATEWAY_FAILURE",
 			"Unexpected payment gateway failure."
@@ -405,7 +405,7 @@ class PaymentOperationExecutorTest {
 	void boundedGatewayReasonDoesNotLeakATruncatedPaymentKey() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
 		String message = "x".repeat(510) + PAYMENT_KEY;
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.OutcomeUnknown("READ_TIMEOUT", message));
@@ -413,7 +413,7 @@ class PaymentOperationExecutorTest {
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(
+		then(leaseManager).should().markOutcomeUnknown(
 			any(), any(), persistedMessage.capture());
 		assertThat(persistedMessage.getValue())
 			.hasSizeLessThanOrEqualTo(512)
@@ -423,7 +423,7 @@ class PaymentOperationExecutorTest {
 	@Test
 	void gatewayReasonCodeDoesNotPersistSensitiveCorrelationData() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.OutcomeUnknown(PAYMENT_KEY, "response lost"));
@@ -431,7 +431,7 @@ class PaymentOperationExecutorTest {
 
 		executor.execute(OPERATION_UID, 1);
 
-		then(leaseService).should().markOutcomeUnknown(
+		then(leaseManager).should().markOutcomeUnknown(
 			any(), persistedCode.capture(), any());
 		assertThat(persistedCode.getValue())
 			.hasSizeLessThanOrEqualTo(100)
@@ -441,7 +441,7 @@ class PaymentOperationExecutorTest {
 	@Test
 	void staleWorkerRetryTransitionIsAQuietNoOp() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.RetryableFailure("CONNECTION_FAILED", "try later"));
@@ -454,7 +454,7 @@ class PaymentOperationExecutorTest {
 	void finalizerDatabaseFailurePropagatesForCallerRetry() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
 		ConfirmedPayment confirmed = confirmedPayment();
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		given(gateway.confirm(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.Approved(confirmed));
@@ -464,14 +464,14 @@ class PaymentOperationExecutorTest {
 		assertThatThrownBy(() -> executor.execute(OPERATION_UID, 1))
 			.isInstanceOf(DataAccessException.class);
 
-		then(leaseService).should(never()).markOutcomeUnknown(any(), any(), any());
+		then(leaseManager).should(never()).markOutcomeUnknown(any(), any(), any());
 	}
 
 	@Test
 	void gatewayInvocationHasNoActiveSpringTransaction() {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
 		AtomicBoolean gatewayWasInvoked = new AtomicBoolean();
-		given(leaseService.claim(OPERATION_UID, 1))
+		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
 		willAnswer(invocation -> {
 			assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
@@ -605,8 +605,8 @@ class PaymentOperationExecutorTest {
 	static class TestConfiguration {
 
 		@Bean
-		PaymentOperationLeaseService leaseService() {
-			return mock(PaymentOperationLeaseService.class);
+		PaymentOperationLeaseManager leaseManager() {
+			return mock(PaymentOperationLeaseManager.class);
 		}
 
 		@Bean
@@ -621,12 +621,12 @@ class PaymentOperationExecutorTest {
 
 		@Bean
 		PaymentOperationExecutor executor(
-			PaymentOperationLeaseService leaseService,
+			PaymentOperationLeaseManager leaseManager,
 			PaymentProviderGateway gateway,
 			PaymentOperationFinalizer finalizer,
 			PaymentOperationExecutionFence executionFence
 		) {
-			return new PaymentOperationExecutor(leaseService, gateway, finalizer, executionFence);
+			return new PaymentOperationExecutor(leaseManager, gateway, finalizer, executionFence);
 		}
 
 		@Bean

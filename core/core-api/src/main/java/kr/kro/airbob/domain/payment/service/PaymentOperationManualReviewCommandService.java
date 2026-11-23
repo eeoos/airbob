@@ -10,14 +10,14 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 public class PaymentOperationManualReviewCommandService {
 
 	// Kept in a separate proxied bean so its transaction commits before the fence is released.
-	private final PaymentOperationManualReviewTransactionService transactionService;
+	private final PaymentOperationManualReviewProcessor manualReviewProcessor;
 	private final PaymentOperationExecutionFence executionFence;
 
 	public PaymentOperationManualReviewCommandService(
-		PaymentOperationManualReviewTransactionService transactionService,
+		PaymentOperationManualReviewProcessor manualReviewProcessor,
 		PaymentOperationExecutionFence executionFence
 	) {
-		this.transactionService = transactionService;
+		this.manualReviewProcessor = manualReviewProcessor;
 		this.executionFence = executionFence;
 	}
 
@@ -28,7 +28,7 @@ public class PaymentOperationManualReviewCommandService {
 	) {
 		// This command only queues an inquiry. The executor acquires the same fence before
 		// claiming that inquiry, so it cannot produce not-paid evidence beside an older command.
-		return transactionService.requestReconciliation(
+		return manualReviewProcessor.requestReconciliation(
 			operationUid, actorMemberId, expectedVersion);
 	}
 
@@ -39,7 +39,7 @@ public class PaymentOperationManualReviewCommandService {
 		PaymentOperationResolutionReason reasonCode,
 		String evidenceReference
 	) {
-		return executionFence.execute(operationUid, () -> transactionService.markNotPaid(
+		return executionFence.execute(operationUid, () -> manualReviewProcessor.markNotPaid(
 			operationUid,
 			actorMemberId,
 			expectedVersion,

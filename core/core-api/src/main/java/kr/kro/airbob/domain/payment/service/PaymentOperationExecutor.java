@@ -21,18 +21,18 @@ public class PaymentOperationExecutor {
 	private static final String RESPONSE_MISMATCH_MESSAGE =
 		"Provider approval did not match the payment operation.";
 
-	private final PaymentOperationLeaseService leaseService;
+	private final PaymentOperationLeaseManager leaseManager;
 	private final PaymentProviderGateway gateway;
 	private final PaymentOperationFinalizer finalizer;
 	private final PaymentOperationExecutionFence executionFence;
 
 	public PaymentOperationExecutor(
-		PaymentOperationLeaseService leaseService,
+		PaymentOperationLeaseManager leaseManager,
 		PaymentProviderGateway gateway,
 		PaymentOperationFinalizer finalizer,
 		PaymentOperationExecutionFence executionFence
 	) {
-		this.leaseService = leaseService;
+		this.leaseManager = leaseManager;
 		this.gateway = gateway;
 		this.finalizer = finalizer;
 		this.executionFence = executionFence;
@@ -46,13 +46,13 @@ public class PaymentOperationExecutor {
 	}
 
 	private void executeWhileFenced(UUID operationUid, long dispatchGeneration) {
-		var execution = leaseService.claim(operationUid, dispatchGeneration);
+		var execution = leaseManager.claim(operationUid, dispatchGeneration);
 		if (execution.isEmpty()) {
 			return;
 		}
 		PaymentExecution claimedExecution = execution.orElseThrow();
 		if (claimedExecution.manualReconciliation() && !claimedExecution.mode().isInquiry()) {
-			leaseService.markManualReview(
+			leaseManager.markManualReview(
 				claimedExecution,
 				"INVALID_MANUAL_RECONCILIATION_MODE",
 				"Manual reconciliation must use a provider inquiry.");
@@ -63,7 +63,7 @@ public class PaymentOperationExecutor {
 		try {
 			result = executeGateway(claimedExecution);
 		} catch (RuntimeException unexpectedGatewayFailure) {
-			leaseService.markOutcomeUnknown(
+			leaseManager.markOutcomeUnknown(
 				claimedExecution,
 				"UNCLASSIFIED_GATEWAY_FAILURE",
 				UNEXPECTED_GATEWAY_MESSAGE
@@ -131,7 +131,7 @@ public class PaymentOperationExecutor {
 			return;
 		}
 		if (!isCorrelatedApproval(execution, confirmed)) {
-			leaseService.markOutcomeUnknown(
+			leaseManager.markOutcomeUnknown(
 				execution,
 				"PROVIDER_RESPONSE_MISMATCH",
 				RESPONSE_MISMATCH_MESSAGE
@@ -160,25 +160,25 @@ public class PaymentOperationExecutor {
 			return;
 		}
 		if (execution.manualReconciliation()) {
-			leaseService.returnManualReconciliationToReview(
+			leaseManager.returnManualReconciliationToReview(
 				execution,
 				sanitizeCode(execution, code),
 				sanitizeMessage(execution, message),
 				false);
 			return;
 		}
-		leaseService.scheduleRetry(
+		leaseManager.scheduleRetry(
 			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
 
 	private void markManualReview(PaymentExecution execution, String code, String message) {
-		leaseService.markManualReview(
+		leaseManager.markManualReview(
 			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
 
 	private void applyRetryable(PaymentExecution execution, String code, String message) {
 		if (!execution.mode().isInquiry()) {
-			leaseService.scheduleRetry(
+			leaseManager.scheduleRetry(
 				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 			return;
 		}
@@ -189,7 +189,7 @@ public class PaymentOperationExecutor {
 	private void applyNotFound(PaymentExecution execution, String code, String message) {
 		if (execution.manualReconciliation()) {
 			boolean notPaidEligible = execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM;
-			leaseService.returnManualReconciliationToReview(
+			leaseManager.returnManualReconciliationToReview(
 				execution,
 				sanitizeCode(execution, code),
 				sanitizeMessage(execution, message),
@@ -197,7 +197,7 @@ public class PaymentOperationExecutor {
 			return;
 		}
 		if (execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM) {
-			leaseService.scheduleRetry(
+			leaseManager.scheduleRetry(
 				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 			return;
 		}
@@ -205,7 +205,7 @@ public class PaymentOperationExecutor {
 	}
 
 	private void markOutcomeUnknown(PaymentExecution execution, String code, String message) {
-		leaseService.markOutcomeUnknown(
+		leaseManager.markOutcomeUnknown(
 			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
 
