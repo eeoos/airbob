@@ -5,9 +5,9 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 import lombok.RequiredArgsConstructor;
 
 /** 예약 이력 기록 구현 컴포넌트. 다른 도메인은 ReservationHistoryRepository 대신 이 컴포넌트로 기록한다. */

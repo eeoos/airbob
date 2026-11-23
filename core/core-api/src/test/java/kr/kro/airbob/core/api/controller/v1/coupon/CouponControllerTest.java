@@ -26,8 +26,6 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.coupon.CouponCampaignPage;
@@ -39,6 +37,8 @@ import kr.kro.airbob.core.domain.coupon.DiscountType;
 import kr.kro.airbob.core.domain.coupon.MemberCouponPage;
 import kr.kro.airbob.core.domain.coupon.MemberCouponProjection;
 import kr.kro.airbob.core.domain.coupon.MemberCouponStatus;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;

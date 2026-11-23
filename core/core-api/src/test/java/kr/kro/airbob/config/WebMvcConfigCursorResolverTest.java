@@ -10,13 +10,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 
-import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
 import kr.kro.airbob.core.support.cursor.resolver.CouponCampaignCursorParamArgumentResolver;
 import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.core.support.cursor.resolver.ReviewCursorParamArgumentResolver;
+import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
 
 @DisplayName("커서 argument resolver MVC 등록 테스트")
 class WebMvcConfigCursorResolverTest {

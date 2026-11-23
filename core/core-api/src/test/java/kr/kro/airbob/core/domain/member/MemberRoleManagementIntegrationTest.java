@@ -38,16 +38,16 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
+import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
 
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")

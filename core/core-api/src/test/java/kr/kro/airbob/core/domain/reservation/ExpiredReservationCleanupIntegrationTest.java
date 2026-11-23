@@ -36,7 +36,6 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
@@ -44,6 +43,7 @@ import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.reservation.inventory.AccommodationInventoryDayRepository;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchWriter;
+import kr.kro.airbob.core.support.context.UserContext;
 
 @DataJpaTest(properties = "reservation.expiration.history-batch-size=2")
 @Testcontainers

@@ -8,7 +8,6 @@ import java.util.Objects;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.payment.gateway.CancelledPayment;
@@ -21,6 +20,7 @@ import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
 import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 
 @Component
 public class PaymentOperationFinalizer {

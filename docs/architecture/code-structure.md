@@ -33,6 +33,10 @@ core-api의 `messaging/alert/infrastructure/slack`에 남는다.
 | `common.exception`(`BaseException`, `ErrorCode`, `InvalidInputException`, `AdminAccessDeniedException`) | `core.support.error` |
 | `common.dto`(`ApiResponse`, `ErrorResponse`) | `core.support.response` |
 | `cursor.*` | `core.support.cursor.*` |
+| `common.context`(`UserContext`, `UserInfo`) | `core.support.context` (PR 17d. 이력 엔티티가 읽으므로 `core.api.security`가 아니라 support에 둔다) |
+| `common.domain.BaseEntity`, `common.history.*` | `core.support.persistence`, `core.support.persistence.history` (PR 17d. 템플릿은 `storage.db.core`에 두며, 엔티티를 storage/db-core로 옮기는 선택 단계에서 함께 옮긴다) |
+| `common.monitoring`(쿼리 수 측정, 로컬 SQL 추적) | `core.support.monitoring` (PR 17d) |
+| `common.validation` | `core.support.validation` (PR 17d) |
 | `common.exception.GlobalExceptionHandler` | `core.api.controller` (Presentation이 도메인 예외를 아는 정방향 의존이 되어 `common` ↔ 도메인 순환이 사라졌다) |
 | `domain.auth`의 웹 보안(`SessionAuthFilter`, `AdminAuthInterceptor`, `@CurrentMemberId`와 리졸버, `AuthenticationRequiredException`, `SessionUtil` → `SessionCookie`) | `core.api.security` (PR 10a. 모든 Controller가 쓰는 웹 인프라라서 auth 도메인에서 뺐다. 이 때문에 생기던 member → auth 간선이 사라져 순환이 끊겼다) |
 
@@ -193,7 +197,9 @@ kr.kro.airbob
 ├─ core.domain.<도메인>                    @Service(Business), @Component(Implement),
 │   │                                      엔티티, 도메인 enum·예외·record
 │   └─ repository/                         Spring Data, QueryDSL, projection (Data Access)
-└─ core.support.{error,response,cursor}    BaseException·ErrorCode, ApiResponse, 커서 페이징
+└─ core.support.{error,response,cursor,  BaseException·ErrorCode, ApiResponse, 커서 페이징,
+       context,persistence,monitoring,    요청 사용자, BaseEntity·이력 기반, 쿼리 수 측정, 검증,
+       validation,messaging}              통합 이벤트·outbox·Kafka 인프라(PR 17f)
 ```
 
 ### 계층과 의존 규칙
@@ -313,6 +319,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 17a (settlement 이전) | 0 | 2 | 0 |
 | PR 17b (recentlyviewed 이전) | 0 | 2 | 0 |
 | PR 17c (search 이전) | 0 | 2 | 0 |
+| PR 17d (common 이전) | 0 | 2 | 0 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -373,7 +380,13 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 17a | settlement 이전: `SettlementReader`·`SettlementHistoryWriter`·`SettlementGenerator`(월 집계·적재. 월 단위 분산 락과 트랜잭션은 Business에 그대로) 추출, 출력을 도메인 레코드(`SettlementSummary`, `HostSettlementDetail`, `HostSettlementTotals`)로, Implement만 읽는 원장 집계 projection은 `repository/projection`으로, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 17b | recentlyviewed 이전: Redis ZSET 기록 읽기·쓰기를 `RecentlyViewedReader`·`RecentlyViewedWriter`로, 출력을 도메인 레코드 `RecentlyViewedAccommodation` 목록으로, 응답 DTO를 `AccommodationResponse`에서 `RecentlyViewedResponse`로 옮김(스키마 이름 유지. accommodation 응답이 recentlyviewed 레코드를 알면 순환이 생기므로), 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 17c | search 이전: 검색 조건을 도메인 레코드 `AccommodationSearchCondition`으로(요청 DTO의 `toCondition`), Elasticsearch 질의 생성·실행을 `AccommodationDocumentReader`로, 색인 저장·삭제를 `AccommodationDocumentWriter`로, 출력을 `AccommodationSearchPage`로(페이지 계산 포함), 패키지 이동. AWS 성능 실험실 검색 프로브는 이동 전후 jar 모두에서 리더를 찾음 | `search.md`의 색인 불변식, 스냅샷 불변 | 완료 |
-| 17~ | messaging, 나머지 공통 패키지(`common`, `config`, `geo`) | 각 영역 규칙 파일의 불변식 | |
+| 17d | common 이전: `context`·`persistence`(BaseEntity, 이력 기반)·`monitoring`·`validation`을 `core.support.*`로 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
+| 17e | config 이전: 앱 설정을 `core.api.config`로(템플릿 위치), 숙소 상세 캐시 전용 Redis 설정은 `core.domain.accommodation.cache.config`로, `config.apidocs`는 `core.api.config.apidocs`로 | 스냅샷 불변 | |
+| 17f | messaging 기술 인프라(`event`, `outbox`, `infrastructure.kafka`)를 `core.support.messaging`으로 | `messaging.md`의 outbox·토픽 불변식 | |
+| 17g | 운영 알림(`messaging.alert`)을 도메인 `core.domain.operatoralert`로 | `messaging.md`의 알림 불변식 | |
+| 17h | geo 포트·어댑터를 소비 도메인 `core.domain.accommodation.location`으로(`GeocodingGateway`, `GoogleGeocodingAdapter`), 도메인 결과에서 Google 타입 viewport 제거 | 위치 확인 동작 불변 | |
+| 17i | Google Geocoding HTTP 전송을 `clients/client-google-geocoding`으로(client-toss-payments 방식) | CI scope, 모듈 테스트 | |
+| 17j | 마무리: ArchUnit의 레거시 패키지 참조 정리, 현재 상태·목표 구조·CLAUDE.md 갱신 | 동결 저장소 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 

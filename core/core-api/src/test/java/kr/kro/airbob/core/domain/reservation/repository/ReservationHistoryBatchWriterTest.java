@@ -29,9 +29,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.reservation.ReservationHistory;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationHistory JDBC batch writer unit test")

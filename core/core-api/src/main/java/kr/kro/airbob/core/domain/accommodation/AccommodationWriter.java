@@ -8,8 +8,6 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.core.domain.accommodation.AccommodationLocationResolver.ResolvedLocation;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationHistoryRepository;
@@ -17,6 +15,8 @@ import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepositor
 import kr.kro.airbob.core.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
+import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
 import lombok.RequiredArgsConstructor;
 
 /** 숙소 변경 구현 컴포넌트. 상태 변경마다 숙소 이력(SCD2)을 남긴다: 직전 현재 행을 닫고 새 스냅샷을 연다. */

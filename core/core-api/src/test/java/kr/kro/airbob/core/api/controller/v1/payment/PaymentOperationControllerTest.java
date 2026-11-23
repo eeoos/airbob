@@ -27,8 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.payment.PaymentOperationDetail;
 import kr.kro.airbob.core.domain.payment.PaymentOperationDetailRow;
@@ -36,6 +34,8 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationQueryService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationStatus;
 import kr.kro.airbob.core.domain.payment.PaymentOperationType;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationControllerTest {

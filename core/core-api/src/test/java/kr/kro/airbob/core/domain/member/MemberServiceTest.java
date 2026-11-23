@@ -15,12 +15,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 
-import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.core.api.controller.v1.member.request.MemberRequest;
 import kr.kro.airbob.core.domain.member.MemberProfile;
 import kr.kro.airbob.core.domain.member.port.SessionInvalidator;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.jbcrypt.BCrypt;
@@ -130,7 +130,7 @@ class MemberServiceTest {
         MemberHistory currentHistory = MemberHistory.builder()
             .memberId(10L)
             .status(MemberStatus.ACTIVE)
-            .changeType(kr.kro.airbob.common.history.ChangeType.CREATE)
+            .changeType(kr.kro.airbob.core.support.persistence.history.ChangeType.CREATE)
             .validFrom(LocalDateTime.of(2026, 8, 1, 0, 0))
             .validTo(HistoryConstants.FOREVER)
             .build();

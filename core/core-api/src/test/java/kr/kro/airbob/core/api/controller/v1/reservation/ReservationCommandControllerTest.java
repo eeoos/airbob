@@ -24,8 +24,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Status;
@@ -36,6 +34,8 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationStatus;
 import kr.kro.airbob.core.domain.reservation.ReservationCheckoutService;
 import kr.kro.airbob.core.domain.reservation.ReservationHoldCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationQuoteService;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationCommandControllerTest {

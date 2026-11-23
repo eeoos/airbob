@@ -30,8 +30,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
@@ -45,6 +43,8 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationResolutionReason;
 import kr.kro.airbob.core.domain.payment.PaymentOperationStatus;
 import kr.kro.airbob.core.domain.payment.PaymentOperationType;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationManualReviewQueryRepository;
+import kr.kro.airbob.core.support.context.UserContext;
+import kr.kro.airbob.core.support.context.UserInfo;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class PaymentOperationAdminControllerTest {

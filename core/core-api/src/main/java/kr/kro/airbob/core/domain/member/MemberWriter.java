@@ -8,10 +8,10 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
+import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
 import lombok.RequiredArgsConstructor;
 
 /**
