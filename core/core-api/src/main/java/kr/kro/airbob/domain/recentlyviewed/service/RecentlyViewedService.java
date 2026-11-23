@@ -15,11 +15,11 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
+import kr.kro.airbob.core.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
-import kr.kro.airbob.domain.accommodation.RecentlyViewedAccommodationProjection;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

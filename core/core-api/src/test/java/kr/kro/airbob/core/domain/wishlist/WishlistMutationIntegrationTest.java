@@ -35,13 +35,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.member.MemberNotFoundException;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.core.support.error.BaseException;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 
 @DataJpaTest(showSql = false)
 @Testcontainers

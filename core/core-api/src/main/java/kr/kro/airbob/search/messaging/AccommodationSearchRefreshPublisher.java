@@ -2,7 +2,7 @@ package kr.kro.airbob.search.messaging;
 
 import java.util.UUID;
 
-import kr.kro.airbob.domain.accommodation.port.AccommodationSearchRefreshRequester;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 
 public interface AccommodationSearchRefreshPublisher extends AccommodationSearchRefreshRequester {
 

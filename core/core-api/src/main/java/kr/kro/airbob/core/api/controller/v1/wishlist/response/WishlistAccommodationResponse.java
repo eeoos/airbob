@@ -5,11 +5,11 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
+import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationItem;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationPage;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

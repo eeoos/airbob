@@ -19,10 +19,10 @@ import org.springframework.core.io.ClassPathResource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
+import kr.kro.airbob.core.domain.accommodation.Address;
 import kr.kro.airbob.core.domain.member.Member;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;

@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import com.querydsl.core.annotations.QueryProjection;
 
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;

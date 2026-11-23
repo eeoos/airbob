@@ -23,11 +23,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
+import kr.kro.airbob.core.domain.accommodation.InventorySeedTarget;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 
 @ExtendWith(MockitoExtension.class)

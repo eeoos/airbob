@@ -6,14 +6,14 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityReader;
-import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
-import kr.kro.airbob.domain.accommodation.service.AccommodationReviewSummaryReader;
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
+import kr.kro.airbob.core.domain.accommodation.AccommodationAmenity;
+import kr.kro.airbob.core.domain.accommodation.AccommodationAmenityReader;
+import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummary;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummaryReader;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;

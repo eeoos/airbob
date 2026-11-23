@@ -1,6 +1,6 @@
 package kr.kro.airbob.core.domain.wishlist.repository.querydsl;
 
-import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
+import static kr.kro.airbob.core.domain.accommodation.QAccommodation.*;
 import static kr.kro.airbob.core.domain.wishlist.QWishlist.*;
 import static kr.kro.airbob.core.domain.wishlist.QWishlistAccommodation.*;
 

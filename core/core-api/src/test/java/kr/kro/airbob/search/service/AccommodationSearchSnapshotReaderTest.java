@@ -13,7 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
 import kr.kro.airbob.search.document.AccommodationDocument;
 
 @ExtendWith(MockitoExtension.class)

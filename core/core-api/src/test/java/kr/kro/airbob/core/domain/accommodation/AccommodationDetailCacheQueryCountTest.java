@@ -1,0 +1,242 @@
+package kr.kro.airbob.core.domain.accommodation;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import java.time.LocalTime;
+
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import kr.kro.airbob.config.AccommodationDetailRedisConfig;
+import kr.kro.airbob.config.ClockConfig;
+import kr.kro.airbob.config.JpaAuditingConfig;
+import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
+import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
+import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailCacheConfiguration;
+import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationListener;
+import kr.kro.airbob.core.domain.accommodation.cache.monitoring.FailSafeAccommodationDetailCacheMetricRecorder;
+import kr.kro.airbob.core.domain.accommodation.cache.monitoring.MicrometerAccommodationDetailCacheMetricRecorder;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationReviewSummaryRepository;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
+import kr.kro.airbob.core.domain.image.S3ImageUploader;
+import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.domain.wishlist.Wishlist;
+import kr.kro.airbob.core.domain.wishlist.WishlistAccommodation;
+import kr.kro.airbob.core.domain.wishlist.WishlistReader;
+import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.geo.GeocodingService;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
+
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
+@Testcontainers
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import({
+	ClockConfig.class,
+	JpaAuditingConfig.class,
+	QueryDslConfig.class,
+	AccommodationDetailCacheQueryCountTest.TestRedisConfiguration.class,
+	AccommodationDetailCacheConfiguration.class,
+	AccommodationDetailRedisConfig.class,
+	AccommodationDetailCache.class,
+	MicrometerAccommodationDetailCacheMetricRecorder.class,
+	FailSafeAccommodationDetailCacheMetricRecorder.class,
+	AccommodationDetailCacheInvalidationListener.class,
+	AccommodationDetailReader.class, WishlistReader.class,
+	AccommodationQueryService.class,
+	ReservationAvailabilityReader.class, AccommodationReader.class
+})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@DisplayName("숙소 상세 캐시 쿼리 수 통합 테스트")
+class AccommodationDetailCacheQueryCountTest {
+
+	@Container
+	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
+		.withDatabaseName("airbobdb_accommodation_detail_cache_query");
+
+	@Container
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
+
+	@DynamicPropertySource
+	static void setProperties(DynamicPropertyRegistry registry) {
+		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+		registry.add("spring.datasource.username", MYSQL::getUsername);
+		registry.add("spring.datasource.password", MYSQL::getPassword);
+		registry.add("spring.flyway.url", MYSQL::getJdbcUrl);
+		registry.add("spring.flyway.user", MYSQL::getUsername);
+		registry.add("spring.flyway.password", MYSQL::getPassword);
+		registry.add("spring.data.redis.host", REDIS::getHost);
+		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+	}
+
+	@Autowired private AccommodationQueryService queryService;
+	@Autowired private AccommodationRepository accommodationRepository;
+	@Autowired private AccommodationReviewSummaryRepository reviewSummaryRepository;
+	@Autowired private MemberRepository memberRepository;
+	@Autowired private EntityManager entityManager;
+	@Autowired private EntityManagerFactory entityManagerFactory;
+
+	@MockitoBean private CommonCodeReader commonCodeReader;
+	@MockitoBean private CursorPageInfoCreator cursorPageInfoCreator;
+	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@MockitoBean private GeocodingService geocodingService;
+	@MockitoBean private S3ImageUploader s3ImageUploader;
+	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean private ReservationInventoryService inventoryService;
+
+	private Accommodation accommodation;
+	private Member host;
+
+	@BeforeEach
+	void setUp() {
+		host = memberRepository.save(Member.builder()
+			.email("cache-query@test.com")
+			.nickname("cache-query-host")
+			.build());
+		accommodation = accommodationRepository.save(Accommodation.builder()
+			.member(host)
+			.name("cache-query-accommodation")
+			.address(Address.builder().country("대한민국").city("서울").build())
+			.occupancyPolicy(OccupancyPolicy.builder()
+				.maxOccupancy(4).infantOccupancy(1).petOccupancy(0).build())
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
+			.status(AccommodationStatus.PUBLISHED)
+			.build());
+		reviewSummaryRepository.save(AccommodationReviewSummary.builder()
+			.accommodation(accommodation)
+			.totalReviewCount(4)
+			.ratingSum(18L)
+			.averageRating(new BigDecimal("4.50"))
+			.build());
+		entityManager.persist(AccommodationAmenity.createAccommodationAmenity(accommodation, "WIFI", 1));
+		entityManager.persist(AccommodationImage.builder().accommodation(accommodation).imageUrl("/cache-image.jpg").build());
+	}
+
+	@Test
+	@DisplayName("비로그인 상세은 첫 조회 3 SELECT 후 warm cache에서 0 SELECT이다")
+	void anonymousColdMissThenWarmHit() {
+		Statistics cold = prepareMeasurement();
+
+		AccommodationResponse.DetailInfo first = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null));
+
+		assertThat(first.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
+		assertThat(cold.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(cold.getEntityLoadCount()).isZero();
+		assertThat(first.images()).hasSize(1);
+		assertThat(first.amenities()).hasSize(1);
+
+		Statistics warm = prepareMeasurement();
+		AccommodationResponse.DetailInfo second = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null));
+
+		assertThat(second).isEqualTo(first);
+		assertThat(warm.getPrepareStatementCount()).isZero();
+	}
+
+	@Test
+	@DisplayName("로그인 상세은 첫 조회 4 SELECT 후 warm cache에서 찜 조회 1 SELECT만 실행한다")
+	void authenticatedColdMissThenWarmHit() {
+		Statistics cold = prepareMeasurement();
+
+		AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+
+		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
+
+		Statistics warm = prepareMeasurement();
+		AccommodationResponse.DetailInfo second =
+			AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+
+		assertThat(second.isInWishlist()).isFalse();
+		assertThat(warm.getPrepareStatementCount()).isEqualTo(1);
+	}
+
+	@Test
+	void cachedSnapshotDoesNotShareWishlistStateAcrossViewers() {
+		Member other = memberRepository.save(Member.builder().email("other-cache@test.invalid").nickname("other").build());
+		Wishlist wishlist = Wishlist.builder().member(host).name("개인 저장 목록").build();
+		entityManager.persist(wishlist);
+		entityManager.persist(WishlistAccommodation.builder().wishlist(wishlist).accommodation(accommodation).build());
+		Statistics cold = prepareMeasurement();
+
+		var ownerView = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+		assertThat(ownerView.isInWishlist()).isTrue();
+		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
+		assertThat(cold.getEntityLoadCount()).isZero();
+
+		Statistics otherWarm = prepareMeasurement();
+		var otherView = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), other.getId()));
+		assertThat(otherView.isInWishlist()).isFalse();
+		assertThat(otherView.images()).isEqualTo(ownerView.images());
+		assertThat(otherView.amenities()).isEqualTo(ownerView.amenities());
+		assertThat(otherWarm.getPrepareStatementCount()).isEqualTo(1);
+
+		Statistics anonymousWarm = prepareMeasurement();
+		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null)).isInWishlist()).isFalse();
+		assertThat(anonymousWarm.getPrepareStatementCount()).isZero();
+
+		entityManager.createQuery("delete WishlistAccommodation wa where wa.wishlist.id = :wishlistId")
+			.setParameter("wishlistId", wishlist.getId()).executeUpdate();
+		Statistics afterRemoval = prepareMeasurement();
+		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId())).isInWishlist()).isFalse();
+		assertThat(afterRemoval.getPrepareStatementCount()).isEqualTo(1);
+	}
+
+	private Statistics prepareMeasurement() {
+		entityManager.flush();
+		entityManager.clear();
+		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+		statistics.clear();
+		return statistics;
+	}
+
+	@TestConfiguration(proxyBeanMethods = false)
+	static class TestRedisConfiguration {
+
+		@Bean
+		ObjectMapper objectMapper() {
+			return new ObjectMapper().findAndRegisterModules();
+		}
+
+		@Bean
+		MeterRegistry meterRegistry() {
+			return new SimpleMeterRegistry();
+		}
+	}
+}

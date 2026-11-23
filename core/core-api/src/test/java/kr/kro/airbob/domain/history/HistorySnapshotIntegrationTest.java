@@ -37,6 +37,12 @@ import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.core.api.controller.v1.member.request.MemberRequest;
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
+import kr.kro.airbob.core.domain.accommodation.AccommodationCommandService;
+import kr.kro.airbob.core.domain.accommodation.AccommodationHistory;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationHistoryRepository;
+import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberHistory;
@@ -44,12 +50,6 @@ import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers

@@ -1,9 +1,9 @@
 package kr.kro.airbob.core.domain.wishlist.repository.querydsl;
 
-import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
-import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
+import static kr.kro.airbob.core.domain.accommodation.QAccommodation.*;
+import static kr.kro.airbob.core.domain.accommodation.QAddress.*;
 import static kr.kro.airbob.core.domain.member.QMember.*;
-import static kr.kro.airbob.domain.accommodation.entity.QAccommodationReviewSummary.*;
+import static kr.kro.airbob.core.domain.accommodation.QAccommodationReviewSummary.*;
 import static kr.kro.airbob.core.domain.wishlist.QWishlist.*;
 import static kr.kro.airbob.core.domain.wishlist.QWishlistAccommodation.*;
 
@@ -22,10 +22,10 @@ import com.querydsl.jpa.impl.JPAQuery;
 
 import jakarta.persistence.LockModeType;
 
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.wishlist.QWishlistAccommodationItem;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationItem;
 import kr.kro.airbob.core.domain.wishlist.WishlistStatus;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

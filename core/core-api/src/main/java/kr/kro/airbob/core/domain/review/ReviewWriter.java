@@ -2,9 +2,9 @@ package kr.kro.airbob.core.domain.review;
 
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import lombok.RequiredArgsConstructor;
 
 /** 리뷰 변경 구현 컴포넌트. */

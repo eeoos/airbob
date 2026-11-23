@@ -64,7 +64,7 @@ reservation(예약 대상), search(검색 문서), review, recentlyviewed, payme
 
 - 다른 도메인은 `AccommodationReader`(숙소, 견적·체크아웃 스냅샷, 재고 seed 대상, 최근 본 숙소)와 `AccommodationAmenityReader`로 읽는다.
   체크아웃의 `FOR SHARE NOWAIT` 스냅샷도 같은 트랜잭션에서 Reader를 거쳐 읽으며, NOWAIT 분류는 `ReservationTransactionService`가 그대로 한다.
-- accommodation이 필요로 하는 다른 도메인 기능은 accommodation이 소유한 포트(`domain.accommodation.port`)로 쓴다.
+- accommodation이 필요로 하는 다른 도메인 기능은 accommodation이 소유한 포트(`core.domain.accommodation.port`)로 쓴다.
 
   | 포트 | 쓰는 곳 | 구현 |
   |---|---|---|
@@ -84,7 +84,7 @@ reservation(예약 대상), search(검색 문서), review, recentlyviewed, payme
   Controller가 `DetailInfo`·`Availability`·`HostAccommodationInfos`·`HostDetail`의 `from`으로 응답을 만든다.
   호스트 목록·상세 projection은 Business 출력에 담기므로 repository 패키지 밖 도메인 루트에 둔다.
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b), accommodation(PR 13g)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -254,6 +254,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 13d (accommodation 쓰기 계층화) | 9 | 5 | 9 |
 | PR 13e (accommodation 상세 캐시 값) | 9 | 5 | 9 |
 | PR 13f (accommodation 조회 출력) | 9 | 5 | 9 |
+| PR 13g (accommodation 이전) | 9 | 5 | 9 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -295,7 +296,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 13d | accommodation 쓰기 계층화: `AccommodationWriter`·`AccommodationValidator`·`AccommodationLocationResolver`·`AccommodationImageReader`·`AccommodationImageWriter` 추출, 쓰기 Business 입출력을 `AccommodationUpdate`·숙소 ID·`StoredImage`로 | 호출 순서·트랜잭션 경계·스냅샷 불변 | 완료 |
 | 13e | accommodation 상세 캐시 값: `AccommodationDetailSnapshot`을 도메인 루트로 옮기고 중첩 값을 도메인 레코드로. 바꾸기 전 캐시 JSON을 문자열로 고정한 테스트를 추가해 저장된 값과 호환 확인 | 캐시 JSON·스냅샷 불변 | 완료 |
 | 13f | accommodation 조회 출력: 공개 상세·가용일·호스트 목록·호스트 상세의 Business 출력을 도메인 레코드로(repository 패키지 projection 포함) | 엄격 규칙 준비, 스냅샷 불변 | 완료 |
-| 13g | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | |
+| 13g | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 14~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |

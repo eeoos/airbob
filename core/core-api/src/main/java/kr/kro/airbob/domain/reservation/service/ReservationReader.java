@@ -4,7 +4,7 @@ import java.time.Instant;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.domain.accommodation.port.AccommodationReservationReader;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationReservationReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 

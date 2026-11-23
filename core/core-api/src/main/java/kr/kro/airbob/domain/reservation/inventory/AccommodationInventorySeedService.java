@@ -17,11 +17,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.port.AccommodationInventorySeeder;
-import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
+import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
+import kr.kro.airbob.core.domain.accommodation.InventorySeedTarget;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationInventorySeeder;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository.SeedDay;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedPolicy.SeedRange;

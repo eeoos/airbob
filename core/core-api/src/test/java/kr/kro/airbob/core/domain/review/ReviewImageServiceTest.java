@@ -18,14 +18,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
+import kr.kro.airbob.core.domain.accommodation.Accommodation;
+import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("리뷰 이미지 서비스 단위 테스트")
