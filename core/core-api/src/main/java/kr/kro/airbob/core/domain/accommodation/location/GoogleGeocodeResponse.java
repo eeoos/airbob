@@ -1,4 +1,4 @@
-package kr.kro.airbob.geo.dto;
+package kr.kro.airbob.core.domain.accommodation.location;
 
 import java.util.List;
 

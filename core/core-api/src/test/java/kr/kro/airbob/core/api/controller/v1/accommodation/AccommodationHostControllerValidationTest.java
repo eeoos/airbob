@@ -46,6 +46,8 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.AccommodationValidator;
 import kr.kro.airbob.core.domain.accommodation.AccommodationWriter;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodingGateway;
+import kr.kro.airbob.core.domain.accommodation.location.TimeZoneResolver;
 import kr.kro.airbob.core.domain.accommodation.repository.*;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.domain.image.S3ImageUploader;
@@ -55,8 +57,6 @@ import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventorySeede
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.context.UserContext;
 import kr.kro.airbob.core.support.context.UserInfo;
-import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.geo.TimeZoneResolver;
 
 @ExtendWith(MockitoExtension.class)
 class AccommodationHostControllerValidationTest {
@@ -70,7 +70,7 @@ class AccommodationHostControllerValidationTest {
 	@Mock ReservationReader reservations;
 	@Mock MemberReader members;
 	@Mock CommonCodeReader codes;
-	@Mock GeocodingService geocoding;
+	@Mock GeocodingGateway geocoding;
 	@Mock TimeZoneResolver timeZones;
 	@Mock AccommodationSearchRefreshPublisher search;
 	@Mock AccommodationDetailCacheInvalidationPublisher cache;

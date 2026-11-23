@@ -1,4 +1,4 @@
-package kr.kro.airbob.geo.impl;
+package kr.kro.airbob.core.domain.accommodation.location;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;

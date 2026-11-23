@@ -1,4 +1,4 @@
-package kr.kro.airbob.geo.impl;
+package kr.kro.airbob.core.domain.accommodation.location;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.then;
@@ -7,17 +7,13 @@ import static org.mockito.Mockito.mock;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
-import kr.kro.airbob.geo.ViewportAdjuster;
-import kr.kro.airbob.geo.dto.GeocodeResult;
-
-class GoogleGeocodingServiceTest {
+class GoogleGeocodingAdapterTest {
 
 	@Test
 	void disabledServiceReturnsFailureBeforeTouchingGoogle() {
 		RestClient restClient = mock(RestClient.class);
-		GoogleGeocodingService disabledService = new GoogleGeocodingService(
+		GoogleGeocodingAdapter disabledService = new GoogleGeocodingAdapter(
 			restClient,
-			new ViewportAdjuster(),
 			false);
 
 		GeocodeResult result = disabledService.getCoordinates("서울");

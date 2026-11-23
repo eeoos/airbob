@@ -1,4 +1,4 @@
-package kr.kro.airbob.geo.impl;
+package kr.kro.airbob.core.domain.accommodation.location;
 
 import java.time.ZoneId;
 import java.util.Objects;
@@ -6,7 +6,6 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.geo.TimeZoneResolver;
 import net.iakovlev.timeshape.TimeZoneEngine;
 
 @Component
