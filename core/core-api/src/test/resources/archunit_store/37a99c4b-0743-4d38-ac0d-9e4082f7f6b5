@@ -1,5 +1,2 @@
 Domain dependency cycle edge: payment -> reservation
-Domain dependency cycle edge: payment -> search
 Domain dependency cycle edge: reservation -> payment
-Domain dependency cycle edge: reservation -> search
-Domain dependency cycle edge: search -> reservation

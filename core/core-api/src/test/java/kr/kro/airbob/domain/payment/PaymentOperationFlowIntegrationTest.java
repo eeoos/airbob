@@ -112,6 +112,8 @@ import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepos
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
@@ -135,6 +137,8 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	JpaOutboxWriter.class,
 	OutboxAccommodationSearchRefreshPublisher.class,
 	PaymentOperationCommandService.class,
+	ReservationReader.class,
+	ReservationHistoryWriter.class,
 	PaymentCancellationCommandService.class,
 	PaymentOperationLeaseService.class,
 	PaymentOperationManualReviewCommandService.class,

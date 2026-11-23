@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
@@ -25,14 +26,11 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @Service
 public class PaymentOperationManualReviewTransactionService {
@@ -46,37 +44,37 @@ public class PaymentOperationManualReviewTransactionService {
 		Pattern.compile("^[A-Za-z0-9_\\-/:.,]+$");
 
 	private final PaymentOperationRepository operationRepository;
-	private final ReservationRepository reservationRepository;
+	private final ReservationReader reservationReader;
 	private final ReservationInventoryService inventoryService;
 	private final PaymentRepository paymentRepository;
 	private final PaymentTransactionRepository transactionRepository;
 	private final CouponUsageManager couponUsageManager;
-	private final ReservationHistoryRepository historyRepository;
-	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	private final ReservationHistoryWriter reservationHistoryWriter;
+	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 	private final OutboxWriter outboxWriter;
 	private final PaymentOperationManualResolutionRecorder resolutionRecorder;
 	private final Clock clock;
 
 	public PaymentOperationManualReviewTransactionService(
 		PaymentOperationRepository operationRepository,
-		ReservationRepository reservationRepository,
+		ReservationReader reservationReader,
 		ReservationInventoryService inventoryService,
 		PaymentRepository paymentRepository,
 		PaymentTransactionRepository transactionRepository,
 		CouponUsageManager couponUsageManager,
-		ReservationHistoryRepository historyRepository,
-		AccommodationSearchRefreshPublisher searchRefreshPublisher,
+		ReservationHistoryWriter reservationHistoryWriter,
+		AccommodationSearchRefreshRequester searchRefreshPublisher,
 		OutboxWriter outboxWriter,
 		PaymentOperationManualResolutionRecorder resolutionRecorder,
 		Clock clock
 	) {
 		this.operationRepository = operationRepository;
-		this.reservationRepository = reservationRepository;
+		this.reservationReader = reservationReader;
 		this.inventoryService = inventoryService;
 		this.paymentRepository = paymentRepository;
 		this.transactionRepository = transactionRepository;
 		this.couponUsageManager = couponUsageManager;
-		this.historyRepository = historyRepository;
+		this.reservationHistoryWriter = reservationHistoryWriter;
 		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.outboxWriter = outboxWriter;
 		this.resolutionRecorder = resolutionRecorder;
@@ -129,8 +127,7 @@ public class PaymentOperationManualReviewTransactionService {
 		validateEvidenceReference(evidenceReference);
 		PaymentOperation operation = lockAtVersion(operationUid, expectedVersion);
 		validateNotPaidOperation(operation);
-		Reservation reservation = reservationRepository.findByIdWithLock(
-			operation.getReservation().getId()).orElseThrow(ReservationNotFoundException::new);
+		Reservation reservation = reservationReader.readForUpdate(operation.getReservation().getId());
 		validateNotPaidReservation(operation, reservation);
 		if (paymentRepository.findByReservationIdWithLock(reservation.getId()).isPresent()) {
 			throw new PaymentOperationInvariantViolationException(
@@ -154,8 +151,8 @@ public class PaymentOperationManualReviewTransactionService {
 			operation, reservation, NOT_PAID_FAILURE_CODE, NOT_PAID_FAILURE_MESSAGE));
 		reservation.expireAfterFinalPaymentDecline();
 		couponUsageManager.restore(reservation.getId());
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.STATUS_CHANGE, NOT_PAID_HISTORY_REASON, HISTORY_SOURCE));
+		reservationHistoryWriter.recordSystem(
+			reservation, ChangeType.STATUS_CHANGE, NOT_PAID_HISTORY_REASON, HISTORY_SOURCE);
 		searchRefreshPublisher.requestRefresh(
 			reservation.getAccommodation().getAccommodationUid());
 		resolutionRecorder.recordAdmin(

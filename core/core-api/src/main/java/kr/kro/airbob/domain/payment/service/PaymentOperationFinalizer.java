@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
@@ -17,22 +18,19 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
+import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
-import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 
 @Service
 public class PaymentOperationFinalizer {
@@ -40,34 +38,34 @@ public class PaymentOperationFinalizer {
 	private static final String HISTORY_SOURCE = "PAYMENT_OPERATION";
 
 	private final PaymentOperationRepository operationRepository;
-	private final ReservationRepository reservationRepository;
+	private final ReservationReader reservationReader;
 	private final PaymentRepository paymentRepository;
 	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final CouponUsageManager couponUsageManager;
-	private final ReservationHistoryRepository historyRepository;
+	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final ReservationInventoryService inventoryService;
-	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 	private final PaymentOperationManualResolutionRecorder resolutionRecorder;
 	private final Clock clock;
 
 	public PaymentOperationFinalizer(
 		PaymentOperationRepository operationRepository,
-		ReservationRepository reservationRepository,
+		ReservationReader reservationReader,
 		PaymentRepository paymentRepository,
 		PaymentTransactionRepository paymentTransactionRepository,
 		CouponUsageManager couponUsageManager,
-		ReservationHistoryRepository historyRepository,
+		ReservationHistoryWriter reservationHistoryWriter,
 		ReservationInventoryService inventoryService,
-		AccommodationSearchRefreshPublisher searchRefreshPublisher,
+		AccommodationSearchRefreshRequester searchRefreshPublisher,
 		PaymentOperationManualResolutionRecorder resolutionRecorder,
 		Clock clock
 	) {
 		this.operationRepository = operationRepository;
-		this.reservationRepository = reservationRepository;
+		this.reservationReader = reservationReader;
 		this.paymentRepository = paymentRepository;
 		this.paymentTransactionRepository = paymentTransactionRepository;
 		this.couponUsageManager = couponUsageManager;
-		this.historyRepository = historyRepository;
+		this.reservationHistoryWriter = reservationHistoryWriter;
 		this.inventoryService = inventoryService;
 		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.resolutionRecorder = resolutionRecorder;
@@ -105,8 +103,8 @@ public class PaymentOperationFinalizer {
 		}
 
 		reservation.confirm();
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.STATUS_CHANGE, "결제 성공", HISTORY_SOURCE));
+		reservationHistoryWriter.recordSystem(
+			reservation, ChangeType.STATUS_CHANGE, "결제 성공", HISTORY_SOURCE);
 		var completedAt = clock.instant();
 		operation.markApplied(completedAt);
 		requestAccommodationSearchRefresh(reservation);
@@ -182,8 +180,8 @@ public class PaymentOperationFinalizer {
 
 		reservation.completeCancellation();
 		couponUsageManager.restore(reservation.getId());
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.CANCEL, "PG 결제 전액 취소 성공", HISTORY_SOURCE));
+		reservationHistoryWriter.recordSystem(
+			reservation, ChangeType.CANCEL, "PG 결제 전액 취소 성공", HISTORY_SOURCE);
 		var completedAt = clock.instant();
 		operation.markApplied(completedAt);
 		requestAccommodationSearchRefresh(reservation);
@@ -240,11 +238,11 @@ public class PaymentOperationFinalizer {
 			reservation.getId());
 		reservation.expireAfterFinalPaymentDecline();
 		couponUsageManager.restore(reservation.getId());
-		historyRepository.save(ReservationHistory.ofSystem(
+		reservationHistoryWriter.recordSystem(
 			reservation,
 			ChangeType.STATUS_CHANGE,
 			"결제 최종 거절: " + normalizedCode,
-			HISTORY_SOURCE));
+			HISTORY_SOURCE);
 	}
 
 	private void applyCancellationDecline(
@@ -266,11 +264,11 @@ public class PaymentOperationFinalizer {
 				operation, reservation, payment, normalizedCode, message));
 		}
 		reservation.failCancellation();
-		historyRepository.save(ReservationHistory.ofSystem(
+		reservationHistoryWriter.recordSystem(
 			reservation,
 			ChangeType.STATUS_CHANGE,
 			"결제 취소 최종 거절: " + normalizedCode,
-			HISTORY_SOURCE));
+			HISTORY_SOURCE);
 	}
 
 	private PaymentOperation lockOperation(PaymentExecution execution) {
@@ -279,8 +277,7 @@ public class PaymentOperationFinalizer {
 	}
 
 	private Reservation lockReservation(PaymentOperation operation) {
-		return reservationRepository.findByIdWithLock(operation.getReservation().getId())
-			.orElseThrow(ReservationNotFoundException::new);
+		return reservationReader.readForUpdate(operation.getReservation().getId());
 	}
 
 	private void validateExecutionCorrelation(

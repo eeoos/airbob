@@ -8,9 +8,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.Payment;
@@ -18,54 +19,51 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationCancellationDeadlinePassedException;
-import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @Service
 public class PaymentCancellationCommandService {
 	private static final String HISTORY_SOURCE = "PAYMENT_OPERATION";
 
-	private final ReservationRepository reservationRepository;
+	private final ReservationReader reservationReader;
 	private final ReservationInventoryService inventoryService;
 	private final PaymentRepository paymentRepository;
 	private final PaymentOperationRepository operationRepository;
-	private final ReservationHistoryRepository historyRepository;
+	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final CouponUsageManager couponUsageManager;
-	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 	private final OutboxWriter outboxWriter;
 	private final Clock clock;
 
 	public PaymentCancellationCommandService(
-		ReservationRepository reservationRepository,
+		ReservationReader reservationReader,
 		ReservationInventoryService inventoryService,
 		PaymentRepository paymentRepository,
 		PaymentOperationRepository operationRepository,
-		ReservationHistoryRepository historyRepository,
+		ReservationHistoryWriter reservationHistoryWriter,
 		CouponUsageManager couponUsageManager,
-		AccommodationSearchRefreshPublisher searchRefreshPublisher,
+		AccommodationSearchRefreshRequester searchRefreshPublisher,
 		OutboxWriter outboxWriter,
 		Clock clock
 	) {
-		this.reservationRepository = reservationRepository;
+		this.reservationReader = reservationReader;
 		this.inventoryService = inventoryService;
 		this.paymentRepository = paymentRepository;
 		this.operationRepository = operationRepository;
-		this.historyRepository = historyRepository;
+		this.reservationHistoryWriter = reservationHistoryWriter;
 		this.couponUsageManager = couponUsageManager;
 		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.outboxWriter = outboxWriter;
@@ -79,8 +77,7 @@ public class PaymentCancellationCommandService {
 		Long memberId
 	) {
 		UUID reservationUid = parseReservationUid(reservationUidValue);
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(reservationUid)
-			.orElseThrow(ReservationNotFoundException::new);
+		Reservation reservation = reservationReader.readByUidForUpdate(reservationUid);
 		if (!reservation.belongsToGuest(memberId)) {
 			throw new PaymentAccessDeniedException();
 		}
@@ -116,12 +113,12 @@ public class PaymentCancellationCommandService {
 			now
 		);
 		operationRepository.save(operation);
-		historyRepository.save(ReservationHistory.ofSystem(
+		reservationHistoryWriter.recordSystem(
 			reservation,
 			ChangeType.STATUS_CHANGE,
 			"결제 취소 처리 시작: " + request.cancelReason(),
 			HISTORY_SOURCE
-		));
+		);
 		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
 			operation.getOperationUid(),
 			reservationUid,
@@ -153,8 +150,8 @@ public class PaymentCancellationCommandService {
 			reservation.getId()
 		);
 		couponUsageManager.restore(reservation.getId());
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.CANCEL, request.cancelReason(), "RESERVATION"));
+		reservationHistoryWriter.recordSystem(
+			reservation, ChangeType.CANCEL, request.cancelReason(), "RESERVATION");
 		searchRefreshPublisher.requestRefresh(
 			reservation.getAccommodation().getAccommodationUid());
 		return Cancellation.completed();

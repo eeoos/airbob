@@ -78,6 +78,8 @@ import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepos
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
@@ -93,6 +95,8 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	AccommodationInventoryDayRepository.class,
 	ReservationInventoryService.class,
 	PaymentOperationFinalizer.class,
+	ReservationReader.class,
+	ReservationHistoryWriter.class,
 	PaymentOperationFinalizerIntegrationTest.FinalizerTestConfiguration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

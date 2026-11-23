@@ -40,6 +40,8 @@ import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantV
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,10 +70,10 @@ class PaymentOperationCommandServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new PaymentOperationCommandService(
-			reservationRepository,
+			new ReservationReader(reservationRepository),
 			inventoryService,
 			paymentOperationRepository,
-			historyRepository,
+			new ReservationHistoryWriter(historyRepository),
 			outboxWriter,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
