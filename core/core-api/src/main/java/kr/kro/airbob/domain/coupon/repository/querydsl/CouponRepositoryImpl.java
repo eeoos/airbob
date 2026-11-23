@@ -14,8 +14,8 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
-import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
-import kr.kro.airbob.domain.coupon.repository.projection.QCouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.QCouponCampaignProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

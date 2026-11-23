@@ -13,7 +13,7 @@ class CouponStockPreparationServiceTest {
 		var coupons = mock(CouponRepository.class);
 		var members = mock(MemberCouponRepository.class);
 		var units = mock(CouponIssueUnitStore.class);
-		var service = new CouponStockPreparationService(coupons, members, units);
+		var service = new CouponStockPreparationService(new CouponReader(coupons, members, units), new CouponWriter(coupons, units));
 		var now = LocalDateTime.of(2026, 10, 9, 10, 0);
 		when(units.databaseNow()).thenReturn(now);
 		var coupon = Coupon.builder().id(1L).name("coupon").totalQuantity(10)

@@ -14,10 +14,12 @@ import org.springframework.core.io.ClassPathResource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.coupon.CouponCampaignPage;
+import kr.kro.airbob.domain.coupon.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.MemberCouponPage;
+import kr.kro.airbob.domain.coupon.MemberCouponProjection;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
-import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
-import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @JsonTest
 @DisplayName("쿠폰 캠페인·보유 쿠폰 프론트 공유 JSON 계약")
@@ -36,7 +38,7 @@ class CouponResponseJsonTest {
 			coupon(12, "매진 쿠폰").build());
 
 		assertContract("coupon-campaigns.json", new CouponResponse.CouponInfos(campaigns.stream()
-			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon, coupon.getId() != 12), NOW)).toList(),
+			.map(coupon -> CouponResponse.CouponInfo.from(CouponCampaignPage.Item.of(campaign(coupon, coupon.getId() != 12), NOW))).toList(),
 			new CursorResponse.PageInfo(false, null, campaigns.size())));
 	}
 
@@ -52,7 +54,7 @@ class CouponResponseJsonTest {
 			owned(coupon(17, "발급 종료 보유 쿠폰").issueEndAt(NOW).build(), false));
 
 		assertContract("member-coupons.json", new CouponResponse.MemberCouponInfos(owned.stream()
-			.map(memberCoupon -> CouponResponse.MemberCouponInfo.of(memberCoupon, NOW)).toList(),
+			.map(memberCoupon -> CouponResponse.MemberCouponInfo.from(MemberCouponPage.Item.of(memberCoupon, NOW))).toList(),
 			new CursorResponse.PageInfo(false, null, owned.size())));
 	}
 

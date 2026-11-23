@@ -1,17 +1,18 @@
 package kr.kro.airbob.domain.coupon.dto;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.coupon.CouponCampaignPage;
+import kr.kro.airbob.domain.coupon.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.MemberCouponPage;
+import kr.kro.airbob.domain.coupon.MemberCouponProjection;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.CouponTime;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
-import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
-import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -53,7 +54,8 @@ public class CouponResponse {
 		@Schema(name = "issuance_status", description = "시작 전 UPCOMING 우선. 시작 후 total_quantity가 null이 아니고 잔여 재고가 없으면 SOLD_OUT, 그 외 OPEN. 실제 발급은 다시 검증합니다.", example = "UPCOMING", requiredMode = Schema.RequiredMode.REQUIRED)
 		CouponIssuanceStatus issuanceStatus
 	) {
-		public static CouponInfo of(CouponCampaignProjection coupon, LocalDateTime now) {
+		public static CouponInfo from(CouponCampaignPage.Item item) {
+			CouponCampaignProjection coupon = item.campaign();
 			return new CouponInfo(
 				coupon.id(),
 				coupon.name(),
@@ -67,7 +69,7 @@ public class CouponResponse {
 				CouponTime.toInstant(coupon.usableFrom()),
 				CouponTime.toInstant(coupon.usableUntil()),
 				coupon.totalQuantity(),
-				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.hasRemainingStock(), now));
+				item.issuanceStatus());
 		}
 	}
 
@@ -78,7 +80,9 @@ public class CouponResponse {
 		@Schema(description = "다음 페이지 여부·커서·현재 항목 수", requiredMode = Schema.RequiredMode.REQUIRED)
 		CursorResponse.PageInfo pageInfo
 	) {
-
+		public static CouponInfos from(CouponCampaignPage page) {
+			return new CouponInfos(page.campaigns().stream().map(CouponInfo::from).toList(), page.pageInfo());
+		}
 	}
 
 	@Schema(name = "CouponResponseMemberCouponInfo")
@@ -104,7 +108,8 @@ public class CouponResponse {
 		@Schema(description = "USED 우선, 그다음 사용 종료 도달 시 EXPIRED, 비활성 UNAVAILABLE, 사용 시작 전 UPCOMING, 그 외 AVAILABLE. 금액 적용 조건은 견적에서 다시 확인합니다.", example = "AVAILABLE", requiredMode = Schema.RequiredMode.REQUIRED)
 		MemberCouponStatus status
 	) {
-		public static MemberCouponInfo of(MemberCouponProjection coupon, LocalDateTime now) {
+		public static MemberCouponInfo from(MemberCouponPage.Item item) {
+			MemberCouponProjection coupon = item.coupon();
 			return new MemberCouponInfo(
 				coupon.couponId(),
 				coupon.name(),
@@ -115,8 +120,7 @@ public class CouponResponse {
 				coupon.maxDiscountAmount(),
 				CouponTime.toInstant(coupon.usableFrom()),
 				CouponTime.toInstant(coupon.usableUntil()),
-				MemberCouponStatus.resolve(coupon.used(), coupon.active(), coupon.usableFrom(),
-					coupon.usableUntil(), now));
+				item.status());
 		}
 	}
 
@@ -127,6 +131,8 @@ public class CouponResponse {
 		@Schema(description = "다음 페이지 여부·커서·현재 항목 수", requiredMode = Schema.RequiredMode.REQUIRED)
 		CursorResponse.PageInfo pageInfo
 	) {
-
+		public static MemberCouponInfos from(MemberCouponPage page) {
+			return new MemberCouponInfos(page.coupons().stream().map(MemberCouponInfo::from).toList(), page.pageInfo());
+		}
 	}
 }

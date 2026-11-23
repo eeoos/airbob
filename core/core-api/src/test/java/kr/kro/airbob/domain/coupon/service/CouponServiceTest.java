@@ -15,7 +15,7 @@ class CouponServiceTest {
 		var coupons = mock(CouponRepository.class);
 		var members = mock(MemberCouponRepository.class);
 		var units = mock(CouponIssueUnitStore.class);
-		var service = new CouponService(coupons, members, units);
+		var service = new CouponService(new CouponReader(coupons, members, units), new CouponWriter(coupons, units));
 		var now = LocalDateTime.of(2026, 10, 9, 10, 0);
 		var coupon = Coupon.builder().id(1L).issueStartAt(now.minusMinutes(1)).issueEndAt(now.plusHours(1))
 			.totalQuantity(10).isActive(true).build();

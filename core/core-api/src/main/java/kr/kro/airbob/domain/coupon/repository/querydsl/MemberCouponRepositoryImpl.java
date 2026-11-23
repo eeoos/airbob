@@ -13,8 +13,8 @@ import org.springframework.data.domain.SliceImpl;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
-import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
-import kr.kro.airbob.domain.coupon.repository.projection.QMemberCouponProjection;
+import kr.kro.airbob.domain.coupon.MemberCouponProjection;
+import kr.kro.airbob.domain.coupon.QMemberCouponProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

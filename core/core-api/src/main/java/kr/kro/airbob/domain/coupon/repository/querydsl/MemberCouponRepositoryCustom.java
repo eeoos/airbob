@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
-import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
+import kr.kro.airbob.domain.coupon.MemberCouponProjection;
 
 public interface MemberCouponRepositoryCustom {
 

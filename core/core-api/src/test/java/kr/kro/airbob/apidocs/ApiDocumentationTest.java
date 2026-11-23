@@ -154,6 +154,8 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.coupon.CouponCampaignPage;
+import kr.kro.airbob.domain.coupon.MemberCouponPage;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -178,7 +180,6 @@ import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnav
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
-import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.exception.*;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
@@ -363,9 +364,11 @@ class ApiDocumentationTest {
 	@Test
 	void optionalFieldsMatchHistoricalCouponsAndZeroPriceReservations() throws Exception {
 		Instant now = Instant.parse("2027-01-01T00:00:00Z");
-		when(context.getBean(CouponQueryService.class).findCouponCampaigns(any())).thenReturn(new CouponResponse.CouponInfos(
-			List.of(new CouponResponse.CouponInfo(1L, "과거 쿠폰", null, DiscountType.FIXED_AMOUNT, 1000,
-				null, null, now, now.plusSeconds(86400), now, now.plusSeconds(86400), null, CouponIssuanceStatus.OPEN)),
+		java.time.LocalDateTime couponStart = java.time.LocalDateTime.parse("2027-01-01T00:00:00");
+		when(context.getBean(CouponQueryService.class).findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(
+			List.of(new CouponCampaignPage.Item(new kr.kro.airbob.domain.coupon.CouponCampaignProjection(1L, "과거 쿠폰",
+				null, DiscountType.FIXED_AMOUNT, 1000, null, null, couponStart, couponStart.plusDays(1), couponStart,
+				couponStart.plusDays(1), null, false), CouponIssuanceStatus.OPEN)),
 			new CursorResponse.PageInfo(false, null, 1)));
 		String coupons = mvc.perform(get("/api/v1/coupons").cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
@@ -1225,8 +1228,8 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		CouponQueryService service = context.getBean(CouponQueryService.class);
 		var emptyPage = new CursorResponse.PageInfo(false, null, 0);
-		when(service.findCouponCampaigns(any())).thenReturn(new CouponResponse.CouponInfos(List.of(), emptyPage));
-		when(service.findMyCoupons(eq(10L), any())).thenReturn(new CouponResponse.MemberCouponInfos(List.of(), emptyPage));
+		when(service.findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(List.of(), emptyPage));
+		when(service.findMyCoupons(eq(10L), any())).thenReturn(new MemberCouponPage(List.of(), emptyPage));
 		for (String path : List.of("/api/v1/coupons", "/api/v1/members/me/coupons")) {
 			JsonNode operation = spec.path("paths").path(path).path("get");
 			assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("cursor", "size");
@@ -1265,16 +1268,16 @@ class ApiDocumentationTest {
 	void couponListSchemasMatchAllIssuanceAndOwnershipStates() throws Exception {
 		JsonNode spec = specification("client");
 		java.time.LocalDateTime now = java.time.LocalDateTime.parse("2027-01-01T00:00:00.123456");
-		var campaignInfos = new java.util.ArrayList<CouponResponse.CouponInfo>();
+		var campaignInfos = new java.util.ArrayList<CouponCampaignPage.Item>();
 		for (int index = 0; index < 4; index++) {
-			var row = new kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection(101L + index,
+			var row = new kr.kro.airbob.domain.coupon.CouponCampaignProjection(101L + index,
 				"쿠폰", null, DiscountType.FIXED_AMOUNT, 1000, null, null,
 				index == 0 ? now.plusHours(1) : now, now.plusDays(1), now, now.plusDays(30),
 				index == 3 ? null : 100, index == 2);
-			campaignInfos.add(CouponResponse.CouponInfo.of(row, now));
+			campaignInfos.add(CouponCampaignPage.Item.of(row, now));
 		}
 		CouponQueryService service = context.getBean(CouponQueryService.class);
-		when(service.findCouponCampaigns(any())).thenReturn(new CouponResponse.CouponInfos(campaignInfos,
+		when(service.findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(campaignInfos,
 			new CursorResponse.PageInfo(false, null, 4)));
 		String campaigns = mvc.perform(get("/api/v1/coupons").cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
@@ -1285,15 +1288,15 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(campaigns).at("/data/infos/1/issue_start_at").asText()).isEqualTo("2027-01-01T00:00:00.123456Z");
 		assertThat(campaigns).doesNotContain("has_remaining_stock", "issued_quantity", "stock_prepared_at", "issue_strategy");
 
-		var ownedInfos = new java.util.ArrayList<CouponResponse.MemberCouponInfo>();
+		var ownedInfos = new java.util.ArrayList<MemberCouponPage.Item>();
 		for (int index = 0; index < 5; index++) {
-			var row = new kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection(201L + index, now,
+			var row = new kr.kro.airbob.domain.coupon.MemberCouponProjection(201L + index, now,
 				101L + index, "쿠폰", null, DiscountType.FIXED_AMOUNT, 1000, null, null,
 				index == 2 || index == 3 ? now.plusHours(1) : now.minusHours(1), index < 2 ? now : now.plusDays(1),
 				index == 0, index >= 3);
-			ownedInfos.add(CouponResponse.MemberCouponInfo.of(row, now));
+			ownedInfos.add(MemberCouponPage.Item.of(row, now));
 		}
-		when(service.findMyCoupons(eq(10L), any())).thenReturn(new CouponResponse.MemberCouponInfos(ownedInfos,
+		when(service.findMyCoupons(eq(10L), any())).thenReturn(new MemberCouponPage(ownedInfos,
 			new CursorResponse.PageInfo(false, null, 5)));
 		String owned = mvc.perform(get("/api/v1/members/me/coupons").cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
