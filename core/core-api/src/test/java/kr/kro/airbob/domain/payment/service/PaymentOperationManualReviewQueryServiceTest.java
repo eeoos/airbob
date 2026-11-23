@@ -16,11 +16,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.support.error.InvalidInputException;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse.AvailableAction;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse.ManualReviewQueue;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationManualReviewQueryRepository;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationManualReviewQueryServiceTest {
@@ -31,7 +31,7 @@ class PaymentOperationManualReviewQueryServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new PaymentOperationManualReviewQueryService(repository);
+		service = new PaymentOperationManualReviewQueryService(new PaymentOperationManualReviewReader(repository));
 	}
 
 	@Test
@@ -44,7 +44,7 @@ class PaymentOperationManualReviewQueryServiceTest {
 			"98283dcc-f24f-44b2-a877-d89983fb7e33", PaymentOperationType.CONFIRM, false, 3);
 		given(repository.findOldest(3)).willReturn(List.of(first, second, extra));
 
-		ManualReviewQueue result = service.findManualReviewQueue(2);
+		ManualReviewQueue result = ManualReviewQueue.from(service.findManualReviewQueue(2));
 
 		assertThat(result.hasMore()).isTrue();
 		assertThat(result.items()).hasSize(2);
@@ -61,7 +61,7 @@ class PaymentOperationManualReviewQueryServiceTest {
 			"98283dcc-f24f-44b2-a877-d89983fb7e34", PaymentOperationType.CONFIRM, false, 1);
 		given(repository.findOldest(2)).willReturn(List.of(ineligibleConfirm));
 
-		ManualReviewQueue result = service.findManualReviewQueue(1);
+		ManualReviewQueue result = ManualReviewQueue.from(service.findManualReviewQueue(1));
 
 		assertThat(result.hasMore()).isFalse();
 		assertThat(result.items().getFirst().availableActions())

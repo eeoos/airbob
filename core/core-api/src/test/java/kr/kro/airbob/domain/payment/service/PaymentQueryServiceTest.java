@@ -13,7 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.core.domain.member.Member;
@@ -31,7 +30,6 @@ import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 @DisplayName("PaymentQueryService 테스트")
 class PaymentQueryServiceTest {
 
-	@InjectMocks
 	private PaymentQueryService paymentQueryService;
 
 	@Mock
@@ -50,6 +48,8 @@ class PaymentQueryServiceTest {
 
 	@BeforeEach
 	void setUp() {
+		paymentQueryService = new PaymentQueryService(
+			new PaymentReader(paymentRepository), new PaymentTransactionReader(paymentTransactionRepository));
 		reservationUid = UUID.randomUUID();
 		memberId = 1L;
 		paymentKey = "pk_test_123";
@@ -94,7 +94,7 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.of(payment));
 
 			// when
-			PaymentResponse.PaymentInfo result = paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId);
+			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo.from(paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId));
 
 			// then
 			assertThat(result).isNotNull();
@@ -140,7 +140,7 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.of(payment));
 
 			// when
-			PaymentResponse.PaymentInfo result = paymentQueryService.findPaymentByOrderId(orderId, memberId);
+			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo.from(paymentQueryService.findPaymentByOrderId(orderId, memberId));
 
 			// then
 			assertThat(result).isNotNull();

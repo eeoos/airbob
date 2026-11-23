@@ -2,7 +2,7 @@ package kr.kro.airbob.domain.payment.repository;
 
 import java.util.List;
 
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 
 public interface PaymentOperationManualReviewQueryRepository {
 

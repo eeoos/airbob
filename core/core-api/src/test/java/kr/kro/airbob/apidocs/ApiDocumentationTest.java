@@ -183,6 +183,9 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.payment.PaymentDetail;
+import kr.kro.airbob.domain.payment.PaymentOperationDetail;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueue;
 import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
@@ -190,9 +193,8 @@ import static kr.kro.airbob.core.domain.reservation.ReservationReadTestFixtures.
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
-import kr.kro.airbob.domain.payment.dto.PaymentResponse;
+import kr.kro.airbob.domain.payment.PaymentOperationDetailRow;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
@@ -204,8 +206,6 @@ import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnavailableException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryService;
@@ -1042,8 +1042,8 @@ class ApiDocumentationTest {
 			.method(PaymentMethod.CARD).amount(10000L).balanceAmount(10000L).status(PaymentStatus.DONE)
 			.createdAt(java.time.LocalDateTime.parse("2027-01-01T00:00:01"))
 			.approvedAt(Instant.parse("2027-01-01T00:00:00Z")).build();
-		var current = PaymentResponse.PaymentInfo.from(payment, List.of());
-		var legacy = PaymentResponse.PaymentInfo.from(Payment.builder().orderId(DOCUMENTATION_ORDER_ID.toString())
+		var current = PaymentDetail.of(payment, List.of());
+		var legacy = PaymentDetail.of(Payment.builder().orderId(DOCUMENTATION_ORDER_ID.toString())
 			.paymentKey("example-payment-key").method(PaymentMethod.CARD).amount(10000L).balanceAmount(0L)
 			.status(PaymentStatus.CANCELED).build(), List.of(PaymentTransaction.builder().build()));
 		PaymentQueryService service = context.getBean(PaymentQueryService.class);
@@ -1077,7 +1077,7 @@ class ApiDocumentationTest {
 				now.plusSeconds(5).plusNanos(1), DOCUMENTATION_ORDER_ID, ReservationStatus.EXPIRED,
 				now.plusSeconds(86400), now.minusSeconds(1));
 			when(context.getBean(PaymentOperationQueryService.class).find(DOCUMENTATION_OPERATION_ID, 10L))
-				.thenReturn(PaymentOperationResponse.Detail.from(row, now));
+				.thenReturn(PaymentOperationDetail.of(row, now));
 			String body = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION)).andExpect(status().isOk())
 				.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, "get", "200", body);
@@ -1145,9 +1145,9 @@ class ApiDocumentationTest {
 		PaymentOperationManualReviewQueryService service = context.getBean(PaymentOperationManualReviewQueryService.class);
 		verifyNoInteractions(service);
 		allowDocumentationAdmin();
-		var item = PaymentOperationAdminResponse.ManualReviewItem.from(new PaymentOperationManualReviewQueueItem(
-			DOCUMENTATION_OPERATION_ID, PaymentOperationType.CONFIRM, 5, 1, Instant.parse("2027-01-01T00:00:00Z"), 7L, true));
-		when(service.findManualReviewQueue(50)).thenReturn(new PaymentOperationAdminResponse.ManualReviewQueue(List.of(item), false));
+		var item = new PaymentOperationManualReviewQueueItem(
+			DOCUMENTATION_OPERATION_ID, PaymentOperationType.CONFIRM, 5, 1, Instant.parse("2027-01-01T00:00:00Z"), 7L, true);
+		when(service.findManualReviewQueue(50)).thenReturn(new PaymentOperationManualReviewQueue(List.of(item), false));
 		String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/items/0").size()).isEqualTo(7);

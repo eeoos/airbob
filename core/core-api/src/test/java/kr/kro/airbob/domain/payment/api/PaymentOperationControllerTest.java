@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -29,9 +30,11 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Detail;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.NextAction;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.domain.payment.PaymentOperationDetail;
+import kr.kro.airbob.domain.payment.PaymentOperationDetailRow;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,14 +66,13 @@ class PaymentOperationControllerTest {
 	void findReturnsTheOwnerOperationWithoutPaymentKey() throws Exception {
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
 		UUID orderId = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
-		Detail detail = new Detail(operationUid, orderId, Status.FAILED, "PROVIDER_DECLINED",
-			Instant.parse("2026-08-14T01:02:03Z"),
-			NextAction.START_NEW_CHECKOUT,
-			null,
-			"결제가 완료되지 않았습니다. 새 견적을 받은 뒤 예약을 다시 진행해 주세요.",
-			Instant.parse("2026-08-14T01:03:00Z"),
-			"PAYMENT_DECLINED");
-		given(queryService.find(eq(operationUid), eq(10L))).willReturn(detail);
+		Instant serverTime = Instant.parse("2026-08-14T01:03:00Z");
+		PaymentOperationDetailRow declinedConfirmation = new PaymentOperationDetailRow(
+			operationUid, 10L, PaymentOperationType.CONFIRM, PaymentOperationStatus.DECLINED, "PROVIDER_DECLINED",
+			LocalDateTime.parse("2026-08-14T01:02:03"), null,
+			orderId, ReservationStatus.EXPIRED, serverTime.plusSeconds(3600), serverTime.minusSeconds(1));
+		given(queryService.find(eq(operationUid), eq(10L)))
+			.willReturn(PaymentOperationDetail.of(declinedConfirmation, serverTime));
 
 		mockMvc.perform(get("/api/v1/payment-operations/{operationId}", operationUid))
 			.andExpect(status().isOk())

@@ -36,13 +36,14 @@ import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.member.MemberService;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationManualReviewQueryRepository;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewReader;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
@@ -67,7 +68,7 @@ class PaymentOperationAdminControllerTest {
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 		PaymentOperationManualReviewQueryService queryService =
-			new PaymentOperationManualReviewQueryService(queryRepository);
+			new PaymentOperationManualReviewQueryService(new PaymentOperationManualReviewReader(queryRepository));
 		AdminAuthInterceptor adminAuthInterceptor = new AdminAuthInterceptor(memberService);
 		mockMvc = MockMvcBuilders.standaloneSetup(
 				new PaymentOperationAdminController(queryService, commandService))
