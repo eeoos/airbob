@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
+import kr.kro.airbob.core.api.controller.v1.recentlyviewed.response.RecentlyViewedResponse;
 import kr.kro.airbob.core.domain.accommodation.AccommodationDetailSnapshot;
 import kr.kro.airbob.core.domain.accommodation.HostAccommodationDetailProjection;
 
@@ -122,8 +123,8 @@ class AccommodationResponseJsonTest {
 	@Test
 	@DisplayName("최근 조회 시각을 UTC Instant 형식으로 반환한다")
 	void serializesRecentlyViewedAtAsUtcInstant() {
-		AccommodationResponse.RecentlyViewedAccommodationInfo response =
-			AccommodationResponse.RecentlyViewedAccommodationInfo.builder()
+		RecentlyViewedResponse.RecentlyViewedAccommodationInfo response =
+			RecentlyViewedResponse.RecentlyViewedAccommodationInfo.builder()
 				.viewedAt(Instant.parse("2026-08-12T05:30:00Z"))
 				.build();
 

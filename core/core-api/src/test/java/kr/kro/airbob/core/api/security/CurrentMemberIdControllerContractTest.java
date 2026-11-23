@@ -18,6 +18,7 @@ import kr.kro.airbob.core.api.controller.v1.auth.AuthController;
 import kr.kro.airbob.core.api.controller.v1.coupon.CouponController;
 import kr.kro.airbob.core.api.controller.v1.payment.PaymentController;
 import kr.kro.airbob.core.api.controller.v1.payment.PaymentOperationController;
+import kr.kro.airbob.core.api.controller.v1.recentlyviewed.RecentlyViewedController;
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationCommandController;
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationGuestController;
 import kr.kro.airbob.core.api.controller.v1.reservation.ReservationHostController;
@@ -25,7 +26,6 @@ import kr.kro.airbob.core.api.controller.v1.review.ReviewController;
 import kr.kro.airbob.core.api.controller.v1.settlement.SettlementController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistAccommodationController;
 import kr.kro.airbob.core.api.controller.v1.wishlist.WishlistController;
-import kr.kro.airbob.domain.recentlyviewed.api.RecentlyViewedController;
 import kr.kro.airbob.search.api.AccommodationSearchController;
 
 class CurrentMemberIdControllerContractTest {
