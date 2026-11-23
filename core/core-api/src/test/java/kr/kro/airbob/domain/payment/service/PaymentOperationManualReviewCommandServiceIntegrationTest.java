@@ -80,7 +80,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	OperatorAlertOutboxPublisher.class,
 	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationManualReviewCommandService.class,
-	PaymentOperationManualReviewTransactionService.class,
+	PaymentOperationManualReviewProcessor.class,
 	ReservationReader.class,
 	ReservationHistoryWriter.class,
 	ReservationHistoryBatchWriter.class,

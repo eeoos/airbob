@@ -108,10 +108,10 @@ import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer;
-import kr.kro.airbob.domain.payment.service.PaymentOperationLeaseService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationLeaseManager;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualResolutionRecorder;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
-import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewTransactionService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewProcessor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
 import kr.kro.airbob.domain.payment.service.PaymentRetryBackoff;
@@ -142,9 +142,9 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	ReservationHistoryWriter.class,
 	ReservationHistoryBatchWriter.class,
 	PaymentCancellationCommandService.class,
-	PaymentOperationLeaseService.class,
+	PaymentOperationLeaseManager.class,
 	PaymentOperationManualReviewCommandService.class,
-	PaymentOperationManualReviewTransactionService.class,
+	PaymentOperationManualReviewProcessor.class,
 	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationExecutor.class,
 	MysqlPaymentOperationExecutionFence.class,
@@ -198,7 +198,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private PaymentOperationCommandService commandService;
 	@Autowired private PaymentCancellationCommandService cancellationCommandService;
 	@Autowired private PaymentOperationExecutor executor;
-	@Autowired private PaymentOperationLeaseService leaseService;
+	@Autowired private PaymentOperationLeaseManager leaseManager;
 	@Autowired private PaymentOperationQueryService queryService;
 	@Autowired private PaymentOperationManualReviewCommandService manualReviewCommandService;
 	@Autowired private PaymentOperationRecoveryService recoveryService;
@@ -635,9 +635,9 @@ class PaymentOperationFlowIntegrationTest {
 			assertThat(recoveryService.recoverDue().enqueued()).isOne();
 			PaymentOperation recovered = operationRepository.findByOperationUid(operationUid)
 				.orElseThrow();
-			var automaticInquiry = leaseService.claim(
+			var automaticInquiry = leaseManager.claim(
 				operationUid, recovered.getDispatchGeneration()).orElseThrow();
-			leaseService.markManualReview(
+			leaseManager.markManualReview(
 				automaticInquiry, "PROVIDER_RESULT_UNKNOWN", "review provider state");
 
 			PaymentOperation initialReview = operationRepository.findByOperationUid(operationUid)
@@ -646,9 +646,9 @@ class PaymentOperationFlowIntegrationTest {
 				operationUid, ownerId, initialReview.getVersion());
 			PaymentOperation reconciliation = operationRepository.findByOperationUid(operationUid)
 				.orElseThrow();
-			var manualInquiry = leaseService.claim(
+			var manualInquiry = leaseManager.claim(
 				operationUid, reconciliation.getDispatchGeneration()).orElseThrow();
-			leaseService.returnManualReconciliationToReview(
+			leaseManager.returnManualReconciliationToReview(
 				manualInquiry, "NOT_FOUND_PAYMENT", "not found", true);
 
 			PaymentOperation eligibleReview = operationRepository.findByOperationUid(operationUid)

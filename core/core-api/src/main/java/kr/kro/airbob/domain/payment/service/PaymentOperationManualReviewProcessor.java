@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
@@ -32,8 +32,8 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
-@Service
-public class PaymentOperationManualReviewTransactionService {
+@Component
+public class PaymentOperationManualReviewProcessor {
 
 	private static final String HISTORY_SOURCE = "PAYMENT_MANUAL_RESOLUTION";
 	private static final String NOT_PAID_FAILURE_CODE = "MANUAL_NOT_PAID_RESOLUTION";
@@ -55,7 +55,7 @@ public class PaymentOperationManualReviewTransactionService {
 	private final PaymentOperationManualResolutionRecorder resolutionRecorder;
 	private final Clock clock;
 
-	public PaymentOperationManualReviewTransactionService(
+	public PaymentOperationManualReviewProcessor(
 		PaymentOperationRepository operationRepository,
 		ReservationReader reservationReader,
 		ReservationInventoryManager inventoryManager,
