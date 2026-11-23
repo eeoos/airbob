@@ -36,7 +36,7 @@ import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
@@ -53,7 +53,7 @@ class ExpiredReservationCleanupServiceTest {
 	@Mock
 	private CouponUsageManager couponUsageManager;
 	@Mock
-	private ReservationInventoryService inventoryService;
+	private ReservationInventoryManager inventoryManager;
 
 	private ExpiredReservationCleanupService service;
 	private Reservation first;
@@ -65,7 +65,7 @@ class ExpiredReservationCleanupServiceTest {
 			reservationRepository,
 			batchWriter,
 			couponUsageManager,
-			inventoryService,
+			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			CLEANUP_BATCH_SIZE
 		);
@@ -83,10 +83,10 @@ class ExpiredReservationCleanupServiceTest {
 
 		service.cleanupExpiredPendingReservations();
 
-		InOrder inOrder = inOrder(inventoryService, couponUsageManager, batchWriter);
-		inOrder.verify(inventoryService).releaseHeldIfOwned(
+		InOrder inOrder = inOrder(inventoryManager, couponUsageManager, batchWriter);
+		inOrder.verify(inventoryManager).releaseHeldIfOwned(
 			first.getAccommodation().getId(), first.getCheckInDate(), first.getCheckOutDate(), first.getId());
-		inOrder.verify(inventoryService).releaseHeldIfOwned(
+		inOrder.verify(inventoryManager).releaseHeldIfOwned(
 			second.getAccommodation().getId(), second.getCheckInDate(), second.getCheckOutDate(), second.getId());
 		inOrder.verify(couponUsageManager).restoreAll(List.of(first.getId(), second.getId()));
 		inOrder.verify(batchWriter).writeAll(anyList(), eq(NOW));
@@ -156,7 +156,7 @@ class ExpiredReservationCleanupServiceTest {
 		assertThat(cleaned).isZero();
 		then(batchWriter).shouldHaveNoInteractions();
 		then(couponUsageManager).shouldHaveNoInteractions();
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 	}
 
 	private Reservation pendingReservation(long reservationId, long accommodationId, LocalDate checkIn) {

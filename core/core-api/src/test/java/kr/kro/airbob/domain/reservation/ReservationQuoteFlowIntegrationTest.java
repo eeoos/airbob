@@ -70,12 +70,12 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
+import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
@@ -129,7 +129,7 @@ class ReservationQuoteFlowIntegrationTest {
 	@Autowired private ReservationService reservationService;
 	@Autowired private ReservationQuoteRepository quoteRepository;
 	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationInventoryService inventoryService;
+	@Autowired private ReservationInventoryManager inventoryManager;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private OutboxMessageRepository outboxRepository;
 	@Autowired private MemberRepository memberRepository;
@@ -545,7 +545,7 @@ class ReservationQuoteFlowIntegrationTest {
 			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
-		inventoryService.seed(
+		inventoryManager.seed(
 			accommodation.getId(), BOOKING_WINDOW_START, BOOKING_WINDOW_START.plusMonths(3));
 	}
 

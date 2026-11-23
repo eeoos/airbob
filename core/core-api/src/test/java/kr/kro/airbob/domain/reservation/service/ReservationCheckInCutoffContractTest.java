@@ -33,17 +33,17 @@ import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -69,7 +69,7 @@ class ReservationCheckInCutoffContractTest {
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private ReservationCheckoutRequestStore checkoutRequestStore;
 	@Mock private ReservationQuoteRepository quoteRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 
 	@Test
 	void rejectsANewReservationAtTheAccommodationLocalCheckInInstant() {
@@ -144,7 +144,7 @@ class ReservationCheckInCutoffContractTest {
 			ReservationHoldPolicy.defaultPolicy(),
 			quoteRepository,
 			checkoutRequestStore,
-			inventoryService,
+			inventoryManager,
 			Clock.fixed(now, ZoneOffset.UTC)
 		);
 	}

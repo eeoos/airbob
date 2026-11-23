@@ -77,14 +77,14 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
+import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
@@ -144,7 +144,7 @@ class ReservationConcurrencyTest {
 	@Autowired
 	private ExpiredReservationCleanupService cleanupService;
 	@Autowired
-	private ReservationInventoryService inventoryService;
+	private ReservationInventoryManager inventoryManager;
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
@@ -883,7 +883,7 @@ class ReservationConcurrencyTest {
 	}
 
 	private void seedInventory(Accommodation target) {
-		inventoryService.seed(
+		inventoryManager.seed(
 			target.getId(), BOOKING_WINDOW.startInclusive(), BOOKING_WINDOW.endExclusive());
 	}
 

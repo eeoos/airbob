@@ -26,8 +26,8 @@ import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantV
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ReservationInventoryService")
-class ReservationInventoryServiceTest {
+@DisplayName("ReservationInventoryManager")
+class ReservationInventoryManagerTest {
 
 	private static final long ACCOMMODATION_ID = 17L;
 	private static final long RESERVATION_ID = 31L;
@@ -37,11 +37,11 @@ class ReservationInventoryServiceTest {
 
 	@Mock private AccommodationInventoryDayRepository repository;
 
-	private ReservationInventoryService service;
+	private ReservationInventoryManager service;
 
 	@BeforeEach
 	void setUp() {
-		service = new ReservationInventoryService(repository);
+		service = new ReservationInventoryManager(repository);
 	}
 
 	@Test
@@ -63,7 +63,7 @@ class ReservationInventoryServiceTest {
 	@Test
 	@DisplayName("seed uses READ_COMMITTED so a post-upsert coverage read sees concurrent commits")
 	void seedUsesReadCommittedIsolation() throws NoSuchMethodException {
-		Method seed = ReservationInventoryService.class.getMethod(
+		Method seed = ReservationInventoryManager.class.getMethod(
 			"seed", Long.class, LocalDate.class, LocalDate.class);
 
 		Transactional transaction = seed.getAnnotation(Transactional.class);
@@ -149,14 +149,14 @@ class ReservationInventoryServiceTest {
 			occupied(CHECK_IN.plusDays(5), 101L)
 		));
 
-		List<ReservationInventoryService.UnavailableRange> ranges =
+		List<ReservationInventoryManager.UnavailableRange> ranges =
 			service.findUnavailableRangesSnapshot(
 				ACCOMMODATION_ID, CHECK_IN, endExclusive, NOW);
 
 		assertThat(ranges).containsExactly(
-			new ReservationInventoryService.UnavailableRange(
+			new ReservationInventoryManager.UnavailableRange(
 				CHECK_IN.plusDays(2), CHECK_IN.plusDays(4)),
-			new ReservationInventoryService.UnavailableRange(
+			new ReservationInventoryManager.UnavailableRange(
 				CHECK_IN.plusDays(5), endExclusive)
 		);
 	}
@@ -187,7 +187,7 @@ class ReservationInventoryServiceTest {
 			RESERVATION_ID, AccommodationInventoryState.HOLD, NOW.plusSeconds(900)))
 			.willReturn(2);
 
-		ReservationInventoryService.LockedRange locked = service.lockAvailableRangeNowait(
+		ReservationInventoryManager.LockedRange locked = service.lockAvailableRangeNowait(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, NOW);
 		service.claimLockedForPending(locked, RESERVATION_ID, NOW.plusSeconds(900));
 

@@ -13,7 +13,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,24 +26,24 @@ import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyEx
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository.SeedDay;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedPolicy.SeedRange;
 
-@Service
-public class AccommodationInventorySeedService implements AccommodationInventorySeeder {
+@Component
+public class ReservationInventorySeeder implements AccommodationInventorySeeder {
 
 	private final AccommodationReader accommodationReader;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final AccommodationInventoryDayRepository inventoryRepository;
 	private final AccommodationInventorySeedPolicy seedPolicy;
 	private final Clock clock;
 
-	public AccommodationInventorySeedService(
+	public ReservationInventorySeeder(
 		AccommodationReader accommodationReader,
-		ReservationInventoryService inventoryService,
+		ReservationInventoryManager inventoryManager,
 		AccommodationInventoryDayRepository inventoryRepository,
 		AccommodationInventorySeedPolicy seedPolicy,
 		Clock clock
 	) {
 		this.accommodationReader = accommodationReader;
-		this.inventoryService = inventoryService;
+		this.inventoryManager = inventoryManager;
 		this.inventoryRepository = inventoryRepository;
 		this.seedPolicy = seedPolicy;
 		this.clock = clock;
@@ -146,7 +146,7 @@ public class AccommodationInventorySeedService implements AccommodationInventory
 		}
 		AccommodationInventorySeedPolicy.SeedRange range =
 			seedPolicy.currentRange(timeZoneId, decisionAt);
-		inventoryService.seed(accommodationId, range.startInclusive(), range.endExclusive());
+		inventoryManager.seed(accommodationId, range.startInclusive(), range.endExclusive());
 	}
 
 	public record SeedBatch(

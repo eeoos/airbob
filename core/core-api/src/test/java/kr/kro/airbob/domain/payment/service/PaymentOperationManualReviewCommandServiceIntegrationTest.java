@@ -43,15 +43,15 @@ import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
-import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFence;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
@@ -82,7 +82,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	ReservationReader.class,
 	ReservationHistoryWriter.class,
 	AccommodationInventoryDayRepository.class,
-	ReservationInventoryService.class,
+	ReservationInventoryManager.class,
 	MysqlPaymentOperationExecutionFence.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationManualReviewCommandServiceIntegrationTest.CommandTestConfiguration.class

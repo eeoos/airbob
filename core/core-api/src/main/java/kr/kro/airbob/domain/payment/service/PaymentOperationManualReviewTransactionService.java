@@ -27,7 +27,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -45,7 +45,7 @@ public class PaymentOperationManualReviewTransactionService {
 
 	private final PaymentOperationRepository operationRepository;
 	private final ReservationReader reservationReader;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final PaymentRepository paymentRepository;
 	private final PaymentTransactionRepository transactionRepository;
 	private final CouponUsageManager couponUsageManager;
@@ -58,7 +58,7 @@ public class PaymentOperationManualReviewTransactionService {
 	public PaymentOperationManualReviewTransactionService(
 		PaymentOperationRepository operationRepository,
 		ReservationReader reservationReader,
-		ReservationInventoryService inventoryService,
+		ReservationInventoryManager inventoryManager,
 		PaymentRepository paymentRepository,
 		PaymentTransactionRepository transactionRepository,
 		CouponUsageManager couponUsageManager,
@@ -70,7 +70,7 @@ public class PaymentOperationManualReviewTransactionService {
 	) {
 		this.operationRepository = operationRepository;
 		this.reservationReader = reservationReader;
-		this.inventoryService = inventoryService;
+		this.inventoryManager = inventoryManager;
 		this.paymentRepository = paymentRepository;
 		this.transactionRepository = transactionRepository;
 		this.couponUsageManager = couponUsageManager;
@@ -137,7 +137,7 @@ public class PaymentOperationManualReviewTransactionService {
 			throw new PaymentOperationInvariantViolationException(
 				"the operation already has a terminal payment ledger entry");
 		}
-		inventoryService.releaseOccupied(
+		inventoryManager.releaseOccupied(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),

@@ -27,7 +27,7 @@ public class AccommodationCommandService {
 	private final MemberReader memberReader;
 	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	private final AccommodationInventorySeeder inventorySeedService;
+	private final AccommodationInventorySeeder inventorySeeder;
 
 	/** 호스트의 빈 숙소를 만들고 숙소 ID를 돌려준다. */
 	@Transactional
@@ -54,7 +54,7 @@ public class AccommodationCommandService {
 		accommodationWriter.replaceAmenities(accommodation, amenityCountMap);
 		if (accommodation.getStatus() == AccommodationStatus.PUBLISHED
 			&& !Objects.equals(previousTimeZoneId, accommodation.getTimeZoneId())) {
-			inventorySeedService.seedCurrentHorizon(accommodation);
+			inventorySeeder.seedCurrentHorizon(accommodation);
 		}
 
 		accommodationWriter.recordHistory(accommodation, ChangeType.UPDATE, "숙소 정보 수정");
@@ -83,7 +83,7 @@ public class AccommodationCommandService {
 		Accommodation accommodation = accommodationReader.readOwnedForUpdate(accommodationId, memberId);
 
 		accommodationValidator.validateForPublishing(accommodation);
-		inventorySeedService.seedCurrentHorizon(accommodation);
+		inventorySeeder.seedCurrentHorizon(accommodation);
 		accommodationWriter.publish(accommodation);
 
 		searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());

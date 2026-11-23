@@ -30,7 +30,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationHoldReleaseNotAllow
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.ReservationPaymentAttemptPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -45,7 +45,7 @@ class ReservationHoldCommandServiceTest {
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private CouponUsageManager couponUsageManager;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 
 	private ReservationHoldCommandService service;
 
@@ -56,7 +56,7 @@ class ReservationHoldCommandServiceTest {
 			historyRepository,
 			couponUsageManager,
 			new ReservationPaymentAttemptPolicy(Duration.ofSeconds(90)),
-			inventoryService,
+			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 	}
@@ -72,7 +72,7 @@ class ReservationHoldCommandServiceTest {
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(response.releasedNow()).isTrue();
 		assertThat(response.serverTime()).isEqualTo(NOW);
-		then(inventoryService).should().releaseHeldIfOwned(
+		then(inventoryManager).should().releaseHeldIfOwned(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
@@ -90,7 +90,7 @@ class ReservationHoldCommandServiceTest {
 		var response = service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID);
 
 		assertThat(response.releasedNow()).isFalse();
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 	}

@@ -54,7 +54,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
@@ -94,7 +94,7 @@ class HostAccommodationListQueryIntegrationTest {
 	@Autowired private EntityManager entityManager;
 	@Autowired private EntityManagerFactory entityManagerFactory;
 	@Autowired private SqlCapture sqlCapture;
-	@MockitoBean private ReservationInventoryService inventoryService;
+	@MockitoBean private ReservationInventoryManager inventoryManager;
 	@MockitoBean private BookingWindowProvider bookingWindowProvider;
 	@MockitoBean private AccommodationDetailReader detailReader;
 	@MockitoBean private AccommodationDetailCache detailCache;

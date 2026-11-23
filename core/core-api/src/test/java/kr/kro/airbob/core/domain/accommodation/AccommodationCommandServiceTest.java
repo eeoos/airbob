@@ -39,7 +39,7 @@ import kr.kro.airbob.core.domain.accommodation.repository.OccupancyPolicyReposit
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.error.BaseException;
-import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
@@ -64,7 +64,7 @@ class AccommodationCommandServiceTest {
 	@Mock private MemberReader memberReader;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@Mock private AccommodationInventorySeedService inventorySeedService;
+	@Mock private ReservationInventorySeeder inventorySeeder;
 	@Mock private Clock clock;
 
 	private AccommodationCommandService accommodationCommandService;
@@ -77,7 +77,7 @@ class AccommodationCommandServiceTest {
 				occupancyPolicyRepository, accommodationAmenityRepository, clock),
 			new AccommodationValidator(commonCodeReader, reservationReader, accommodationImageRepository, clock),
 			new AccommodationLocationResolver(geocodingService, timeZoneResolver),
-			memberReader, searchRefreshPublisher, cacheInvalidationPublisher, inventorySeedService);
+			memberReader, searchRefreshPublisher, cacheInvalidationPublisher, inventorySeeder);
 		lenient().when(clock.instant()).thenReturn(NOW);
 		lenient().when(reservationReader.existsFutureInventoryReservation(anyLong(), eq(NOW)))
 			.thenReturn(false);
@@ -654,7 +654,7 @@ class AccommodationCommandServiceTest {
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
-		verifyNoInteractions(inventorySeedService);
+		verifyNoInteractions(inventorySeeder);
 	}
 
 	@Test
@@ -668,7 +668,7 @@ class AccommodationCommandServiceTest {
 
 		accommodationCommandService.publishAccommodation(1L, 2L);
 
-		verify(inventorySeedService).seedCurrentHorizon(accommodation);
+		verify(inventorySeeder).seedCurrentHorizon(accommodation);
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
@@ -691,7 +691,7 @@ class AccommodationCommandServiceTest {
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
-		verifyNoInteractions(inventorySeedService);
+		verifyNoInteractions(inventorySeeder);
 	}
 
 	@Test
@@ -703,7 +703,7 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(accommodation));
 		when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
 		doThrow(new IllegalStateException("seed failed"))
-			.when(inventorySeedService).seedCurrentHorizon(accommodation);
+			.when(inventorySeeder).seedCurrentHorizon(accommodation);
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOf(IllegalStateException.class)
@@ -743,7 +743,7 @@ class AccommodationCommandServiceTest {
 		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("America/New_York");
-		verify(inventorySeedService).seedCurrentHorizon(accommodation);
+		verify(inventorySeeder).seedCurrentHorizon(accommodation);
 	}
 
 	private AddressRequest.AddressInfo seoulAddressInfo() {

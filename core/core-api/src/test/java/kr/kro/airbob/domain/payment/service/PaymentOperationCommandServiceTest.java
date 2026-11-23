@@ -37,7 +37,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantViolationException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
@@ -58,7 +58,7 @@ class PaymentOperationCommandServiceTest {
 	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 22);
 
 	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private PaymentOperationRepository paymentOperationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private OutboxWriter outboxWriter;
@@ -71,7 +71,7 @@ class PaymentOperationCommandServiceTest {
 	void setUp() {
 		service = new PaymentOperationCommandService(
 			new ReservationReader(reservationRepository),
-			inventoryService,
+			inventoryManager,
 			paymentOperationRepository,
 			new ReservationHistoryWriter(historyRepository),
 			outboxWriter,
@@ -117,9 +117,9 @@ class PaymentOperationCommandServiceTest {
 		assertThat(eventCaptor.getValue().partitionKey()).isEqualTo(RESERVATION_UID.toString());
 		assertThat(eventCaptor.getValue().deduplicationKey())
 			.isEqualTo("PAYMENT_EXECUTION:" + accepted.operationId() + ":1");
-		InOrder lockOrder = org.mockito.Mockito.inOrder(reservationRepository, inventoryService);
+		InOrder lockOrder = org.mockito.Mockito.inOrder(reservationRepository, inventoryManager);
 		lockOrder.verify(reservationRepository).findByReservationUidWithLock(RESERVATION_UID);
-		lockOrder.verify(inventoryService).transitionHeldToOccupied(
+		lockOrder.verify(inventoryManager).transitionHeldToOccupied(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 	}
 
@@ -134,7 +134,7 @@ class PaymentOperationCommandServiceTest {
 
 		InOrder order = org.mockito.Mockito.inOrder(
 			pendingReservation,
-			inventoryService,
+			inventoryManager,
 			paymentOperationRepository,
 			outboxWriter
 		);
@@ -142,7 +142,7 @@ class PaymentOperationCommandServiceTest {
 		order.verify(paymentOperationRepository).findByDeduplicationKey("CONFIRM:" + RESERVATION_UID);
 		order.verify(pendingReservation).startPayment(NOW);
 		order.verify(pendingReservation).consumePaymentAttempt(PAYMENT_ATTEMPT_ID, NOW);
-		order.verify(inventoryService).transitionHeldToOccupied(
+		order.verify(inventoryManager).transitionHeldToOccupied(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 		order.verify(paymentOperationRepository).save(org.mockito.ArgumentMatchers.any());
 		order.verify(outboxWriter).append(org.mockito.ArgumentMatchers.any());
@@ -240,7 +240,7 @@ class PaymentOperationCommandServiceTest {
 
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(outboxWriter).shouldHaveNoInteractions();
 	}
@@ -272,7 +272,7 @@ class PaymentOperationCommandServiceTest {
 			.willReturn(Optional.empty());
 		org.mockito.BDDMockito.willThrow(
 			new ReservationInventoryInvariantViolationException("owner mismatch"))
-			.given(inventoryService).transitionHeldToOccupied(
+			.given(inventoryManager).transitionHeldToOccupied(
 				ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 
 		assertThatThrownBy(() -> service.requestConfirmation(request(), GUEST_ID))
@@ -292,7 +292,7 @@ class PaymentOperationCommandServiceTest {
 			.isInstanceOf(InvalidInputException.class);
 
 		then(reservationRepository).shouldHaveNoInteractions();
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(paymentOperationRepository).shouldHaveNoInteractions();
 	}
 

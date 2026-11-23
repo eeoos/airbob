@@ -18,13 +18,13 @@ import lombok.extern.slf4j.Slf4j;
 )
 public class AccommodationInventorySeedScheduler {
 
-	private final AccommodationInventorySeedService seedService;
+	private final ReservationInventorySeeder inventorySeeder;
 	private final int batchSize;
 	private final int maxBatchesPerRun;
 	private long nextAccommodationId;
 
 	public AccommodationInventorySeedScheduler(
-		AccommodationInventorySeedService seedService,
+		ReservationInventorySeeder inventorySeeder,
 		@Value("${reservation.inventory.seed.batch-size:1000}") int batchSize,
 		@Value("${reservation.inventory.seed.max-batches-per-run:10}") int maxBatchesPerRun
 	) {
@@ -32,7 +32,7 @@ public class AccommodationInventorySeedScheduler {
 			|| maxBatchesPerRun < 1) {
 			throw new IllegalArgumentException("inventory seed batch size must be 1..1000 and count positive");
 		}
-		this.seedService = seedService;
+		this.inventorySeeder = inventorySeeder;
 		this.batchSize = batchSize;
 		this.maxBatchesPerRun = maxBatchesPerRun;
 	}
@@ -49,8 +49,8 @@ public class AccommodationInventorySeedScheduler {
 		long missingDaysSubmitted = 0;
 		long insertStatements = 0;
 		for (int batchIndex = 0; batchIndex < maxBatchesPerRun; batchIndex++) {
-			AccommodationInventorySeedService.SeedBatch batch =
-				seedService.seedNextPublishedBatch(cursor, batchSize);
+			ReservationInventorySeeder.SeedBatch batch =
+				inventorySeeder.seedNextPublishedBatch(cursor, batchSize);
 			totalProcessed += batch.processed();
 			expectedDays += batch.expectedDays();
 			missingDaysSubmitted += batch.missingDaysSubmitted();

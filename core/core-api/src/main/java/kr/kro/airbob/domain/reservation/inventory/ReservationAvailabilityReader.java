@@ -18,14 +18,14 @@ import lombok.RequiredArgsConstructor;
 public class ReservationAvailabilityReader implements AccommodationAvailabilityReader {
 
 	private final BookingWindowProvider bookingWindowProvider;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 
 	@Override
 	public AccommodationAvailability readAvailability(Long accommodationId, String timeZoneId) {
 		BookingWindow bookingWindow = bookingWindowProvider.currentFor(timeZoneId);
 		Instant queriedAt = clock.instant();
-		List<AccommodationAvailability.DateRange> unavailableRanges = inventoryService
+		List<AccommodationAvailability.DateRange> unavailableRanges = inventoryManager
 			.findUnavailableRangesSnapshot(
 				accommodationId,
 				bookingWindow.startInclusive(),

@@ -26,19 +26,19 @@ import lombok.extern.slf4j.Slf4j;
 )
 public class AccommodationInventoryStartupBootstrap implements ApplicationRunner {
 
-	private final AccommodationInventorySeedService seedService;
+	private final ReservationInventorySeeder inventorySeeder;
 	private final AccommodationInventoryReadiness readiness;
 	private final int batchSize;
 
 	public AccommodationInventoryStartupBootstrap(
-		AccommodationInventorySeedService seedService,
+		ReservationInventorySeeder inventorySeeder,
 		AccommodationInventoryReadiness readiness,
 		@Value("${reservation.inventory.startup.batch-size:1000}") int batchSize
 	) {
 		if (batchSize < 1 || batchSize > AccommodationInventoryDayRepository.MAX_SEED_TARGETS) {
 			throw new IllegalArgumentException("inventory startup batch size must be between 1 and 1000");
 		}
-		this.seedService = seedService;
+		this.inventorySeeder = inventorySeeder;
 		this.readiness = readiness;
 		this.batchSize = batchSize;
 	}
@@ -54,8 +54,8 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 		long missingDaysSubmitted = 0;
 		long insertStatements = 0;
 		while (true) {
-			AccommodationInventorySeedService.SeedBatch batch =
-				seedService.seedNextPublishedBatch(cursor, batchSize);
+			ReservationInventorySeeder.SeedBatch batch =
+				inventorySeeder.seedNextPublishedBatch(cursor, batchSize);
 			if (batch.processed() == 0) {
 				break;
 			}

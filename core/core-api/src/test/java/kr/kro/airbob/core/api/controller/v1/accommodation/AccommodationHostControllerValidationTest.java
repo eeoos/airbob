@@ -52,7 +52,7 @@ import kr.kro.airbob.core.domain.accommodation.repository.*;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
@@ -74,7 +74,7 @@ class AccommodationHostControllerValidationTest {
 	@Mock TimeZoneResolver timeZones;
 	@Mock AccommodationSearchRefreshPublisher search;
 	@Mock AccommodationDetailCacheInvalidationPublisher cache;
-	@Mock AccommodationInventorySeedService inventory;
+	@Mock ReservationInventorySeeder inventory;
 	@Mock Clock clock;
 	@Mock S3ImageUploader uploader;
 	@Mock ApplicationEventPublisher events;

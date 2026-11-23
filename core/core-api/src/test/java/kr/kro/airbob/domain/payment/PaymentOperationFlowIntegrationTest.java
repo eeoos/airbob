@@ -69,9 +69,9 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
@@ -81,8 +81,8 @@ import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFence;
@@ -96,26 +96,26 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer;
 import kr.kro.airbob.domain.payment.service.PaymentOperationLeaseService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualResolutionRecorder;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewTransactionService;
-import kr.kro.airbob.domain.payment.service.PaymentOperationManualResolutionRecorder;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
 import kr.kro.airbob.domain.payment.service.PaymentRetryBackoff;
-import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessage;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
@@ -132,7 +132,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	CouponTimeProvider.class,
 	CouponUsageManager.class,
 	AccommodationInventoryDayRepository.class,
-	ReservationInventoryService.class,
+	ReservationInventoryManager.class,
 	IntegrationEventCodec.class,
 	JpaOutboxWriter.class,
 	OutboxAccommodationSearchRefreshPublisher.class,

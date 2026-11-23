@@ -22,14 +22,14 @@ import lombok.extern.slf4j.Slf4j;
 )
 public class AccommodationInventoryRetentionScheduler {
 
-	private final AccommodationInventoryRetentionService retentionService;
+	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 	private final int pastFreeDaysToKeep;
 	private final int batchSize;
 	private final int maxBatchesPerRun;
 
 	public AccommodationInventoryRetentionScheduler(
-		AccommodationInventoryRetentionService retentionService,
+		ReservationInventoryManager inventoryManager,
 		Clock clock,
 		@Value("${reservation.inventory.retention.past-free-days-to-keep:30}")
 		int pastFreeDaysToKeep,
@@ -44,7 +44,7 @@ public class AccommodationInventoryRetentionScheduler {
 		if (batchSize < 1 || maxBatchesPerRun < 1) {
 			throw new IllegalArgumentException("inventory retention batch limits must be positive");
 		}
-		this.retentionService = retentionService;
+		this.inventoryManager = inventoryManager;
 		this.clock = clock;
 		this.pastFreeDaysToKeep = pastFreeDaysToKeep;
 		this.batchSize = batchSize;
@@ -63,7 +63,7 @@ public class AccommodationInventoryRetentionScheduler {
 		int batches = 0;
 		boolean drained = false;
 		for (int batchIndex = 0; batchIndex < maxBatchesPerRun; batchIndex++) {
-			int deleted = retentionService.deleteNextPastFreeBatch(
+			int deleted = inventoryManager.deleteNextPastFreeBatch(
 				cutoffExclusive, batchSize);
 			totalDeleted += deleted;
 			batches++;

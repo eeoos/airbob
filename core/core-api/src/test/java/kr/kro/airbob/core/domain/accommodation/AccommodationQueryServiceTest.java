@@ -23,7 +23,7 @@ import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepositor
 import kr.kro.airbob.core.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
@@ -36,7 +36,7 @@ class AccommodationQueryServiceTest {
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(BOOKING_WINDOW_START);
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private AccommodationDetailReader accommodationDetailReader;
@@ -48,7 +48,7 @@ class AccommodationQueryServiceTest {
 	@BeforeEach
 	void setUp() {
 		accommodationQueryService = new AccommodationQueryService(new AccommodationReader(accommodationRepository),
-			new ReservationAvailabilityReader(bookingWindowProvider, inventoryService, clock), cursorPageInfoCreator,
+			new ReservationAvailabilityReader(bookingWindowProvider, inventoryManager, clock), cursorPageInfoCreator,
 			accommodationDetailReader, accommodationDetailCache);
 	}
 
@@ -97,7 +97,7 @@ class AccommodationQueryServiceTest {
 		AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(1L, null));
 
 		verify(accommodationDetailCache).getOrLoad(eq(1L), any());
-		verifyNoInteractions(bookingWindowProvider, inventoryService);
+		verifyNoInteractions(bookingWindowProvider, inventoryManager);
 	}
 
 	@Test
@@ -110,7 +110,7 @@ class AccommodationQueryServiceTest {
 		ArgumentCaptor<LocalDate> windowStartCaptor = ArgumentCaptor.forClass(LocalDate.class);
 		ArgumentCaptor<LocalDate> windowEndCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
-		verify(inventoryService).findUnavailableRangesSnapshot(
+		verify(inventoryManager).findUnavailableRangesSnapshot(
 			eq(1L), windowStartCaptor.capture(), windowEndCaptor.capture(),
 			eq(AVAILABILITY_QUERIED_AT));
 		assertThat(windowEndCaptor.getValue()).isEqualTo(windowStartCaptor.getValue().plusMonths(3));
@@ -126,9 +126,9 @@ class AccommodationQueryServiceTest {
 		Long accommodationId = 1L;
 		LocalDate today = BOOKING_WINDOW_START;
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(inventoryService.findUnavailableRangesSnapshot(
+		when(inventoryManager.findUnavailableRangesSnapshot(
 			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-			.thenReturn(List.of(new ReservationInventoryService.UnavailableRange(
+			.thenReturn(List.of(new ReservationInventoryManager.UnavailableRange(
 				today.plusDays(1),
 				today.plusDays(4)
 			)));
@@ -149,13 +149,13 @@ class AccommodationQueryServiceTest {
 		LocalDate windowStart = BOOKING_WINDOW_START;
 		LocalDate windowEndExclusive = windowStart.plusMonths(3);
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(inventoryService.findUnavailableRangesSnapshot(
+		when(inventoryManager.findUnavailableRangesSnapshot(
 			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 			.thenReturn(List.of(
-				new ReservationInventoryService.UnavailableRange(
+				new ReservationInventoryManager.UnavailableRange(
 					windowStart,
 					windowStart.plusDays(6)),
-				new ReservationInventoryService.UnavailableRange(
+				new ReservationInventoryManager.UnavailableRange(
 					windowEndExclusive.minusDays(1),
 					windowEndExclusive)
 			));
@@ -178,7 +178,7 @@ class AccommodationQueryServiceTest {
 
 		assertThatThrownBy(() -> AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(1L)))
 			.isInstanceOf(AccommodationNotFoundException.class);
-		verifyNoInteractions(bookingWindowProvider, inventoryService);
+		verifyNoInteractions(bookingWindowProvider, inventoryManager);
 	}
 
 	@Test

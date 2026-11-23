@@ -21,63 +21,63 @@ import org.springframework.scheduling.annotation.Scheduled;
 @DisplayName("AccommodationInventorySeedScheduler")
 class AccommodationInventorySeedSchedulerTest {
 
-	@Mock private AccommodationInventorySeedService seedService;
+	@Mock private ReservationInventorySeeder inventorySeeder;
 
 	@Test
 	@DisplayName("cursor를 이어가며 빈 batch 또는 partial batch에서 멈춘다")
 	void advancesCursorUntilThePublishedListIsDrained() {
-		given(seedService.seedNextPublishedBatch(0L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(100, 400L));
-		given(seedService.seedNextPublishedBatch(400L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(27, 512L));
+		given(inventorySeeder.seedNextPublishedBatch(0L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 400L));
+		given(inventorySeeder.seedNextPublishedBatch(400L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(27, 512L));
 		AccommodationInventorySeedScheduler scheduler =
-			new AccommodationInventorySeedScheduler(seedService, 100, 10);
+			new AccommodationInventorySeedScheduler(inventorySeeder, 100, 10);
 
 		scheduler.seedPublishedInventory();
 
-		then(seedService).should().seedNextPublishedBatch(0L, 100);
-		then(seedService).should().seedNextPublishedBatch(400L, 100);
-		then(seedService).shouldHaveNoMoreInteractions();
+		then(inventorySeeder).should().seedNextPublishedBatch(0L, 100);
+		then(inventorySeeder).should().seedNextPublishedBatch(400L, 100);
+		then(inventorySeeder).shouldHaveNoMoreInteractions();
 	}
 
 	@Test
 	@DisplayName("계속 full batch여도 설정된 최대 batch 수에서 멈춘다")
 	void stopsAtTheConfiguredBatchLimit() {
-		given(seedService.seedNextPublishedBatch(0L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(100, 100L));
-		given(seedService.seedNextPublishedBatch(100L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(100, 200L));
-		given(seedService.seedNextPublishedBatch(200L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(100, 300L));
+		given(inventorySeeder.seedNextPublishedBatch(0L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 100L));
+		given(inventorySeeder.seedNextPublishedBatch(100L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 200L));
+		given(inventorySeeder.seedNextPublishedBatch(200L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 300L));
 		AccommodationInventorySeedScheduler scheduler =
-			new AccommodationInventorySeedScheduler(seedService, 100, 3);
+			new AccommodationInventorySeedScheduler(inventorySeeder, 100, 3);
 
 		scheduler.seedPublishedInventory();
 
-		then(seedService).should(times(3)).seedNextPublishedBatch(
+		then(inventorySeeder).should(times(3)).seedNextPublishedBatch(
 			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq(100));
 	}
 
 	@Test
 	@DisplayName("max batch에서 끊기면 다음 tick이 cursor를 이어가고 빈 tail 뒤에는 처음으로 wrap한다")
 	void continuesAcrossTicksAndWrapsAfterAnEmptyTail() {
-		given(seedService.seedNextPublishedBatch(0L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(100, 400L));
-		given(seedService.seedNextPublishedBatch(400L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(100, 500L));
-		given(seedService.seedNextPublishedBatch(500L, 100))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(0, 500L));
+		given(inventorySeeder.seedNextPublishedBatch(0L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 400L));
+		given(inventorySeeder.seedNextPublishedBatch(400L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 500L));
+		given(inventorySeeder.seedNextPublishedBatch(500L, 100))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(0, 500L));
 		AccommodationInventorySeedScheduler scheduler =
-			new AccommodationInventorySeedScheduler(seedService, 100, 1);
+			new AccommodationInventorySeedScheduler(inventorySeeder, 100, 1);
 
 		scheduler.seedPublishedInventory();
 		scheduler.seedPublishedInventory();
 		scheduler.seedPublishedInventory();
 		scheduler.seedPublishedInventory();
 
-		then(seedService).should(times(2)).seedNextPublishedBatch(0L, 100);
-		then(seedService).should().seedNextPublishedBatch(400L, 100);
-		then(seedService).should().seedNextPublishedBatch(500L, 100);
+		then(inventorySeeder).should(times(2)).seedNextPublishedBatch(0L, 100);
+		then(inventorySeeder).should().seedNextPublishedBatch(400L, 100);
+		then(inventorySeeder).should().seedNextPublishedBatch(500L, 100);
 	}
 
 	@Test
@@ -98,8 +98,8 @@ class AccommodationInventorySeedSchedulerTest {
 	@DisplayName("rolling seed는 기본 활성화하고 read-only profile에서는 명시적으로 끌 수 있다")
 	void supportsExplicitReadOnlyProfileDisablement() {
 		ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-			.withBean(AccommodationInventorySeedService.class,
-				() -> mock(AccommodationInventorySeedService.class))
+			.withBean(ReservationInventorySeeder.class,
+				() -> mock(ReservationInventorySeeder.class))
 			.withUserConfiguration(AccommodationInventorySeedScheduler.class);
 
 		contextRunner.run(context -> assertThat(context)

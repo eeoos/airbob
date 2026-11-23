@@ -16,7 +16,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationHoldReleaseNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.ReservationPaymentAttemptPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -32,7 +32,7 @@ public class ReservationHoldCommandService {
 	private final ReservationHistoryRepository historyRepository;
 	private final CouponUsageManager couponUsageManager;
 	private final ReservationPaymentAttemptPolicy paymentAttemptPolicy;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 
 	@Transactional
@@ -47,7 +47,7 @@ public class ReservationHoldCommandService {
 			throw new ReservationHoldReleaseNotAllowedException();
 		}
 
-		inventoryService.releaseHeldIfOwned(
+		inventoryManager.releaseHeldIfOwned(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),

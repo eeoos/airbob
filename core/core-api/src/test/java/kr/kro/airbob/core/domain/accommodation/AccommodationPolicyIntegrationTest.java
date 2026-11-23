@@ -38,7 +38,7 @@ import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
@@ -79,7 +79,7 @@ class AccommodationPolicyIntegrationTest {
 	@MockitoBean private TimeZoneResolver timeZoneResolver;
 	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@MockitoBean private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@MockitoBean private AccommodationInventorySeedService inventorySeedService;
+	@MockitoBean private ReservationInventorySeeder inventorySeeder;
 
 	@Test
 	@DisplayName("정책이 없는 초안에 기본값을 저장하고 다시 수정해도 같은 정책 행을 사용한다")

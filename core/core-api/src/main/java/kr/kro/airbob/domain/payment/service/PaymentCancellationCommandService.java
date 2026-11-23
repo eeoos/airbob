@@ -29,7 +29,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationCancellationDeadlinePassedException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -39,7 +39,7 @@ public class PaymentCancellationCommandService {
 	private static final String HISTORY_SOURCE = "PAYMENT_OPERATION";
 
 	private final ReservationReader reservationReader;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final PaymentRepository paymentRepository;
 	private final PaymentOperationRepository operationRepository;
 	private final ReservationHistoryWriter reservationHistoryWriter;
@@ -50,7 +50,7 @@ public class PaymentCancellationCommandService {
 
 	public PaymentCancellationCommandService(
 		ReservationReader reservationReader,
-		ReservationInventoryService inventoryService,
+		ReservationInventoryManager inventoryManager,
 		PaymentRepository paymentRepository,
 		PaymentOperationRepository operationRepository,
 		ReservationHistoryWriter reservationHistoryWriter,
@@ -60,7 +60,7 @@ public class PaymentCancellationCommandService {
 		Clock clock
 	) {
 		this.reservationReader = reservationReader;
-		this.inventoryService = inventoryService;
+		this.inventoryManager = inventoryManager;
 		this.paymentRepository = paymentRepository;
 		this.operationRepository = operationRepository;
 		this.reservationHistoryWriter = reservationHistoryWriter;
@@ -143,7 +143,7 @@ public class PaymentCancellationCommandService {
 		if (!reservation.cancelComplimentary()) {
 			return Cancellation.completed();
 		}
-		inventoryService.releaseOccupied(
+		inventoryManager.releaseOccupied(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
