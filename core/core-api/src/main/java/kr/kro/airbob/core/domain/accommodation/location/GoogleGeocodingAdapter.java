@@ -1,32 +1,27 @@
 package kr.kro.airbob.core.domain.accommodation.location;
 
-import java.net.URI;
-
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.util.UriComponentsBuilder;
 
+import kr.kro.airbob.client.google.GoogleGeocodeResponse;
+import kr.kro.airbob.client.google.GoogleGeocodingClient;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * HTTP transport lives in {@link GoogleGeocodingClient} (clients:client-google-geocoding); this adapter
+ * owns the enabled switch, the {@code OK} status check, and mapping failures to {@link GeocodeResult#fail()}.
+ */
 @Component
 @Slf4j
 public class GoogleGeocodingAdapter implements GeocodingGateway {
 
 	public static final String OK = "OK";
-	private final RestClient restClient;
+	private final GoogleGeocodingClient googleGeocodingClient;
 	private final boolean enabled;
 
-	// todo: 배포 후엔 api ip 제한 걸기
-	@Value("${google.api.key}")
-	private String googleApiKey;
-
-	private static final String GEOCODING_API_URL = "https://maps.googleapis.com/maps/api/geocode/json";
-
-	public GoogleGeocodingAdapter(@Qualifier("generalRestClient") RestClient restClient,
+	public GoogleGeocodingAdapter(GoogleGeocodingClient googleGeocodingClient,
 		@Value("${google.api.enabled:true}") boolean enabled) {
-		this.restClient = restClient;
+		this.googleGeocodingClient = googleGeocodingClient;
 		this.enabled = enabled;
 	}
 
@@ -37,20 +32,7 @@ public class GoogleGeocodingAdapter implements GeocodingGateway {
 		}
 
 		try {
-
-			URI baseUri = URI.create(GEOCODING_API_URL);
-
-			String url = UriComponentsBuilder.fromUri(baseUri)
-				.queryParam("address", address)
-				.queryParam("key", googleApiKey)
-				.queryParam("language", "ko")
-				.build()
-				.toUriString();
-
-			GoogleGeocodeResponse response = restClient.get()
-				.uri(url)
-				.retrieve()
-				.body(GoogleGeocodeResponse.class);
+			GoogleGeocodeResponse response = googleGeocodingClient.geocode(address);
 
 			if (response != null && OK.equals(response.getStatus()) && !response.getResults().isEmpty()) {
 				GoogleGeocodeResponse.Result result = response.getResults().getFirst();
