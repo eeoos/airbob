@@ -27,7 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
@@ -68,7 +68,7 @@ class PaymentCancellationCommandServiceTest {
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentOperationRepository operationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageService couponUsageService;
+	@Mock private CouponUsageManager couponUsageManager;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock private OutboxWriter outboxWriter;
 
@@ -82,7 +82,7 @@ class PaymentCancellationCommandServiceTest {
 			paymentRepository,
 			operationRepository,
 			historyRepository,
-			couponUsageService,
+			couponUsageManager,
 			searchRefreshPublisher,
 			outboxWriter,
 			Clock.fixed(NOW, ZoneOffset.UTC)
@@ -249,7 +249,7 @@ class PaymentCancellationCommandServiceTest {
 			CHECK_IN,
 			CHECK_OUT,
 			reservation.getId());
-		then(couponUsageService).should().restore(1L);
+		then(couponUsageManager).should().restore(1L);
 		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
 		then(paymentRepository).shouldHaveNoInteractions();
 		then(operationRepository).shouldHaveNoInteractions();
@@ -274,7 +274,7 @@ class PaymentCancellationCommandServiceTest {
 			GUEST_ID))
 			.isInstanceOf(ReservationInventoryInvariantViolationException.class);
 
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(searchRefreshPublisher).shouldHaveNoInteractions();
 		then(paymentRepository).shouldHaveNoInteractions();

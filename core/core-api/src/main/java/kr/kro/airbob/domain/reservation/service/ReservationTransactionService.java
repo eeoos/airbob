@@ -36,7 +36,7 @@ import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationLi
 import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;
@@ -80,7 +80,7 @@ public class ReservationTransactionService {
 	private final ReservationRepository reservationRepository;
 	private final AccommodationReader accommodationReader;
 	private final ReservationHistoryRepository historyRepository;
-	private final CouponUsageService couponUsageService;
+	private final CouponUsageManager couponUsageManager;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final ReservationHoldPolicy holdPolicy;
 	private final ReservationQuoteRepository quoteRepository;
@@ -195,7 +195,7 @@ public class ReservationTransactionService {
 
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감
 		if (request.couponId() != null) {
-			long discount = couponUsageService.use(
+			long discount = couponUsageManager.use(
 				guest.getId(), request.couponId(), reservation.getId(), reservation.getTotalPrice());
 			reservation.applyDiscount(discount);
 		}

@@ -57,7 +57,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
@@ -89,7 +89,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
-	CouponUsageService.class,
+	CouponUsageManager.class,
 	AccommodationInventoryDayRepository.class,
 	ReservationInventoryService.class,
 	PaymentOperationFinalizer.class,

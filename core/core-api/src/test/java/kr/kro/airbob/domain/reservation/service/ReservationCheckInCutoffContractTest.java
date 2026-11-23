@@ -34,7 +34,7 @@ import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -65,7 +65,7 @@ class ReservationCheckInCutoffContractTest {
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageService couponUsageService;
+	@Mock private CouponUsageManager couponUsageManager;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private ReservationCheckoutRequestStore checkoutRequestStore;
 	@Mock private ReservationQuoteRepository quoteRepository;
@@ -82,7 +82,7 @@ class ReservationCheckInCutoffContractTest {
 
 		assertCheckInClosedContract(thrown);
 		then(reservationRepository).shouldHaveNoInteractions();
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 	}
 
@@ -97,7 +97,7 @@ class ReservationCheckInCutoffContractTest {
 
 		assertCheckInClosedContract(thrown);
 		then(reservationRepository).shouldHaveNoInteractions();
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 	}
 
@@ -139,7 +139,7 @@ class ReservationCheckInCutoffContractTest {
 			reservationRepository,
 			new AccommodationReader(accommodationRepository),
 			historyRepository,
-			couponUsageService,
+			couponUsageManager,
 			bookingWindowProvider,
 			ReservationHoldPolicy.defaultPolicy(),
 			quoteRepository,

@@ -27,14 +27,14 @@ public class CouponAdminController implements CouponAdminApi {
 
 	@Override
 	public ResponseEntity<ApiResponse<CouponResponse.Create>> createCoupon(CouponRequest.Create request) {
-		Long id = couponService.createCoupon(request);
+		Long id = couponService.createCoupon(request.toNewCoupon());
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(new CouponResponse.Create(id)));
 	}
 
 	@Override
 	public ResponseEntity<ApiResponse<Void>> updateCoupon(
 		CouponRequest.Update request, Long couponId) {
-		couponService.updateCoupon(request, couponId);
+		couponService.updateCoupon(request.toPatch(), couponId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 

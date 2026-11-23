@@ -27,7 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction;
@@ -67,7 +67,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 	@Mock private ReservationInventoryService inventoryService;
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentTransactionRepository transactionRepository;
-	@Mock private CouponUsageService couponUsageService;
+	@Mock private CouponUsageManager couponUsageManager;
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock private OutboxWriter outboxWriter;
@@ -84,7 +84,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 				inventoryService,
 				paymentRepository,
 				transactionRepository,
-				couponUsageService,
+				couponUsageManager,
 				historyRepository,
 				searchRefreshPublisher,
 				outboxWriter,
@@ -191,7 +191,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 		assertThat(history.getValue().getChangeReason())
 			.isEqualTo("결제 미승인 수동 확정")
 			.doesNotContain(evidenceReference);
-		then(couponUsageService).should().restore(reservation.getId());
+		then(couponUsageManager).should().restore(reservation.getId());
 		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
 		then(resolutionRecorder).should().recordAdmin(
 			eq(operation),

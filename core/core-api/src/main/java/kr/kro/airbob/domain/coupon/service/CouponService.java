@@ -6,7 +6,8 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.coupon.dto.CouponRequest;
+import kr.kro.airbob.domain.coupon.CouponPatch;
+import kr.kro.airbob.domain.coupon.NewCoupon;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponConfigurationLockedException;
 import kr.kro.airbob.domain.coupon.exception.CouponInvalidConfigurationException;
@@ -25,7 +26,7 @@ public class CouponService {
 	private final CouponIssueUnitStore units;
 
 	@Transactional
-	public Long createCoupon(CouponRequest.Create dto) {
+	public Long createCoupon(NewCoupon dto) {
 		var coupon = Coupon.of(dto);
 		coupon.validateConfiguration();
 		if (!units.databaseNow().isBefore(coupon.getIssueStartAt())) throw new CouponInvalidConfigurationException();
@@ -33,12 +34,12 @@ public class CouponService {
 	}
 
 	@Transactional
-	public void updateCoupon(CouponRequest.Update dto, Long couponId) {
+	public void updateCoupon(CouponPatch dto, Long couponId) {
 		var coupon = lock(couponId);
 		var now = units.databaseNow();
 		if (coupon.changesPreparedIssuanceConfiguration(dto)) requireBeforeStart(coupon, now);
 		Integer previous = coupon.getTotalQuantity();
-		coupon.updateWithDto(dto);
+		coupon.update(dto);
 		coupon.validateConfiguration();
 		if (dto.issueStartAt() != null && !now.isBefore(coupon.getIssueStartAt())) {
 			throw new CouponInvalidConfigurationException();

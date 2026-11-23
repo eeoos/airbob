@@ -74,7 +74,7 @@ import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
@@ -128,7 +128,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
-	CouponUsageService.class,
+	CouponUsageManager.class,
 	AccommodationInventoryDayRepository.class,
 	ReservationInventoryService.class,
 	IntegrationEventCodec.class,

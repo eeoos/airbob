@@ -42,7 +42,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
@@ -68,7 +68,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
-	CouponUsageService.class,
+	CouponUsageManager.class,
 	IntegrationEventCodec.class,
 	JpaOutboxWriter.class,
 	OutboxAccommodationSearchRefreshPublisher.class,

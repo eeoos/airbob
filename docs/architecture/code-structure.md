@@ -255,6 +255,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 13e (accommodation 상세 캐시 값) | 9 | 5 | 9 |
 | PR 13f (accommodation 조회 출력) | 9 | 5 | 9 |
 | PR 13g (accommodation 이전) | 9 | 5 | 9 |
+| PR 14a (coupon 입력과 사용 처리) | 9 | 5 | 7 (`Coupon` → 요청 DTO 해소) |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -297,7 +298,10 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 13e | accommodation 상세 캐시 값: `AccommodationDetailSnapshot`을 도메인 루트로 옮기고 중첩 값을 도메인 레코드로. 바꾸기 전 캐시 JSON을 문자열로 고정한 테스트를 추가해 저장된 값과 호환 확인 | 캐시 JSON·스냅샷 불변 | 완료 |
 | 13f | accommodation 조회 출력: 공개 상세·가용일·호스트 목록·호스트 상세의 Business 출력을 도메인 레코드로(repository 패키지 projection 포함) | 엄격 규칙 준비, 스냅샷 불변 | 완료 |
 | 13g | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 14~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 14a | coupon 입력과 사용 처리: `Coupon`이 요청 DTO 대신 `NewCoupon`·`CouponPatch`를 받음, 관리 서비스 입력을 도메인 레코드로, 다른 도메인이 쓰는 `CouponUsageService`를 Implement `CouponUsageManager`로(트랜잭션 참여 방식 그대로) | 동결 위반 감소, 스냅샷 불변 | 완료 |
+| 14b | coupon 계층화: 발급(`SKIP LOCKED`, 재시도, 트랜잭션 템플릿)·재고 준비·조회의 Repository 사용을 Implement로, 조회 출력을 도메인 레코드로 | `coupon.md`의 잠금·트랜잭션 계약 불변 | |
+| 14c | coupon 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
+| 15~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 

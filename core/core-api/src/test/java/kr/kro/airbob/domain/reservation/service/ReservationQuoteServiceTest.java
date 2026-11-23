@@ -32,7 +32,7 @@ import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
@@ -55,7 +55,7 @@ class ReservationQuoteServiceTest {
 	@Mock private MemberReader memberReader;
 	@Mock private ReservationInventoryService inventoryService;
 	@Mock private ReservationQuoteRepository quoteRepository;
-	@Mock private CouponUsageService couponUsageService;
+	@Mock private CouponUsageManager couponUsageManager;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private Clock clock;
 
@@ -68,7 +68,7 @@ class ReservationQuoteServiceTest {
 	@BeforeEach
 	void setUp() {
 		quoteService = new ReservationQuoteService(new AccommodationReader(accommodationRepository), memberReader,
-			inventoryService, quoteRepository, couponUsageService, bookingWindowProvider, clock);
+			inventoryService, quoteRepository, couponUsageManager, bookingWindowProvider, clock);
 		Member host = Member.builder().id(3L).build();
 		Member guest = Member.builder().id(MEMBER_ID).build();
 		accommodation = Accommodation.builder()
@@ -104,7 +104,7 @@ class ReservationQuoteServiceTest {
 	@DisplayName("견적은 가격과 쿠폰 할인을 정확히 계산하지만 예약·재고·쿠폰을 점유하지 않는다")
 	void createsExactNoHoldQuoteWithoutMutatingReservationOrCoupon() {
 		ReservationRequest.Quote request = quoteRequest(COUPON_ID);
-		given(couponUsageService.preview(MEMBER_ID, COUPON_ID, 360_000L))
+		given(couponUsageManager.preview(MEMBER_ID, COUPON_ID, 360_000L))
 			.willReturn(30_000L);
 
 		ReservationResponse.Quote response = quoteService.createQuote(request, MEMBER_ID);
@@ -136,8 +136,8 @@ class ReservationQuoteServiceTest {
 		then(accommodationRepository).should(never()).findByIdForUpdate(anyLong());
 		then(inventoryService).should().isRangeAvailableSnapshot(
 			ACCOMMODATION_ID, request.checkInDate(), request.checkOutDate(), NOW);
-		then(couponUsageService).should().preview(MEMBER_ID, COUPON_ID, 360_000L);
-		then(couponUsageService).should(never())
+		then(couponUsageManager).should().preview(MEMBER_ID, COUPON_ID, 360_000L);
+		then(couponUsageManager).should(never())
 			.use(anyLong(), anyLong(), anyLong(), anyLong());
 	}
 
@@ -149,7 +149,7 @@ class ReservationQuoteServiceTest {
 		assertThat(response.subtotal()).isEqualTo(360_000L);
 		assertThat(response.discountAmount()).isZero();
 		assertThat(response.amount()).isEqualTo(360_000L);
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -185,7 +185,7 @@ class ReservationQuoteServiceTest {
 			.isInstanceOf(InvalidReservationLocalTimeException.class);
 
 		then(quoteRepository).shouldHaveNoInteractions();
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 	}
 
 	private ReservationRequest.Quote quoteRequest(Long couponId) {

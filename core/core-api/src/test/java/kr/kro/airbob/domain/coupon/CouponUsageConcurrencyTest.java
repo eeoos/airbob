@@ -39,7 +39,7 @@ import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyUsedException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 /**
@@ -55,7 +55,7 @@ class CouponUsageConcurrencyTest {
 	private static final int THREAD_COUNT = 20;
 
 	@Autowired
-	private CouponUsageService couponUsageService;
+	private CouponUsageManager couponUsageManager;
 	@Autowired
 	private CouponRepository couponRepository;
 	@Autowired
@@ -143,7 +143,7 @@ class CouponUsageConcurrencyTest {
 				try {
 					readyLatch.countDown();
 					startLatch.await();
-					couponUsageService.use(member.getId(), coupon.getId(), reservationId, 100_000L);
+					couponUsageManager.use(member.getId(), coupon.getId(), reservationId, 100_000L);
 					success.incrementAndGet();
 				} catch (CouponAlreadyUsedException e) {
 					alreadyUsed.incrementAndGet();

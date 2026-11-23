@@ -32,7 +32,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -51,7 +51,7 @@ class ExpiredReservationCleanupServiceTest {
 	@Mock
 	private ReservationHistoryBatchWriter batchWriter;
 	@Mock
-	private CouponUsageService couponUsageService;
+	private CouponUsageManager couponUsageManager;
 	@Mock
 	private ReservationInventoryService inventoryService;
 
@@ -64,7 +64,7 @@ class ExpiredReservationCleanupServiceTest {
 		service = new ExpiredReservationCleanupService(
 			reservationRepository,
 			batchWriter,
-			couponUsageService,
+			couponUsageManager,
 			inventoryService,
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			CLEANUP_BATCH_SIZE
@@ -83,12 +83,12 @@ class ExpiredReservationCleanupServiceTest {
 
 		service.cleanupExpiredPendingReservations();
 
-		InOrder inOrder = inOrder(inventoryService, couponUsageService, batchWriter);
+		InOrder inOrder = inOrder(inventoryService, couponUsageManager, batchWriter);
 		inOrder.verify(inventoryService).releaseHeldIfOwned(
 			first.getAccommodation().getId(), first.getCheckInDate(), first.getCheckOutDate(), first.getId());
 		inOrder.verify(inventoryService).releaseHeldIfOwned(
 			second.getAccommodation().getId(), second.getCheckInDate(), second.getCheckOutDate(), second.getId());
-		inOrder.verify(couponUsageService).restoreAll(List.of(first.getId(), second.getId()));
+		inOrder.verify(couponUsageManager).restoreAll(List.of(first.getId(), second.getId()));
 		inOrder.verify(batchWriter).writeAll(anyList(), eq(NOW));
 	}
 
@@ -155,7 +155,7 @@ class ExpiredReservationCleanupServiceTest {
 
 		assertThat(cleaned).isZero();
 		then(batchWriter).shouldHaveNoInteractions();
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(inventoryService).shouldHaveNoInteractions();
 	}
 

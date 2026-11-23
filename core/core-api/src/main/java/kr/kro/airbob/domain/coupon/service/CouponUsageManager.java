@@ -2,7 +2,7 @@ package kr.kro.airbob.domain.coupon.service;
 
 import java.util.Collection;
 
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.coupon.entity.Coupon;
@@ -18,9 +18,9 @@ import lombok.RequiredArgsConstructor;
  * 발급된 쿠폰의 사용 처리. 예약 생성 트랜잭션 안에서 호출되어 같은 트랜잭션에 참여한다
  * (예약이 실패하면 쿠폰 사용도 함께 롤백).
  */
-@Service
+@Component
 @RequiredArgsConstructor
-public class CouponUsageService {
+public class CouponUsageManager {
 
 	private final MemberCouponRepository memberCouponRepository;
 	private final CouponRepository couponRepository;
