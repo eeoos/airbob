@@ -31,25 +31,25 @@ import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepositor
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AccommodationInventorySeedService")
-class AccommodationInventorySeedServiceTest {
+@DisplayName("ReservationInventorySeeder")
+class ReservationInventorySeederTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 	private static final LocalDate START = LocalDate.of(2026, 8, 25);
 	private static final LocalDate END_WITH_BUFFER = LocalDate.of(2026, 11, 27);
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private AccommodationInventoryDayRepository inventoryRepository;
 	@Mock private AccommodationInventorySeedPolicy seedPolicy;
 
-	private AccommodationInventorySeedService service;
+	private ReservationInventorySeeder service;
 
 	@BeforeEach
 	void setUp() {
-		service = new AccommodationInventorySeedService(
+		service = new ReservationInventorySeeder(
 			new AccommodationReader(accommodationRepository),
-			inventoryService,
+			inventoryManager,
 			inventoryRepository,
 			seedPolicy,
 			Clock.fixed(NOW, ZoneOffset.UTC)
@@ -69,7 +69,7 @@ class AccommodationInventorySeedServiceTest {
 
 		service.seedCurrentHorizon(accommodation);
 
-		then(inventoryService).should().seed(7L, START, END_WITH_BUFFER);
+		then(inventoryManager).should().seed(7L, START, END_WITH_BUFFER);
 	}
 
 	@Test
@@ -91,7 +91,7 @@ class AccommodationInventorySeedServiceTest {
 			List.of(19L), START.minusDays(1), END_WITH_BUFFER.minusDays(1)))
 			.willReturn(Map.of(19L, 94));
 
-		AccommodationInventorySeedService.SeedBatch batch =
+		ReservationInventorySeeder.SeedBatch batch =
 			service.seedNextPublishedBatch(10L, 2);
 
 		assertThat(batch.processed()).isEqualTo(2);
@@ -99,7 +99,7 @@ class AccommodationInventorySeedServiceTest {
 		assertThat(batch.expectedDays()).isEqualTo(188);
 		assertThat(batch.missingDaysSubmitted()).isZero();
 		assertThat(batch.insertStatements()).isZero();
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(inventoryRepository).should().countSeedDays(List.of(11L), START, END_WITH_BUFFER);
 		then(inventoryRepository).should().countSeedDays(
 			List.of(19L), START.minusDays(1), END_WITH_BUFFER.minusDays(1));
@@ -109,9 +109,9 @@ class AccommodationInventorySeedServiceTest {
 	@Test
 	@DisplayName("rolling scan commits bounded insert statements while publication retains its business transaction")
 	void keepsRollingScanOutsideABulkTransaction() throws NoSuchMethodException {
-		Method batchMethod = AccommodationInventorySeedService.class.getMethod(
+		Method batchMethod = ReservationInventorySeeder.class.getMethod(
 			"seedNextPublishedBatch", long.class, int.class);
-		Method accommodationSeedMethod = ReservationInventoryService.class.getMethod(
+		Method accommodationSeedMethod = ReservationInventoryManager.class.getMethod(
 			"seed", Long.class, LocalDate.class, LocalDate.class);
 
 		assertThat(batchMethod.getAnnotation(Transactional.class)).isNull();
@@ -133,7 +133,7 @@ class AccommodationInventorySeedServiceTest {
 			.willReturn(List.of(new AccommodationInventoryDayRepository.SeedDay(11L, START),
 				new AccommodationInventoryDayRepository.SeedDay(11L, START.plusDays(2))));
 
-		AccommodationInventorySeedService.SeedBatch batch = service.seedNextPublishedBatch(0L, 1000);
+		ReservationInventorySeeder.SeedBatch batch = service.seedNextPublishedBatch(0L, 1000);
 
 		assertThat(batch.missingDaysSubmitted()).isOne();
 		assertThat(batch.insertStatements()).isOne();

@@ -65,8 +65,8 @@ import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
@@ -90,7 +90,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
@@ -150,7 +150,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@Autowired private PaymentOperationExecutor paymentOperationExecutor;
 	@Autowired private PaymentOperationQueryService paymentOperationQueryService;
 	@Autowired private ReservationQuoteRepository quoteRepository;
-	@Autowired private ReservationInventoryService inventoryService;
+	@Autowired private ReservationInventoryManager inventoryManager;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private PaymentOperationRepository paymentOperationRepository;
@@ -611,7 +611,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
-		inventoryService.seed(
+		inventoryManager.seed(
 			accommodation.getId(), BOOKING_WINDOW_START, BOOKING_WINDOW_START.plusMonths(3));
 	}
 

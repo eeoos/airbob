@@ -42,7 +42,7 @@ import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
 
@@ -52,7 +52,7 @@ import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
 	JpaAuditingConfig.class, QueryDslConfig.class, CouponTimeProvider.class, CouponUsageManager.class,
-	AccommodationInventoryDayRepository.class, ReservationInventoryService.class,
+	AccommodationInventoryDayRepository.class, ReservationInventoryManager.class,
 	ReservationHistoryBatchWriter.class, ExpiredReservationCleanupService.class,
 	ExpiredReservationCleanupIntegrationTest.FixedClockConfiguration.class
 })

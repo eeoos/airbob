@@ -49,7 +49,7 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
 import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.geo.GeocodingService;
@@ -66,7 +66,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	AccommodationQueryService.class,
 	AccommodationDetailReader.class, WishlistReader.class,
 	AccommodationInventoryDayRepository.class,
-	ReservationInventoryService.class,
+	ReservationInventoryManager.class,
 	ReservationAvailabilityReader.class, AccommodationReader.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

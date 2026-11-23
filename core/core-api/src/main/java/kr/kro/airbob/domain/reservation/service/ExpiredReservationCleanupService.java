@@ -13,7 +13,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
@@ -26,7 +26,7 @@ public class ExpiredReservationCleanupService {
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryBatchWriter historyBatchWriter;
 	private final CouponUsageManager couponUsageManager;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 	private final int cleanupBatchSize;
 
@@ -34,7 +34,7 @@ public class ExpiredReservationCleanupService {
 		ReservationRepository reservationRepository,
 		ReservationHistoryBatchWriter historyBatchWriter,
 		CouponUsageManager couponUsageManager,
-		ReservationInventoryService inventoryService,
+		ReservationInventoryManager inventoryManager,
 		Clock clock,
 		@Value("${reservation.expiration.cleanup-batch-size:100}") int cleanupBatchSize
 	) {
@@ -44,7 +44,7 @@ public class ExpiredReservationCleanupService {
 		this.reservationRepository = reservationRepository;
 		this.historyBatchWriter = historyBatchWriter;
 		this.couponUsageManager = couponUsageManager;
-		this.inventoryService = inventoryService;
+		this.inventoryManager = inventoryManager;
 		this.clock = clock;
 		this.cleanupBatchSize = cleanupBatchSize;
 	}
@@ -65,7 +65,7 @@ public class ExpiredReservationCleanupService {
 
 		List<ReservationHistory> histories = expired.stream()
 			.map(reservation -> {
-				inventoryService.releaseHeldIfOwned(
+				inventoryManager.releaseHeldIfOwned(
 					reservation.getAccommodation().getId(),
 					reservation.getCheckInDate(),
 					reservation.getCheckOutDate(),

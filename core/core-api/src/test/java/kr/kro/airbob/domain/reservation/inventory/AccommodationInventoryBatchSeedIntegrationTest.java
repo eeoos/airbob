@@ -104,16 +104,16 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 	@DisplayName("batch seed bounds each INSERT and skips existing inventory on repeated calls")
 	void seedsMissingInventoryInBoundedBatchesWithoutDuplicateWrites() {
 		CountingRepository repository = new CountingRepository(jdbc);
-		AccommodationInventorySeedService seed = service(repository, IDS);
+		ReservationInventorySeeder seed = service(repository, IDS);
 
-		AccommodationInventorySeedService.SeedBatch initial = seed.seedNextPublishedBatch(0, HOSTS);
+		ReservationInventorySeeder.SeedBatch initial = seed.seedNextPublishedBatch(0, HOSTS);
 
 		assertThat(initial.missingDaysSubmitted()).isEqualTo(initial.expectedDays());
 		assertThat(initial.insertStatements()).isEqualTo((int)((initial.expectedDays() + 999) / 1000));
 		assertThat(repository.largestInsert).isEqualTo(1000);
 
 		repository.resetCounts();
-		AccommodationInventorySeedService.SeedBatch repeated = seed.seedNextPublishedBatch(0, HOSTS);
+		ReservationInventorySeeder.SeedBatch repeated = seed.seedNextPublishedBatch(0, HOSTS);
 
 		assertThat(repeated.missingDaysSubmitted()).isZero();
 		assertThat(repeated.insertStatements()).isZero();
@@ -128,7 +128,7 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 	@DisplayName("retention deletes every past FREE row without exceeding the batch limit")
 	void deletesPastFreeRowsInBoundedBatches() {
 		AccommodationInventoryDayRepository repository = new AccommodationInventoryDayRepository(jdbc);
-		AccommodationInventoryRetentionService retention = new AccommodationInventoryRetentionService(repository);
+		ReservationInventoryManager retention = new ReservationInventoryManager(repository);
 		LocalDate start = RANGE.startInclusive().minusDays(60);
 		for (int batchSize : List.of(1000, 5000)) {
 			for (int day = 0; day < 10; day++) {
@@ -153,14 +153,14 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 	@DisplayName("count coverage detects interior holes and ignores rows outside the local horizon")
 	void repairsInteriorHolesWithExactDateBoundaries() {
 		AccommodationInventoryDayRepository repository = new AccommodationInventoryDayRepository(jdbc);
-		AccommodationInventorySeedService seed = service(repository, List.of(1L));
+		ReservationInventorySeeder seed = service(repository, List.of(1L));
 		seed.seedNextPublishedBatch(0, 1000);
 		LocalDate hole = RANGE.startInclusive().plusDays(20);
 		jdbc.update("DELETE FROM accommodation_inventory_day WHERE accommodation_id = 1 AND stay_date = ?",
 			Date.valueOf(hole));
 		repository.seedMissingDays(1L, List.of(RANGE.startInclusive().minusDays(1), RANGE.endExclusive()));
 
-		AccommodationInventorySeedService.SeedBatch batch = seed.seedNextPublishedBatch(0, 1000);
+		ReservationInventorySeeder.SeedBatch batch = seed.seedNextPublishedBatch(0, 1000);
 
 		assertThat(batch.missingDaysSubmitted()).isOne();
 		assertThat(batch.insertStatements()).isOne();
@@ -191,7 +191,7 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 			}
 		};
 		List<Long> targets = IDS.subList(0, 21);
-		AccommodationInventorySeedService seed = service(repository, targets);
+		ReservationInventorySeeder seed = service(repository, targets);
 		try (var executor = Executors.newFixedThreadPool(2)) {
 			var first = executor.submit(() -> seed.seedNextPublishedBatch(0, 1000));
 			var second = executor.submit(() -> seed.seedNextPublishedBatch(0, 1000));
@@ -208,7 +208,7 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 	@DisplayName("multi-statement single-accommodation seed rolls back with the enclosing business transaction")
 	void publicationRollbackIncludesEveryInsertChunk() {
 		AccommodationInventoryDayRepository repository = new AccommodationInventoryDayRepository(jdbc);
-		ReservationInventoryService inventory = new ReservationInventoryService(repository);
+		ReservationInventoryManager inventory = new ReservationInventoryManager(repository);
 		assertThatThrownBy(() -> transaction().executeWithoutResult(status -> {
 			inventory.seed(1L, RANGE.startInclusive(), RANGE.startInclusive().plusDays(1001));
 			throw new IllegalStateException("publication rejected");
@@ -223,7 +223,7 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 		return template;
 	}
 
-	private AccommodationInventorySeedService service(
+	private ReservationInventorySeeder service(
 		AccommodationInventoryDayRepository repository, List<Long> ids
 	) {
 		AccommodationRepository accommodations = mock(AccommodationRepository.class);
@@ -235,8 +235,8 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 					@Override public Long getAccommodationId() { return id; }
 					@Override public String getTimeZoneId() { return "Asia/Seoul"; }
 				}).toList());
-		return new AccommodationInventorySeedService(new AccommodationReader(accommodations),
-			new ReservationInventoryService(repository), repository, POLICY, CLOCK);
+		return new ReservationInventorySeeder(new AccommodationReader(accommodations),
+			new ReservationInventoryManager(repository), repository, POLICY, CLOCK);
 	}
 
 	private static class CountingRepository extends AccommodationInventoryDayRepository {

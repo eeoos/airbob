@@ -61,15 +61,15 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 	void concurrentSeedsBothSucceedAndLeaveExactCoverage() throws Exception {
 		FirstSnapshotBarrierRepository repository = new FirstSnapshotBarrierRepository(
 			jdbcTemplate, 2);
-		ReservationInventoryService inventoryService = new ReservationInventoryService(repository);
+		ReservationInventoryManager inventoryManager = new ReservationInventoryManager(repository);
 		TransactionTemplate transactionTemplate = readCommittedTransactionTemplate();
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch start = new CountDownLatch(1);
 
 		Future<?> first = executor.submit(() -> seedAfterStart(
-			start, transactionTemplate, inventoryService));
+			start, transactionTemplate, inventoryManager));
 		Future<?> second = executor.submit(() -> seedAfterStart(
-			start, transactionTemplate, inventoryService));
+			start, transactionTemplate, inventoryManager));
 
 		try {
 			start.countDown();
@@ -102,10 +102,10 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 	private void seedAfterStart(
 		CountDownLatch start,
 		TransactionTemplate transactionTemplate,
-		ReservationInventoryService inventoryService
+		ReservationInventoryManager inventoryManager
 	) {
 		await(start);
-		transactionTemplate.executeWithoutResult(status -> inventoryService.seed(
+		transactionTemplate.executeWithoutResult(status -> inventoryManager.seed(
 			ACCOMMODATION_ID, START, END_EXCLUSIVE));
 	}
 

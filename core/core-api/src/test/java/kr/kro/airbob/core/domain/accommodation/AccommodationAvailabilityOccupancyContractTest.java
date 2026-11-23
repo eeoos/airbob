@@ -21,7 +21,7 @@ import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepositor
 import kr.kro.airbob.core.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
@@ -34,7 +34,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 	private static final LocalDate WINDOW_END_EXCLUSIVE = WINDOW_START.plusMonths(3);
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private AccommodationDetailReader accommodationDetailReader;
@@ -46,7 +46,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 	@BeforeEach
 	void setUp() {
 		service = new AccommodationQueryService(new AccommodationReader(accommodationRepository),
-			new ReservationAvailabilityReader(bookingWindowProvider, inventoryService, clock), cursorPageInfoCreator,
+			new ReservationAvailabilityReader(bookingWindowProvider, inventoryManager, clock), cursorPageInfoCreator,
 			accommodationDetailReader, accommodationDetailCache);
 	}
 
@@ -64,7 +64,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 
 		AccommodationResponse.Availability.from(service.findAccommodationAvailability(accommodationId));
 
-		verify(inventoryService).findUnavailableRangesSnapshot(
+		verify(inventoryManager).findUnavailableRangesSnapshot(
 			accommodationId,
 			WINDOW_START,
 			WINDOW_END_EXCLUSIVE,

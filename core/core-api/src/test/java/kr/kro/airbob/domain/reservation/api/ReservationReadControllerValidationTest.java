@@ -27,7 +27,7 @@ import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
@@ -53,7 +53,7 @@ class ReservationReadControllerValidationTest {
 	@Mock ReservationHoldPolicy holdPolicy;
 	@Mock ReservationQuoteRepository quoteRepository;
 	@Mock ReservationCheckoutRequestStore checkoutRequestStore;
-	@Mock ReservationInventoryService inventoryService;
+	@Mock ReservationInventoryManager inventoryManager;
 	@Mock Clock clock;
 	@InjectMocks ReservationTransactionService transactionService;
 

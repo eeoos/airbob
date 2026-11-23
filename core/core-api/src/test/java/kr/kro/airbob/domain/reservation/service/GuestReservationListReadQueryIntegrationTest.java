@@ -53,17 +53,17 @@ import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
-import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest.CursorPageRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse.PageInfo;
+import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
+import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse.GuestReservationInfo;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse.GuestReservationInfos;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
@@ -140,7 +140,7 @@ class GuestReservationListReadQueryIntegrationTest {
 			new AccommodationReader(mock(AccommodationRepository.class)), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageManager.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
-			mock(ReservationInventoryService.class), Clock.fixed(NOW, ZoneOffset.UTC));
+			mock(ReservationInventoryManager.class), Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@ParameterizedTest

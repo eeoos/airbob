@@ -24,19 +24,19 @@ class AccommodationInventoryRetentionSchedulerTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@Mock private AccommodationInventoryRetentionService retentionService;
+	@Mock private ReservationInventoryManager inventoryManager;
 
 	@Test
 	@DisplayName("deletes bounded FREE-only batches using a stable cutoff for one run")
 	void deletesBoundedBatches() {
 		LocalDate cutoff = LocalDate.of(2026, 7, 26);
-		given(retentionService.deleteNextPastFreeBatch(cutoff, 1000))
+		given(inventoryManager.deleteNextPastFreeBatch(cutoff, 1000))
 			.willReturn(1000, 1000, 37);
 		AccommodationInventoryRetentionScheduler scheduler = scheduler(10);
 
 		scheduler.deletePastFreeInventory();
 
-		then(retentionService).should(org.mockito.Mockito.times(3))
+		then(inventoryManager).should(org.mockito.Mockito.times(3))
 			.deleteNextPastFreeBatch(cutoff, 1000);
 	}
 
@@ -44,12 +44,12 @@ class AccommodationInventoryRetentionSchedulerTest {
 	@DisplayName("never exceeds the configured transaction batch count")
 	void stopsAtMaxBatchCount() {
 		LocalDate cutoff = LocalDate.of(2026, 7, 26);
-		given(retentionService.deleteNextPastFreeBatch(cutoff, 1000)).willReturn(1000);
+		given(inventoryManager.deleteNextPastFreeBatch(cutoff, 1000)).willReturn(1000);
 		AccommodationInventoryRetentionScheduler scheduler = scheduler(2);
 
 		scheduler.deletePastFreeInventory();
 
-		then(retentionService).should(org.mockito.Mockito.times(2))
+		then(inventoryManager).should(org.mockito.Mockito.times(2))
 			.deleteNextPastFreeBatch(cutoff, 1000);
 	}
 
@@ -67,7 +67,7 @@ class AccommodationInventoryRetentionSchedulerTest {
 
 	private AccommodationInventoryRetentionScheduler scheduler(int maxBatches) {
 		return new AccommodationInventoryRetentionScheduler(
-			retentionService,
+			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			30,
 			1000,

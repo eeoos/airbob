@@ -36,16 +36,16 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
-import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
@@ -66,7 +66,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 
 	@Mock private PaymentOperationRepository operationRepository;
 	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentTransactionRepository transactionRepository;
 	@Mock private CouponUsageManager couponUsageManager;
@@ -83,7 +83,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 			new PaymentOperationManualReviewTransactionService(
 				operationRepository,
 				new ReservationReader(reservationRepository),
-				inventoryService,
+				inventoryManager,
 				paymentRepository,
 				transactionRepository,
 				couponUsageManager,
@@ -175,9 +175,9 @@ class PaymentOperationManualReviewCommandServiceTest {
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.DECLINED);
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
-		InOrder lockOrder = inOrder(reservationRepository, inventoryService);
+		InOrder lockOrder = inOrder(reservationRepository, inventoryManager);
 		lockOrder.verify(reservationRepository).findByIdWithLock(reservation.getId());
-		lockOrder.verify(inventoryService).releaseOccupied(
+		lockOrder.verify(inventoryManager).releaseOccupied(
 			ACCOMMODATION_ID,
 			CHECK_IN,
 			CHECK_OUT,
@@ -226,7 +226,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(transactionRepository).should(never()).save(any());
 		then(resolutionRecorder).shouldHaveNoInteractions();
 	}
@@ -252,7 +252,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(transactionRepository).should(never()).save(any());
 		then(resolutionRecorder).shouldHaveNoInteractions();
 	}

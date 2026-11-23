@@ -60,11 +60,11 @@ import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
+import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
@@ -139,7 +139,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 			new AccommodationReader(mock(AccommodationRepository.class)), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageManager.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
-			mock(ReservationInventoryService.class), Clock.fixed(NOW, ZoneOffset.UTC));
+			mock(ReservationInventoryManager.class), Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@ParameterizedTest

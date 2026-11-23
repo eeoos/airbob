@@ -50,7 +50,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException
 import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
 import kr.kro.airbob.domain.reservation.inventory.MysqlNowaitFailureClassifier;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
@@ -85,7 +85,7 @@ public class ReservationTransactionService {
 	private final ReservationHoldPolicy holdPolicy;
 	private final ReservationQuoteRepository quoteRepository;
 	private final ReservationCheckoutRequestStore checkoutRequestStore;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 
 	@Transactional(isolation = Isolation.READ_COMMITTED)
@@ -170,8 +170,8 @@ public class ReservationTransactionService {
 		if (!now.isBefore(checkInAt)) {
 			throw new ReservationCheckInClosedException();
 		}
-		ReservationInventoryService.LockedRange lockedInventory =
-			inventoryService.lockAvailableRangeNowait(
+		ReservationInventoryManager.LockedRange lockedInventory =
+			inventoryManager.lockAvailableRangeNowait(
 				request.accommodationId(),
 				request.checkInDate(),
 				request.checkOutDate(),
@@ -201,10 +201,10 @@ public class ReservationTransactionService {
 		}
 		if (!reservation.requiresPayment()) {
 			reservation.confirmComplimentary();
-			inventoryService.claimLockedForBooked(lockedInventory, reservation.getId());
+			inventoryManager.claimLockedForBooked(lockedInventory, reservation.getId());
 		} else {
 			reservation.requirePaymentAttempt();
-			inventoryService.claimLockedForPending(
+			inventoryManager.claimLockedForPending(
 				lockedInventory, reservation.getId(), reservation.getExpiresAt());
 		}
 

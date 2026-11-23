@@ -56,7 +56,7 @@ import kr.kro.airbob.core.domain.wishlist.WishlistAccommodation;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.inventory.ReservationAvailabilityReader;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -118,7 +118,7 @@ class AccommodationDetailCacheQueryCountTest {
 	@MockitoBean private GeocodingService geocodingService;
 	@MockitoBean private S3ImageUploader s3ImageUploader;
 	@MockitoBean private BookingWindowProvider bookingWindowProvider;
-	@MockitoBean private ReservationInventoryService inventoryService;
+	@MockitoBean private ReservationInventoryManager inventoryManager;
 
 	private Accommodation accommodation;
 	private Member host;

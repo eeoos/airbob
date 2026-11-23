@@ -28,7 +28,7 @@ import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 
@@ -43,7 +43,7 @@ public class PaymentOperationFinalizer {
 	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final CouponUsageManager couponUsageManager;
 	private final ReservationHistoryWriter reservationHistoryWriter;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 	private final PaymentOperationManualResolutionRecorder resolutionRecorder;
 	private final Clock clock;
@@ -55,7 +55,7 @@ public class PaymentOperationFinalizer {
 		PaymentTransactionRepository paymentTransactionRepository,
 		CouponUsageManager couponUsageManager,
 		ReservationHistoryWriter reservationHistoryWriter,
-		ReservationInventoryService inventoryService,
+		ReservationInventoryManager inventoryManager,
 		AccommodationSearchRefreshRequester searchRefreshPublisher,
 		PaymentOperationManualResolutionRecorder resolutionRecorder,
 		Clock clock
@@ -66,7 +66,7 @@ public class PaymentOperationFinalizer {
 		this.paymentTransactionRepository = paymentTransactionRepository;
 		this.couponUsageManager = couponUsageManager;
 		this.reservationHistoryWriter = reservationHistoryWriter;
-		this.inventoryService = inventoryService;
+		this.inventoryManager = inventoryManager;
 		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.resolutionRecorder = resolutionRecorder;
 		this.clock = clock;
@@ -87,7 +87,7 @@ public class PaymentOperationFinalizer {
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
 		validateApprovalCorrelation(confirmed, operation, reservation);
-		inventoryService.verifyOccupied(
+		inventoryManager.verifyOccupied(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
@@ -163,7 +163,7 @@ public class PaymentOperationFinalizer {
 
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
-		inventoryService.releaseOccupied(
+		inventoryManager.releaseOccupied(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
@@ -231,7 +231,7 @@ public class PaymentOperationFinalizer {
 			paymentTransactionRepository.save(
 				PaymentTransaction.fail(operation, reservation, normalizedCode, message));
 		}
-		inventoryService.releaseOccupied(
+		inventoryManager.releaseOccupied(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
@@ -254,7 +254,7 @@ public class PaymentOperationFinalizer {
 		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
 			.orElseThrow(PaymentNotFoundException::new);
 		validateActivePaymentForCancellation(operation, reservation, payment);
-		inventoryService.verifyOccupied(
+		inventoryManager.verifyOccupied(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),

@@ -34,7 +34,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
@@ -56,7 +56,7 @@ class ReservationCancellationCutoffContractTest {
 	private static final LocalDate CHECK_OUT_DATE = LocalDate.of(2026, 8, 28);
 
 	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentOperationRepository operationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
@@ -114,7 +114,7 @@ class ReservationCancellationCutoffContractTest {
 		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(searchRefreshPublisher).shouldHaveNoInteractions();
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 	}
 
@@ -132,7 +132,7 @@ class ReservationCancellationCutoffContractTest {
 		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(searchRefreshPublisher).shouldHaveNoInteractions();
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 	}
 
@@ -200,7 +200,7 @@ class ReservationCancellationCutoffContractTest {
 		assertThat(response.completedSynchronously()).isTrue();
 		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -221,7 +221,7 @@ class ReservationCancellationCutoffContractTest {
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
 		then(operationRepository).should().save(any(PaymentOperation.class));
 		then(outboxWriter).should().append(any());
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -238,7 +238,7 @@ class ReservationCancellationCutoffContractTest {
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
 		then(couponUsageManager).should().restore(reservation.getId());
 		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
-		then(inventoryService).should().releaseOccupied(
+		then(inventoryManager).should().releaseOccupied(
 			ACCOMMODATION_ID,
 			CHECK_IN_DATE,
 			CHECK_OUT_DATE,
@@ -249,7 +249,7 @@ class ReservationCancellationCutoffContractTest {
 	private PaymentCancellationCommandService serviceAt(Instant now) {
 		return new PaymentCancellationCommandService(
 			new ReservationReader(reservationRepository),
-			inventoryService,
+			inventoryManager,
 			paymentRepository,
 			operationRepository,
 			new ReservationHistoryWriter(historyRepository),

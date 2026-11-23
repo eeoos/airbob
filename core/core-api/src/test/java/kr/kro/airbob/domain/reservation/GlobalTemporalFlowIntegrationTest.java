@@ -82,7 +82,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
-import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
@@ -134,7 +134,7 @@ class GlobalTemporalFlowIntegrationTest {
 	@Autowired private ReservationQuoteService quoteService;
 	@Autowired private ReservationService reservationService;
 	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private AccommodationInventorySeedService seedService;
+	@Autowired private ReservationInventorySeeder inventorySeeder;
 	@Autowired private BookingWindowProvider bookingWindowProvider;
 	@Autowired private MemberRepository memberRepository;
 	@Autowired private AccommodationRepository accommodationRepository;
@@ -301,7 +301,7 @@ class GlobalTemporalFlowIntegrationTest {
 				.occupancyPolicy(OccupancyPolicy.builder().maxOccupancy(4).build()).member(host)
 				.checkInTime(checkIn).checkOutTime(checkOut).timeZoneId(zone)
 				.status(AccommodationStatus.PUBLISHED).build());
-			seedService.seedCurrentHorizon(accommodation);
+			inventorySeeder.seedCurrentHorizon(accommodation);
 			return accommodation;
 		});
 	}

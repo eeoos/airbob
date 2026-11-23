@@ -26,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
@@ -43,22 +44,21 @@ import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
-import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
-import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
+import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
-import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
+import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
@@ -93,7 +93,7 @@ class ReservationTransactionServiceTest {
 	@Mock
 	private ReservationQuoteRepository quoteRepository;
 	@Mock
-	private ReservationInventoryService inventoryService;
+	private ReservationInventoryManager inventoryManager;
 	private ReservationHoldPolicy holdPolicy;
 
 	@Captor
@@ -124,7 +124,7 @@ class ReservationTransactionServiceTest {
 			holdPolicy,
 			quoteRepository,
 			checkoutRequestStore,
-			inventoryService,
+			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		memberId = 1L;
@@ -443,7 +443,7 @@ class ReservationTransactionServiceTest {
 
 			Instant expectedCheckInAt = Instant.parse("2027-03-13T20:00:00Z");
 			Instant expectedCheckOutAt = Instant.parse("2027-03-15T15:00:00Z");
-			then(inventoryService).should().lockAvailableRangeNowait(
+			then(inventoryManager).should().lockAvailableRangeNowait(
 				accommodation.getId(), dstRequest.checkInDate(), dstRequest.checkOutDate(), NOW);
 			assertThat(result.getCheckInAt()).isEqualTo(expectedCheckInAt);
 			assertThat(result.getCheckOutAt()).isEqualTo(expectedCheckOutAt);
@@ -537,7 +537,7 @@ class ReservationTransactionServiceTest {
 			given(accommodationRepository.findBookingSnapshotForShare(
 				validRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
-			given(inventoryService.lockAvailableRangeNowait(
+			given(inventoryManager.lockAvailableRangeNowait(
 				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 				.willThrow(new ReservationConflictException());
 

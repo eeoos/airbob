@@ -37,14 +37,14 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantViolationException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
@@ -66,7 +66,7 @@ class PaymentCancellationCommandServiceTest {
 	private static final long ACCOMMODATION_ID = 31L;
 
 	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentOperationRepository operationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
@@ -80,7 +80,7 @@ class PaymentCancellationCommandServiceTest {
 	void setUp() {
 		service = new PaymentCancellationCommandService(
 			new ReservationReader(reservationRepository),
-			inventoryService,
+			inventoryManager,
 			paymentRepository,
 			operationRepository,
 			new ReservationHistoryWriter(historyRepository),
@@ -110,7 +110,7 @@ class PaymentCancellationCommandServiceTest {
 			.isEqualTo("/api/v1/payment-operations/" + response.operationId());
 		assertThat(response.completedSynchronously()).isFalse();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 
 		ArgumentCaptor<PaymentOperation> operation = ArgumentCaptor.forClass(PaymentOperation.class);
 		then(operationRepository).should().save(operation.capture());
@@ -141,7 +141,7 @@ class PaymentCancellationCommandServiceTest {
 			RESERVATION_UID.toString(), new PaymentRequest.Cancel("첫 요청", 100_000L), GUEST_ID);
 
 		assertThat(response.operationId()).isEqualTo(existing.getOperationUid());
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(paymentRepository).shouldHaveNoInteractions();
 		then(operationRepository).should(never()).save(any());
 		then(outboxWriter).shouldHaveNoInteractions();
@@ -192,7 +192,7 @@ class PaymentCancellationCommandServiceTest {
 
 		assertThat(response.operationId()).isNotEqualTo(declined.getOperationUid());
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
-		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 		then(operationRepository).should().save(any(PaymentOperation.class));
 		then(outboxWriter).should().append(any(PaymentOperationExecutionRequestedV1.class));
 	}
@@ -244,9 +244,9 @@ class PaymentCancellationCommandServiceTest {
 		assertThat(response.operationId()).isNull();
 		assertThat(response.status()).isEqualTo(Status.SUCCEEDED);
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-		InOrder lockOrder = inOrder(reservationRepository, inventoryService);
+		InOrder lockOrder = inOrder(reservationRepository, inventoryManager);
 		lockOrder.verify(reservationRepository).findByReservationUidWithLock(RESERVATION_UID);
-		lockOrder.verify(inventoryService).releaseOccupied(
+		lockOrder.verify(inventoryManager).releaseOccupied(
 			ACCOMMODATION_ID,
 			CHECK_IN,
 			CHECK_OUT,
@@ -264,7 +264,7 @@ class PaymentCancellationCommandServiceTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 		willThrow(new ReservationInventoryInvariantViolationException("not the inventory owner"))
-			.given(inventoryService).releaseOccupied(
+			.given(inventoryManager).releaseOccupied(
 				ACCOMMODATION_ID,
 				CHECK_IN,
 				CHECK_OUT,

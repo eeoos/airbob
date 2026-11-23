@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,12 +16,12 @@ import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantViolationException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 
-@Service
-public class ReservationInventoryService {
+@Component
+public class ReservationInventoryManager {
 
 	private final AccommodationInventoryDayRepository repository;
 
-	public ReservationInventoryService(AccommodationInventoryDayRepository repository) {
+	public ReservationInventoryManager(AccommodationInventoryDayRepository repository) {
 		this.repository = repository;
 	}
 
@@ -349,6 +349,16 @@ public class ReservationInventoryService {
 	private Instant normalize(Instant value, String name) {
 		return Objects.requireNonNull(value, name + " must not be null")
 			.truncatedTo(ChronoUnit.MICROS);
+	}
+
+	/** 보관 기간이 지난 FREE 날짜 행을 한 묶음 지운다. 예약이 쥔 행(HOLD·OCCUPIED)은 지우지 않는다. */
+	@Transactional
+	public int deleteNextPastFreeBatch(LocalDate cutoffExclusive, int batchSize) {
+		Objects.requireNonNull(cutoffExclusive, "inventory retention cutoff must not be null");
+		if (batchSize < 1) {
+			throw new IllegalArgumentException("inventory retention batch size must be positive");
+		}
+		return repository.deletePastFreeDays(cutoffExclusive, batchSize);
 	}
 
 	public static final class LockedRange {

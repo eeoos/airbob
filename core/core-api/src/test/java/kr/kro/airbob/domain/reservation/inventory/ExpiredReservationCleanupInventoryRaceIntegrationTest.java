@@ -114,7 +114,7 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 	@Autowired private ReservationService reservationService;
 	@Autowired private ReservationQuoteService quoteService;
 	@Autowired private ExpiredReservationCleanupService cleanupService;
-	@MockitoSpyBean private ReservationInventoryService inventoryService;
+	@MockitoSpyBean private ReservationInventoryManager inventoryManager;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private OutboxMessageRepository outboxRepository;
@@ -156,8 +156,8 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		CountDownLatch cleanupReachedInventoryRelease = new CountDownLatch(1);
 		CountDownLatch allowCleanupInventoryRelease = new CountDownLatch(1);
 		AtomicReference<String> cleanupIsolation = new AtomicReference<>();
-		ReservationInventoryService inventoryTarget =
-			AopTestUtils.getUltimateTargetObject(inventoryService);
+		ReservationInventoryManager inventoryTarget =
+			AopTestUtils.getUltimateTargetObject(inventoryManager);
 		doAnswer(invocation -> {
 			cleanupIsolation.set(jdbcTemplate.queryForObject(
 				"SELECT @@transaction_isolation", String.class));

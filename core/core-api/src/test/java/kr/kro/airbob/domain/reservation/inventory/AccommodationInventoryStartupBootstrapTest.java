@@ -20,18 +20,18 @@ import org.springframework.mock.env.MockEnvironment;
 @DisplayName("Accommodation inventory startup bootstrap")
 class AccommodationInventoryStartupBootstrapTest {
 
-	@Mock private AccommodationInventorySeedService seedService;
+	@Mock private ReservationInventorySeeder inventorySeeder;
 
 	@Test
 	@DisplayName("readiness stays DOWN until every published accommodation batch is verified")
 	void opensReadinessOnlyAfterTheFullPublishedScan() {
 		AccommodationInventoryReadiness readiness = readiness(true);
-		given(seedService.seedNextPublishedBatch(0L, 2))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(2, 19L));
-		given(seedService.seedNextPublishedBatch(19L, 2))
-			.willReturn(new AccommodationInventorySeedService.SeedBatch(1, 23L));
+		given(inventorySeeder.seedNextPublishedBatch(0L, 2))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(2, 19L));
+		given(inventorySeeder.seedNextPublishedBatch(19L, 2))
+			.willReturn(new ReservationInventorySeeder.SeedBatch(1, 23L));
 		AccommodationInventoryStartupBootstrap bootstrap =
-			new AccommodationInventoryStartupBootstrap(seedService, readiness, 2);
+			new AccommodationInventoryStartupBootstrap(inventorySeeder, readiness, 2);
 
 		assertThat(readiness.isReady()).isFalse();
 		assertThat(readiness.health().getStatus()).isEqualTo(Status.DOWN);
@@ -46,10 +46,10 @@ class AccommodationInventoryStartupBootstrapTest {
 	@DisplayName("invalid timezone or incomplete coverage fails startup and never opens readiness")
 	void failsStartupClosed() {
 		AccommodationInventoryReadiness readiness = readiness(true);
-		given(seedService.seedNextPublishedBatch(0L, 200))
+		given(inventorySeeder.seedNextPublishedBatch(0L, 200))
 			.willThrow(new IllegalArgumentException("invalid inventory timezone"));
 		AccommodationInventoryStartupBootstrap bootstrap =
-			new AccommodationInventoryStartupBootstrap(seedService, readiness, 200);
+			new AccommodationInventoryStartupBootstrap(inventorySeeder, readiness, 200);
 
 		assertThatThrownBy(() -> bootstrap.run(null))
 			.isInstanceOf(IllegalArgumentException.class)
@@ -88,8 +88,8 @@ class AccommodationInventoryStartupBootstrapTest {
 	@DisplayName("test isolation property omits the DB bootstrap runner and reports bypass readiness")
 	void disabledPropertyNeedsNoDatabaseOrInventoryTable() {
 		new ApplicationContextRunner()
-			.withBean(AccommodationInventorySeedService.class,
-				() -> mock(AccommodationInventorySeedService.class))
+			.withBean(ReservationInventorySeeder.class,
+				() -> mock(ReservationInventorySeeder.class))
 			.withUserConfiguration(
 				AccommodationInventoryReadiness.class,
 				AccommodationInventoryStartupBootstrap.class)

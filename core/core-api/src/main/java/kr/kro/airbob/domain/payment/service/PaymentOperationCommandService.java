@@ -20,7 +20,7 @@ import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionReq
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -31,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 public class PaymentOperationCommandService {
 
 	private final ReservationReader reservationReader;
-	private final ReservationInventoryService inventoryService;
+	private final ReservationInventoryManager inventoryManager;
 	private final PaymentOperationRepository paymentOperationRepository;
 	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final OutboxWriter outboxWriter;
@@ -60,7 +60,7 @@ public class PaymentOperationCommandService {
 			throw new ExpiredReservationConfirmationException();
 		}
 		reservation.consumePaymentAttempt(request.paymentAttemptId(), now);
-		inventoryService.transitionHeldToOccupied(
+		inventoryManager.transitionHeldToOccupied(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),

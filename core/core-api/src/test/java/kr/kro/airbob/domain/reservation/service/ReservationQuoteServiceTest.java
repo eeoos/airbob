@@ -37,7 +37,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
@@ -53,7 +53,7 @@ class ReservationQuoteServiceTest {
 
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private MemberReader memberReader;
-	@Mock private ReservationInventoryService inventoryService;
+	@Mock private ReservationInventoryManager inventoryManager;
 	@Mock private ReservationQuoteRepository quoteRepository;
 	@Mock private CouponUsageManager couponUsageManager;
 	@Mock private BookingWindowProvider bookingWindowProvider;
@@ -68,7 +68,7 @@ class ReservationQuoteServiceTest {
 	@BeforeEach
 	void setUp() {
 		quoteService = new ReservationQuoteService(new AccommodationReader(accommodationRepository), memberReader,
-			inventoryService, quoteRepository, couponUsageManager, bookingWindowProvider, clock);
+			inventoryManager, quoteRepository, couponUsageManager, bookingWindowProvider, clock);
 		Member host = Member.builder().id(3L).build();
 		Member guest = Member.builder().id(MEMBER_ID).build();
 		accommodation = Accommodation.builder()
@@ -93,7 +93,7 @@ class ReservationQuoteServiceTest {
 			.thenReturn(Optional.of(accommodation));
 		lenient().when(bookingWindowProvider.currentFor("Asia/Seoul", NOW))
 			.thenReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 25)));
-		lenient().when(inventoryService.isRangeAvailableSnapshot(
+		lenient().when(inventoryManager.isRangeAvailableSnapshot(
 			anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 			.thenReturn(true);
 		lenient().when(quoteRepository.save(any(ReservationQuote.class)))
@@ -134,7 +134,7 @@ class ReservationQuoteServiceTest {
 		then(accommodationRepository).should()
 			.findQuoteSnapshotByIdAndStatus(ACCOMMODATION_ID, AccommodationStatus.PUBLISHED);
 		then(accommodationRepository).should(never()).findByIdForUpdate(anyLong());
-		then(inventoryService).should().isRangeAvailableSnapshot(
+		then(inventoryManager).should().isRangeAvailableSnapshot(
 			ACCOMMODATION_ID, request.checkInDate(), request.checkOutDate(), NOW);
 		then(couponUsageManager).should().preview(MEMBER_ID, COUPON_ID, 360_000L);
 		then(couponUsageManager).should(never())
