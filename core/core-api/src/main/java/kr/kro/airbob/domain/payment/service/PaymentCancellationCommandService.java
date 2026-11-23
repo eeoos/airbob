@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.Payment;
@@ -45,7 +45,7 @@ public class PaymentCancellationCommandService {
 	private final PaymentRepository paymentRepository;
 	private final PaymentOperationRepository operationRepository;
 	private final ReservationHistoryRepository historyRepository;
-	private final CouponUsageService couponUsageService;
+	private final CouponUsageManager couponUsageManager;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final OutboxWriter outboxWriter;
 	private final Clock clock;
@@ -56,7 +56,7 @@ public class PaymentCancellationCommandService {
 		PaymentRepository paymentRepository,
 		PaymentOperationRepository operationRepository,
 		ReservationHistoryRepository historyRepository,
-		CouponUsageService couponUsageService,
+		CouponUsageManager couponUsageManager,
 		AccommodationSearchRefreshPublisher searchRefreshPublisher,
 		OutboxWriter outboxWriter,
 		Clock clock
@@ -66,7 +66,7 @@ public class PaymentCancellationCommandService {
 		this.paymentRepository = paymentRepository;
 		this.operationRepository = operationRepository;
 		this.historyRepository = historyRepository;
-		this.couponUsageService = couponUsageService;
+		this.couponUsageManager = couponUsageManager;
 		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.outboxWriter = outboxWriter;
 		this.clock = clock;
@@ -152,7 +152,7 @@ public class PaymentCancellationCommandService {
 			reservation.getCheckOutDate(),
 			reservation.getId()
 		);
-		couponUsageService.restore(reservation.getId());
+		couponUsageManager.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.CANCEL, request.cancelReason(), "RESERVATION"));
 		searchRefreshPublisher.requestRefresh(

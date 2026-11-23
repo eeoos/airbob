@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
@@ -43,7 +43,7 @@ public class PaymentOperationFinalizer {
 	private final ReservationRepository reservationRepository;
 	private final PaymentRepository paymentRepository;
 	private final PaymentTransactionRepository paymentTransactionRepository;
-	private final CouponUsageService couponUsageService;
+	private final CouponUsageManager couponUsageManager;
 	private final ReservationHistoryRepository historyRepository;
 	private final ReservationInventoryService inventoryService;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
@@ -55,7 +55,7 @@ public class PaymentOperationFinalizer {
 		ReservationRepository reservationRepository,
 		PaymentRepository paymentRepository,
 		PaymentTransactionRepository paymentTransactionRepository,
-		CouponUsageService couponUsageService,
+		CouponUsageManager couponUsageManager,
 		ReservationHistoryRepository historyRepository,
 		ReservationInventoryService inventoryService,
 		AccommodationSearchRefreshPublisher searchRefreshPublisher,
@@ -66,7 +66,7 @@ public class PaymentOperationFinalizer {
 		this.reservationRepository = reservationRepository;
 		this.paymentRepository = paymentRepository;
 		this.paymentTransactionRepository = paymentTransactionRepository;
-		this.couponUsageService = couponUsageService;
+		this.couponUsageManager = couponUsageManager;
 		this.historyRepository = historyRepository;
 		this.inventoryService = inventoryService;
 		this.searchRefreshPublisher = searchRefreshPublisher;
@@ -181,7 +181,7 @@ public class PaymentOperationFinalizer {
 		}
 
 		reservation.completeCancellation();
-		couponUsageService.restore(reservation.getId());
+		couponUsageManager.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.CANCEL, "PG 결제 전액 취소 성공", HISTORY_SOURCE));
 		var completedAt = clock.instant();
@@ -239,7 +239,7 @@ public class PaymentOperationFinalizer {
 			reservation.getCheckOutDate(),
 			reservation.getId());
 		reservation.expireAfterFinalPaymentDecline();
-		couponUsageService.restore(reservation.getId());
+		couponUsageManager.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation,
 			ChangeType.STATUS_CHANGE,

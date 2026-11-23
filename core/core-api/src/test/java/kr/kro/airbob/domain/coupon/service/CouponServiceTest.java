@@ -5,8 +5,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import kr.kro.airbob.domain.coupon.CouponPatch;
 import kr.kro.airbob.domain.coupon.common.*;
-import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.*;
 import kr.kro.airbob.domain.coupon.repository.*;
@@ -21,7 +21,7 @@ class CouponServiceTest {
 			.totalQuantity(10).isActive(true).build();
 		when(coupons.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
 		when(units.databaseNow()).thenReturn(now);
-		var request = new CouponRequest.Update(null,null,null,null,null,null,now.plusDays(1).toInstant(ZoneOffset.UTC),null,null,null,null,20);
+		var request = new CouponPatch(null,null,null,null,null,null,now.plusDays(1).toInstant(ZoneOffset.UTC),null,null,null,null,20);
 		assertThatThrownBy(() -> service.updateCoupon(request, 1L)).isInstanceOf(CouponConfigurationLockedException.class);
 		assertThat(coupon.getTotalQuantity()).isEqualTo(10);
 		verify(units, never()).insertRange(anyLong(), anyInt(), anyInt());

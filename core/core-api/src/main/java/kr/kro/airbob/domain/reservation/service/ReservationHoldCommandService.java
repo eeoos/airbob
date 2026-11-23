@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
@@ -30,7 +30,7 @@ public class ReservationHoldCommandService {
 
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryRepository historyRepository;
-	private final CouponUsageService couponUsageService;
+	private final CouponUsageManager couponUsageManager;
 	private final ReservationPaymentAttemptPolicy paymentAttemptPolicy;
 	private final ReservationInventoryService inventoryService;
 	private final Clock clock;
@@ -54,7 +54,7 @@ public class ReservationHoldCommandService {
 			reservation.getId()
 		);
 		reservation.expire();
-		couponUsageService.restore(reservation.getId());
+		couponUsageManager.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.of(
 			reservation, ChangeType.STATUS_CHANGE, HOLD_RELEASE_REASON));
 		return ReservationResponse.HoldRelease.from(reservation, true, serverTime);

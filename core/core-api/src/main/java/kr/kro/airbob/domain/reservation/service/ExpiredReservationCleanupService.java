@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
@@ -25,7 +25,7 @@ public class ExpiredReservationCleanupService {
 
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryBatchWriter historyBatchWriter;
-	private final CouponUsageService couponUsageService;
+	private final CouponUsageManager couponUsageManager;
 	private final ReservationInventoryService inventoryService;
 	private final Clock clock;
 	private final int cleanupBatchSize;
@@ -33,7 +33,7 @@ public class ExpiredReservationCleanupService {
 	public ExpiredReservationCleanupService(
 		ReservationRepository reservationRepository,
 		ReservationHistoryBatchWriter historyBatchWriter,
-		CouponUsageService couponUsageService,
+		CouponUsageManager couponUsageManager,
 		ReservationInventoryService inventoryService,
 		Clock clock,
 		@Value("${reservation.expiration.cleanup-batch-size:100}") int cleanupBatchSize
@@ -43,7 +43,7 @@ public class ExpiredReservationCleanupService {
 		}
 		this.reservationRepository = reservationRepository;
 		this.historyBatchWriter = historyBatchWriter;
-		this.couponUsageService = couponUsageService;
+		this.couponUsageManager = couponUsageManager;
 		this.inventoryService = inventoryService;
 		this.clock = clock;
 		this.cleanupBatchSize = cleanupBatchSize;
@@ -81,7 +81,7 @@ public class ExpiredReservationCleanupService {
 			})
 			.toList();
 
-		couponUsageService.restoreAll(expired.stream().map(Reservation::getId).toList());
+		couponUsageManager.restoreAll(expired.stream().map(Reservation::getId).toList());
 		historyBatchWriter.writeAll(histories, cutoff);
 		return expired.size();
 	}

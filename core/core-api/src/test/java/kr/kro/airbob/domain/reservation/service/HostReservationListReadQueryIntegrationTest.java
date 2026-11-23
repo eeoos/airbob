@@ -64,7 +64,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorResponse.PageInfo;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse.HostReservationInfo;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse.HostReservationInfos;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -141,7 +141,7 @@ class HostReservationListReadQueryIntegrationTest {
 			mock(AccommodationSearchRefreshPublisher.class), cursorPageInfoCreator,
 			new MemberReader(mock(MemberRepository.class)), new ReviewReader(mock(ReviewRepository.class)), reservationRepository,
 			new AccommodationReader(mock(AccommodationRepository.class)), mock(ReservationHistoryRepository.class),
-			mock(CouponUsageService.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
+			mock(CouponUsageManager.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
 			mock(ReservationInventoryService.class), Clock.fixed(NOW, ZoneOffset.UTC));
 	}

@@ -5,6 +5,8 @@ import java.time.Instant;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import kr.kro.airbob.domain.coupon.CouponPatch;
+import kr.kro.airbob.domain.coupon.NewCoupon;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import lombok.AccessLevel;
@@ -46,7 +48,12 @@ public class CouponRequest {
 		Boolean isActive,
 		@Schema(description = "양의 유한 전체 수량. null·무제한 수량은 생성하지 않습니다.", example = "100", minimum = "1", maximum = "2147483647", requiredMode = Schema.RequiredMode.REQUIRED)
 		Integer totalQuantity
-	) { }
+	) {
+		public NewCoupon toNewCoupon() {
+			return new NewCoupon(name, description, discountType, discountValue, minPaymentPrice, maxDiscountAmount,
+				issueStartAt, issueEndAt, usableFrom, usableUntil, isActive, totalQuantity);
+		}
+	}
 
 	@Schema(name = "CouponRequestUpdate", description = "모든 필드는 생략·null이면 기존 값 유지. 병합한 최종 설정을 검증합니다.", example = "{\"description\":\"쿠폰 안내 수정\"}")
 	public record Update(
@@ -74,5 +81,10 @@ public class CouponRequest {
 		Boolean isActive,
 		@Schema(description = "목표 전체 수량. 실제 값 변경은 발급 시작 전에만 허용하며 준비된 재고도 조정", example = "100", minimum = "1", maximum = "2147483647", nullable = true)
 		Integer totalQuantity
-	) { }
+	) {
+		public CouponPatch toPatch() {
+			return new CouponPatch(name, description, discountType, discountValue, minPaymentPrice, maxDiscountAmount,
+				issueStartAt, issueEndAt, usableFrom, usableUntil, isActive, totalQuantity);
+		}
+	}
 }

@@ -22,7 +22,7 @@ import org.springframework.http.HttpStatus;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.support.error.BaseException;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
@@ -58,7 +58,7 @@ class ReservationCancellationCutoffContractTest {
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentOperationRepository operationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageService couponUsageService;
+	@Mock private CouponUsageManager couponUsageManager;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock private OutboxWriter outboxWriter;
 
@@ -109,7 +109,7 @@ class ReservationCancellationCutoffContractTest {
 			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID));
 
 		assertCancellationDeadlineContract(thrown);
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(searchRefreshPublisher).shouldHaveNoInteractions();
 		then(inventoryService).shouldHaveNoInteractions();
@@ -127,7 +127,7 @@ class ReservationCancellationCutoffContractTest {
 			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID));
 
 		assertCancellationDeadlineContract(thrown);
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(searchRefreshPublisher).shouldHaveNoInteractions();
 		then(inventoryService).shouldHaveNoInteractions();
@@ -196,7 +196,7 @@ class ReservationCancellationCutoffContractTest {
 			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID);
 
 		assertThat(response.completedSynchronously()).isTrue();
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(inventoryService).shouldHaveNoInteractions();
 	}
@@ -234,7 +234,7 @@ class ReservationCancellationCutoffContractTest {
 
 		assertThat(response.completedSynchronously()).isTrue();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-		then(couponUsageService).should().restore(reservation.getId());
+		then(couponUsageManager).should().restore(reservation.getId());
 		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
 		then(inventoryService).should().releaseOccupied(
 			ACCOMMODATION_ID,
@@ -251,7 +251,7 @@ class ReservationCancellationCutoffContractTest {
 			paymentRepository,
 			operationRepository,
 			historyRepository,
-			couponUsageService,
+			couponUsageManager,
 			searchRefreshPublisher,
 			outboxWriter,
 			Clock.fixed(now, ZoneOffset.UTC)

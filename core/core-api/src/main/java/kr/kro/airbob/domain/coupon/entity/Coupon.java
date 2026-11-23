@@ -12,7 +12,8 @@ import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.coupon.common.CouponTime;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
-import kr.kro.airbob.domain.coupon.dto.CouponRequest;
+import kr.kro.airbob.domain.coupon.CouponPatch;
+import kr.kro.airbob.domain.coupon.NewCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponInvalidConfigurationException;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -74,7 +75,7 @@ public class Coupon extends BaseEntity {
 
 	private LocalDateTime stockPreparedAt;
 
-	public static Coupon of(CouponRequest.Create dto) {
+	public static Coupon of(NewCoupon dto) {
 		validateQuantity(dto.totalQuantity());
 		return Coupon.builder()
 			.name(dto.name())
@@ -92,7 +93,7 @@ public class Coupon extends BaseEntity {
 			.build();
 	}
 
-	public void updateWithDto(CouponRequest.Update dto) {
+	public void update(CouponPatch dto) {
 		if (dto.name() != null) this.name = dto.name();
 		if (dto.description() != null) this.description = dto.description();
 		if (dto.discountType() != null) this.discountType = dto.discountType();
@@ -115,7 +116,7 @@ public class Coupon extends BaseEntity {
 		this.isActive = true;
 	}
 
-	public boolean changesPreparedIssuanceConfiguration(CouponRequest.Update dto) {
+	public boolean changesPreparedIssuanceConfiguration(CouponPatch dto) {
 		return differs(CouponTime.toUtc(dto.issueStartAt()), issueStartAt)
 			|| differs(CouponTime.toUtc(dto.issueEndAt()), issueEndAt)
 			|| differs(dto.isActive(), isActive)

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
@@ -50,7 +50,7 @@ public class PaymentOperationManualReviewTransactionService {
 	private final ReservationInventoryService inventoryService;
 	private final PaymentRepository paymentRepository;
 	private final PaymentTransactionRepository transactionRepository;
-	private final CouponUsageService couponUsageService;
+	private final CouponUsageManager couponUsageManager;
 	private final ReservationHistoryRepository historyRepository;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final OutboxWriter outboxWriter;
@@ -63,7 +63,7 @@ public class PaymentOperationManualReviewTransactionService {
 		ReservationInventoryService inventoryService,
 		PaymentRepository paymentRepository,
 		PaymentTransactionRepository transactionRepository,
-		CouponUsageService couponUsageService,
+		CouponUsageManager couponUsageManager,
 		ReservationHistoryRepository historyRepository,
 		AccommodationSearchRefreshPublisher searchRefreshPublisher,
 		OutboxWriter outboxWriter,
@@ -75,7 +75,7 @@ public class PaymentOperationManualReviewTransactionService {
 		this.inventoryService = inventoryService;
 		this.paymentRepository = paymentRepository;
 		this.transactionRepository = transactionRepository;
-		this.couponUsageService = couponUsageService;
+		this.couponUsageManager = couponUsageManager;
 		this.historyRepository = historyRepository;
 		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.outboxWriter = outboxWriter;
@@ -153,7 +153,7 @@ public class PaymentOperationManualReviewTransactionService {
 		transactionRepository.save(PaymentTransaction.fail(
 			operation, reservation, NOT_PAID_FAILURE_CODE, NOT_PAID_FAILURE_MESSAGE));
 		reservation.expireAfterFinalPaymentDecline();
-		couponUsageService.restore(reservation.getId());
+		couponUsageManager.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.STATUS_CHANGE, NOT_PAID_HISTORY_REASON, HISTORY_SOURCE));
 		searchRefreshPublisher.requestRefresh(

@@ -29,7 +29,7 @@ import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 /**
@@ -44,7 +44,7 @@ class CouponRestoreTest {
 	private static final long RESERVATION_ID = 100L;
 
 	@Autowired
-	private CouponUsageService couponUsageService;
+	private CouponUsageManager couponUsageManager;
 	@Autowired
 	private CouponRepository couponRepository;
 	@Autowired
@@ -108,14 +108,14 @@ class CouponRestoreTest {
 	@Test
 	@DisplayName("사용 → 취소 복원 → 취소 보상 재사용 라운드트립")
 	void useRestoreReuse() {
-		long discount = couponUsageService.use(member.getId(), coupon.getId(), RESERVATION_ID, 100_000L);
+		long discount = couponUsageManager.use(member.getId(), coupon.getId(), RESERVATION_ID, 100_000L);
 		assertThat(discount).isEqualTo(10_000L);
 		assertThat(usedFlag()).as("사용 후 used=true").isTrue();
 
-		couponUsageService.restore(RESERVATION_ID);
+		couponUsageManager.restore(RESERVATION_ID);
 		assertThat(usedFlag()).as("취소 복원 후 used=false").isFalse();
 
-		couponUsageService.reuse(RESERVATION_ID);
+		couponUsageManager.reuse(RESERVATION_ID);
 		assertThat(usedFlag()).as("취소 보상 재사용 후 used=true").isTrue();
 	}
 
@@ -123,7 +123,7 @@ class CouponRestoreTest {
 	@DisplayName("복원은 멱등하다 — 사용되지 않은 쿠폰에 복원해도 안전")
 	void restoreIsIdempotent() {
 		// 사용하지 않은 상태에서 복원 호출 → 변화 없음
-		couponUsageService.restore(RESERVATION_ID);
+		couponUsageManager.restore(RESERVATION_ID);
 		assertThat(usedFlag()).isFalse();
 	}
 

@@ -1,5 +1,3 @@
-kr.kro.airbob.domain.coupon.entity.Coupon depends on kr.kro.airbob.domain.coupon.dto.CouponRequest$Create
-kr.kro.airbob.domain.coupon.entity.Coupon depends on kr.kro.airbob.domain.coupon.dto.CouponRequest$Update
 kr.kro.airbob.domain.payment.entity.Payment depends on kr.kro.airbob.domain.payment.service.gateway.CancelledPayment
 kr.kro.airbob.domain.payment.entity.Payment depends on kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment
 kr.kro.airbob.domain.payment.entity.PaymentOperation depends on kr.kro.airbob.domain.payment.service.PaymentExecutionMode

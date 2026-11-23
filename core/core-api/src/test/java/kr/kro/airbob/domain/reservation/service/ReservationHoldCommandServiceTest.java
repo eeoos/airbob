@@ -22,7 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -44,7 +44,7 @@ class ReservationHoldCommandServiceTest {
 
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageService couponUsageService;
+	@Mock private CouponUsageManager couponUsageManager;
 	@Mock private ReservationInventoryService inventoryService;
 
 	private ReservationHoldCommandService service;
@@ -54,7 +54,7 @@ class ReservationHoldCommandServiceTest {
 		service = new ReservationHoldCommandService(
 			reservationRepository,
 			historyRepository,
-			couponUsageService,
+			couponUsageManager,
 			new ReservationPaymentAttemptPolicy(Duration.ofSeconds(90)),
 			inventoryService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
@@ -77,7 +77,7 @@ class ReservationHoldCommandServiceTest {
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
 			reservation.getId());
-		then(couponUsageService).should().restore(reservation.getId());
+		then(couponUsageManager).should().restore(reservation.getId());
 		then(historyRepository).should().save(any(ReservationHistory.class));
 	}
 
@@ -91,7 +91,7 @@ class ReservationHoldCommandServiceTest {
 
 		assertThat(response.releasedNow()).isFalse();
 		then(inventoryService).shouldHaveNoInteractions();
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 	}
 
@@ -103,7 +103,7 @@ class ReservationHoldCommandServiceTest {
 
 		assertThatThrownBy(() -> service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID))
 			.isInstanceOf(ReservationHoldReleaseNotAllowedException.class);
-		then(couponUsageService).shouldHaveNoInteractions();
+		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 	}
 

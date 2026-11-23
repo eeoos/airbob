@@ -40,7 +40,7 @@ import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -85,7 +85,7 @@ class ReservationTransactionServiceTest {
 	@Mock
 	private ReservationHistoryRepository historyRepository;
 	@Mock
-	private CouponUsageService couponUsageService;
+	private CouponUsageManager couponUsageManager;
 	@Mock
 	private BookingWindowProvider bookingWindowProvider;
 	@Mock
@@ -119,7 +119,7 @@ class ReservationTransactionServiceTest {
 			reservationRepository,
 			new AccommodationReader(accommodationRepository),
 			historyRepository,
-			couponUsageService,
+			couponUsageManager,
 			bookingWindowProvider,
 			holdPolicy,
 			quoteRepository,
@@ -314,7 +314,7 @@ class ReservationTransactionServiceTest {
 
 			then(bookingWindowProvider).shouldHaveNoInteractions();
 			then(reservationRepository).shouldHaveNoInteractions();
-			then(couponUsageService).shouldHaveNoInteractions();
+			then(couponUsageManager).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
 		}
 
@@ -400,7 +400,7 @@ class ReservationTransactionServiceTest {
 				uidField.set(reservation, UUID.randomUUID());
 				return reservation;
 			});
-			given(couponUsageService.use(memberId, 77L, 99L, 200_000L)).willReturn(200_000L);
+			given(couponUsageManager.use(memberId, 77L, 99L, 200_000L)).willReturn(200_000L);
 
 			Reservation result = transactionService.createPendingReservationInTx(
 				complimentaryRequest, memberId, "0원 예약");

@@ -25,8 +25,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import kr.kro.airbob.domain.coupon.CouponPatch;
+import kr.kro.airbob.domain.coupon.NewCoupon;
 import kr.kro.airbob.domain.coupon.service.CouponService;
-import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -84,7 +85,7 @@ class CouponAdminControllerTest {
 			 "usable_from":"2027-01-01T00:30:00.123456+09:00","usable_until":"2027-02-01T00:30:00.123456+09:00",
 			 "is_active":true,"total_quantity":100}
 			""")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value(101));
-		var command = ArgumentCaptor.forClass(CouponRequest.Create.class);
+		var command = ArgumentCaptor.forClass(NewCoupon.class);
 		verify(couponService).createCoupon(command.capture());
 		assertThat(command.getValue().issueStartAt()).isEqualTo(Instant.parse("2026-12-31T15:30:00.123456Z"));
 		assertThat(command.getValue().issueEndAt()).isEqualTo(Instant.parse("2026-12-31T16:30:00.123456Z"));
@@ -98,7 +99,7 @@ class CouponAdminControllerTest {
 		mockMvc.perform(patch("/api/v1/admin/coupons/1").contentType("application/json").content("""
 			{"issue_end_at":"2026-12-31T15:30:00.123456Z","total_quantity":200}
 			""")).andExpect(status().isOk());
-		var command = ArgumentCaptor.forClass(CouponRequest.Update.class);
+		var command = ArgumentCaptor.forClass(CouponPatch.class);
 		verify(couponService).updateCoupon(command.capture(), eq(1L));
 		assertThat(command.getValue().issueEndAt()).isEqualTo(Instant.parse("2026-12-31T15:30:00.123456Z"));
 		assertThat(command.getValue().issueStartAt()).isNull();

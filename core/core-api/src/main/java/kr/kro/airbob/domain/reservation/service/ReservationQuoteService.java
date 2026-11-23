@@ -12,7 +12,7 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
 import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -37,7 +37,7 @@ public class ReservationQuoteService {
 	private final MemberReader memberReader;
 	private final ReservationInventoryService inventoryService;
 	private final ReservationQuoteRepository quoteRepository;
-	private final CouponUsageService couponUsageService;
+	private final CouponUsageManager couponUsageManager;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final Clock clock;
 
@@ -74,7 +74,7 @@ public class ReservationQuoteService {
 			accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
 		long discountAmount = request.couponId() == null
 			? 0L
-			: couponUsageService.preview(
+			: couponUsageManager.preview(
 				memberId, request.couponId(), stayPrice.subtotal());
 		String currency = accommodation.bookingCurrency();
 
