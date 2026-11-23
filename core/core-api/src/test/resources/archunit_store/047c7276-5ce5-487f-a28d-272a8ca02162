@@ -1,7 +1,3 @@
-kr.kro.airbob.domain.accommodation.entity.Accommodation depends on kr.kro.airbob.domain.accommodation.dto.AccommodationRequest$Update
-kr.kro.airbob.domain.accommodation.entity.Address depends on kr.kro.airbob.domain.accommodation.dto.AddressRequest$AddressInfo
-kr.kro.airbob.domain.accommodation.entity.Address depends on kr.kro.airbob.geo.dto.GeocodeResult
-kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy depends on kr.kro.airbob.domain.accommodation.dto.PolicyRequest$OccupancyPolicyInfo
 kr.kro.airbob.domain.coupon.entity.Coupon depends on kr.kro.airbob.domain.coupon.dto.CouponRequest$Create
 kr.kro.airbob.domain.coupon.entity.Coupon depends on kr.kro.airbob.domain.coupon.dto.CouponRequest$Update
 kr.kro.airbob.domain.payment.entity.Payment depends on kr.kro.airbob.domain.payment.service.gateway.CancelledPayment

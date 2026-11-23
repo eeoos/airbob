@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.accommodation.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import kr.kro.airbob.domain.accommodation.NewAddress;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -45,5 +46,8 @@ public class AddressRequest {
 		String detail
 
 	){
+		public NewAddress toNewAddress() {
+			return new NewAddress(postalCode, country, state, city, district, street, detail);
+		}
 	}
 }
