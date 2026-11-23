@@ -7,15 +7,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
+import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
+import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.core.api.controller.v1.reservation.request.ReservationRequest;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
+import kr.kro.airbob.core.domain.payment.PaymentCancellationCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationCheckoutService;
 import kr.kro.airbob.core.domain.reservation.ReservationHoldCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationQuoteService;
 import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import lombok.RequiredArgsConstructor;
 
 @RestController

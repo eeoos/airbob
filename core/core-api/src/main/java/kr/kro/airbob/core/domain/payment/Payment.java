@@ -1,0 +1,96 @@
+package kr.kro.airbob.core.domain.payment;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
+import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.core.domain.payment.gateway.CancelledPayment;
+import kr.kro.airbob.core.domain.payment.gateway.ConfirmedPayment;
+import kr.kro.airbob.core.domain.reservation.Reservation;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+
+@Entity
+@Getter
+@SuperBuilder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Payment extends BaseEntity {
+
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
+
+	@JdbcTypeCode(SqlTypes.BINARY)
+	@Column(nullable = false, unique = true, columnDefinition = "BINARY(16)")
+	private UUID paymentUid;
+
+	@Column(nullable = false, unique = true)
+	private String paymentKey;
+
+	@Column(nullable = false)
+	private String orderId;
+
+	@Column(nullable = false)
+	private Long amount;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private PaymentMethod method;
+
+	@Column(nullable = false)
+	private Instant approvedAt;
+
+	@OneToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "reservation_id", nullable = false)
+	private Reservation reservation;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private PaymentStatus status;
+
+	@Column(nullable = false)
+	private Long balanceAmount; // 잔액
+
+	@PrePersist
+	protected void onCreate() {
+		if (this.paymentUid == null) {
+			this.paymentUid = UUID.randomUUID();
+		}
+	}
+
+	public static Payment create(ConfirmedPayment confirmed, Reservation reservation) {
+		return Payment.builder()
+			.paymentKey(confirmed.paymentKey())
+			.orderId(confirmed.orderId())
+			.amount(confirmed.totalAmount())
+			.balanceAmount(confirmed.balanceAmount())
+			.method(confirmed.method())
+			.status(confirmed.status())
+			.approvedAt(confirmed.approvedAt())
+			.reservation(reservation)
+			.build();
+	}
+
+	public void applyFullCancellation(CancelledPayment cancelled) {
+		this.status = cancelled.status();
+		this.balanceAmount = cancelled.balanceAmount();
+	}
+}

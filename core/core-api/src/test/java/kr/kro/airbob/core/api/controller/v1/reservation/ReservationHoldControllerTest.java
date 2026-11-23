@@ -32,13 +32,13 @@ import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.core.domain.payment.PaymentCancellationCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationCheckoutService;
 import kr.kro.airbob.core.domain.reservation.ReservationHoldCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationHoldRelease;
 import kr.kro.airbob.core.domain.reservation.ReservationPaymentAttempt;
 import kr.kro.airbob.core.domain.reservation.ReservationQuoteService;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
-import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("예약 보유 API 테스트")

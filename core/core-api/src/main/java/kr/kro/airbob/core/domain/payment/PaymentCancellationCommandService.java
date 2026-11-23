@@ -1,0 +1,210 @@
+package kr.kro.airbob.core.domain.payment;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
+import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
+import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.core.domain.reservation.Reservation;
+import kr.kro.airbob.core.domain.reservation.ReservationCancellationDeadlinePassedException;
+import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
+import kr.kro.airbob.core.domain.reservation.ReservationReader;
+import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.core.support.error.InvalidInputException;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
+
+@Service
+public class PaymentCancellationCommandService {
+	private static final String HISTORY_SOURCE = "PAYMENT_OPERATION";
+
+	private final ReservationReader reservationReader;
+	private final ReservationInventoryManager inventoryManager;
+	private final PaymentReader paymentReader;
+	private final PaymentOperationReader operationReader;
+	private final PaymentOperationWriter operationWriter;
+	private final ReservationHistoryWriter reservationHistoryWriter;
+	private final CouponUsageManager couponUsageManager;
+	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
+	private final OutboxWriter outboxWriter;
+	private final Clock clock;
+
+	public PaymentCancellationCommandService(
+		ReservationReader reservationReader,
+		ReservationInventoryManager inventoryManager,
+		PaymentReader paymentReader,
+		PaymentOperationReader operationReader,
+		PaymentOperationWriter operationWriter,
+		ReservationHistoryWriter reservationHistoryWriter,
+		CouponUsageManager couponUsageManager,
+		AccommodationSearchRefreshRequester searchRefreshPublisher,
+		OutboxWriter outboxWriter,
+		Clock clock
+	) {
+		this.reservationReader = reservationReader;
+		this.inventoryManager = inventoryManager;
+		this.paymentReader = paymentReader;
+		this.operationReader = operationReader;
+		this.operationWriter = operationWriter;
+		this.reservationHistoryWriter = reservationHistoryWriter;
+		this.couponUsageManager = couponUsageManager;
+		this.searchRefreshPublisher = searchRefreshPublisher;
+		this.outboxWriter = outboxWriter;
+		this.clock = clock;
+	}
+
+	@Transactional
+	public PaymentOperationReceipt requestCancellation(
+		String reservationUidValue,
+		PaymentCancellation request,
+		Long memberId
+	) {
+		UUID reservationUid = parseReservationUid(reservationUidValue);
+		Reservation reservation = reservationReader.readByUidForUpdate(reservationUid);
+		if (!reservation.belongsToGuest(memberId)) {
+			throw new PaymentAccessDeniedException();
+		}
+		Instant now = clock.instant();
+
+		if (!reservation.requiresPayment()) {
+			if (reservation.getStatus() != ReservationStatus.CANCELLED) {
+				validateCancellationDeadline(reservation, now);
+			}
+			return cancelComplimentary(reservation, request);
+		}
+
+		Optional<PaymentOperation> latest = operationReader.findLatestCancellation(reservation.getId());
+		PaymentOperationReceipt replay = replayIfCancellationAlreadyInProgress(reservation, latest, request);
+		if (replay != null) {
+			return replay;
+		}
+		validateCancellationDeadline(reservation, now);
+
+		Payment payment = paymentReader.readByReservationIdForUpdate(reservation.getId());
+		validateFullActiveBalance(payment, request.cancelAmount());
+
+		reservation.requestCancellation();
+		PaymentOperation operation = PaymentOperation.createCancellation(
+			reservation,
+			memberId,
+			payment.getPaymentKey(),
+			payment.getBalanceAmount(),
+			request.cancelReason(),
+			now
+		);
+		operationWriter.create(operation);
+		reservationHistoryWriter.recordSystem(
+			reservation,
+			ChangeType.STATUS_CHANGE,
+			"결제 취소 처리 시작: " + request.cancelReason(),
+			HISTORY_SOURCE
+		);
+		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
+			operation.getOperationUid(),
+			reservationUid,
+			operation.getDispatchGeneration()
+		));
+		return PaymentOperationReceipt.accepted(operation);
+	}
+
+	private void validateCancellationDeadline(Reservation reservation, Instant now) {
+		if (!now.isBefore(reservation.getCheckInAt())) {
+			throw new ReservationCancellationDeadlinePassedException();
+		}
+	}
+
+	private PaymentOperationReceipt cancelComplimentary(
+		Reservation reservation,
+		PaymentCancellation request
+	) {
+		if (request.cancelAmount() != null) {
+			throw new InvalidInputException("0원 예약에는 환불 금액을 지정할 수 없습니다.");
+		}
+		if (!reservation.cancelComplimentary()) {
+			return PaymentOperationReceipt.completedWithoutOperation();
+		}
+		inventoryManager.releaseOccupied(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId()
+		);
+		couponUsageManager.restore(reservation.getId());
+		reservationHistoryWriter.recordSystem(
+			reservation, ChangeType.CANCEL, request.cancelReason(), "RESERVATION");
+		searchRefreshPublisher.requestRefresh(
+			reservation.getAccommodation().getAccommodationUid());
+		return PaymentOperationReceipt.completedWithoutOperation();
+	}
+
+	private PaymentOperationReceipt replayIfCancellationAlreadyInProgress(
+		Reservation reservation,
+		Optional<PaymentOperation> latest,
+		PaymentCancellation request
+	) {
+		if (reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING) {
+			PaymentOperation operation = latest
+				.filter(this::isActiveCancellation)
+				.orElseThrow(() -> new PaymentOperationInvariantViolationException(
+					"cancellation-pending reservation has no active payment operation"));
+			if (!operation.matchesCancellation(request.cancelReason(), request.cancelAmount())) {
+				throw new PaymentOperationConflictException();
+			}
+			return PaymentOperationReceipt.accepted(operation);
+		}
+		if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+			PaymentOperation operation = latest
+				.filter(candidate -> candidate.getStatus() == PaymentOperationStatus.APPLIED)
+				.orElseThrow(() -> new PaymentOperationInvariantViolationException(
+					"paid cancelled reservation has no applied payment operation"));
+			if (!operation.matchesCancellation(request.cancelReason(), request.cancelAmount())) {
+				throw new PaymentOperationConflictException();
+			}
+			return PaymentOperationReceipt.accepted(operation);
+		}
+		if (reservation.getStatus() == ReservationStatus.CANCELLATION_FAILED
+			&& latest.map(PaymentOperation::getStatus)
+				.filter(status -> status == PaymentOperationStatus.DECLINED)
+				.isEmpty()) {
+			throw new PaymentOperationInvariantViolationException(
+				"cancellation-failed reservation has no declined payment operation");
+		}
+		return null;
+	}
+
+	private boolean isActiveCancellation(PaymentOperation operation) {
+		return operation.getStatus() == PaymentOperationStatus.QUEUED
+			|| operation.getStatus() == PaymentOperationStatus.EXECUTING
+			|| operation.getStatus() == PaymentOperationStatus.WAITING_RETRY
+			|| operation.getStatus() == PaymentOperationStatus.MANUAL_REVIEW;
+	}
+
+	private void validateFullActiveBalance(Payment payment, Long requestedAmount) {
+		boolean fullyActive = payment.getStatus() == PaymentStatus.DONE
+			&& payment.getAmount() != null
+			&& payment.getBalanceAmount() != null
+			&& payment.getAmount().equals(payment.getBalanceAmount())
+			&& payment.getBalanceAmount() > 0L;
+		if (!fullyActive) {
+			throw new InvalidInputException("전액 결제가 유지 중인 예약만 취소할 수 있습니다.");
+		}
+		if (requestedAmount != null && !requestedAmount.equals(payment.getBalanceAmount())) {
+			throw new InvalidInputException("예약 취소는 현재 결제 잔액 전액만 가능합니다.");
+		}
+	}
+
+	private UUID parseReservationUid(String reservationUid) {
+		try {
+			return UUID.fromString(reservationUid);
+		} catch (IllegalArgumentException exception) {
+			throw new InvalidInputException("예약 번호가 UUID 형식이 아닙니다.");
+		}
+	}
+}

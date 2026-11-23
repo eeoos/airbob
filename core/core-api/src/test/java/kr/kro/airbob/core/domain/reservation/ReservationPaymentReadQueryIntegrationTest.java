@@ -48,20 +48,20 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentResponse;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
+import kr.kro.airbob.core.domain.payment.PaymentQueryService;
+import kr.kro.airbob.core.domain.payment.PaymentReader;
+import kr.kro.airbob.core.domain.payment.PaymentTransactionReader;
+import kr.kro.airbob.core.domain.payment.PaymentTransactionType;
+import kr.kro.airbob.core.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.core.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.ReviewStatus;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.payment.dto.PaymentResponse;
-import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
-import kr.kro.airbob.domain.payment.service.PaymentQueryService;
-import kr.kro.airbob.domain.payment.service.PaymentReader;
-import kr.kro.airbob.domain.payment.service.PaymentTransactionReader;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers

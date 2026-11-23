@@ -1,6 +1,7 @@
 ---
 paths:
   - "**/src/**/domain/payment/**/*"
+  - "**/src/**/controller/v1/payment/**/*"
   - "clients/client-toss-payments/**/*"
 ---
 

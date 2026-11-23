@@ -34,7 +34,7 @@ entries to the store to make a new violation pass; fixing a violation prunes it,
 shrunk store with the fix.
 
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
-Domain Kafka adapters live beside their domain (`domain/payment/messaging/`,
+Domain Kafka adapters live beside their domain (`core/domain/payment/messaging/`,
 `core/domain/accommodation/cache/messaging/`, `search/messaging/`); reusable contracts and infrastructure
 live under `messaging/`.
 

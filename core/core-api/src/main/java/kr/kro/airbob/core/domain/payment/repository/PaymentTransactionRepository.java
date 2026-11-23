@@ -1,0 +1,18 @@
+package kr.kro.airbob.core.domain.payment.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import kr.kro.airbob.core.domain.payment.PaymentTransaction;
+import kr.kro.airbob.core.domain.payment.PaymentTransactionType;
+
+public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, Long> {
+	boolean existsByPaymentOperationId(Long paymentOperationId);
+
+	long countByPaymentOperationId(Long paymentOperationId);
+
+	// 특정 결제의 취소 이력(전체/부분) 조회 — 발생 순
+	List<PaymentTransaction> findByPaymentIdAndTransactionTypeInOrderByCreatedAtAsc(
+		Long paymentId, List<PaymentTransactionType> transactionTypes);
+}

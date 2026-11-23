@@ -17,8 +17,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
 import kr.kro.airbob.client.toss.TossPaymentsClient;
-import kr.kro.airbob.domain.payment.config.PaymentOperationConfiguration;
-import kr.kro.airbob.domain.payment.config.TossPaymentClientProperties;
+import kr.kro.airbob.core.domain.payment.config.PaymentOperationConfiguration;
+import kr.kro.airbob.core.domain.payment.config.TossPaymentClientProperties;
 
 class RestClientConfigTest {
 
