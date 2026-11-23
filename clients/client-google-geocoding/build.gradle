@@ -1,0 +1,12 @@
+dependencies {
+	// RestClient, RestClientException, and the Jackson-mapped response are part of GoogleGeocodingClient's
+	// public API.
+	api 'org.springframework:spring-web'
+	api 'com.fasterxml.jackson.core:jackson-databind'
+
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

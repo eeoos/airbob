@@ -1,4 +1,4 @@
-package kr.kro.airbob.core.domain.accommodation.location;
+package kr.kro.airbob.client.google;
 
 import java.util.List;
 

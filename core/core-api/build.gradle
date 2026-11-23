@@ -25,6 +25,7 @@ dependencies {
 	implementation project(':support:logging')
 	implementation project(':clients:client-slack')
 	implementation project(':clients:client-toss-payments')
+	implementation project(':clients:client-google-geocoding')
 
 	growthBContractTestRuntime libs.jbcrypt
 

@@ -13,6 +13,7 @@ airbob은 [team-dodn/spring-boot-java-template](https://github.com/team-dodn/spr
 | `support/logging` | `logging.yml`(프로필별 로그 레벨) |
 | `clients/client-slack` | Slack incoming webhook 전송(`SlackWebhookClient`). 2xx만 성공으로 보고, 실패는 URL·cause를 숨긴 `SlackWebhookException`으로 알린다 |
 | `clients/client-toss-payments` | Toss Payments 승인·취소·조회 전송(`TossPaymentsClient`), 응답 DTO, Basic 인증, 타임아웃. 4xx/5xx는 상태와 provider 코드만 담은 `TossPaymentsApiException`, 전송 실패는 cause 체인을 유지한 `RestClientException`으로 알린다 |
+| `clients/client-google-geocoding` | Google Geocoding 주소 조회 전송(`GoogleGeocodingClient`)과 응답 DTO(`GoogleGeocodeResponse`). 응답 `status`는 해석하지 않고 그대로 돌려주며, 전송 실패와 4xx/5xx는 Spring `RestClientException`으로 알린다 |
 
 core-api의 `application.yaml`이 `spring.config.import`로 `monitoring.yml`과 `logging.yml`을 불러온다.
 readiness 그룹 구성(`accommodationInventory` 포함)처럼 애플리케이션 health indicator에 묶인 설정은
@@ -22,9 +23,11 @@ core-api의 `application*.yaml`에 남는다. core-api 코드가 직접 쓰는 `
 client 모듈은 스프링 빈을 직접 등록하지 않고 전송 객체와 팩토리만 제공한다. 설정 프로퍼티(환경변수 계약)와
 빈 등록, 외부 응답을 도메인 의미로 바꾸는 일은 core-api가 맡는다. 예를 들어 운영 알림의
 `operator-alert.slack.*` 프로퍼티, 미설정 판정, 메시지 구성, `OperatorAlertDelivery*Exception` 매핑은
-core-api의 `messaging/alert/infrastructure/slack`에 남는다.
+core-api의 `core/domain/operatoralert/infrastructure/slack`에 남는다.
 결제도 마찬가지로 `payment.toss.*` 프로퍼티, 활성화 여부, provider 코드 분류(승인·거절·재시도·결과 불명·수동 검토),
 응답 상관 검증, 도메인 값 정규화는 core-api의 `TossPaymentsAdapter`에 남는다.
+지오코딩은 `google.api.*` 프로퍼티와 빈 등록(`core.domain.accommodation.location.config`), 활성화 여부,
+`OK` 상태 판정, 실패를 `GeocodeResult.fail()`로 바꾸는 일이 core-api의 `GoogleGeocodingAdapter`에 남는다.
 
 공통 패키지 중 템플릿 위치로 옮긴 것은 다음과 같다.
 
@@ -183,7 +186,7 @@ airbob/
 ├─ core/core-api        유일한 실행 모듈 (Presentation, Business, Implement, JPA 엔티티)
 ├─ support/monitoring   actuator, prometheus 의존성과 monitoring.yml
 ├─ support/logging      logging.yml
-├─ clients/client-slack, clients/client-toss-payments   외부 HTTP 전송 계층만 담당
+├─ clients/client-slack, clients/client-toss-payments, clients/client-google-geocoding   외부 HTTP 전송 계층만 담당
 ├─ tests/api-docs       Spring REST Docs 전환 시 생성
 └─ (선택) core/core-enum, storage/db-core   엔티티를 분리하는 단계에서 생성
 ```
@@ -329,6 +332,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 17f (messaging 인프라 이전) | 0 | 2 | 0 |
 | PR 17g (운영 알림 이전) | 0 | 2 | 0 |
 | PR 17h (geo 정리) | 0 | 2 | 0 |
+| PR 17i (Google Geocoding client 모듈) | 0 | 2 | 0 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -394,7 +398,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 17f | messaging 기술 인프라(`event`, `outbox`, `infrastructure.kafka`)를 `core.support.messaging`으로 | `messaging.md`의 outbox·토픽 불변식 | 완료 |
 | 17g | 운영 알림(`messaging.alert`)을 도메인 `core.domain.operatoralert`로 | `messaging.md`의 알림 불변식 | 완료 |
 | 17h | geo 포트·어댑터를 소비 도메인 `core.domain.accommodation.location`으로(`GeocodingGateway`, `GoogleGeocodingAdapter`), 도메인 결과에서 Google 타입 viewport 제거 | 위치 확인 동작 불변 | 완료 |
-| 17i | Google Geocoding HTTP 전송을 `clients/client-google-geocoding`으로(client-toss-payments 방식) | CI scope, 모듈 테스트 | |
+| 17i | Google Geocoding HTTP 전송을 `clients/client-google-geocoding`으로(client-toss-payments 방식). URL 조립·호출·응답 DTO는 모듈로, 키·활성화·`OK` 판정·실패 매핑은 `GoogleGeocodingAdapter`에 | CI scope, 모듈 테스트 | 완료 |
 | 17j | 마무리: ArchUnit의 레거시 패키지 참조 정리, 현재 상태·목표 구조·CLAUDE.md 갱신 | 동결 저장소 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
