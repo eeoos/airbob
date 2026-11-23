@@ -32,6 +32,8 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.request.PolicyRequest;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.PolicyResponse;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodingGateway;
+import kr.kro.airbob.core.domain.accommodation.location.TimeZoneResolver;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
@@ -41,8 +43,6 @@ import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
-import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.geo.TimeZoneResolver;
 
 @DataJpaTest
 @Testcontainers
@@ -75,7 +75,7 @@ class AccommodationPolicyIntegrationTest {
 	@Autowired private MemberRepository memberRepository;
 	@Autowired private PlatformTransactionManager transactionManager;
 	@MockitoBean private CommonCodeReader commonCodeReader;
-	@MockitoBean private GeocodingService geocodingService;
+	@MockitoBean private GeocodingGateway geocodingService;
 	@MockitoBean private TimeZoneResolver timeZoneResolver;
 	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@MockitoBean private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;

@@ -30,6 +30,9 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.request.AmenityRequest
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.PolicyRequest;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodeResult;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodingGateway;
+import kr.kro.airbob.core.domain.accommodation.location.TimeZoneResolver;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationImageRepository;
@@ -42,9 +45,6 @@ import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.error.BaseException;
-import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.geo.TimeZoneResolver;
-import kr.kro.airbob.geo.dto.GeocodeResult;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 명령 서비스 단위 테스트")
@@ -59,7 +59,7 @@ class AccommodationCommandServiceTest {
 	@Mock private AddressRepository addressRepository;
 	@Mock private OccupancyPolicyRepository occupancyPolicyRepository;
 	@Mock private CommonCodeReader commonCodeReader;
-	@Mock private GeocodingService geocodingService;
+	@Mock private GeocodingGateway geocodingService;
 	@Mock private TimeZoneResolver timeZoneResolver;
 	@Mock private MemberReader memberReader;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
@@ -118,7 +118,7 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.addressInfo(addressInfo)
 			.build();
-		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울", null);
+		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울");
 
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
@@ -196,7 +196,7 @@ class AccommodationCommandServiceTest {
 			.name("바뀐 이름")
 			.addressInfo(seoulAddressInfo())
 			.build();
-		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울", null);
+		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울");
 
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
@@ -236,7 +236,7 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.addressInfo(addressInfo)
 			.build();
-		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울", null);
+		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780, "서울");
 
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
@@ -552,7 +552,7 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.addressInfo(addressInfo)
 			.build();
-		GeocodeResult geocodeResult = GeocodeResult.success(40.7128, -74.0060, "New York", null);
+		GeocodeResult geocodeResult = GeocodeResult.success(40.7128, -74.0060, "New York");
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
@@ -594,7 +594,7 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.addressInfo(addressInfo)
 			.build();
-		GeocodeResult geocodeResult = GeocodeResult.success(35.1796, 129.0756, "Busan", null);
+		GeocodeResult geocodeResult = GeocodeResult.success(35.1796, 129.0756, "Busan");
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
@@ -734,7 +734,7 @@ class AccommodationCommandServiceTest {
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED)).thenReturn(Optional.of(accommodation));
 		when(geocodingService.getCoordinates(anyString()))
-			.thenReturn(GeocodeResult.success(40.7128, -74.0060, "New York", null));
+			.thenReturn(GeocodeResult.success(40.7128, -74.0060, "New York"));
 		when(timeZoneResolver.resolve(40.7128, -74.0060))
 			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
 		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));

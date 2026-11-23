@@ -45,6 +45,7 @@ import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailR
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationListener;
 import kr.kro.airbob.core.domain.accommodation.cache.monitoring.FailSafeAccommodationDetailCacheMetricRecorder;
 import kr.kro.airbob.core.domain.accommodation.cache.monitoring.MicrometerAccommodationDetailCacheMetricRecorder;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodingGateway;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
@@ -59,7 +60,6 @@ import kr.kro.airbob.core.domain.wishlist.Wishlist;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodation;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.geo.GeocodingService;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -115,7 +115,7 @@ class AccommodationDetailCacheQueryCountTest {
 	@MockitoBean private CommonCodeReader commonCodeReader;
 	@MockitoBean private CursorPageInfoCreator cursorPageInfoCreator;
 	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@MockitoBean private GeocodingService geocodingService;
+	@MockitoBean private GeocodingGateway geocodingService;
 	@MockitoBean private S3ImageUploader s3ImageUploader;
 	@MockitoBean private BookingWindowProvider bookingWindowProvider;
 	@MockitoBean private ReservationInventoryManager inventoryManager;

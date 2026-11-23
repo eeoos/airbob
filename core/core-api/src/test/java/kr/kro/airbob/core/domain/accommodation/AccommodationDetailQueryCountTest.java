@@ -39,6 +39,7 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.response.Accommodation
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AmenityResponse;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodingGateway;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeReader;
@@ -53,7 +54,6 @@ import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.geo.GeocodingService;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -118,7 +118,7 @@ class AccommodationDetailQueryCountTest {
 	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 
 	@MockitoBean
-	private GeocodingService geocodingService;
+	private GeocodingGateway geocodingService;
 
 	@MockitoBean
 	private S3ImageUploader s3ImageUploader;

@@ -4,9 +4,9 @@ import java.time.ZoneId;
 
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.geo.TimeZoneResolver;
-import kr.kro.airbob.geo.dto.GeocodeResult;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodeResult;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodingGateway;
+import kr.kro.airbob.core.domain.accommodation.location.TimeZoneResolver;
 import lombok.RequiredArgsConstructor;
 
 /** 숙소 주소를 좌표와 시간대로 바꾼다. */
@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AccommodationLocationResolver {
 
-	private final GeocodingService geocodingService;
+	private final GeocodingGateway geocodingGateway;
 	private final TimeZoneResolver timeZoneResolver;
 
 	/**
@@ -34,7 +34,7 @@ public class AccommodationLocationResolver {
 		}
 
 		String addressStr = Address.buildAddressStringForGeocoding(newAddress);
-		GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
+		GeocodeResult geocodeResult = geocodingGateway.getCoordinates(addressStr);
 		if (geocodeResult == null
 			|| !geocodeResult.success()
 			|| geocodeResult.latitude() == null

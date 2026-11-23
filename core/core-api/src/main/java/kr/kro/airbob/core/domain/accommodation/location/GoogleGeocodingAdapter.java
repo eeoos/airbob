@@ -1,26 +1,21 @@
-package kr.kro.airbob.geo.impl;
+package kr.kro.airbob.core.domain.accommodation.location;
 
 import java.net.URI;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.geo.ViewportAdjuster;
-import kr.kro.airbob.geo.dto.GeocodeResult;
-import kr.kro.airbob.geo.dto.GoogleGeocodeResponse;
 import lombok.extern.slf4j.Slf4j;
 
-@Service
+@Component
 @Slf4j
-public class GoogleGeocodingService implements GeocodingService {
+public class GoogleGeocodingAdapter implements GeocodingGateway {
 
 	public static final String OK = "OK";
 	private final RestClient restClient;
-	private final ViewportAdjuster viewportAdjuster;
 	private final boolean enabled;
 
 	// todo: 배포 후엔 api ip 제한 걸기
@@ -29,10 +24,9 @@ public class GoogleGeocodingService implements GeocodingService {
 
 	private static final String GEOCODING_API_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
-	public GoogleGeocodingService(@Qualifier("generalRestClient") RestClient restClient, ViewportAdjuster viewportAdjuster,
+	public GoogleGeocodingAdapter(@Qualifier("generalRestClient") RestClient restClient,
 		@Value("${google.api.enabled:true}") boolean enabled) {
 		this.restClient = restClient;
-		this.viewportAdjuster = viewportAdjuster;
 		this.enabled = enabled;
 	}
 
@@ -74,15 +68,11 @@ public class GoogleGeocodingService implements GeocodingService {
 
 	private GeocodeResult buildGeocodeResult(GoogleGeocodeResponse.Result result) {
 		GoogleGeocodeResponse.Geometry.Location location = result.geometry().location();
-		GoogleGeocodeResponse.Geometry.Viewport viewport = result.geometry().viewport();
-
-		GoogleGeocodeResponse.Geometry.Viewport adjustedViewport = viewportAdjuster.adjustViewportIfSmall(viewport);
 
 		return GeocodeResult.success(
 			location.lat(),
 			location.lng(),
-			result.formattedAddress(),
-			adjustedViewport
+			result.formattedAddress()
 		);
 	}
 

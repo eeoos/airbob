@@ -43,6 +43,8 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.request.AccommodationR
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.AddressRequest;
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.AmenityRequest;
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.PolicyRequest;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodeResult;
+import kr.kro.airbob.core.domain.accommodation.location.GeocodingGateway;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.core.support.context.UserContext;
@@ -52,8 +54,6 @@ import kr.kro.airbob.core.support.monitoring.QueryCountContextHolder;
 import kr.kro.airbob.core.support.monitoring.QueryCountSnapshot;
 import kr.kro.airbob.core.support.monitoring.SqlQueryType;
 import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
-import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.geo.dto.GeocodeResult;
 
 @Testcontainers
 @SpringBootTest(properties = {
@@ -96,7 +96,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
 	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean private S3Template s3Template;
-	@MockitoBean private GeocodingService geocodingService;
+	@MockitoBean private GeocodingGateway geocodingService;
 
 	private long ownerId;
 
@@ -238,7 +238,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 	void preservesManagedParentAndOwnedStateAfterPredicateDelete() {
 		Fixture fixture = createFixture(1);
 		when(geocodingService.getCoordinates(anyString()))
-			.thenReturn(GeocodeResult.success(37.5665, 126.9780, "Seoul", null));
+			.thenReturn(GeocodeResult.success(37.5665, 126.9780, "Seoul"));
 		AccommodationRequest.Update request = new AccommodationRequest.Update(
 			"managed parent after bulk delete",
 			null,

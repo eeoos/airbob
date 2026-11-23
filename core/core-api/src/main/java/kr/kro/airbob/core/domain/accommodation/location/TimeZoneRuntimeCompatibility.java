@@ -1,4 +1,4 @@
-package kr.kro.airbob.geo.impl;
+package kr.kro.airbob.core.domain.accommodation.location;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;

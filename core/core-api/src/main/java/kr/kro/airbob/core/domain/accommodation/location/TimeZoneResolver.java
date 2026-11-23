@@ -1,4 +1,4 @@
-package kr.kro.airbob.geo;
+package kr.kro.airbob.core.domain.accommodation.location;
 
 import java.time.ZoneId;
 import java.util.Optional;

@@ -76,6 +76,7 @@ import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.Address;
 import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
+import kr.kro.airbob.core.domain.accommodation.location.TimeZoneResolver;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
@@ -88,7 +89,6 @@ import kr.kro.airbob.core.domain.search.AccommodationSearchSnapshotReader;
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.core.support.context.UserContext;
 import kr.kro.airbob.core.support.context.UserInfo;
-import kr.kro.airbob.geo.TimeZoneResolver;
 
 /** Real MySQL/services/MVC serialization; authentication is preset and Elasticsearch transport is mocked. */
 @Testcontainers
