@@ -6,10 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse.ManualReviewItem;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse.ManualReviewQueue;
-import kr.kro.airbob.domain.payment.repository.PaymentOperationManualReviewQueryRepository;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueue;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -18,18 +16,14 @@ public class PaymentOperationManualReviewQueryService {
 
 	public static final int MAX_LIMIT = 100;
 
-	private final PaymentOperationManualReviewQueryRepository repository;
+	private final PaymentOperationManualReviewReader manualReviewReader;
 
 	@Transactional(readOnly = true)
-	public ManualReviewQueue findManualReviewQueue(int limit) {
+	public PaymentOperationManualReviewQueue findManualReviewQueue(int limit) {
 		validateLimit(limit);
-		List<PaymentOperationManualReviewQueueItem> fetched = repository.findOldest(limit + 1);
+		List<PaymentOperationManualReviewQueueItem> fetched = manualReviewReader.readOldest(limit + 1);
 		boolean hasMore = fetched.size() > limit;
-		List<ManualReviewItem> items = fetched.stream()
-			.limit(limit)
-			.map(ManualReviewItem::from)
-			.toList();
-		return new ManualReviewQueue(items, hasMore);
+		return new PaymentOperationManualReviewQueue(fetched.stream().limit(limit).toList(), hasMore);
 	}
 
 	private void validateLimit(int limit) {

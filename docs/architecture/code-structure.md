@@ -298,6 +298,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 16a (payment 결제사 연동 타입) | 0 | 2 | 0 (`Payment`·`PaymentTransaction`·`PaymentOperation` → `service` 패키지 해소) |
 | PR 16b (payment 워커·수동 처리 계층) | 0 | 2 | 0 |
 | PR 16c-1 (payment 명령) | 0 | 2 | 0 |
+| PR 16c-2 (payment 조회) | 0 | 2 | 0 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -353,7 +354,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 16a | payment 결제사 연동 타입: 결제사 포트·명령·결과·실패 분류(`service.gateway`)를 `gateway` 패키지로, `PaymentExecutionMode`를 도메인 루트로 옮겨 엔티티의 `service` 패키지 의존을 없앰 | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 16b | payment 워커·수동 처리 계층: Business가 부르던 트랜잭션 단계를 Implement로(`PaymentOperationLeaseService` → `PaymentOperationLeaseManager`, `PaymentOperationFinalizer`는 `@Component`로, `PaymentOperationManualReviewTransactionService` → `PaymentOperationManualReviewProcessor`). 메서드별 `@Transactional`, 실행 펜스, 임대는 그대로 | `payment.md`의 실행 펜스와 수동 처리 불변식 | 완료 |
 | 16c-1 | payment 명령: 결제 승인·취소 요청, DLT 처리, 복구가 `PaymentReader`·`PaymentOperationReader`·`PaymentOperationWriter`를 씀. 입력 `PaymentConfirmation`·`PaymentCancellation`, 출력 `PaymentOperationReceipt`(상태 URL은 응답 DTO가 만듦) | `payment.md`의 실행 펜스와 수동 처리 불변식 | 완료 |
-| 16c-2 | payment 조회: operation 상세, 결제 정보, 수동 검토 대기열의 Repository 사용을 Implement로, 출력을 도메인 레코드로 | `payment.md`의 실행 펜스와 수동 처리 불변식 | |
+| 16c-2 | payment 조회: operation 상세, 결제 정보, 수동 검토 대기열이 `PaymentOperationReader`·`PaymentReader`·`PaymentTransactionReader`·`PaymentOperationManualReviewReader`를 씀. 출력 `PaymentOperationDetail`(회원의 다음 행동과 재조회 간격을 serverTime 기준으로 계산)·`PaymentDetail`·`PaymentOperationManualReviewQueue`. Business가 받는 projection 두 개를 `repository/projection`에서 도메인 루트로 | `payment.md`의 실행 펜스와 수동 처리 불변식 | 완료 |
 | 16d | payment 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 17~ | settlement, search, messaging, 나머지 공통 패키지 | 각 영역 규칙 파일의 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |

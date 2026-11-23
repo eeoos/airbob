@@ -13,10 +13,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import kr.kro.airbob.core.api.security.CurrentMemberId;
-import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.support.error.ErrorCode;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Detail;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +53,6 @@ public class PaymentOperationController {
 	) {
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
-			.body(ApiResponse.success(paymentOperationQueryService.find(operationId, memberId)));
+			.body(ApiResponse.success(Detail.from(paymentOperationQueryService.find(operationId, memberId))));
 	}
 }

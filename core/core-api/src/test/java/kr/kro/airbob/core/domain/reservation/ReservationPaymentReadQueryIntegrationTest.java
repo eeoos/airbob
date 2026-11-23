@@ -55,10 +55,13 @@ import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.ReviewStatus;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
+import kr.kro.airbob.domain.payment.service.PaymentReader;
+import kr.kro.airbob.domain.payment.service.PaymentTransactionReader;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -174,8 +177,9 @@ class ReservationPaymentReadQueryIntegrationTest {
 		assertGuestQuery(statistics, false);
 		assertThat(payment.totalAmount()).isEqualTo(100000L);
 		assertThat(payment.method()).isEqualTo("카드");
-		var fullPayment = new PaymentQueryService(paymentRepository, transactionRepository)
-			.findPaymentByOrderId(RESERVATION_UID.toString(), GUEST_ID);
+		var fullPayment = PaymentResponse.PaymentInfo.from(new PaymentQueryService(
+			new PaymentReader(paymentRepository), new PaymentTransactionReader(transactionRepository))
+			.findPaymentByOrderId(RESERVATION_UID.toString(), GUEST_ID));
 		assertThat(fullPayment.balanceAmount()).isZero();
 		assertThat(fullPayment.cancels()).extracting(cancel -> cancel.cancelAmount()).containsExactly(25000L, 75000L);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_transaction", Long.class)).isEqualTo(4L);

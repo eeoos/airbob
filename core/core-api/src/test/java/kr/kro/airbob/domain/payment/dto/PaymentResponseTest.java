@@ -14,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.json.JsonTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.domain.payment.PaymentDetail;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
@@ -41,7 +42,7 @@ class PaymentResponseTest {
 			.createdAt(LocalDateTime.of(2026, 8, 12, 5, 29))
 			.build();
 
-		PaymentResponse.PaymentInfo response = PaymentResponse.PaymentInfo.from(payment, List.of());
+		PaymentResponse.PaymentInfo response = PaymentResponse.PaymentInfo.from(PaymentDetail.of(payment, List.of()));
 
 		assertThat(response.requestedAt()).isEqualTo(Instant.parse("2026-08-12T05:29:00Z"));
 		assertThat(response.approvedAt()).isEqualTo(Instant.parse("2026-08-12T05:30:00.123456Z"));
@@ -59,7 +60,7 @@ class PaymentResponseTest {
 			.createdAt(LocalDateTime.of(2026, 8, 12, 5, 59))
 			.build();
 
-		PaymentResponse.CancelInfo cancelInfo = PaymentResponse.CancelInfo.from(transaction);
+		PaymentResponse.CancelInfo cancelInfo = PaymentResponse.CancelInfo.from(PaymentDetail.Cancellation.from(transaction));
 
 		assertThat(cancelInfo.canceledAt()).isEqualTo(canceledAt);
 	}

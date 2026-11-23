@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.domain.payment.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Detail;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.NextAction;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
@@ -25,7 +26,6 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationQueryServiceTest {
@@ -44,7 +44,7 @@ class PaymentOperationQueryServiceTest {
 			PaymentOperationStatus.DECLINED, PaymentOperationType.CONFIRM, "PROVIDER_DECLINED", null);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Detail detail = queryService().find(OPERATION_UID, OWNER_ID);
+		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 
 		assertThat(detail.operationId()).isEqualTo(OPERATION_UID);
 		assertThat(detail.status()).isEqualTo(Status.FAILED);
@@ -63,7 +63,7 @@ class PaymentOperationQueryServiceTest {
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation(
 			PaymentOperationStatus.QUEUED, PaymentOperationType.CONFIRM, null, null)));
 
-		assertThatThrownBy(() -> queryService().find(OPERATION_UID, 999L))
+		assertThatThrownBy(() -> Detail.from(queryService().find(OPERATION_UID, 999L)))
 			.isInstanceOf(PaymentAccessDeniedException.class);
 	}
 
@@ -71,7 +71,7 @@ class PaymentOperationQueryServiceTest {
 	void unknownOperationReturnsNotFound() {
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> queryService().find(OPERATION_UID, OWNER_ID))
+		assertThatThrownBy(() -> Detail.from(queryService().find(OPERATION_UID, OWNER_ID)))
 			.isInstanceOf(PaymentOperationNotFoundException.class);
 	}
 
@@ -85,7 +85,7 @@ class PaymentOperationQueryServiceTest {
 		);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Detail detail = queryService().find(OPERATION_UID, OWNER_ID);
+		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 
 		assertThat(detail.status()).isEqualTo(Status.PENDING);
 		assertThat(detail.failureCode()).isNull();
@@ -104,7 +104,7 @@ class PaymentOperationQueryServiceTest {
 		);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(due));
 
-		Detail atBoundary = queryService().find(OPERATION_UID, OWNER_ID);
+		Detail atBoundary = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 
 		PaymentOperationDetailRow overdue = operation(
 			PaymentOperationStatus.WAITING_RETRY,
@@ -114,7 +114,7 @@ class PaymentOperationQueryServiceTest {
 		);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(overdue));
 
-		Detail afterBoundary = queryService().find(OPERATION_UID, OWNER_ID);
+		Detail afterBoundary = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 
 		assertThat(atBoundary.nextAction()).isEqualTo(NextAction.POLL);
 		assertThat(atBoundary.retryAfterSeconds()).isEqualTo(2L);
@@ -132,7 +132,7 @@ class PaymentOperationQueryServiceTest {
 		);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Detail detail = queryService().find(OPERATION_UID, OWNER_ID);
+		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 
 		assertThat(detail.retryAfterSeconds()).isEqualTo(30L);
 	}
@@ -238,7 +238,7 @@ class PaymentOperationQueryServiceTest {
 	private Detail detailFor(PaymentOperationStatus status, PaymentOperationType operationType) {
 		PaymentOperationDetailRow operation = operation(status, operationType, "raw-provider-code", null);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
-		return queryService().find(OPERATION_UID, OWNER_ID);
+		return Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 	}
 
 	private Detail detailFor(
@@ -273,11 +273,11 @@ class PaymentOperationQueryServiceTest {
 			expiresAt
 		);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
-		return queryService().find(OPERATION_UID, OWNER_ID);
+		return Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 	}
 
 	private PaymentOperationQueryService queryService() {
-		return new PaymentOperationQueryService(repository, CLOCK);
+		return new PaymentOperationQueryService(new PaymentOperationReader(repository), CLOCK);
 	}
 
 	private PaymentOperationDetailRow operation(

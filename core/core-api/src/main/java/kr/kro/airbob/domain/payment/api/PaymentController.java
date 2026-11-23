@@ -80,7 +80,8 @@ public class PaymentController {
 		@Parameter(description = "결제창에서 받은 결제 키", example = "example-payment-key")
 		@PathVariable String paymentKey,
 		@CurrentMemberId Long memberId) {
-		PaymentResponse.PaymentInfo response = paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId);
+		PaymentResponse.PaymentInfo response = PaymentResponse.PaymentInfo.from(
+			paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 	@Operation(operationId = "Payment.getPaymentByOrderId", summary = "주문 ID로 결제 조회",
@@ -99,7 +100,8 @@ public class PaymentController {
 		@Parameter(description = "결제 시도 발급 응답의 order_id(예약 UID)", example = "00000000-0000-0000-0000-000000000020")
 		@PathVariable String orderId,
 		@CurrentMemberId Long memberId) {
-		PaymentResponse.PaymentInfo response = paymentQueryService.findPaymentByOrderId(orderId, memberId);
+		PaymentResponse.PaymentInfo response = PaymentResponse.PaymentInfo.from(
+			paymentQueryService.findPaymentByOrderId(orderId, memberId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

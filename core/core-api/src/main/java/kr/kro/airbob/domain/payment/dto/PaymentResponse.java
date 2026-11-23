@@ -8,9 +8,8 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.PaymentDetail;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -55,20 +54,20 @@ public class PaymentResponse {
 		List<CancelInfo> cancels
 	){
 		// 확정된 결제 + 취소 이력(거래 원장의 CANCEL/PARTIAL_CANCEL)
-		public static PaymentInfo from(Payment payment, List<PaymentTransaction> cancelTransactions) {
-			List<CancelInfo> cancelInfos = cancelTransactions.stream()
+		public static PaymentInfo from(PaymentDetail payment) {
+			List<CancelInfo> cancelInfos = payment.cancellations().stream()
 				.map(CancelInfo::from)
 				.toList();
 
 			return PaymentInfo.builder()
-				.orderId(payment.getOrderId())
-				.paymentKey(payment.getPaymentKey())
-				.method(payment.getMethod().getDescription())
-				.totalAmount(payment.getAmount())
-				.balanceAmount(payment.getBalanceAmount())
-				.status(payment.getStatus())
-				.requestedAt(toUtcInstant(payment.getCreatedAt()))
-				.approvedAt(payment.getApprovedAt())
+				.orderId(payment.orderId())
+				.paymentKey(payment.paymentKey())
+				.method(payment.method().getDescription())
+				.totalAmount(payment.totalAmount())
+				.balanceAmount(payment.balanceAmount())
+				.status(payment.status())
+				.requestedAt(toUtcInstant(payment.createdAt()))
+				.approvedAt(payment.approvedAt())
 				.cancels(cancelInfos)
 				.build();
 		}
@@ -84,11 +83,11 @@ public class PaymentResponse {
 		@Schema(description = "결제사가 알려준 취소 시각(UTC). 과거 원장에 값이 없으면 null", example = "2027-01-02T00:00:00Z", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
 		Instant canceledAt
 	) {
-		public static CancelInfo from(PaymentTransaction cancelTransaction) {
+		public static CancelInfo from(PaymentDetail.Cancellation cancellation) {
 			return CancelInfo.builder()
-				.cancelAmount(cancelTransaction.getCancelAmount())
-				.cancelReason(cancelTransaction.getCancelReason())
-				.canceledAt(cancelTransaction.getCanceledAt())
+				.cancelAmount(cancellation.cancelAmount())
+				.cancelReason(cancellation.cancelReason())
+				.canceledAt(cancellation.canceledAt())
 				.build();
 		}
 	}

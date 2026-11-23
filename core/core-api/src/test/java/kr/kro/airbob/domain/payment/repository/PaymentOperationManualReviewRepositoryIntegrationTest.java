@@ -25,12 +25,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolution;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionActorType;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.repository.query.JpaPaymentOperationManualReviewQueryRepository;
 
 @DataJpaTest

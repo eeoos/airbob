@@ -1,17 +1,15 @@
 package kr.kro.airbob.domain.payment.dto;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import kr.kro.airbob.core.domain.reservation.Reservation;
-import kr.kro.airbob.core.domain.reservation.ReservationStatus;
+import kr.kro.airbob.domain.payment.PaymentOperationDetail;
+import kr.kro.airbob.domain.payment.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -37,7 +35,17 @@ public class PaymentOperationResponse {
 		START_NEW_CHECKOUT,
 		RETRY_CANCELLATION,
 		CONTACT_SUPPORT,
-		NONE
+		NONE;
+
+		public static NextAction from(PaymentOperationDetail.NextAction action) {
+			return switch (action) {
+				case POLL -> POLL;
+				case START_NEW_CHECKOUT -> START_NEW_CHECKOUT;
+				case RETRY_CANCELLATION -> RETRY_CANCELLATION;
+				case CONTACT_SUPPORT -> CONTACT_SUPPORT;
+				case NONE -> NONE;
+			};
+		}
 	}
 
 	@Schema(name = "PaymentOperationResponseAccepted")
@@ -112,14 +120,10 @@ public class PaymentOperationResponse {
 			nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
 		String userFailureCode
 	) {
-		private static final long MIN_POLL_INTERVAL_SECONDS = 2L;
-		private static final long MAX_POLL_INTERVAL_SECONDS = 30L;
-		private static final Duration MAX_POLL_INTERVAL =
-			Duration.ofSeconds(MAX_POLL_INTERVAL_SECONDS);
-
-		public static Detail from(PaymentOperationDetailRow operation, Instant serverTime) {
+		public static Detail from(PaymentOperationDetail detail) {
+			PaymentOperationDetailRow operation = detail.operation();
 			PaymentOperationStatus operationStatus = operation.status();
-			NextAction nextAction = nextAction(operation, serverTime);
+			NextAction nextAction = NextAction.from(detail.nextAction());
 			return new Detail(
 				operation.operationUid(),
 				operation.reservationUid(),
@@ -129,41 +133,11 @@ public class PaymentOperationResponse {
 					? operation.failureCode() : null,
 				operation.updatedAt().toInstant(ZoneOffset.UTC),
 				nextAction,
-				retryAfterSeconds(operation, serverTime),
+				detail.retryAfterSeconds(),
 				userMessage(operationStatus, operation.operationType(), nextAction),
-				serverTime,
+				detail.serverTime(),
 				userFailureCode(operationStatus, operation.operationType())
 			);
-		}
-
-		private static NextAction nextAction(PaymentOperationDetailRow operation, Instant serverTime) {
-			return switch (operation.status()) {
-				case QUEUED, EXECUTING, WAITING_RETRY -> NextAction.POLL;
-				case APPLIED -> NextAction.NONE;
-				case DECLINED -> declinedNextAction(operation, serverTime);
-				case MANUAL_REVIEW -> NextAction.CONTACT_SUPPORT;
-			};
-		}
-
-		private static NextAction declinedNextAction(
-			PaymentOperationDetailRow operation,
-			Instant serverTime
-		) {
-			boolean beforeCheckIn = operation.checkInAt() != null
-				&& serverTime.isBefore(operation.checkInAt());
-			if (operation.operationType() == PaymentOperationType.CONFIRM) {
-				ReservationStatus effectiveStatus = Reservation.effectiveStatus(
-					operation.reservationStatus(), operation.expiresAt(), serverTime);
-				return effectiveStatus == ReservationStatus.EXPIRED && beforeCheckIn
-					? NextAction.START_NEW_CHECKOUT
-					: NextAction.NONE;
-			}
-			if (operation.reservationStatus() != ReservationStatus.CANCELLATION_FAILED) {
-				return NextAction.NONE;
-			}
-			return beforeCheckIn
-				? NextAction.RETRY_CANCELLATION
-				: NextAction.CONTACT_SUPPORT;
 		}
 
 		private static String userFailureCode(
@@ -177,32 +151,6 @@ public class PaymentOperationResponse {
 				case MANUAL_REVIEW -> "PAYMENT_REVIEW_REQUIRED";
 				case QUEUED, EXECUTING, WAITING_RETRY, APPLIED -> null;
 			};
-		}
-
-		private static Long retryAfterSeconds(PaymentOperationDetailRow operation, Instant serverTime) {
-			return switch (operation.status()) {
-				case QUEUED, EXECUTING -> MIN_POLL_INTERVAL_SECONDS;
-				case WAITING_RETRY -> secondsUntil(operation.nextAttemptAt(), serverTime);
-				case MANUAL_REVIEW -> MAX_POLL_INTERVAL_SECONDS;
-				case APPLIED, DECLINED -> null;
-			};
-		}
-
-		private static long secondsUntil(Instant nextAttemptAt, Instant serverTime) {
-			if (nextAttemptAt == null) {
-				return MIN_POLL_INTERVAL_SECONDS;
-			}
-			Duration remaining = Duration.between(serverTime, nextAttemptAt);
-			if (remaining.isNegative() || remaining.isZero()) {
-				return MIN_POLL_INTERVAL_SECONDS;
-			}
-			if (remaining.compareTo(MAX_POLL_INTERVAL) >= 0) {
-				return MAX_POLL_INTERVAL_SECONDS;
-			}
-			long roundedSeconds = remaining.getNano() == 0
-				? remaining.getSeconds()
-				: Math.addExact(remaining.getSeconds(), 1L);
-			return Math.max(MIN_POLL_INTERVAL_SECONDS, roundedSeconds);
 		}
 
 		private static String userMessage(

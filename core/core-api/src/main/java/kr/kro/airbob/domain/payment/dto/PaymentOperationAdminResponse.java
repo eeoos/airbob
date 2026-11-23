@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueue;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -28,6 +29,13 @@ public final class PaymentOperationAdminResponse {
 	) {
 		public ManualReviewQueue {
 			items = List.copyOf(items);
+		}
+
+		public static ManualReviewQueue from(PaymentOperationManualReviewQueue queue) {
+			return new ManualReviewQueue(
+				queue.items().stream().map(ManualReviewItem::from).toList(),
+				queue.hasMore()
+			);
 		}
 	}
 

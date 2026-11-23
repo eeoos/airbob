@@ -18,10 +18,10 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import kr.kro.airbob.core.api.security.CurrentMemberId;
-import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.support.error.ErrorCode;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminRequest.MarkNotPaid;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminRequest.Reconciliation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse.ActionAccepted;
@@ -56,7 +56,7 @@ public class PaymentOperationAdminController {
 			schema = @Schema(type = "integer", format = "int32", minimum = "1", maximum = "100", defaultValue = "50"))
 		@RequestParam(defaultValue = "50") int limit
 	) {
-		return ResponseEntity.ok(ApiResponse.success(queryService.findManualReviewQueue(limit)));
+		return ResponseEntity.ok(ApiResponse.success(ManualReviewQueue.from(queryService.findManualReviewQueue(limit))));
 	}
 
 	@Operation(operationId = "PaymentOperationAdmin.requestReconciliation", summary = "결제 대사 요청",

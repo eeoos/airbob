@@ -6,9 +6,9 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
+import kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationManualReviewQueryRepository;
-import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
 
 @Repository
 public class JpaPaymentOperationManualReviewQueryRepository
@@ -28,7 +28,7 @@ public class JpaPaymentOperationManualReviewQueryRepository
 				"requestedSize must be between 1 and " + MAX_FETCH_SIZE);
 		}
 		return entityManager.createQuery("""
-			select new kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem(
+			select new kr.kro.airbob.domain.payment.PaymentOperationManualReviewQueueItem(
 				po.operationUid,
 				po.operationType,
 				po.attemptCount,

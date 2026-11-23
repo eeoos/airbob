@@ -7,8 +7,10 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.domain.payment.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +29,12 @@ public class PaymentOperationReader {
 	public Optional<PaymentOperation> findLatestCancellation(Long reservationId) {
 		return operationRepository.findFirstByReservationIdAndOperationTypeOrderByIdDesc(
 			reservationId, PaymentOperationType.CANCEL);
+	}
+
+	/** 회원 조회용 operation과 예약 상태를 한 쿼리로 읽는다. 없으면 {@link PaymentOperationNotFoundException}. */
+	public PaymentOperationDetailRow readDetail(UUID operationUid) {
+		return operationRepository.findDetailByOperationUid(operationUid)
+			.orElseThrow(PaymentOperationNotFoundException::new);
 	}
 
 	public Optional<PaymentOperation> findForUpdate(UUID operationUid) {

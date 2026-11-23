@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.repository.projection;
+package kr.kro.airbob.domain.payment;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
