@@ -5,6 +5,7 @@ paths:
   - "**/src/**/domain/accommodation/**/*"
   - "**/src/**/controller/v1/accommodation/**/*"
   - "**/src/**/controller/v1/reservation/**/*"
+  - "**/src/**/controller/v1/payment/**/*"
 ---
 
 # Reservation inventory

@@ -7,8 +7,8 @@ import java.util.UUID;
 import com.querydsl.core.annotations.QueryProjection;
 
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
-import kr.kro.airbob.domain.payment.entity.PaymentMethod;
-import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.core.domain.payment.PaymentMethod;
+import kr.kro.airbob.core.domain.payment.PaymentStatus;
 
 public record GuestReservationDetailProjection(
 	UUID reservationUid,

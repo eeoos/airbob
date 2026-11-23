@@ -15,12 +15,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
 import kr.kro.airbob.core.api.controller.v1.reservation.request.ReservationRequest;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 
 @Tag(name = "예약")
 @RequestMapping("/api")

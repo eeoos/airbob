@@ -44,6 +44,10 @@ import kr.kro.airbob.core.domain.accommodation.Address;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.domain.payment.Payment;
+import kr.kro.airbob.core.domain.payment.PaymentMethod;
+import kr.kro.airbob.core.domain.payment.PaymentStatus;
+import kr.kro.airbob.core.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.core.domain.reservation.GuestReservationListProjection;
 import kr.kro.airbob.core.domain.reservation.GuestReservationPage;
 import kr.kro.airbob.core.domain.reservation.HostReservationListProjection;
@@ -51,10 +55,6 @@ import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.core.domain.reservation.ReservationDateRange;
 import kr.kro.airbob.core.domain.reservation.ReservationFilterType;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
-import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentMethod;
-import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import jakarta.persistence.EntityManager;
 
 @DataJpaTest

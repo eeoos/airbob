@@ -3,7 +3,7 @@ package kr.kro.airbob.core.domain.reservation.repository.impl;
 import static kr.kro.airbob.core.domain.accommodation.QAccommodation.*;
 import static kr.kro.airbob.core.domain.accommodation.QAddress.*;
 import static kr.kro.airbob.core.domain.member.QMember.*;
-import static kr.kro.airbob.domain.payment.entity.QPayment.payment;
+import static kr.kro.airbob.core.domain.payment.QPayment.payment;
 import static kr.kro.airbob.core.domain.reservation.QReservation.reservation;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.*;
 

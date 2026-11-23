@@ -26,10 +26,10 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import kr.kro.airbob.core.domain.accommodation.PublishingFieldRequiredException;
+import kr.kro.airbob.core.domain.payment.PaymentOperationConflictException;
+import kr.kro.airbob.core.domain.payment.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.core.domain.reservation.ReservationConflictException;
 import kr.kro.airbob.core.domain.reservation.ReservationInventoryBusyException;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.core.support.response.ApiResponse;
 
 @ExtendWith(OutputCaptureExtension.class)
