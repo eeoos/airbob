@@ -26,9 +26,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.config.ClockConfig;
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationImage;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;

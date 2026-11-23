@@ -1,4 +1,4 @@
-package kr.kro.airbob.config;
+package kr.kro.airbob.core.api.config;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;

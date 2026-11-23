@@ -1,6 +1,6 @@
 package kr.kro.airbob.core.domain.reservation;
 
-import static kr.kro.airbob.config.SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER;
+import static kr.kro.airbob.core.api.config.SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;

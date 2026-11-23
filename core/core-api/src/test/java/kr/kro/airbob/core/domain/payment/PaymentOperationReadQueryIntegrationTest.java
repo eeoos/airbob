@@ -45,8 +45,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
 

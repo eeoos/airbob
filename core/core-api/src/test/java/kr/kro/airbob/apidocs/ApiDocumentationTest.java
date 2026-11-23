@@ -80,8 +80,8 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.config.WebMvcConfig;
-import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
+import kr.kro.airbob.core.api.config.WebMvcConfig;
+import kr.kro.airbob.core.api.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;

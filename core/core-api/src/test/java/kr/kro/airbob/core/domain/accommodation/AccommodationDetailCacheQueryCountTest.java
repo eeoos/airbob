@@ -35,13 +35,13 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.config.AccommodationDetailRedisConfig;
-import kr.kro.airbob.config.ClockConfig;
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailCacheConfiguration;
+import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailRedisConfig;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationListener;
 import kr.kro.airbob.core.domain.accommodation.cache.monitoring.FailSafeAccommodationDetailCacheMetricRecorder;
 import kr.kro.airbob.core.domain.accommodation.cache.monitoring.MicrometerAccommodationDetailCacheMetricRecorder;

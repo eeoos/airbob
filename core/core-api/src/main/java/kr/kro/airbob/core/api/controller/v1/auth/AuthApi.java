@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletResponse;
-import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.api.controller.v1.auth.request.AuthRequest.Login;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberId;

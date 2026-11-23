@@ -39,8 +39,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.payment.gateway.ConfirmedPayment;

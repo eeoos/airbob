@@ -1,5 +1,4 @@
-package kr.kro.airbob.config;
-
+package kr.kro.airbob.core.api.config;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -14,7 +13,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 import kr.kro.airbob.core.support.context.UserContext;
 import kr.kro.airbob.core.support.context.UserInfo;
-
 
 @Configuration
 @EnableJpaAuditing(

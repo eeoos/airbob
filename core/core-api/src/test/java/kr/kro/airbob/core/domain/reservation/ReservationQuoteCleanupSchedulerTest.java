@@ -1,6 +1,6 @@
 package kr.kro.airbob.core.domain.reservation;
 
-import static kr.kro.airbob.config.SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER;
+import static kr.kro.airbob.core.api.config.SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;

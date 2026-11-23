@@ -9,7 +9,7 @@ paths:
 
 # API documentation
 
-- Controller/DTO annotations and `config/apidocs/` are the source of the V1 OpenAPI contracts.
+- Controller/DTO annotations and `core/api/config/apidocs/` are the source of the V1 OpenAPI contracts.
   Keep summaries, success statuses, headers, examples, `@ApiErrors`, and unique nested DTO schema
   names aligned with actual behavior. Do not infer authentication from `@CurrentMemberId` alone.
 - Update `docs/api/` guides when authentication, pagination, time semantics, or workflows change.

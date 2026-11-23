@@ -18,7 +18,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.review.request.ReviewRequest;
 import kr.kro.airbob.core.api.controller.v1.review.response.ReviewResponse;

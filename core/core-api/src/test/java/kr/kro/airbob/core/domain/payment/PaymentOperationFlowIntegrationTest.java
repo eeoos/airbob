@@ -67,8 +67,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.payment.PaymentController;
 import kr.kro.airbob.core.api.controller.v1.payment.PaymentOperationController;

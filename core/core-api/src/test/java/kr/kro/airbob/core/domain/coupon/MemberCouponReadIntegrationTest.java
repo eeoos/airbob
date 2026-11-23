@@ -42,9 +42,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.config.ClockConfig;
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.v1.coupon.response.CouponResponse;
 import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;

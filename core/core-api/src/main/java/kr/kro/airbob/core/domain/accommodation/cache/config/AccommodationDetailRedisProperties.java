@@ -1,4 +1,4 @@
-package kr.kro.airbob.config;
+package kr.kro.airbob.core.domain.accommodation.cache.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.Assert;

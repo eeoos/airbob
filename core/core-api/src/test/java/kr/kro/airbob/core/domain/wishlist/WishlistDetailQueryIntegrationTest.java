@@ -39,9 +39,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.config.ClockConfig;
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfo;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfos;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;

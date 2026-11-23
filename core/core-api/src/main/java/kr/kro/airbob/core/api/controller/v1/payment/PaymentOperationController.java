@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Detail;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.domain.payment.PaymentOperationQueryService;

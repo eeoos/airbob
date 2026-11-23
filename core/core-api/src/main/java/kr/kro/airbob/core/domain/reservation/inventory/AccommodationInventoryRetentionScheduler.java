@@ -1,6 +1,6 @@
 package kr.kro.airbob.core.domain.reservation.inventory;
 
-import static kr.kro.airbob.config.SchedulingConfig.ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER;
+import static kr.kro.airbob.core.api.config.SchedulingConfig.ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER;
 
 import java.time.Clock;
 import java.time.LocalDate;
