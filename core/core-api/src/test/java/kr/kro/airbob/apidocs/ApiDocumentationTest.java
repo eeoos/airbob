@@ -171,6 +171,9 @@ import kr.kro.airbob.domain.reservation.GuestReservationPage;
 import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.HostReservationPage;
+import kr.kro.airbob.domain.reservation.ReservationHoldRelease;
+import kr.kro.airbob.domain.reservation.ReservationPaymentAttempt;
+import kr.kro.airbob.domain.reservation.ReservationQuoteDetail;
 import kr.kro.airbob.domain.reservation.ReservationReady;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -792,9 +795,9 @@ class ApiDocumentationTest {
 		}
 		Instant now = Instant.parse("2027-01-01T00:00:00Z");
 		when(context.getBean(ReservationQuoteService.class).createQuote(any(), anyLong()))
-			.thenReturn(new ReservationResponse.Quote(UUID.fromString("00000000-0000-0000-0000-000000000010"),
+			.thenReturn(new ReservationQuoteDetail(UUID.fromString("00000000-0000-0000-0000-000000000010"),
 				101L, "숙소", LocalDate.parse("2027-01-10"), LocalDate.parse("2027-01-12"),
-				2, 100000L, 2L, 200000L, 0L, 200000L, "KRW", true, false, now));
+				2, 100000L, 2L, 200000L, 0L, 200000L, "KRW", true, now));
 		String body = mvc.perform(post("/api/v1/reservation-quotes").cookie(SESSION)
 			.contentType(MediaType.APPLICATION_JSON).content("""
 				{"accommodation_id":101,"check_in_date":"2027-01-10","check_out_date":"2027-01-12","guest_count":2}
@@ -856,13 +859,13 @@ class ApiDocumentationTest {
 			assertThat(operation.path("responses").has("403")).isFalse();
 		}
 		when(context.getBean(ReservationHoldCommandService.class).releaseHold(uid, 10L))
-			.thenReturn(new ReservationResponse.HoldRelease(uid, ReservationStatus.EXPIRED, false, now));
+			.thenReturn(new ReservationHoldRelease(UUID.fromString(uid), ReservationStatus.EXPIRED, false, now));
 		String released = mvc.perform(delete(holdPath, uid).cookie(SESSION)).andExpect(status().isOk())
 			.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, holdPath, "delete", "200", released);
 		when(context.getBean(ReservationHoldCommandService.class).beginPaymentAttempt(uid, 10L))
-			.thenReturn(new ReservationResponse.PaymentAttemptReady(UUID.fromString("00000000-0000-0000-0000-000000000030"),
-				uid, 200000L, "KRW", now.plusSeconds(30), 30, now));
+			.thenReturn(new ReservationPaymentAttempt(UUID.fromString("00000000-0000-0000-0000-000000000030"),
+				UUID.fromString(uid), 200000L, "KRW", now.plusSeconds(30), 30, now));
 		String attempt = mvc.perform(post(attemptPath, uid).cookie(SESSION)).andExpect(status().isOk())
 			.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, attemptPath, "post", "200", attempt);

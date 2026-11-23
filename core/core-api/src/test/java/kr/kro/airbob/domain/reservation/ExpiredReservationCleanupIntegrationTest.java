@@ -45,6 +45,8 @@ import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepos
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 
 @DataJpaTest(properties = "reservation.expiration.history-batch-size=2")
 @Testcontainers
@@ -53,7 +55,8 @@ import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService
 @Import({
 	JpaAuditingConfig.class, QueryDslConfig.class, CouponTimeProvider.class, CouponUsageManager.class,
 	AccommodationInventoryDayRepository.class, ReservationInventoryManager.class,
-	ReservationHistoryBatchWriter.class, ExpiredReservationCleanupService.class,
+	ReservationHistoryBatchWriter.class, ReservationReader.class, ReservationHistoryWriter.class,
+	ExpiredReservationCleanupService.class,
 	ExpiredReservationCleanupIntegrationTest.FixedClockConfiguration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

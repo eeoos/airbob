@@ -22,9 +22,10 @@ import kr.kro.airbob.domain.reservation.GuestReservationPage;
 import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.HostReservationPage;
+import kr.kro.airbob.domain.reservation.ReservationHoldRelease;
+import kr.kro.airbob.domain.reservation.ReservationPaymentAttempt;
+import kr.kro.airbob.domain.reservation.ReservationQuoteDetail;
 import kr.kro.airbob.domain.reservation.ReservationReady;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -67,23 +68,23 @@ public class ReservationResponse {
 		@Schema(description = "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다.", example = "2027-01-01T00:00:00Z", requiredMode = Schema.RequiredMode.REQUIRED)
 		Instant serverTime
 	) {
-		public static Quote from(ReservationQuote quote, Instant serverTime) {
+		public static Quote from(ReservationQuoteDetail quote) {
 			return Quote.builder()
-				.quoteUid(quote.getQuoteUid())
-				.accommodationId(quote.getAccommodationId())
-				.orderName(quote.getOrderName())
-				.checkIn(quote.getCheckInDate())
-				.checkOut(quote.getCheckOutDate())
-				.guestCount(quote.getGuestCount())
-				.nightlyPrice(quote.getNightlyPrice())
-				.nights(quote.getNights())
-				.subtotal(quote.getSubtotal())
-				.discountAmount(quote.getDiscountAmount())
-				.amount(quote.getAmount())
-				.currency(quote.getCurrency())
-				.paymentRequired(quote.getAmount() > 0)
+				.quoteUid(quote.quoteUid())
+				.accommodationId(quote.accommodationId())
+				.orderName(quote.orderName())
+				.checkIn(quote.checkIn())
+				.checkOut(quote.checkOut())
+				.guestCount(quote.guestCount())
+				.nightlyPrice(quote.nightlyPrice())
+				.nights(quote.nights())
+				.subtotal(quote.subtotal())
+				.discountAmount(quote.discountAmount())
+				.amount(quote.amount())
+				.currency(quote.currency())
+				.paymentRequired(quote.paymentRequired())
 				.inventoryHeld(false)
-				.serverTime(serverTime)
+				.serverTime(quote.serverTime())
 				.build();
 		}
 	}
@@ -157,12 +158,12 @@ public class ReservationResponse {
 		@Schema(description = "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다.", example = "2027-01-01T00:00:00Z", requiredMode = Schema.RequiredMode.REQUIRED)
 		Instant serverTime
 	) {
-		public static HoldRelease from(Reservation reservation, boolean releasedNow, Instant serverTime) {
+		public static HoldRelease from(ReservationHoldRelease release) {
 			return new HoldRelease(
-				reservation.getReservationUid().toString(),
-				reservation.getStatus(),
-				releasedNow,
-				serverTime
+				release.reservationUid().toString(),
+				release.status(),
+				release.releasedNow(),
+				release.serverTime()
 			);
 		}
 	}
@@ -184,19 +185,15 @@ public class ReservationResponse {
 		@Schema(description = "서버의 현재 UTC 시각. 남은 시간 판단 기준입니다.", example = "2027-01-01T00:00:00Z", requiredMode = Schema.RequiredMode.REQUIRED)
 		Instant serverTime
 	) {
-		public static PaymentAttemptReady from(
-			Reservation reservation,
-			long remainingSeconds,
-			Instant serverTime
-		) {
+		public static PaymentAttemptReady from(ReservationPaymentAttempt attempt) {
 			return new PaymentAttemptReady(
-				reservation.getPaymentAttemptUid(),
-				reservation.getReservationUid().toString(),
-				reservation.getTotalPrice(),
-				reservation.getCurrency(),
-				reservation.getExpiresAt(),
-				remainingSeconds,
-				serverTime
+				attempt.paymentAttemptId(),
+				attempt.reservationUid().toString(),
+				attempt.amount(),
+				attempt.currency(),
+				attempt.holdExpiresAt(),
+				attempt.remainingSeconds(),
+				attempt.serverTime()
 			);
 		}
 	}

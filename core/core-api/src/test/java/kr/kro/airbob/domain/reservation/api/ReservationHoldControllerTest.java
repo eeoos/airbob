@@ -32,6 +32,8 @@ import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
+import kr.kro.airbob.domain.reservation.ReservationHoldRelease;
+import kr.kro.airbob.domain.reservation.ReservationPaymentAttempt;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
@@ -77,8 +79,8 @@ class ReservationHoldControllerTest {
 	@Test
 	@DisplayName("DELETE hold는 해제 여부를 안전하게 반환하고 캐시하지 않는다")
 	void releasesHold() throws Exception {
-		var response = new ReservationResponse.HoldRelease(
-			RESERVATION_UID, ReservationStatus.EXPIRED, true, NOW);
+		var response = new ReservationHoldRelease(
+			UUID.fromString(RESERVATION_UID), ReservationStatus.EXPIRED, true, NOW);
 		given(holdCommandService.releaseHold(RESERVATION_UID, MEMBER_ID)).willReturn(response);
 
 		mockMvc.perform(delete("/api/v1/reservations/{reservationUid}/hold", RESERVATION_UID))
@@ -96,9 +98,9 @@ class ReservationHoldControllerTest {
 	@DisplayName("POST payment-attempts는 PG 시작에 필요한 공개 필드만 반환하고 캐시하지 않는다")
 	void beginsPaymentAttempt() throws Exception {
 		UUID paymentAttemptId = UUID.fromString("fa1e54c6-201c-4d09-98b8-68eedfa921ae");
-		var response = new ReservationResponse.PaymentAttemptReady(
+		var response = new ReservationPaymentAttempt(
 			paymentAttemptId,
-			RESERVATION_UID,
+			UUID.fromString(RESERVATION_UID),
 			330_000L,
 			"KRW",
 			NOW.plusSeconds(900),

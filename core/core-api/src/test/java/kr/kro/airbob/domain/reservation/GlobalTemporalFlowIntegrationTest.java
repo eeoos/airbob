@@ -75,6 +75,7 @@ import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.api.ReservationCommandController;
 import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
 import kr.kro.airbob.domain.reservation.api.ReservationHostController;
@@ -228,11 +229,11 @@ class GlobalTemporalFlowIntegrationTest {
 		Accommodation checkInGap = fixture("America/New_York", LocalTime.of(2, 30), LocalTime.of(11, 0), 120_000);
 		Accommodation checkOutGap = fixture("America/New_York", LocalTime.of(15, 0), LocalTime.of(2, 30), 120_000);
 
-		assertThatThrownBy(() -> quoteService.createQuote(new ReservationRequest.Quote(checkInGap.getId(),
-			LocalDate.of(2026, 3, 8), LocalDate.of(2026, 3, 9), 2, null), guest.getId()))
+		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(checkInGap.getId(),
+			LocalDate.of(2026, 3, 8), LocalDate.of(2026, 3, 9), 2, null), guest.getId())))
 			.isInstanceOf(InvalidReservationLocalTimeException.class);
-		assertThatThrownBy(() -> quoteService.createQuote(new ReservationRequest.Quote(checkOutGap.getId(),
-			LocalDate.of(2026, 3, 7), LocalDate.of(2026, 3, 8), 2, null), guest.getId()))
+		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(checkOutGap.getId(),
+			LocalDate.of(2026, 3, 7), LocalDate.of(2026, 3, 8), 2, null), guest.getId())))
 			.isInstanceOf(InvalidReservationLocalTimeException.class);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM reservation_quote", Long.class)).isZero();
 		assertThat(reservationRepository.count()).isZero();
@@ -247,8 +248,8 @@ class GlobalTemporalFlowIntegrationTest {
 			Accommodation accommodation = fixture("America/New_York", LocalTime.of(15, 0), LocalTime.of(11, 0), 120_000);
 			LocalDate checkIn = LocalDate.of(2026, 3, checkInGap ? 8 : 7);
 			LocalDate checkOut = LocalDate.of(2026, 3, checkInGap ? 9 : 8);
-			var quote = quoteService.createQuote(new ReservationRequest.Quote(accommodation.getId(), checkIn,
-				checkOut, 2, null), guest.getId());
+			var quote = ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(accommodation.getId(), checkIn,
+				checkOut, 2, null), guest.getId()));
 			String timeColumn = checkInGap ? "check_in_time" : "check_out_time";
 			jdbc.update("UPDATE accommodation SET " + timeColumn + " = '02:30:00' WHERE id = ?", accommodation.getId());
 
@@ -272,10 +273,10 @@ class GlobalTemporalFlowIntegrationTest {
 		LocalDate checkIn = LocalDate.of(2026, 11, 11);
 		LocalDate checkOut = LocalDate.of(2026, 11, 12);
 
-		assertThat(quoteService.createQuote(new ReservationRequest.Quote(seoul.getId(), checkIn, checkOut,
-			2, null), guest.getId()).nights()).isOne();
-		assertThatThrownBy(() -> quoteService.createQuote(new ReservationRequest.Quote(newYork.getId(),
-			checkIn, checkOut, 2, null), guest.getId())).isInstanceOf(ReservationOutsideBookingWindowException.class);
+		assertThat(ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(seoul.getId(), checkIn, checkOut,
+			2, null), guest.getId())).nights()).isOne();
+		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(newYork.getId(),
+			checkIn, checkOut, 2, null), guest.getId()))).isInstanceOf(ReservationOutsideBookingWindowException.class);
 		assertThat(bookingWindowProvider.eligibleTimeZonesForStay(checkIn, checkOut))
 			.contains("Asia/Seoul").doesNotContain("America/New_York");
 	}

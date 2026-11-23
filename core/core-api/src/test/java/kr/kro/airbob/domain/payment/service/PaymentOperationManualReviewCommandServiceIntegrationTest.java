@@ -52,6 +52,7 @@ import kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExe
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
@@ -81,6 +82,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	PaymentOperationManualReviewTransactionService.class,
 	ReservationReader.class,
 	ReservationHistoryWriter.class,
+	ReservationHistoryBatchWriter.class,
 	AccommodationInventoryDayRepository.class,
 	ReservationInventoryManager.class,
 	MysqlPaymentOperationExecutionFence.class,

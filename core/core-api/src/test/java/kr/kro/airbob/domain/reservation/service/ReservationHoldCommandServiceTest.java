@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -23,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.Member;
+import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -32,6 +34,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAl
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.ReservationPaymentAttemptPolicy;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
@@ -52,8 +55,8 @@ class ReservationHoldCommandServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new ReservationHoldCommandService(
-			reservationRepository,
-			historyRepository,
+			new ReservationReader(reservationRepository),
+			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 			couponUsageManager,
 			new ReservationPaymentAttemptPolicy(Duration.ofSeconds(90)),
 			inventoryManager,
@@ -67,7 +70,7 @@ class ReservationHoldCommandServiceTest {
 		Reservation reservation = reservation(ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(900), true);
 		givenLocked(reservation);
 
-		var response = service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID);
+		var response = ReservationResponse.HoldRelease.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(response.releasedNow()).isTrue();
@@ -87,7 +90,7 @@ class ReservationHoldCommandServiceTest {
 		Reservation reservation = reservation(ReservationStatus.EXPIRED, NOW.minusSeconds(1), true);
 		givenLocked(reservation);
 
-		var response = service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID);
+		var response = ReservationResponse.HoldRelease.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID));
 
 		assertThat(response.releasedNow()).isFalse();
 		then(inventoryManager).shouldHaveNoInteractions();
@@ -101,7 +104,7 @@ class ReservationHoldCommandServiceTest {
 		Reservation reservation = reservation(ReservationStatus.CONFIRMED, NOW.plusSeconds(900), true);
 		givenLocked(reservation);
 
-		assertThatThrownBy(() -> service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID))
+		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID)))
 			.isInstanceOf(ReservationHoldReleaseNotAllowedException.class);
 		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
@@ -114,7 +117,7 @@ class ReservationHoldCommandServiceTest {
 		given(reservationRepository.findByReservationUidAndGuestIdWithLock(reservationUid, MEMBER_ID))
 			.willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> service.releaseHold(reservationUid.toString(), MEMBER_ID))
+		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(service.releaseHold(reservationUid.toString(), MEMBER_ID)))
 			.isInstanceOf(ReservationNotFoundException.class);
 	}
 
@@ -125,8 +128,8 @@ class ReservationHoldCommandServiceTest {
 			ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(90), true);
 		givenLocked(reservation);
 
-		var response = service.beginPaymentAttempt(
-			reservation.getReservationUid().toString(), MEMBER_ID);
+		var response = ReservationResponse.PaymentAttemptReady.from(service.beginPaymentAttempt(
+			reservation.getReservationUid().toString(), MEMBER_ID));
 
 		assertThat(response.paymentAttemptId()).isNotNull();
 		assertThat(response.paymentAttemptId()).isEqualTo(reservation.getPaymentAttemptUid());
@@ -145,8 +148,8 @@ class ReservationHoldCommandServiceTest {
 			ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(90).minusNanos(1), true);
 		givenLocked(reservation);
 
-		assertThatThrownBy(() -> service.beginPaymentAttempt(
-			reservation.getReservationUid().toString(), MEMBER_ID))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(service.beginPaymentAttempt(
+			reservation.getReservationUid().toString(), MEMBER_ID)))
 			.isInstanceOf(ReservationPaymentAttemptTooLateException.class);
 		assertThat(reservation.getPaymentAttemptUid()).isNull();
 	}
@@ -160,8 +163,8 @@ class ReservationHoldCommandServiceTest {
 		reservation.issuePaymentAttempt(existingAttempt, NOW.minusSeconds(30));
 		givenLocked(reservation);
 
-		var response = service.beginPaymentAttempt(
-			reservation.getReservationUid().toString(), MEMBER_ID);
+		var response = ReservationResponse.PaymentAttemptReady.from(service.beginPaymentAttempt(
+			reservation.getReservationUid().toString(), MEMBER_ID));
 
 		assertThat(response.paymentAttemptId()).isEqualTo(existingAttempt);
 		assertThat(reservation.getPaymentAttemptStartedAt()).isEqualTo(NOW.minusSeconds(30));
@@ -177,15 +180,15 @@ class ReservationHoldCommandServiceTest {
 		consumed.consumePaymentAttempt(attemptId, NOW.minusSeconds(4));
 		givenLocked(consumed);
 
-		assertThatThrownBy(() -> service.beginPaymentAttempt(
-			consumed.getReservationUid().toString(), MEMBER_ID))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(service.beginPaymentAttempt(
+			consumed.getReservationUid().toString(), MEMBER_ID)))
 			.isInstanceOf(ReservationPaymentAttemptNotAllowedException.class);
 
 		Reservation ineligible = reservation(
 			ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(900), false);
 		givenLocked(ineligible);
-		assertThatThrownBy(() -> service.beginPaymentAttempt(
-			ineligible.getReservationUid().toString(), MEMBER_ID))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(service.beginPaymentAttempt(
+			ineligible.getReservationUid().toString(), MEMBER_ID)))
 			.isInstanceOf(ReservationPaymentAttemptNotAllowedException.class);
 	}
 

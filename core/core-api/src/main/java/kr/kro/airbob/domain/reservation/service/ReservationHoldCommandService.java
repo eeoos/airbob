@@ -9,17 +9,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
-import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
+import kr.kro.airbob.domain.reservation.ReservationHoldRelease;
+import kr.kro.airbob.domain.reservation.ReservationPaymentAttempt;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationHoldReleaseNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.ReservationPaymentAttemptPolicy;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -28,20 +26,20 @@ public class ReservationHoldCommandService {
 
 	private static final String HOLD_RELEASE_REASON = "게스트가 결제 대기 예약 보유 해제";
 
-	private final ReservationRepository reservationRepository;
-	private final ReservationHistoryRepository historyRepository;
+	private final ReservationReader reservationReader;
+	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final CouponUsageManager couponUsageManager;
 	private final ReservationPaymentAttemptPolicy paymentAttemptPolicy;
 	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 
 	@Transactional
-	public ReservationResponse.HoldRelease releaseHold(String reservationUid, Long memberId) {
+	public ReservationHoldRelease releaseHold(String reservationUid, Long memberId) {
 		Reservation reservation = findGuestReservationForUpdate(reservationUid, memberId);
 		Instant serverTime = clock.instant();
 
 		if (reservation.getStatus() == ReservationStatus.EXPIRED) {
-			return ReservationResponse.HoldRelease.from(reservation, false, serverTime);
+			return ReservationHoldRelease.of(reservation, false, serverTime);
 		}
 		if (reservation.getStatus() != ReservationStatus.PAYMENT_PENDING) {
 			throw new ReservationHoldReleaseNotAllowedException();
@@ -55,13 +53,12 @@ public class ReservationHoldCommandService {
 		);
 		reservation.expire();
 		couponUsageManager.restore(reservation.getId());
-		historyRepository.save(ReservationHistory.of(
-			reservation, ChangeType.STATUS_CHANGE, HOLD_RELEASE_REASON));
-		return ReservationResponse.HoldRelease.from(reservation, true, serverTime);
+		reservationHistoryWriter.record(reservation, ChangeType.STATUS_CHANGE, HOLD_RELEASE_REASON);
+		return ReservationHoldRelease.of(reservation, true, serverTime);
 	}
 
 	@Transactional
-	public ReservationResponse.PaymentAttemptReady beginPaymentAttempt(
+	public ReservationPaymentAttempt beginPaymentAttempt(
 		String reservationUid,
 		Long memberId
 	) {
@@ -79,7 +76,7 @@ public class ReservationHoldCommandService {
 			paymentAttemptPolicy.validateReplay(serverTime, reservation.getExpiresAt());
 		}
 
-		return ReservationResponse.PaymentAttemptReady.from(
+		return ReservationPaymentAttempt.of(
 			reservation,
 			paymentAttemptPolicy.remainingSeconds(serverTime, reservation.getExpiresAt()),
 			serverTime
@@ -93,8 +90,7 @@ public class ReservationHoldCommandService {
 		} catch (IllegalArgumentException | NullPointerException exception) {
 			throw new ReservationNotFoundException();
 		}
-		return reservationRepository.findByReservationUidAndGuestIdWithLock(parsedUid, memberId)
-			.orElseThrow(ReservationNotFoundException::new);
+		return reservationReader.readGuestOwnedForUpdate(parsedUid, memberId);
 	}
 
 	private void validateAttemptIssuanceState(Reservation reservation) {

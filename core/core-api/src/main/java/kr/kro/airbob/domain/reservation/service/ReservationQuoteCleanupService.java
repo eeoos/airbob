@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.reservation.service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -11,23 +10,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 
 @Service
 public class ReservationQuoteCleanupService {
 
-	private final ReservationQuoteRepository quoteRepository;
+	private final ReservationQuoteWriter quoteWriter;
 	private final Clock clock;
 	private final Duration retention;
 	private final int batchSize;
 
 	public ReservationQuoteCleanupService(
-		ReservationQuoteRepository quoteRepository,
+		ReservationQuoteWriter quoteWriter,
 		Clock clock,
 		@Value("${reservation.quote.retention:30d}") Duration retention,
 		@Value("${reservation.quote.cleanup-batch-size:500}") int batchSize
 	) {
-		this.quoteRepository = Objects.requireNonNull(quoteRepository);
+		this.quoteWriter = Objects.requireNonNull(quoteWriter);
 		this.clock = Objects.requireNonNull(clock);
 		if (retention == null || retention.isZero() || retention.isNegative()) {
 			throw new IllegalArgumentException("quote retention must be positive");
@@ -45,12 +43,6 @@ public class ReservationQuoteCleanupService {
 	)
 	public int cleanupOneBatch() {
 		Instant cutoffExclusive = clock.instant().minus(retention);
-		List<Long> ids = quoteRepository.findRetentionExpiredIdsForCleanup(
-			cutoffExclusive, batchSize);
-		if (ids.isEmpty()) {
-			return 0;
-		}
-
-		return quoteRepository.deleteCleanupBatchByIds(ids);
+		return quoteWriter.deleteRetentionExpiredBatch(cutoffExclusive, batchSize);
 	}
 }
