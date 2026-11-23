@@ -70,6 +70,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -421,8 +422,8 @@ class ReservationConcurrencyTest {
 			guests.getFirst().getId(),
 			"결제 승인 선점 동시성 테스트"
 		);
-		var paymentAttempt = reservationHoldCommandService.beginPaymentAttempt(
-			pendingReservation.getReservationUid().toString(), guests.getFirst().getId());
+		var paymentAttempt = ReservationResponse.PaymentAttemptReady.from(reservationHoldCommandService.beginPaymentAttempt(
+			pendingReservation.getReservationUid().toString(), guests.getFirst().getId()));
 		outboxRepository.deleteAllInBatch();
 
 		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
@@ -561,8 +562,8 @@ class ReservationConcurrencyTest {
 		List<ReservationRequest.Checkout> checkoutRequests = new ArrayList<>();
 		for (int i = 0; i < SAME_DATE_REQUEST_COUNT; i++) {
 			Member guest = guests.get(i % guests.size());
-			var quote = quoteService.createQuote(new ReservationRequest.Quote(
-				accommodation.getId(), checkInDate, checkOutDate, 2, null), guest.getId());
+			var quote = ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(
+				accommodation.getId(), checkInDate, checkOutDate, 2, null), guest.getId()));
 			checkoutRequests.add(new ReservationRequest.Checkout(quote.quoteUid(), null));
 		}
 

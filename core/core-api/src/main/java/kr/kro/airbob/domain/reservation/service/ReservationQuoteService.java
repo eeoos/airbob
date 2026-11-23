@@ -13,8 +13,8 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
-import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
+import kr.kro.airbob.domain.reservation.ReservationQuoteDetail;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
@@ -26,7 +26,6 @@ import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
-import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -36,13 +35,13 @@ public class ReservationQuoteService {
 	private final AccommodationReader accommodationReader;
 	private final MemberReader memberReader;
 	private final ReservationInventoryManager inventoryManager;
-	private final ReservationQuoteRepository quoteRepository;
+	private final ReservationQuoteWriter quoteWriter;
 	private final CouponUsageManager couponUsageManager;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final Clock clock;
 
 	@Transactional
-	public ReservationResponse.Quote createQuote(ReservationRequest.Quote request, Long memberId) {
+	public ReservationQuoteDetail createQuote(NewReservationQuote request, Long memberId) {
 		memberReader.readActive(memberId);
 
 		Accommodation accommodation = accommodationReader.findQuoteSnapshotByIdAndStatus(
@@ -80,15 +79,15 @@ public class ReservationQuoteService {
 
 		ReservationQuote quote = ReservationQuote.create(
 			memberId,
-			request.toNewQuote(),
+			request,
 			accommodation.getName(),
 			currency,
 			stayPrice,
 			discountAmount,
 			now
 		);
-		quoteRepository.save(quote);
-		return ReservationResponse.Quote.from(quote, now);
+		quoteWriter.create(quote);
+		return ReservationQuoteDetail.of(quote, now);
 	}
 
 	private void validateOccupancy(Accommodation accommodation, Integer guestCount) {

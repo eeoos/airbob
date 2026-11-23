@@ -66,6 +66,7 @@ import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
@@ -578,13 +579,13 @@ class ReservationQuoteFlowIntegrationTest {
 		LocalDate checkOut,
 		Long couponId
 	) {
-		return quoteService.createQuote(new ReservationRequest.Quote(
+		return ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(
 			accommodation.getId(),
 			checkIn,
 			checkOut,
 			2,
 			couponId
-		), member.getId());
+		), member.getId()));
 	}
 
 	private ReservationResponse.Ready checkout(

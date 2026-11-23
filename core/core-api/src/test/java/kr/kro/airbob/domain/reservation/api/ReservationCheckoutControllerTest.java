@@ -33,6 +33,7 @@ import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
+import kr.kro.airbob.domain.reservation.ReservationQuoteDetail;
 import kr.kro.airbob.domain.reservation.ReservationReady;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -87,7 +88,7 @@ class ReservationCheckoutControllerTest {
 			2,
 			55L
 		);
-		ReservationResponse.Quote response = new ReservationResponse.Quote(
+		ReservationQuoteDetail response = new ReservationQuoteDetail(
 			UUID.fromString(QUOTE_UID),
 			31L,
 			"한강 전망 숙소",
@@ -101,10 +102,9 @@ class ReservationCheckoutControllerTest {
 			330_000L,
 			"KRW",
 			true,
-			false,
 			NOW
 		);
-		given(quoteService.createQuote(request, MEMBER_ID)).willReturn(response);
+		given(quoteService.createQuote(request.toNewQuote(), MEMBER_ID)).willReturn(response);
 
 		mockMvc.perform(post("/api/v1/reservation-quotes")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -125,7 +125,7 @@ class ReservationCheckoutControllerTest {
 			.andExpect(jsonPath("$.data.quote_expires_at").doesNotExist())
 			.andExpect(jsonPath("$.data.server_time").value("2026-08-25T03:00:00Z"));
 
-		then(quoteService).should().createQuote(request, MEMBER_ID);
+		then(quoteService).should().createQuote(request.toNewQuote(), MEMBER_ID);
 		then(checkoutService).shouldHaveNoInteractions();
 	}
 

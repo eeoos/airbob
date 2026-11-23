@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -38,6 +39,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,8 +64,8 @@ class ExpiredReservationCleanupServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new ExpiredReservationCleanupService(
-			reservationRepository,
-			batchWriter,
+			new ReservationReader(reservationRepository),
+			new ReservationHistoryWriter(mock(ReservationHistoryRepository.class), batchWriter),
 			couponUsageManager,
 			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC),

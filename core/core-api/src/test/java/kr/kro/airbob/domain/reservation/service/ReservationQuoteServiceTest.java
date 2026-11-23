@@ -33,6 +33,7 @@ import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepositor
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
@@ -68,7 +69,7 @@ class ReservationQuoteServiceTest {
 	@BeforeEach
 	void setUp() {
 		quoteService = new ReservationQuoteService(new AccommodationReader(accommodationRepository), memberReader,
-			inventoryManager, quoteRepository, couponUsageManager, bookingWindowProvider, clock);
+			inventoryManager, new ReservationQuoteWriter(quoteRepository), couponUsageManager, bookingWindowProvider, clock);
 		Member host = Member.builder().id(3L).build();
 		Member guest = Member.builder().id(MEMBER_ID).build();
 		accommodation = Accommodation.builder()
@@ -107,7 +108,7 @@ class ReservationQuoteServiceTest {
 		given(couponUsageManager.preview(MEMBER_ID, COUPON_ID, 360_000L))
 			.willReturn(30_000L);
 
-		ReservationResponse.Quote response = quoteService.createQuote(request, MEMBER_ID);
+		ReservationResponse.Quote response = ReservationResponse.Quote.from(quoteService.createQuote(request.toNewQuote(), MEMBER_ID));
 
 		assertThat(response.accommodationId()).isEqualTo(ACCOMMODATION_ID);
 		assertThat(response.orderName()).isEqualTo("한강 전망 숙소");
@@ -144,7 +145,7 @@ class ReservationQuoteServiceTest {
 	@Test
 	@DisplayName("쿠폰을 고르지 않은 견적은 쿠폰 저장소를 건드리지 않고 소계를 그대로 결제 금액으로 쓴다")
 	void createsQuoteWithoutCouponPreviewWhenCouponIsAbsent() {
-		ReservationResponse.Quote response = quoteService.createQuote(quoteRequest(null), MEMBER_ID);
+		ReservationResponse.Quote response = ReservationResponse.Quote.from(quoteService.createQuote(quoteRequest(null).toNewQuote(), MEMBER_ID));
 
 		assertThat(response.subtotal()).isEqualTo(360_000L);
 		assertThat(response.discountAmount()).isZero();
@@ -181,7 +182,7 @@ class ReservationQuoteServiceTest {
 			null
 		);
 
-		assertThatThrownBy(() -> quoteService.createQuote(request, MEMBER_ID))
+		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(request.toNewQuote(), MEMBER_ID)))
 			.isInstanceOf(InvalidReservationLocalTimeException.class);
 
 		then(quoteRepository).shouldHaveNoInteractions();

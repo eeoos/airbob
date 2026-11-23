@@ -32,7 +32,8 @@ public class ReservationCommandController implements ReservationCommandApi {
 		ReservationRequest.Quote request,
 		Long memberId
 	) {
-		ReservationResponse.Quote response = quoteService.createQuote(request, memberId);
+		ReservationResponse.Quote response = ReservationResponse.Quote.from(
+			quoteService.createQuote(request.toNewQuote(), memberId));
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
 	}
 
@@ -54,7 +55,8 @@ public class ReservationCommandController implements ReservationCommandApi {
 	) {
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
-			.body(ApiResponse.success(holdCommandService.releaseHold(reservationUid, memberId)));
+			.body(ApiResponse.success(ReservationResponse.HoldRelease.from(
+				holdCommandService.releaseHold(reservationUid, memberId))));
 	}
 
 	@Override
@@ -64,7 +66,8 @@ public class ReservationCommandController implements ReservationCommandApi {
 	) {
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
-			.body(ApiResponse.success(holdCommandService.beginPaymentAttempt(reservationUid, memberId)));
+			.body(ApiResponse.success(ReservationResponse.PaymentAttemptReady.from(
+				holdCommandService.beginPaymentAttempt(reservationUid, memberId))));
 	}
 
 	@Override

@@ -110,6 +110,7 @@ import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
@@ -139,6 +140,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	PaymentOperationCommandService.class,
 	ReservationReader.class,
 	ReservationHistoryWriter.class,
+	ReservationHistoryBatchWriter.class,
 	PaymentCancellationCommandService.class,
 	PaymentOperationLeaseService.class,
 	PaymentOperationManualReviewCommandService.class,

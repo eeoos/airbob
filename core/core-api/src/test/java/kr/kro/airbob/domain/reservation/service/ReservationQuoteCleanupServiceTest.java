@@ -40,7 +40,7 @@ class ReservationQuoteCleanupServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new ReservationQuoteCleanupService(
-			quoteRepository,
+			new ReservationQuoteWriter(quoteRepository),
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			RETENTION,
 			BATCH_SIZE
@@ -92,13 +92,13 @@ class ReservationQuoteCleanupServiceTest {
 	@DisplayName("보존 기간은 양수여야 한다")
 	void rejectsNonPositiveRetention() {
 		assertThatThrownBy(() -> new ReservationQuoteCleanupService(
-			quoteRepository,
+			new ReservationQuoteWriter(quoteRepository),
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			Duration.ZERO,
 			BATCH_SIZE
 		)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new ReservationQuoteCleanupService(
-			quoteRepository, Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofSeconds(-1), BATCH_SIZE
+			new ReservationQuoteWriter(quoteRepository), Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofSeconds(-1), BATCH_SIZE
 		)).isInstanceOf(IllegalArgumentException.class);
 	}
 }

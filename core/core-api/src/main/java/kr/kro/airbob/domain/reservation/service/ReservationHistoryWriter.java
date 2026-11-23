@@ -1,10 +1,14 @@
 package kr.kro.airbob.domain.reservation.service;
 
+import java.time.Instant;
+import java.util.List;
+
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -14,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 public class ReservationHistoryWriter {
 
 	private final ReservationHistoryRepository historyRepository;
+	private final ReservationHistoryBatchWriter historyBatchWriter;
 
 	/** 사용자 요청에서 비롯된 변경을 기록한다. 출처 시스템과 클라이언트 IP는 요청 컨텍스트에서 채운다. */
 	public void record(Reservation reservation, ChangeType changeType, String changeReason) {
@@ -23,5 +28,10 @@ public class ReservationHistoryWriter {
 	/** 시스템·컨슈머·배치에서 비롯된 변경을 호출한 쪽 트랜잭션 안에서 기록한다. 요청 클라이언트 IP는 남기지 않는다. */
 	public void recordSystem(Reservation reservation, ChangeType changeType, String changeReason, String sourceSystem) {
 		historyRepository.save(ReservationHistory.ofSystem(reservation, changeType, changeReason, sourceSystem));
+	}
+
+	/** 만료 정리처럼 한 번에 여러 예약이 바뀔 때 이력을 JDBC 배치로 한꺼번에 넣는다. */
+	public void recordAll(List<ReservationHistory> histories, Instant historyCreatedAt) {
+		historyBatchWriter.writeAll(histories, historyCreatedAt);
 	}
 }

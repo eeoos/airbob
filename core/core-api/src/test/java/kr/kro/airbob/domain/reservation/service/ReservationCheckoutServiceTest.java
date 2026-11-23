@@ -56,6 +56,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -120,7 +121,7 @@ class ReservationCheckoutServiceTest {
 			new ReservationReader(reservationRepository),
 			new ReservationWriter(reservationRepository, checkoutRequestStore),
 			new AccommodationReader(accommodationRepository),
-			new ReservationHistoryWriter(historyRepository),
+			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 			couponUsageManager,
 			bookingWindowProvider,
 			holdPolicy,

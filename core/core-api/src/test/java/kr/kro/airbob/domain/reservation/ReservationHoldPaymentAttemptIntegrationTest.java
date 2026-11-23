@@ -78,6 +78,7 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.TossPaymentsAdapter;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -206,8 +207,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		try {
 			Future<ReservationResponse.HoldRelease> release = executor.submit(() ->
 				transactionTemplate.execute(status -> {
-					ReservationResponse.HoldRelease response = holdCommandService.releaseHold(
-						ready.reservationUid(), guest.getId());
+					ReservationResponse.HoldRelease response = ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(
+						ready.reservationUid(), guest.getId()));
 					releasePrepared.countDown();
 					awaitRelease(allowReleaseCommit);
 					return response;
@@ -260,7 +261,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			awaitPrepared(confirmationPrepared, confirmation);
 
 			Future<ReservationResponse.HoldRelease> release = executor.submit(() ->
-				holdCommandService.releaseHold(ready.reservationUid(), guest.getId()));
+				ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(ready.reservationUid(), guest.getId())));
 			try {
 				assertBlocked(release);
 			} finally {
@@ -303,7 +304,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			awaitPrepared(cleanupPrepared, cleanup);
 
 			Future<ReservationResponse.HoldRelease> release = executor.submit(() ->
-				holdCommandService.releaseHold(ready.reservationUid(), guest.getId()));
+				ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(ready.reservationUid(), guest.getId())));
 			try {
 				assertBlocked(release);
 			} finally {
@@ -435,13 +436,13 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		ReservationResponse.Ready ready = createHold(0, null, "privacy-hold");
 		String unknownUid = UUID.randomUUID().toString();
 
-		assertThatThrownBy(() -> holdCommandService.releaseHold(ready.reservationUid(), outsider.getId()))
+		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(ready.reservationUid(), outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
-		assertThatThrownBy(() -> holdCommandService.releaseHold(unknownUid, outsider.getId()))
+		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(unknownUid, outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
-		assertThatThrownBy(() -> holdCommandService.beginPaymentAttempt(ready.reservationUid(), outsider.getId()))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(holdCommandService.beginPaymentAttempt(ready.reservationUid(), outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
-		assertThatThrownBy(() -> holdCommandService.beginPaymentAttempt(unknownUid, outsider.getId()))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(holdCommandService.beginPaymentAttempt(unknownUid, outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
 
 		Reservation persisted = reservation(ready.reservationUid());
@@ -505,8 +506,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		assertThat(paymentOperationRepository.count()).isOne();
 		assertThat(reservationRepository.count()).isOne();
 		assertThat(outboxRepository.count()).isEqualTo(outboxCountAfterDecline);
-		assertThatThrownBy(() -> holdCommandService.beginPaymentAttempt(
-			oldReady.reservationUid(), guest.getId()))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(holdCommandService.beginPaymentAttempt(
+			oldReady.reservationUid(), guest.getId())))
 			.isInstanceOf(ReservationPaymentAttemptNotAllowedException.class);
 		assertThatThrownBy(() -> checkout(
 			oldQuote, "declined-checkout-another-fresh", preservedRequestMessage))
@@ -643,7 +644,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	}
 
 	private ReservationResponse.Quote createQuote(ReservationRequest.Quote request) {
-		return quoteService.createQuote(request, guest.getId());
+		return ReservationResponse.Quote.from(quoteService.createQuote(request.toNewQuote(), guest.getId()));
 	}
 
 	private ReservationResponse.Ready checkout(
@@ -658,7 +659,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	}
 
 	private ReservationResponse.PaymentAttemptReady beginAttempt(ReservationResponse.Ready ready) {
-		return holdCommandService.beginPaymentAttempt(ready.reservationUid(), guest.getId());
+		return ReservationResponse.PaymentAttemptReady.from(holdCommandService.beginPaymentAttempt(ready.reservationUid(), guest.getId()));
 	}
 
 	private PaymentRequest.Confirm confirmRequest(

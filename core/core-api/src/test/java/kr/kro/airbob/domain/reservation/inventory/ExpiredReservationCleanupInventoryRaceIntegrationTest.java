@@ -61,6 +61,7 @@ import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -229,13 +230,13 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		Long couponId,
 		String idempotencyKey
 	) {
-		ReservationResponse.Quote quote = quoteService.createQuote(new ReservationRequest.Quote(
+		ReservationResponse.Quote quote = ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(
 			accommodation.getId(),
 			STAY_START,
 			STAY_END,
 			2,
 			couponId
-		), guest.getId());
+		), guest.getId()));
 		return ReservationResponse.Ready.from(checkoutService.checkout(
 			new ReservationRequest.Checkout(quote.quoteUid(), "inventory cleanup race").toCheckout(),
 			guest.getId(),

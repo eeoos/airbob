@@ -14,8 +14,6 @@ import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
 @Service
 public class ExpiredReservationCleanupService {
@@ -23,16 +21,16 @@ public class ExpiredReservationCleanupService {
 	private static final String REASON = "결제 시간 초과";
 	private static final String SOURCE_SYSTEM = "BATCH";
 
-	private final ReservationRepository reservationRepository;
-	private final ReservationHistoryBatchWriter historyBatchWriter;
+	private final ReservationReader reservationReader;
+	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final CouponUsageManager couponUsageManager;
 	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 	private final int cleanupBatchSize;
 
 	public ExpiredReservationCleanupService(
-		ReservationRepository reservationRepository,
-		ReservationHistoryBatchWriter historyBatchWriter,
+		ReservationReader reservationReader,
+		ReservationHistoryWriter reservationHistoryWriter,
 		CouponUsageManager couponUsageManager,
 		ReservationInventoryManager inventoryManager,
 		Clock clock,
@@ -41,8 +39,8 @@ public class ExpiredReservationCleanupService {
 		if (cleanupBatchSize < 1) {
 			throw new IllegalArgumentException("cleanup batch size must be positive");
 		}
-		this.reservationRepository = reservationRepository;
-		this.historyBatchWriter = historyBatchWriter;
+		this.reservationReader = reservationReader;
+		this.reservationHistoryWriter = reservationHistoryWriter;
 		this.couponUsageManager = couponUsageManager;
 		this.inventoryManager = inventoryManager;
 		this.clock = clock;
@@ -55,7 +53,7 @@ public class ExpiredReservationCleanupService {
 	)
 	public int cleanupExpiredPendingReservations() {
 		Instant cutoff = clock.instant();
-		List<Reservation> expired = reservationRepository.findExpiredPendingBatchForCleanup(
+		List<Reservation> expired = reservationReader.readExpiredPendingBatchForCleanup(
 			cutoff,
 			cleanupBatchSize
 		);
@@ -82,7 +80,7 @@ public class ExpiredReservationCleanupService {
 			.toList();
 
 		couponUsageManager.restoreAll(expired.stream().map(Reservation::getId).toList());
-		historyBatchWriter.writeAll(histories, cutoff);
+		reservationHistoryWriter.recordAll(histories, cutoff);
 		return expired.size();
 	}
 }

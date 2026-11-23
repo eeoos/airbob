@@ -46,6 +46,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
@@ -87,7 +88,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 				paymentRepository,
 				transactionRepository,
 				couponUsageManager,
-				new ReservationHistoryWriter(historyRepository),
+				new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 				searchRefreshPublisher,
 				outboxWriter,
 				resolutionRecorder,

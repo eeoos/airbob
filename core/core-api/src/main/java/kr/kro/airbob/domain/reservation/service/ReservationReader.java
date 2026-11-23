@@ -47,6 +47,17 @@ public class ReservationReader implements AccommodationReservationReader {
 			.orElseThrow(ReservationStateChangeException::new);
 	}
 
+	/** 게스트 본인의 예약을 예약 UID로 FOR UPDATE 잠근다. 없거나 다른 게스트의 예약이면 없는 것으로 본다. */
+	public Reservation readGuestOwnedForUpdate(UUID reservationUid, Long guestId) {
+		return reservationRepository.findByReservationUidAndGuestIdWithLock(reservationUid, guestId)
+			.orElseThrow(ReservationNotFoundException::new);
+	}
+
+	/** 만료 시각이 cutoff 이전인 결제 대기 예약을 정리용으로 잠가 최대 batchSize건 읽는다. */
+	public List<Reservation> readExpiredPendingBatchForCleanup(Instant cutoff, int batchSize) {
+		return reservationRepository.findExpiredPendingBatchForCleanup(cutoff, batchSize);
+	}
+
 	/** 색인 기간 안에서 숙소의 활성 예약 날짜 구간. 잠그지 않는 조회다. */
 	public List<ReservationDateRange> readActiveRanges(
 		Long accommodationId, LocalDate windowStartInclusive, LocalDate windowEndExclusive) {

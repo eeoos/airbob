@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -38,6 +39,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantViolationException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryWriter;
@@ -73,7 +75,7 @@ class PaymentOperationCommandServiceTest {
 			new ReservationReader(reservationRepository),
 			inventoryManager,
 			paymentOperationRepository,
-			new ReservationHistoryWriter(historyRepository),
+			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 			outboxWriter,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);

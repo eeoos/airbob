@@ -61,6 +61,7 @@ import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -387,13 +388,13 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		ReservationCreateCommand request,
 		Member guest
 	) {
-		ReservationResponse.Quote quote = quoteService.createQuote(new ReservationRequest.Quote(
+		ReservationResponse.Quote quote = ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(
 			request.accommodationId(),
 			request.checkInDate(),
 			request.checkOutDate(),
 			request.guestCount(),
 			request.couponId()
-		), guest.getId());
+		), guest.getId()));
 		return new ReservationRequest.Checkout(quote.quoteUid(), request.requestMessage());
 	}
 
