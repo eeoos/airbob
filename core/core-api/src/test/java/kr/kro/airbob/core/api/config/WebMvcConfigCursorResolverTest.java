@@ -1,4 +1,4 @@
-package kr.kro.airbob.config;
+package kr.kro.airbob.core.api.config;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;

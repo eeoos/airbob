@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentResponse;

@@ -1,4 +1,4 @@
-package kr.kro.airbob.config;
+package kr.kro.airbob.core.domain.accommodation.cache.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,8 +12,6 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailCacheConfiguration;
-import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailCacheProperties;
 import kr.kro.airbob.core.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
 
 class AccommodationDetailRedisConfigTest {

@@ -47,8 +47,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.config.JpaAuditingConfig;
-import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfig;
+import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse.HostReservationInfo;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse.HostReservationInfos;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;

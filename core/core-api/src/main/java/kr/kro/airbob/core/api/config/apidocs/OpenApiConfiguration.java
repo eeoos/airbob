@@ -1,4 +1,4 @@
-package kr.kro.airbob.config.apidocs;
+package kr.kro.airbob.core.api.config.apidocs;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -44,8 +44,8 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import kr.kro.airbob.core.api.security.CurrentMemberId;
 import kr.kro.airbob.core.api.security.SessionCookie;
-import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.cursor.annotation.CursorParam;
+import kr.kro.airbob.core.support.error.ErrorCode;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "springdoc.api-docs.enabled", havingValue = "true")

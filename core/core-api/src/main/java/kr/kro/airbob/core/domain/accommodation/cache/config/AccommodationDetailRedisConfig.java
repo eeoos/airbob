@@ -1,4 +1,4 @@
-package kr.kro.airbob.config;
+package kr.kro.airbob.core.domain.accommodation.cache.config;
 
 import java.time.Duration;
 
@@ -16,7 +16,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.SocketOptions;
-import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailCacheProperties;
 import kr.kro.airbob.core.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
 
 /**

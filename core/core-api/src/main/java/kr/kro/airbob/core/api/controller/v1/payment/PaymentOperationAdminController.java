@@ -18,7 +18,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentOperationAdminRequest.MarkNotPaid;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentOperationAdminRequest.Reconciliation;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationAdminResponse.ActionAccepted;

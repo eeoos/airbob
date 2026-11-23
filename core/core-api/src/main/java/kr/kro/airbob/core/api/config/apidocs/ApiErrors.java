@@ -1,4 +1,4 @@
-package kr.kro.airbob.config.apidocs;
+package kr.kro.airbob.core.api.config.apidocs;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

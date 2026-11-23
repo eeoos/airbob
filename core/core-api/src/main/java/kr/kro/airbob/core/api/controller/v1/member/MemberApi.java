@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.config.apidocs.ApiErrors;
 import kr.kro.airbob.core.api.controller.v1.member.request.MemberRequest;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.response.ApiResponse;
