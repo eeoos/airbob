@@ -40,13 +40,14 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
+import kr.kro.airbob.domain.payment.PaymentExecutionMode;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnavailableException;
-import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
-import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
+import kr.kro.airbob.domain.payment.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.payment.gateway.PaymentGatewayResult;
+import kr.kro.airbob.domain.payment.gateway.PaymentProviderGateway;
 
 @SpringJUnitConfig(PaymentOperationExecutorTest.TestConfiguration.class)
 class PaymentOperationExecutorTest {

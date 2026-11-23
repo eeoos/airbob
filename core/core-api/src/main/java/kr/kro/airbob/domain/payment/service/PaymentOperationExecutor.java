@@ -5,11 +5,12 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import kr.kro.airbob.domain.payment.PaymentExecutionMode;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
-import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
+import kr.kro.airbob.domain.payment.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.payment.gateway.PaymentGatewayResult;
+import kr.kro.airbob.domain.payment.gateway.PaymentProviderGateway;
 
 @Service
 public class PaymentOperationExecutor {

@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.service;
+package kr.kro.airbob.domain.payment;
 
 public enum PaymentExecutionMode {
 	CONFIRM,

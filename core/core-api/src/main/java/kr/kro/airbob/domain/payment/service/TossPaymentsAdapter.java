@@ -16,12 +16,12 @@ import kr.kro.airbob.client.toss.TossPaymentsClient;
 import kr.kro.airbob.client.toss.TossPaymentsResponseParsingException;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationFailureClassifier;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
+import kr.kro.airbob.domain.payment.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.payment.gateway.PaymentConfirmationFailureClassifier;
+import kr.kro.airbob.domain.payment.gateway.PaymentGatewayResult;
+import kr.kro.airbob.domain.payment.gateway.PaymentProviderCommand;
+import kr.kro.airbob.domain.payment.gateway.PaymentProviderGateway;
 
 /**
  * Translates Toss Payments outcomes into {@link PaymentGatewayResult}s.
