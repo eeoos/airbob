@@ -64,6 +64,7 @@ import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
 @Import({
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
+	PaymentOperationReader.class,
 	PaymentOperationLeaseManager.class,
 	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationDltIncidentService.class,

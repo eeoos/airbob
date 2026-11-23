@@ -201,7 +201,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			awaitPrepared(releasePrepared, release);
 
 			Future<Accepted> confirmation = executor.submit(() ->
-				paymentCommandService.requestConfirmation(confirmRequest(attempt, "release-wins-key"), guest.getId()));
+				PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(confirmRequest(attempt, "release-wins-key").toConfirmation(), guest.getId())));
 			try {
 				assertBlocked(confirmation);
 			} finally {
@@ -237,8 +237,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		try {
 			Future<Accepted> confirmation = executor.submit(() ->
 				transactionTemplate.execute(status -> {
-					Accepted accepted = paymentCommandService.requestConfirmation(
-						confirmRequest(attempt, "confirmation-wins-key"), guest.getId());
+					Accepted accepted = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(
+						confirmRequest(attempt, "confirmation-wins-key").toConfirmation(), guest.getId()));
 					confirmationPrepared.countDown();
 					awaitRelease(allowConfirmationCommit);
 					return accepted;
@@ -392,7 +392,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			""");
 
 		try {
-			assertThatThrownBy(() -> paymentCommandService.requestConfirmation(request, guest.getId()))
+			assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(request.toConfirmation(), guest.getId())))
 				.isInstanceOf(DataAccessException.class);
 		} finally {
 			jdbcTemplate.execute("DROP TRIGGER IF EXISTS " + FAILURE_TRIGGER);
@@ -405,7 +405,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		assertThat(paymentOperationRepository.count()).isZero();
 		assertThat(outboxRepository.count()).isZero();
 
-		Accepted retried = paymentCommandService.requestConfirmation(request, guest.getId());
+		Accepted retried = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(request.toConfirmation(), guest.getId()));
 
 		assertThat(retried.operationId()).isNotNull();
 		Reservation succeeded = reservation(ready.reservationUid());
@@ -478,8 +478,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		assertThat(polling.serverTime()).isEqualTo(NOW);
 
 		long outboxCountAfterDecline = outboxRepository.count();
-		Accepted confirmationReplay = paymentCommandService.requestConfirmation(
-			declinedPayment.confirmRequest(), guest.getId());
+		Accepted confirmationReplay = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(
+			declinedPayment.confirmRequest().toConfirmation(), guest.getId()));
 		ReservationResponse.Ready checkoutReplay = checkout(
 			oldQuote, oldCheckoutKey, preservedRequestMessage);
 
@@ -539,8 +539,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 
 		assertThat(freshAttempt.paymentAttemptId())
 			.isNotEqualTo(declinedPayment.attempt().paymentAttemptId());
-		assertThatThrownBy(() -> paymentCommandService.requestConfirmation(
-			oldTokenForFreshReservation, guest.getId()))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(
+			oldTokenForFreshReservation.toConfirmation(), guest.getId())))
 			.isInstanceOf(InvalidReservationPaymentAttemptException.class);
 		assertThat(paymentOperationRepository.count()).isOne();
 		Reservation unchangedFreshReservation = reservation(freshReady.reservationUid());
@@ -662,7 +662,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	private DeclinedPayment decline(ReservationResponse.Ready ready, String paymentKey) {
 		ReservationResponse.PaymentAttemptReady attempt = beginAttempt(ready);
 		PaymentRequest.Confirm confirmRequest = confirmRequest(attempt, paymentKey);
-		Accepted accepted = paymentCommandService.requestConfirmation(confirmRequest, guest.getId());
+		Accepted accepted = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(confirmRequest.toConfirmation(), guest.getId()));
 		PaymentOperation queued = paymentOperationRepository.findByOperationUid(accepted.operationId())
 			.orElseThrow();
 		given(paymentGateway.confirm(any())).willReturn(new PaymentGatewayResult.Declined(

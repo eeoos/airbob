@@ -16,13 +16,12 @@ import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
 import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.PaymentConfirmation;
+import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import lombok.RequiredArgsConstructor;
 
@@ -32,13 +31,14 @@ public class PaymentOperationCommandService {
 
 	private final ReservationReader reservationReader;
 	private final ReservationInventoryManager inventoryManager;
-	private final PaymentOperationRepository paymentOperationRepository;
+	private final PaymentOperationReader operationReader;
+	private final PaymentOperationWriter operationWriter;
 	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final OutboxWriter outboxWriter;
 	private final Clock clock;
 
 	@Transactional(isolation = Isolation.READ_COMMITTED)
-	public Accepted requestConfirmation(PaymentRequest.Confirm request, Long memberId) {
+	public PaymentOperationReceipt requestConfirmation(PaymentConfirmation request, Long memberId) {
 		UUID reservationUid = parseReservationUid(request.orderId());
 		Reservation reservation = reservationReader.readByUidForUpdate(reservationUid);
 		if (!reservation.belongsToGuest(memberId)) {
@@ -50,7 +50,7 @@ public class PaymentOperationCommandService {
 		reservation.validatePaymentAttempt(request.paymentAttemptId());
 
 		String deduplicationKey = "CONFIRM:" + reservationUid;
-		Optional<PaymentOperation> existing = paymentOperationRepository.findByDeduplicationKey(deduplicationKey);
+		Optional<PaymentOperation> existing = operationReader.findByDeduplicationKey(deduplicationKey);
 		if (existing.isPresent()) {
 			return replayOrConflict(existing.get(), request);
 		}
@@ -69,7 +69,7 @@ public class PaymentOperationCommandService {
 		);
 		PaymentOperation operation = PaymentOperation.createConfirmation(
 			reservation, memberId, request.paymentKey(), request.amount(), now);
-		paymentOperationRepository.save(operation);
+		operationWriter.create(operation);
 		reservationHistoryWriter.recordSystem(
 			reservation, ChangeType.STATUS_CHANGE, "결제 승인 처리 시작", "PAYMENT_OPERATION");
 		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
@@ -77,14 +77,14 @@ public class PaymentOperationCommandService {
 			reservationUid,
 			operation.getDispatchGeneration()
 		));
-		return Accepted.from(operation);
+		return PaymentOperationReceipt.accepted(operation);
 	}
 
-	private Accepted replayOrConflict(PaymentOperation operation, PaymentRequest.Confirm request) {
+	private PaymentOperationReceipt replayOrConflict(PaymentOperation operation, PaymentConfirmation request) {
 		if (!operation.matchesConfirmation(request.paymentKey(), request.amount().longValue())) {
 			throw new PaymentOperationConflictException();
 		}
-		return Accepted.from(operation);
+		return PaymentOperationReceipt.accepted(operation);
 	}
 
 	private UUID parseReservationUid(String orderId) {
