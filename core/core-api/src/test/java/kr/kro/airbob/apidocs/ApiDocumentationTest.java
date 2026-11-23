@@ -219,15 +219,15 @@ import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import kr.kro.airbob.core.domain.search.AccommodationDocument;
+import kr.kro.airbob.core.domain.search.AccommodationSearchItem;
+import kr.kro.airbob.core.domain.search.AccommodationSearchPage;
+import kr.kro.airbob.core.domain.search.AccommodationSearchService;
+import kr.kro.airbob.core.domain.search.SearchUnavailableException;
 import kr.kro.airbob.core.domain.settlement.*;
 import kr.kro.airbob.core.domain.settlement.Settlement;
 import kr.kro.airbob.core.domain.settlement.SettlementService;
 import kr.kro.airbob.core.domain.settlement.SettlementStatus;
-import kr.kro.airbob.search.AccommodationSearchItem;
-import kr.kro.airbob.search.AccommodationSearchPage;
-import kr.kro.airbob.search.document.AccommodationDocument;
-import kr.kro.airbob.search.exception.SearchUnavailableException;
-import kr.kro.airbob.search.service.AccommodationSearchService;
 
 @SpringBootTest(classes = ApiDocumentationTest.MvcApplication.class, properties = {
 	"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"
@@ -2740,7 +2740,7 @@ class ApiDocumentationTest {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	@ComponentScan(basePackages = {"kr.kro.airbob.core.api.controller.v1", "kr.kro.airbob.domain", "kr.kro.airbob.search"}, useDefaultFilters = false,
+	@ComponentScan(basePackages = "kr.kro.airbob.core.api.controller.v1", useDefaultFilters = false,
 		includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = RestController.class),
 		excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*\\$.*"))
 	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class, WebMvcAutoConfiguration.class,

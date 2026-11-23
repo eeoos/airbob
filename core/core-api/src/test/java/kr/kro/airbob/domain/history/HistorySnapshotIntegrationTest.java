@@ -50,7 +50,7 @@ import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")

@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import kr.kro.airbob.core.domain.search.SearchUnavailableException;
 import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.search.exception.SearchUnavailableException;
 
 @DisplayName("검색 서비스 장애 응답 계약 테스트")
 class SearchUnavailableExceptionHandlerTest {

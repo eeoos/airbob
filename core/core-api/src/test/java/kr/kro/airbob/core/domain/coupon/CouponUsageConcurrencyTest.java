@@ -35,7 +35,7 @@ import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 
 /**
  * 같은 회원이 같은 쿠폰을 동시에 여러 예약에 사용하려 해도 단 1회만 사용 처리되어야 한다.

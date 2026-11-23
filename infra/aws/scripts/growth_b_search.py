@@ -564,8 +564,17 @@ import java.util.*;
 import org.springframework.boot.SpringApplication;
 import org.springframework.jdbc.core.JdbcTemplate;
 import kr.kro.airbob.AirbobApplication;
-import kr.kro.airbob.search.service.AccommodationSearchSnapshotReader;
 public final class GrowthBCurrentSearchProbe {
+    // The reader moved packages in the template refactor; sealed releases keep the old jar.
+    private static final List<String> SNAPSHOT_READERS=List.of(
+        "kr.kro.airbob.core.domain.search.AccommodationSearchSnapshotReader",
+        "kr.kro.airbob.search.service.AccommodationSearchSnapshotReader");
+    private static Class<?> snapshotReaderType() throws ClassNotFoundException {
+        for(String name:SNAPSHOT_READERS) {
+            try {return Class.forName(name);} catch(ClassNotFoundException ignored) {}
+        }
+        throw new ClassNotFoundException(String.join(", ",SNAPSHOT_READERS));
+    }
     public static void main(String[] args) throws Exception {
         Path output=Path.of(System.getenv("AIRBOB_SEARCH_OUTPUT"));
         // Instantiate only the actual reader, repositories and converter needed
@@ -577,7 +586,9 @@ public final class GrowthBCurrentSearchProbe {
         try(var context=application.run(args);
             var writer=Files.newBufferedWriter(output,StandardOpenOption.CREATE_NEW)) {
             var jdbc=context.getBean(JdbcTemplate.class);
-            var reader=context.getBean(AccommodationSearchSnapshotReader.class);
+            var readerType=snapshotReaderType();
+            var reader=context.getBean(readerType);
+            var readPublished=readerType.getMethod("readPublished",UUID.class);
             var converter=context.getBean(org.springframework.data.elasticsearch.core.convert.ElasticsearchConverter.class);
             long cursor=0;
             while(true) {
@@ -585,7 +596,7 @@ public final class GrowthBCurrentSearchProbe {
                 if(rows.isEmpty())break;
                 for(var row:rows) {
                     cursor=((Number)row.get("id")).longValue();
-                    var document=reader.readPublished(UUID.fromString(row.get("uid").toString())).orElseThrow();
+                    var document=((Optional<?>)readPublished.invoke(reader,UUID.fromString(row.get("uid").toString()))).orElseThrow();
                     var serialized=org.springframework.data.elasticsearch.core.document.Document.create();
                     converter.write(document,serialized);writer.write(serialized.toJson());writer.newLine();
                 }

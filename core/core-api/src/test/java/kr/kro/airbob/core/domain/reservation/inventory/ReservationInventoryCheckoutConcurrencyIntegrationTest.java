@@ -70,9 +70,9 @@ import kr.kro.airbob.core.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")

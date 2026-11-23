@@ -54,12 +54,12 @@ import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationAvailabilityReader;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.domain.wishlist.Wishlist;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodation;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers

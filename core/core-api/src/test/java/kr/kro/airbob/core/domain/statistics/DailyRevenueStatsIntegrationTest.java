@@ -27,7 +27,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest(properties = {

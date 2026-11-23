@@ -35,7 +35,7 @@ import kr.kro.airbob.core.domain.accommodation.repository.AccommodationImageRepo
 import kr.kro.airbob.core.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.core.domain.image.ImageStorageTransactionEventListener;
 import kr.kro.airbob.core.domain.image.S3ImageUploader;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
+import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 
 @SpringJUnitConfig(AccommodationImageServiceTransactionIntegrationTest.TestConfiguration.class)
 @DisplayName("숙소 이미지 서비스 트랜잭션 통합 테스트")

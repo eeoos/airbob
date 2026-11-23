@@ -8,11 +8,11 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationWishlistReader;
+import kr.kro.airbob.core.domain.search.port.SearchWishlistReader;
 import kr.kro.airbob.core.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.core.domain.wishlist.repository.WishlistRepository;
 import kr.kro.airbob.core.domain.wishlist.repository.projection.WishlistDetailHeaderProjection;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
-import kr.kro.airbob.search.port.SearchWishlistReader;
 import lombok.RequiredArgsConstructor;
 
 /**

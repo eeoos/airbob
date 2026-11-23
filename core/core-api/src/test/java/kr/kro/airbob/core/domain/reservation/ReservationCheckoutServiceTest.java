@@ -50,8 +50,8 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationQuoteReposito
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
+import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationCheckoutService 테스트")

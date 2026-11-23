@@ -54,9 +54,9 @@ import kr.kro.airbob.core.domain.image.S3ImageUploader;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventorySeeder;
+import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class AccommodationHostControllerValidationTest {

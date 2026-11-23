@@ -40,7 +40,7 @@ import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.common.monitoring.QueryCountContext;
 import kr.kro.airbob.common.monitoring.QueryCountContextHolder;
 import kr.kro.airbob.common.monitoring.SqlQueryType;
-import kr.kro.airbob.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest(properties = {

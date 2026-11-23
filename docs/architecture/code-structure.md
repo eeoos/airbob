@@ -114,7 +114,7 @@ payment(결제할 예약의 잠금과 상태 전이), search(검색 문서의 �
   회원의 다음 행동과 재조회 간격은 조회 시각 기준으로 `PaymentOperationDetail.of`가 계산하고, 상태 URL·회원용 상태·안내 문구는 응답 DTO가 만든다.
 - 결제 실행기는 Kafka 리스너만 부르는 Business라서 이름 규칙에 맞춰 `PaymentOperationExecutor`를 `PaymentOperationExecutionService`로 바꿨다(PR 16d).
 
-템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b), accommodation(PR 13g), coupon(PR 14c), reservation(PR 15d), payment(PR 16d), settlement(PR 17a), recentlyviewed(PR 17b)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
+템플릿 구조로 옮긴 도메인은 wishlist(PR 7c), commoncode(PR 8), statistics(PR 9), member(PR 10b-2), auth(PR 10c), image(PR 11), review(PR 12b), accommodation(PR 13g), coupon(PR 14c), reservation(PR 15d), payment(PR 16d), settlement(PR 17a), recentlyviewed(PR 17b), search(PR 17c)다. 다른 도메인을 옮길 때 wishlist를 기준으로 삼는다.
 
 | 계층 | wishlist 위치 |
 |---|---|
@@ -312,6 +312,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 16d (payment 이전) | 0 | 2 | 0 |
 | PR 17a (settlement 이전) | 0 | 2 | 0 |
 | PR 17b (recentlyviewed 이전) | 0 | 2 | 0 |
+| PR 17c (search 이전) | 0 | 2 | 0 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -371,7 +372,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 16d | payment 패키지 이동: 도메인 루트·`entity`·`exception`·`service`·`scheduler`는 `core.domain.payment`로 합치고, `gateway`·`infrastructure`·`messaging`·`monitoring`·`repository`·`config`는 하위 패키지로 둠. `PaymentOperationExecutor` → `PaymentOperationExecutionService`(이름 규칙) | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 17a | settlement 이전: `SettlementReader`·`SettlementHistoryWriter`·`SettlementGenerator`(월 집계·적재. 월 단위 분산 락과 트랜잭션은 Business에 그대로) 추출, 출력을 도메인 레코드(`SettlementSummary`, `HostSettlementDetail`, `HostSettlementTotals`)로, Implement만 읽는 원장 집계 projection은 `repository/projection`으로, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 17b | recentlyviewed 이전: Redis ZSET 기록 읽기·쓰기를 `RecentlyViewedReader`·`RecentlyViewedWriter`로, 출력을 도메인 레코드 `RecentlyViewedAccommodation` 목록으로, 응답 DTO를 `AccommodationResponse`에서 `RecentlyViewedResponse`로 옮김(스키마 이름 유지. accommodation 응답이 recentlyviewed 레코드를 알면 순환이 생기므로), 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 17~ | search, messaging, 나머지 공통 패키지 | 각 영역 규칙 파일의 불변식 | |
+| 17c | search 이전: 검색 조건을 도메인 레코드 `AccommodationSearchCondition`으로(요청 DTO의 `toCondition`), Elasticsearch 질의 생성·실행을 `AccommodationDocumentReader`로, 색인 저장·삭제를 `AccommodationDocumentWriter`로, 출력을 `AccommodationSearchPage`로(페이지 계산 포함), 패키지 이동. AWS 성능 실험실 검색 프로브는 이동 전후 jar 모두에서 리더를 찾음 | `search.md`의 색인 불변식, 스냅샷 불변 | 완료 |
+| 17~ | messaging, 나머지 공통 패키지(`common`, `config`, `geo`) | 각 영역 규칙 파일의 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 

@@ -47,7 +47,7 @@ class CouponConcurrencyTest {
 	}
 	@MockitoBean co.elastic.clients.elasticsearch.ElasticsearchClient elasticsearchClient;
 	@MockitoBean org.springframework.data.elasticsearch.core.ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean kr.kro.airbob.search.repository.AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean io.awspring.cloud.s3.S3Template s3Template;
 	@Autowired CouponSkipLockedIssueService skip;
 	@Autowired CouponStockPreparationService preparation;
