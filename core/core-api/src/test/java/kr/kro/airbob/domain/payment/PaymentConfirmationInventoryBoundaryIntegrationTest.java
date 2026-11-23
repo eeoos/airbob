@@ -3,7 +3,7 @@ package kr.kro.airbob.domain.payment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static kr.kro.airbob.domain.reservation.service.ReservationTransactionTestDriver.createPendingReservation;
+import static kr.kro.airbob.domain.reservation.service.ReservationCheckoutTestDriver.createPendingReservation;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -67,7 +67,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
@@ -119,7 +119,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 	@Autowired private PlatformTransactionManager transactionManager;
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private PaymentOperationCommandService commandService;
-	@Autowired private ReservationTransactionService reservationTransactionService;
+	@Autowired private ReservationCheckoutService reservationTransactionService;
 	@Autowired private PaymentOperationRepository paymentOperationRepository;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;

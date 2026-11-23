@@ -73,7 +73,7 @@ class ReservationCheckInCutoffContractTest {
 
 	@Test
 	void rejectsANewReservationAtTheAccommodationLocalCheckInInstant() {
-		ReservationTransactionService service = serviceAt(CHECK_IN_AT);
+		ReservationCheckoutService service = serviceAt(CHECK_IN_AT);
 		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 
@@ -88,7 +88,7 @@ class ReservationCheckInCutoffContractTest {
 
 	@Test
 	void rejectsANewReservationAfterTheAccommodationLocalCheckInInstant() {
-		ReservationTransactionService service = serviceAt(CHECK_IN_AT.plusSeconds(1));
+		ReservationCheckoutService service = serviceAt(CHECK_IN_AT.plusSeconds(1));
 		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 
@@ -103,7 +103,7 @@ class ReservationCheckInCutoffContractTest {
 
 	@Test
 	void rejectsAPastCheckInAfterTheAccommodationLocalDateHasRolledOver() {
-		ReservationTransactionService service = serviceAt(CHECK_IN_AT.plusSeconds(10 * 60 * 60));
+		ReservationCheckoutService service = serviceAt(CHECK_IN_AT.plusSeconds(10 * 60 * 60));
 		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 
@@ -116,7 +116,7 @@ class ReservationCheckInCutoffContractTest {
 
 	@Test
 	void allowsANewReservationImmediatelyBeforeTheAccommodationLocalCheckInInstant() {
-		ReservationTransactionService service = serviceAt(CHECK_IN_AT.minusNanos(1));
+		ReservationCheckoutService service = serviceAt(CHECK_IN_AT.minusNanos(1));
 		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 		given(reservationRepository.existsByReservationCode(any(String.class))).willReturn(false);
@@ -130,18 +130,18 @@ class ReservationCheckInCutoffContractTest {
 		then(historyRepository).should().save(any());
 	}
 
-	private ReservationTransactionService serviceAt(Instant now) {
-		return new ReservationTransactionService(
+	private ReservationCheckoutService serviceAt(Instant now) {
+		return new ReservationCheckoutService(
 			searchRefreshPublisher,
 			new MemberReader(memberRepository),
-			reservationRepository,
+			new ReservationReader(reservationRepository),
+			new ReservationWriter(reservationRepository, checkoutRequestStore),
 			new AccommodationReader(accommodationRepository),
-			historyRepository,
+			new ReservationHistoryWriter(historyRepository),
 			couponUsageManager,
 			bookingWindowProvider,
 			ReservationHoldPolicy.defaultPolicy(),
-			quoteRepository,
-			checkoutRequestStore,
+			new ReservationQuoteReader(quoteRepository),
 			inventoryManager,
 			Clock.fixed(now, ZoneOffset.UTC)
 		);

@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.repository;
 import java.time.Instant;
 
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
+import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutRequestClaim;
 
 public interface ReservationCheckoutRequestStore {
 	ReservationCheckoutRequestClaim lockOrCreate(

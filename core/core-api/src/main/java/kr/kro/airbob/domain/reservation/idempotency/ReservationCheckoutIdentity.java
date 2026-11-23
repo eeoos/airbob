@@ -6,7 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.ReservationCheckout;
 
 public record ReservationCheckoutIdentity(
 	String keyHash,
@@ -16,7 +16,7 @@ public record ReservationCheckoutIdentity(
 	private static final int MAX_KEY_LENGTH = 128;
 	private static final String SAFE_KEY_PATTERN = "[A-Za-z0-9._:-]+";
 
-	public static ReservationCheckoutIdentity from(String rawKey, ReservationRequest.Checkout request) {
+	public static ReservationCheckoutIdentity from(String rawKey, ReservationCheckout request) {
 		validateKey(rawKey);
 		if (request == null) {
 			throw new InvalidInputException("예약 요청은 필수입니다.");
@@ -40,7 +40,7 @@ public record ReservationCheckoutIdentity(
 		);
 	}
 
-	private static String canonicalCheckoutRequest(ReservationRequest.Checkout request) {
+	private static String canonicalCheckoutRequest(ReservationCheckout request) {
 		StringBuilder canonical = new StringBuilder();
 		append(canonical, request.quoteUid());
 		append(canonical, request.requestMessage());

@@ -3,13 +3,13 @@ package kr.kro.airbob.domain.reservation.service;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
-public final class ReservationTransactionTestDriver {
+public final class ReservationCheckoutTestDriver {
 
-	private ReservationTransactionTestDriver() {
+	private ReservationCheckoutTestDriver() {
 	}
 
 	public static Reservation createPendingReservation(
-		ReservationTransactionService service,
+		ReservationCheckoutService service,
 		ReservationCreateCommand command,
 		Long memberId,
 		String reason

@@ -68,8 +68,8 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
@@ -109,7 +109,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private ReservationService reservationService;
+	@Autowired private ReservationCheckoutService checkoutService;
 	@Autowired private ReservationQuoteService quoteService;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
@@ -307,8 +307,8 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 
 		Future<TimedFailure> checkout = executor.submit(() -> {
 			long startedAt = System.nanoTime();
-			Throwable failure = catchThrowable(() -> reservationService.createPendingReservation(
-				request, guests.get(0).getId(), "accommodation-nowait-busy"));
+			Throwable failure = catchThrowable(() -> ReservationResponse.Ready.from(checkoutService.checkout(
+				request.toCheckout(), guests.get(0).getId(), "accommodation-nowait-busy")));
 			return new TimedFailure(failure, Duration.ofNanos(System.nanoTime() - startedAt));
 		});
 
@@ -367,8 +367,8 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		ready.countDown();
 		await(start);
 		try {
-			return CheckoutAttempt.success(reservationService.createPendingReservation(
-				request, guest.getId(), key));
+			return CheckoutAttempt.success(ReservationResponse.Ready.from(checkoutService.checkout(
+				request.toCheckout(), guest.getId(), key)));
 		} catch (Throwable failure) {
 			return CheckoutAttempt.failure(failure);
 		}
@@ -379,8 +379,8 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		Member guest,
 		String key
 	) {
-		return reservationService.createPendingReservation(
-			checkoutRequest(request, guest), guest.getId(), key);
+		return ReservationResponse.Ready.from(checkoutService.checkout(
+			checkoutRequest(request, guest).toCheckout(), guest.getId(), key));
 	}
 
 	private ReservationRequest.Checkout checkoutRequest(

@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.reservation.service;
 import java.time.Clock;
 import java.time.Instant;
 
-import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +17,10 @@ import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRe
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.domain.reservation.ReservationCheckout;
+import kr.kro.airbob.domain.reservation.ReservationReady;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckInClosedException;
@@ -30,54 +29,53 @@ import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyExcept
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
-import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
-import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
+import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutRequestClaim;
 import kr.kro.airbob.domain.reservation.inventory.MysqlNowaitFailureClassifier;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
-import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestClaim;
-import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ReservationTransactionService {
+public class ReservationCheckoutService {
+
+	private static final String CHECKOUT_REASON = "견적 기반 예약 생성";
 
 	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 
 	private final MemberReader memberReader;
-	private final ReservationRepository reservationRepository;
+	private final ReservationReader reservationReader;
+	private final ReservationWriter reservationWriter;
 	private final AccommodationReader accommodationReader;
-	private final ReservationHistoryRepository historyRepository;
+	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final CouponUsageManager couponUsageManager;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final ReservationHoldPolicy holdPolicy;
-	private final ReservationQuoteRepository quoteRepository;
-	private final ReservationCheckoutRequestStore checkoutRequestStore;
+	private final ReservationQuoteReader quoteReader;
 	private final ReservationInventoryManager inventoryManager;
 	private final Clock clock;
 
+	/**
+	 * 견적을 체크아웃해 결제 대기 예약(0원이면 확정 예약)을 만든다. 같은 멱등 키의 끝난 요청은 그 예약을 다시 돌려준다.
+	 * 상태와 결제 가능 여부는 커밋 직전 시각 기준이다.
+	 */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
-	public Reservation createPendingReservationInTx(
-		ReservationRequest.Checkout request,
-		Long memberId,
-		String idempotencyKey,
-		String reason
-	) {
+	public ReservationReady checkout(ReservationCheckout checkout, Long memberId, String idempotencyKey) {
+		return ReservationReady.of(checkoutReservation(checkout, memberId, idempotencyKey), clock.instant());
+	}
+
+	private Reservation checkoutReservation(ReservationCheckout checkout, Long memberId, String idempotencyKey) {
 		ReservationCheckoutIdentity identity = ReservationCheckoutIdentity.from(
-			idempotencyKey, request);
+			idempotencyKey, checkout);
 		Member guest = findActiveMember(memberId);
-		ReservationCheckoutRequestClaim claim = checkoutRequestStore.lockOrCreate(
+		ReservationCheckoutRequestClaim claim = reservationWriter.claimCheckoutRequest(
 			memberId,
 			identity,
 			clock.instant()
@@ -86,14 +84,10 @@ public class ReservationTransactionService {
 			throw new ReservationCheckoutIdempotencyConflictException();
 		}
 		if (claim.reservationId() != null) {
-			return reservationRepository.findCheckoutReplayByIdAndGuestId(
-				claim.reservationId(), memberId)
-				.orElseThrow(ReservationStateChangeException::new);
+			return reservationReader.readCheckoutReplay(claim.reservationId(), memberId);
 		}
 
-		ReservationQuote quote = quoteRepository.findByQuoteUidAndMemberIdForUpdate(
-			request.quoteUid(), memberId)
-			.orElseThrow(ReservationQuoteNotFoundException::new);
+		ReservationQuote quote = quoteReader.readOwnedForUpdate(checkout.quoteUid(), memberId);
 		if (quote.isCheckedOut()) {
 			throw new ReservationQuoteAlreadyCheckedOutException();
 		}
@@ -104,9 +98,9 @@ public class ReservationTransactionService {
 			quote.getCheckOutDate(),
 			quote.getGuestCount(),
 			quote.getCouponId(),
-			request.requestMessage()
+			checkout.requestMessage()
 		);
-		Reservation reservation = createPendingReservation(createRequest, reason, guest);
+		Reservation reservation = createPendingReservation(createRequest, CHECKOUT_REASON, guest);
 		Instant checkedOutAt = clock.instant();
 		ReservationStayPricePolicy.StayPrice currentPrice = ReservationStayPricePolicy.calculate(
 			reservation.getAccommodation().getBasePrice(),
@@ -119,7 +113,7 @@ public class ReservationTransactionService {
 		}
 
 		quote.attachReservation(reservation.getId(), checkedOutAt);
-		checkoutRequestStore.complete(claim.id(), reservation.getId(), checkedOutAt);
+		reservationWriter.completeCheckoutRequest(claim.id(), reservation.getId(), checkedOutAt);
 		return reservation;
 	}
 
@@ -157,7 +151,7 @@ public class ReservationTransactionService {
 				now
 			);
 
-		String reservationCode = createReservationCode();
+		String reservationCode = reservationWriter.newReservationCode();
 		ReservationStayPricePolicy.StayPrice stayPrice = ReservationStayPricePolicy.calculate(
 			accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
 		Reservation reservation = Reservation.createPendingReservation(
@@ -170,7 +164,7 @@ public class ReservationTransactionService {
 			stayPrice,
 			accommodation.bookingCurrency()
 		);
-		reservationRepository.saveAndFlush(reservation);
+		reservationWriter.create(reservation);
 
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감
 		if (request.couponId() != null) {
@@ -187,7 +181,7 @@ public class ReservationTransactionService {
 				lockedInventory, reservation.getId(), reservation.getExpiresAt());
 		}
 
-		historyRepository.save(ReservationHistory.of(reservation, ChangeType.CREATE, reason));
+		reservationHistoryWriter.record(reservation, ChangeType.CREATE, reason);
 
 		if (!reservation.requiresPayment()) {
 			requestSearchRefresh(reservation);
@@ -227,19 +221,6 @@ public class ReservationTransactionService {
 	private void requestSearchRefresh(Reservation reservation) {
 		searchRefreshPublisher.requestRefresh(
 			reservation.getAccommodation().getAccommodationUid());
-	}
-
-	private String createReservationCode() {
-		String reservationCode;
-		do {
-			reservationCode = generateReservationCode();
-		} while (reservationRepository.existsByReservationCode(reservationCode));
-
-		return reservationCode;
-	}
-
-	private String generateReservationCode() {
-		return RandomStringUtils.randomAlphanumeric(6).toUpperCase();
 	}
 
 }

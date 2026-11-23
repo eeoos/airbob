@@ -34,9 +34,9 @@ import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("예약 보유 API 테스트")
@@ -49,7 +49,7 @@ class ReservationHoldControllerTest {
 	@Mock private ReservationHoldCommandService holdCommandService;
 	@Mock private PaymentCancellationCommandService cancellationCommandService;
 	@Mock private ReservationQuoteService quoteService;
-	@Mock private ReservationService reservationService;
+	@Mock private ReservationCheckoutService checkoutService;
 
 	private MockMvc mockMvc;
 
@@ -61,7 +61,7 @@ class ReservationHoldControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationCommandController(quoteService, reservationService, holdCommandService,
+			new ReservationCommandController(quoteService, checkoutService, holdCommandService,
 				cancellationCommandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())

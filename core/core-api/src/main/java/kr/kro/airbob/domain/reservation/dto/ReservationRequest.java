@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import kr.kro.airbob.domain.reservation.NewReservationQuote;
+import kr.kro.airbob.domain.reservation.ReservationCheckout;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -55,5 +56,8 @@ public class ReservationRequest {
 			example = "늦은 체크인 예정입니다.", nullable = true)
 		String requestMessage
 	) {
+		public ReservationCheckout toCheckout() {
+			return new ReservationCheckout(quoteUid, requestMessage);
+		}
 	}
 }

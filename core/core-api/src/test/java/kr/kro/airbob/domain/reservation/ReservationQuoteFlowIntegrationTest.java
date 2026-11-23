@@ -81,8 +81,8 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
@@ -126,7 +126,7 @@ class ReservationQuoteFlowIntegrationTest {
 
 	@Autowired private AdjustableClock clock;
 	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ReservationService reservationService;
+	@Autowired private ReservationCheckoutService checkoutService;
 	@Autowired private ReservationQuoteRepository quoteRepository;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationInventoryManager inventoryManager;
@@ -332,8 +332,8 @@ class ReservationQuoteFlowIntegrationTest {
 		Member outsider = memberRepository.save(
 			Member.builder().email("quote-outsider@test.com").nickname("quote-outsider").build());
 
-		assertThatThrownBy(() -> reservationService.createPendingReservation(
-			checkoutRequest(quote, null), outsider.getId(), "cross-member-quote"))
+		assertThatThrownBy(() -> ReservationResponse.Ready.from(checkoutService.checkout(
+			checkoutRequest(quote, null).toCheckout(), outsider.getId(), "cross-member-quote")))
 			.isInstanceOf(ReservationQuoteNotFoundException.class);
 
 		assertQuoteAndCheckoutRemainUnconsumed(quote.quoteUid());
@@ -348,11 +348,11 @@ class ReservationQuoteFlowIntegrationTest {
 		Member competitor = memberRepository.save(
 			Member.builder().email("quote-competitor@test.com").nickname("quote-competitor").build());
 		ReservationResponse.Quote competitorQuote = createQuote(competitor, null);
-		reservationService.createPendingReservation(
-			new ReservationRequest.Checkout(competitorQuote.quoteUid(), null),
+		ReservationResponse.Ready.from(checkoutService.checkout(
+			new ReservationRequest.Checkout(competitorQuote.quoteUid(), null).toCheckout(),
 			competitor.getId(),
 			"competing-reservation"
-		);
+		));
 
 		assertThatThrownBy(() -> checkout(quote, "quote-inventory-conflict", null))
 			.isInstanceOf(ReservationConflictException.class);
@@ -421,8 +421,8 @@ class ReservationQuoteFlowIntegrationTest {
 					try {
 						ready.countDown();
 						start.await();
-						reservationUids.add(reservationService.createPendingReservation(
-							request, guest.getId(), idempotencyKey).reservationUid());
+						reservationUids.add(ReservationResponse.Ready.from(checkoutService.checkout(
+							request.toCheckout(), guest.getId(), idempotencyKey)).reservationUid());
 					} catch (Throwable failure) {
 						failures.add(failure);
 					} finally {
@@ -441,7 +441,7 @@ class ReservationQuoteFlowIntegrationTest {
 
 		assertThat(failures).isEmpty();
 		assertThat(reservationUids).hasSize(threadCount).containsOnly(reservationUids.getFirst());
-		assertThat(reservationService.createPendingReservation(request, guest.getId(), idempotencyKey)
+		assertThat(ReservationResponse.Ready.from(checkoutService.checkout(request.toCheckout(), guest.getId(), idempotencyKey))
 			.reservationUid()).isEqualTo(reservationUids.getFirst());
 		assertThat(reservationRepository.count()).isOne();
 		assertThat(historyRepository.count()).isOne();
@@ -460,14 +460,14 @@ class ReservationQuoteFlowIntegrationTest {
 			otherGuest, otherCheckIn, otherCheckIn.plusDays(2), null);
 		String sharedKey = "same-key-different-members";
 
-		ReservationResponse.Ready first = reservationService.createPendingReservation(
-			new ReservationRequest.Checkout(firstQuote.quoteUid(), null),
+		ReservationResponse.Ready first = ReservationResponse.Ready.from(checkoutService.checkout(
+			new ReservationRequest.Checkout(firstQuote.quoteUid(), null).toCheckout(),
 			guest.getId(),
-			sharedKey);
-		ReservationResponse.Ready second = reservationService.createPendingReservation(
-			new ReservationRequest.Checkout(secondQuote.quoteUid(), null),
+			sharedKey));
+		ReservationResponse.Ready second = ReservationResponse.Ready.from(checkoutService.checkout(
+			new ReservationRequest.Checkout(secondQuote.quoteUid(), null).toCheckout(),
 			otherGuest.getId(),
-			sharedKey);
+			sharedKey));
 
 		assertThat(second.reservationUid()).isNotEqualTo(first.reservationUid());
 		assertThat(reservationRepository.count()).isEqualTo(2L);
@@ -592,11 +592,11 @@ class ReservationQuoteFlowIntegrationTest {
 		String idempotencyKey,
 		String requestMessage
 	) {
-		return reservationService.createPendingReservation(
-			checkoutRequest(quote, requestMessage),
+		return ReservationResponse.Ready.from(checkoutService.checkout(
+			checkoutRequest(quote, requestMessage).toCheckout(),
 			guest.getId(),
 			idempotencyKey
-		);
+		));
 	}
 
 	private ReservationRequest.Checkout checkoutRequest(

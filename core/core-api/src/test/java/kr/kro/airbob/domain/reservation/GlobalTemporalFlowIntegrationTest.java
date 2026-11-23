@@ -79,14 +79,15 @@ import kr.kro.airbob.domain.reservation.api.ReservationCommandController;
 import kr.kro.airbob.domain.reservation.api.ReservationGuestController;
 import kr.kro.airbob.domain.reservation.api.ReservationHostController;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventorySeeder;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
@@ -132,7 +133,7 @@ class GlobalTemporalFlowIntegrationTest {
 	@Autowired private ReservationGuestController guestController;
 	@Autowired private ReservationHostController hostController;
 	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ReservationService reservationService;
+	@Autowired private ReservationCheckoutService checkoutService;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationInventorySeeder inventorySeeder;
 	@Autowired private BookingWindowProvider bookingWindowProvider;
@@ -251,8 +252,8 @@ class GlobalTemporalFlowIntegrationTest {
 			String timeColumn = checkInGap ? "check_in_time" : "check_out_time";
 			jdbc.update("UPDATE accommodation SET " + timeColumn + " = '02:30:00' WHERE id = ?", accommodation.getId());
 
-			assertThatThrownBy(() -> reservationService.createPendingReservation(
-				new ReservationRequest.Checkout(quote.quoteUid(), null), guest.getId(), "gap-changed-" + timeColumn))
+			assertThatThrownBy(() -> ReservationResponse.Ready.from(checkoutService.checkout(
+				new ReservationRequest.Checkout(quote.quoteUid(), null).toCheckout(), guest.getId(), "gap-changed-" + timeColumn)))
 				.isInstanceOf(InvalidReservationLocalTimeException.class);
 		}
 		assertThat(reservationRepository.count()).isZero();

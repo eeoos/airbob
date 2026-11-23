@@ -97,9 +97,9 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
@@ -143,7 +143,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 
 	@Autowired private AdjustableClock clock;
 	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ReservationService reservationService;
+	@Autowired private ReservationCheckoutService checkoutService;
 	@Autowired private ReservationHoldCommandService holdCommandService;
 	@Autowired private ExpiredReservationCleanupService cleanupService;
 	@Autowired private PaymentOperationCommandService paymentCommandService;
@@ -651,10 +651,10 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		String idempotencyKey,
 		String requestMessage
 	) {
-		return reservationService.createPendingReservation(
-			new ReservationRequest.Checkout(quote.quoteUid(), requestMessage),
+		return ReservationResponse.Ready.from(checkoutService.checkout(
+			new ReservationRequest.Checkout(quote.quoteUid(), requestMessage).toCheckout(),
 			guest.getId(),
-			idempotencyKey);
+			idempotencyKey));
 	}
 
 	private ReservationResponse.PaymentAttemptReady beginAttempt(ReservationResponse.Ready ready) {

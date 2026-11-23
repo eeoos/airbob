@@ -31,16 +31,16 @@ import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationCommandControllerTest {
 
 	private static final long MEMBER_ID = 7L;
 
-	@Mock private ReservationService reservationService;
+	@Mock private ReservationCheckoutService checkoutService;
 	@Mock private ReservationQuoteService quoteService;
 	@Mock private ReservationHoldCommandService holdCommandService;
 	@Mock private PaymentCancellationCommandService cancellationCommandService;
@@ -54,7 +54,7 @@ class ReservationCommandControllerTest {
 			.findAndRegisterModules()
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationCommandController(quoteService, reservationService, holdCommandService,
+			new ReservationCommandController(quoteService, checkoutService, holdCommandService,
 				cancellationCommandService))
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
