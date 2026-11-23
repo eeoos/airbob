@@ -11,8 +11,8 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityReader;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.accommodation.service.AccommodationReviewSummaryReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -24,14 +24,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AccommodationDocumentBuilder {
 
-	private final AccommodationRepository accommodationRepository;
-	private final AccommodationAmenityRepository amenityRepository;
+	private final AccommodationReader accommodationReader;
+	private final AccommodationAmenityReader amenityReader;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationReviewSummaryReader reviewSummaryReader;
 	private final BookingWindowProvider bookingWindowProvider;
 
 	public AccommodationDocument buildAccommodationDocument(UUID accommodationUid) {
-		Accommodation accommodation = accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid)
+		Accommodation accommodation = accommodationReader.findWithDetailsByAccommodationUid(accommodationUid)
 			.orElseThrow(AccommodationNotFoundException::new);
 		if (accommodation.getStatus() != AccommodationStatus.PUBLISHED) {
 			return AccommodationDocument.builder()
@@ -104,7 +104,7 @@ public class AccommodationDocumentBuilder {
 	}
 
 	private List<String> getAccommodationAmenities(UUID accommodationUid) {
-		return amenityRepository.findAllByAccommodation_AccommodationUid(accommodationUid)
+		return amenityReader.findAllByAccommodationUid(accommodationUid)
 			.stream()
 			.map(AccommodationAmenity::getAmenityCode)
 			.distinct()

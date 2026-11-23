@@ -49,6 +49,7 @@ import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfos;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 
 @DataJpaTest(showSql = false, properties = {
 	"spring.jpa.properties.hibernate.generate_statistics=true",
@@ -58,7 +59,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyView
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class, WishlistReader.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class, WishlistReader.class, AccommodationReader.class,
 	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")

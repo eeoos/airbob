@@ -48,7 +48,7 @@ import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -62,7 +62,7 @@ class AccommodationHostControllerValidationTest {
 	@Mock AccommodationHistoryRepository history;
 	@Mock AddressRepository addresses;
 	@Mock OccupancyPolicyRepository policies;
-	@Mock ReservationRepository reservations;
+	@Mock ReservationReader reservations;
 	@Mock MemberReader members;
 	@Mock CommonCodeReader codes;
 	@Mock GeocodingService geocoding;

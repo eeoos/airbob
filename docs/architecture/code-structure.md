@@ -221,6 +221,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 11 (image 이전) | 22 | 16 (image ↔ accommodation, image ↔ review 해소) | 13 |
 | PR 12a (review 경계) | 18 | 10 (review ↔ accommodation, review ↔ reservation, review ↔ search 해소) | 13 |
 | PR 12b (review 이전) | 18 | 10 | 13 |
+| PR 13a (accommodation Repository 사용 정리) | 9 | 10 | 13 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -256,7 +257,11 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 11 | image 이전: 숙소·리뷰 이미지 엔티티를 Repository가 있는 소유 도메인으로 옮겨 순환 해소, 저장 기능(`Image`, S3 업로더, 저장소 정리 이벤트·리스너, 예외)은 `core.domain.image`로, `ImageResponse`는 `core.api.controller.v1.image.response`로 | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 12a | review 경계: 리뷰 요약(엔티티·Repository·응답 DTO)을 accommodation으로 옮기고 `AccommodationReviewSummaryReader`·`AccommodationReviewSummaryWriter` 추가, review의 숙소·예약 Repository 사용을 `AccommodationReader`·`ReservationReader`로, reservation의 리뷰 확인을 포트 `ReservationReviewReader`(구현 `ReviewReader`)로 | 동결 위반 감소, 쿼리·스냅샷 불변 | 완료 |
 | 12b | review 이전: `ReviewReader`·`ReviewWriter`·`ReviewImageReader`·`ReviewImageWriter` 추출, Business 입출력을 원시값과 도메인 레코드(`ReviewItem`, `ReviewPage`, `StoredImage`)로, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
-| 13~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: accommodation, coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 13a | accommodation Repository 사용 정리: reservation(견적·체크아웃·재고 seed)·search·recentlyviewed의 accommodation Repository 사용을 `AccommodationReader`·`AccommodationAmenityReader`로, accommodation의 예약 조회를 `ReservationReader`로. 다른 도메인이 받는 projection(`InventorySeedTarget`, `RecentlyViewedAccommodationProjection`)은 repository 패키지 밖 도메인 루트로 | 동결 위반 감소, 쿼리·잠금 순서 불변 | 완료 |
+| 13b | accommodation 순환 정리: accommodation ↔ reservation, accommodation ↔ search, payment → accommodation | 동결 위반 감소 | |
+| 13c | accommodation 내부 계층화: 엔티티의 요청 DTO·`GeocodeResult` 의존 제거, Reader/Writer, Business 입출력 | 엄격 규칙 준비, 스냅샷 불변 | |
+| 13d | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | |
+| 14~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
 
@@ -276,6 +281,8 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 5. 저장소에서 이 도메인의 클래스 이름이 들어간 위반을 찾는다(`grep <도메인> archunit_store/*`).
    위반 메시지에는 클래스 전체 이름이 들어가므로, 남은 채로 옮기면 기존 위반은 "해결"되고 같은 내용이 새 위반으로 잡혀 실패한다.
    다른 도메인이 이 도메인의 Repository를 쓰는 위반은 이동 전에 Reader로 바꾼다(예: PR 10b-1).
+6. 동결 규칙은 `repository` 패키지에 있는 타입(Repository의 중첩 인터페이스, `repository/projection`)을 받아 쓰는 것도 Repository 사용으로 본다.
+   다른 도메인에 돌려주는 projection은 도메인 루트 패키지로 옮기고 Reader가 돌려준다(예: PR 13a의 `InventorySeedTarget`).
 
 **2단계: 내부 계층화** (wishlist는 PR 7b)
 

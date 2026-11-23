@@ -26,6 +26,8 @@ import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationReviewSummaryRepository;
+import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityReader;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 import kr.kro.airbob.domain.accommodation.service.AccommodationReviewSummaryReader;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -56,7 +58,8 @@ class AccommodationDocumentBuilderTest {
 
 	@BeforeEach
 	void setUp() {
-		documentBuilder = new AccommodationDocumentBuilder(accommodationRepository, amenityRepository,
+		documentBuilder = new AccommodationDocumentBuilder(new AccommodationReader(accommodationRepository),
+			new AccommodationAmenityReader(amenityRepository),
 			reservationRepository, new AccommodationReviewSummaryReader(reviewSummaryRepository), bookingWindowProvider);
 	}
 

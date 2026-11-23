@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.accommodation.repository.projection;
+package kr.kro.airbob.domain.accommodation;
 
 import java.math.BigDecimal;
 

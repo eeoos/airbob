@@ -31,9 +31,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
+import kr.kro.airbob.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
 
 @Testcontainers
 class RecentlyViewedHistoryIntegrationTest {
@@ -69,7 +70,7 @@ class RecentlyViewedHistoryIntegrationTest {
 		redis.delete(List.of(KEY, OTHER_KEY));
 		accommodations = mock(AccommodationRepository.class);
 		wishlists = mock(WishlistReader.class);
-		service = new RecentlyViewedService(redis, accommodations, wishlists);
+		service = new RecentlyViewedService(redis, new AccommodationReader(accommodations), wishlists);
 	}
 
 	@Test
@@ -116,7 +117,7 @@ class RecentlyViewedHistoryIntegrationTest {
 			boundary.await(10, TimeUnit.SECONDS);
 			return size;
 		}).when(operations).size(KEY);
-		var concurrentService = new RecentlyViewedService(interleavedTemplate, accommodations, wishlists);
+		var concurrentService = new RecentlyViewedService(interleavedTemplate, new AccommodationReader(accommodations), wishlists);
 		try (var executor = Executors.newFixedThreadPool(8)) {
 			var futures = IntStream.rangeClosed(101, 108)
 				.mapToObj(id -> executor.submit(() -> concurrentService.addRecentlyViewed((long)id, 7L))).toList();

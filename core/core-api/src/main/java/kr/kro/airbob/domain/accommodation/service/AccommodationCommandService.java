@@ -48,8 +48,8 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.geo.dto.GeocodeResult;
@@ -65,7 +65,7 @@ public class AccommodationCommandService {
 	private final AccommodationHistoryRepository accommodationHistoryRepository;
 	private final OccupancyPolicyRepository occupancyPolicyRepository;
 	private final AccommodationRepository accommodationRepository;
-	private final ReservationRepository reservationRepository;
+	private final ReservationReader reservationReader;
 	private final CommonCodeReader commonCodeReader;
 	private final AddressRepository addressRepository;
 	private final MemberReader memberReader;
@@ -260,7 +260,7 @@ public class AccommodationCommandService {
 			|| !Objects.equals(accommodation.getCheckOutTime(), nextCheckOutTime)
 			|| !Objects.equals(accommodation.getTimeZoneId(), nextTimeZoneId);
 		if (temporalSettingsChanged
-			&& reservationRepository.existsFutureInventoryReservation(
+			&& reservationReader.existsFutureInventoryReservation(
 				accommodation.getId(), clock.instant())) {
 			throw new InvalidInputException(
 				"미래 유효 예약이 있는 숙소의 체크인 시간, 체크아웃 시간, 시간대는 변경할 수 없습니다."
