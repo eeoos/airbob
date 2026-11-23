@@ -18,20 +18,16 @@ import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.PaymentCancellation;
+import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
-import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
-import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @Service
@@ -40,8 +36,9 @@ public class PaymentCancellationCommandService {
 
 	private final ReservationReader reservationReader;
 	private final ReservationInventoryManager inventoryManager;
-	private final PaymentRepository paymentRepository;
-	private final PaymentOperationRepository operationRepository;
+	private final PaymentReader paymentReader;
+	private final PaymentOperationReader operationReader;
+	private final PaymentOperationWriter operationWriter;
 	private final ReservationHistoryWriter reservationHistoryWriter;
 	private final CouponUsageManager couponUsageManager;
 	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
@@ -51,8 +48,9 @@ public class PaymentCancellationCommandService {
 	public PaymentCancellationCommandService(
 		ReservationReader reservationReader,
 		ReservationInventoryManager inventoryManager,
-		PaymentRepository paymentRepository,
-		PaymentOperationRepository operationRepository,
+		PaymentReader paymentReader,
+		PaymentOperationReader operationReader,
+		PaymentOperationWriter operationWriter,
 		ReservationHistoryWriter reservationHistoryWriter,
 		CouponUsageManager couponUsageManager,
 		AccommodationSearchRefreshRequester searchRefreshPublisher,
@@ -61,8 +59,9 @@ public class PaymentCancellationCommandService {
 	) {
 		this.reservationReader = reservationReader;
 		this.inventoryManager = inventoryManager;
-		this.paymentRepository = paymentRepository;
-		this.operationRepository = operationRepository;
+		this.paymentReader = paymentReader;
+		this.operationReader = operationReader;
+		this.operationWriter = operationWriter;
 		this.reservationHistoryWriter = reservationHistoryWriter;
 		this.couponUsageManager = couponUsageManager;
 		this.searchRefreshPublisher = searchRefreshPublisher;
@@ -71,9 +70,9 @@ public class PaymentCancellationCommandService {
 	}
 
 	@Transactional
-	public Cancellation requestCancellation(
+	public PaymentOperationReceipt requestCancellation(
 		String reservationUidValue,
-		PaymentRequest.Cancel request,
+		PaymentCancellation request,
 		Long memberId
 	) {
 		UUID reservationUid = parseReservationUid(reservationUidValue);
@@ -90,17 +89,14 @@ public class PaymentCancellationCommandService {
 			return cancelComplimentary(reservation, request);
 		}
 
-		Optional<PaymentOperation> latest = operationRepository
-			.findFirstByReservationIdAndOperationTypeOrderByIdDesc(
-				reservation.getId(), PaymentOperationType.CANCEL);
-		Cancellation replay = replayIfCancellationAlreadyInProgress(reservation, latest, request);
+		Optional<PaymentOperation> latest = operationReader.findLatestCancellation(reservation.getId());
+		PaymentOperationReceipt replay = replayIfCancellationAlreadyInProgress(reservation, latest, request);
 		if (replay != null) {
 			return replay;
 		}
 		validateCancellationDeadline(reservation, now);
 
-		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
-			.orElseThrow(PaymentNotFoundException::new);
+		Payment payment = paymentReader.readByReservationIdForUpdate(reservation.getId());
 		validateFullActiveBalance(payment, request.cancelAmount());
 
 		reservation.requestCancellation();
@@ -112,7 +108,7 @@ public class PaymentCancellationCommandService {
 			request.cancelReason(),
 			now
 		);
-		operationRepository.save(operation);
+		operationWriter.create(operation);
 		reservationHistoryWriter.recordSystem(
 			reservation,
 			ChangeType.STATUS_CHANGE,
@@ -124,7 +120,7 @@ public class PaymentCancellationCommandService {
 			reservationUid,
 			operation.getDispatchGeneration()
 		));
-		return Cancellation.accepted(operation);
+		return PaymentOperationReceipt.accepted(operation);
 	}
 
 	private void validateCancellationDeadline(Reservation reservation, Instant now) {
@@ -133,15 +129,15 @@ public class PaymentCancellationCommandService {
 		}
 	}
 
-	private Cancellation cancelComplimentary(
+	private PaymentOperationReceipt cancelComplimentary(
 		Reservation reservation,
-		PaymentRequest.Cancel request
+		PaymentCancellation request
 	) {
 		if (request.cancelAmount() != null) {
 			throw new InvalidInputException("0원 예약에는 환불 금액을 지정할 수 없습니다.");
 		}
 		if (!reservation.cancelComplimentary()) {
-			return Cancellation.completed();
+			return PaymentOperationReceipt.completedWithoutOperation();
 		}
 		inventoryManager.releaseOccupied(
 			reservation.getAccommodation().getId(),
@@ -154,13 +150,13 @@ public class PaymentCancellationCommandService {
 			reservation, ChangeType.CANCEL, request.cancelReason(), "RESERVATION");
 		searchRefreshPublisher.requestRefresh(
 			reservation.getAccommodation().getAccommodationUid());
-		return Cancellation.completed();
+		return PaymentOperationReceipt.completedWithoutOperation();
 	}
 
-	private Cancellation replayIfCancellationAlreadyInProgress(
+	private PaymentOperationReceipt replayIfCancellationAlreadyInProgress(
 		Reservation reservation,
 		Optional<PaymentOperation> latest,
-		PaymentRequest.Cancel request
+		PaymentCancellation request
 	) {
 		if (reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING) {
 			PaymentOperation operation = latest
@@ -170,7 +166,7 @@ public class PaymentCancellationCommandService {
 			if (!operation.matchesCancellation(request.cancelReason(), request.cancelAmount())) {
 				throw new PaymentOperationConflictException();
 			}
-			return Cancellation.accepted(operation);
+			return PaymentOperationReceipt.accepted(operation);
 		}
 		if (reservation.getStatus() == ReservationStatus.CANCELLED) {
 			PaymentOperation operation = latest
@@ -180,7 +176,7 @@ public class PaymentCancellationCommandService {
 			if (!operation.matchesCancellation(request.cancelReason(), request.cancelAmount())) {
 				throw new PaymentOperationConflictException();
 			}
-			return Cancellation.accepted(operation);
+			return PaymentOperationReceipt.accepted(operation);
 		}
 		if (reservation.getStatus() == ReservationStatus.CANCELLATION_FAILED
 			&& latest.map(PaymentOperation::getStatus)

@@ -66,6 +66,8 @@ import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManag
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.payment.PaymentCancellation;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
@@ -267,8 +269,8 @@ class ReservationConcurrencyTest {
 			.containsExactly(
 				AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType());
 
-		cancellationCommandService.requestCancellation(
-			confirmed.getReservationUid().toString(), new PaymentRequest.Cancel("0원 예약 취소", null), guest.getId());
+		PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
+			confirmed.getReservationUid().toString(), new PaymentCancellation("0원 예약 취소", null), guest.getId()));
 
 		Reservation cancelled = reservationRepository.findByReservationUid(confirmed.getReservationUid()).orElseThrow();
 		assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
@@ -298,10 +300,10 @@ class ReservationConcurrencyTest {
 			""");
 
 		try {
-			assertThatThrownBy(() -> cancellationCommandService.requestCancellation(
+			assertThatThrownBy(() -> PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
 				confirmed.getReservationUid().toString(),
-				new PaymentRequest.Cancel("0원 취소 롤백", null),
-				guest.getId()))
+				new PaymentCancellation("0원 취소 롤백", null),
+				guest.getId())))
 				.isInstanceOf(DataAccessException.class);
 		} finally {
 			jdbcTemplate.execute(
@@ -434,7 +436,7 @@ class ReservationConcurrencyTest {
 					readyLatch.countDown();
 					startLatch.await();
 					returnedOperationUids.add(paymentOperationCommandService
-						.requestConfirmation(request, guests.getFirst().getId()).operationId());
+						.requestConfirmation(request.toConfirmation(), guests.getFirst().getId()).operationUid());
 				} catch (Exception e) {
 					unexpectedFailures.add(e);
 				} finally {
@@ -505,8 +507,8 @@ class ReservationConcurrencyTest {
 				try {
 					ready.countDown();
 					start.await();
-					operationUids.add(paymentCancellationCommandService.requestCancellation(
-						reservation.getReservationUid().toString(), request, guest.getId()).operationId());
+					operationUids.add(PaymentOperationResponse.Cancellation.from(paymentCancellationCommandService.requestCancellation(
+						reservation.getReservationUid().toString(), request.toCancellation(), guest.getId())).operationId());
 				} catch (Exception exception) {
 					failures.incrementAndGet();
 				} finally {

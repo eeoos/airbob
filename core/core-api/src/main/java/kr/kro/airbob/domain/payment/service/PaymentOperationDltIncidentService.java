@@ -8,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
@@ -20,20 +19,20 @@ import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 public class PaymentOperationDltIncidentService {
 
 	private final IntegrationEventCodec codec;
-	private final PaymentOperationRepository operationRepository;
+	private final PaymentOperationReader operationReader;
 	private final OutboxWriter outboxWriter;
 	private final OperatorAlertOutboxPublisher alertPublisher;
 	private final Clock clock;
 
 	public PaymentOperationDltIncidentService(
 		IntegrationEventCodec codec,
-		PaymentOperationRepository operationRepository,
+		PaymentOperationReader operationReader,
 		OutboxWriter outboxWriter,
 		OperatorAlertOutboxPublisher alertPublisher,
 		Clock clock
 	) {
 		this.codec = codec;
-		this.operationRepository = operationRepository;
+		this.operationReader = operationReader;
 		this.outboxWriter = outboxWriter;
 		this.alertPublisher = alertPublisher;
 		this.clock = clock;
@@ -65,7 +64,7 @@ public class PaymentOperationDltIncidentService {
 	}
 
 	private void redispatchQueuedGeneration(PaymentOperationExecutionRequestedV1 event) {
-		Optional<PaymentOperation> found = operationRepository.findByOperationUidWithLock(
+		Optional<PaymentOperation> found = operationReader.findForUpdate(
 			event.operationUid());
 		if (found.isEmpty()) {
 			return;

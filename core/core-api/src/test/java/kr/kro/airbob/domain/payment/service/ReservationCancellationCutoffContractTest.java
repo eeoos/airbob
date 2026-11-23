@@ -32,6 +32,7 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchW
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
@@ -73,8 +74,8 @@ class ReservationCancellationCutoffContractTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		Throwable thrown = catchThrowable(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID));
+		Throwable thrown = catchThrowable(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID)));
 
 		assertCancellationDeadlineContract(thrown);
 		then(paymentRepository).shouldHaveNoInteractions();
@@ -91,8 +92,8 @@ class ReservationCancellationCutoffContractTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		Throwable thrown = catchThrowable(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID));
+		Throwable thrown = catchThrowable(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID)));
 
 		assertCancellationDeadlineContract(thrown);
 		then(paymentRepository).shouldHaveNoInteractions();
@@ -109,8 +110,8 @@ class ReservationCancellationCutoffContractTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		Throwable thrown = catchThrowable(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID));
+		Throwable thrown = catchThrowable(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID)));
 
 		assertCancellationDeadlineContract(thrown);
 		then(couponUsageManager).shouldHaveNoInteractions();
@@ -127,8 +128,8 @@ class ReservationCancellationCutoffContractTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		Throwable thrown = catchThrowable(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID));
+		Throwable thrown = catchThrowable(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID)));
 
 		assertCancellationDeadlineContract(thrown);
 		then(couponUsageManager).shouldHaveNoInteractions();
@@ -155,8 +156,8 @@ class ReservationCancellationCutoffContractTest {
 		given(operationRepository.findFirstByReservationIdAndOperationTypeOrderByIdDesc(
 			reservation.getId(), PaymentOperationType.CANCEL)).willReturn(Optional.of(existing));
 
-		var response = service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID);
+		var response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID));
 
 		assertThat(response.operationId()).isEqualTo(existing.getOperationUid());
 		then(paymentRepository).shouldHaveNoInteractions();
@@ -180,8 +181,8 @@ class ReservationCancellationCutoffContractTest {
 		given(operationRepository.findFirstByReservationIdAndOperationTypeOrderByIdDesc(
 			reservation.getId(), PaymentOperationType.CANCEL)).willReturn(Optional.of(applied));
 
-		var response = service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID);
+		var response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID));
 
 		assertThat(response.operationId()).isEqualTo(applied.getOperationUid());
 		assertThat(response.status()).isEqualTo(
@@ -196,8 +197,8 @@ class ReservationCancellationCutoffContractTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		var response = service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID);
+		var response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID));
 
 		assertThat(response.completedSynchronously()).isTrue();
 		then(couponUsageManager).shouldHaveNoInteractions();
@@ -216,8 +217,8 @@ class ReservationCancellationCutoffContractTest {
 		given(paymentRepository.findByReservationIdWithLock(reservation.getId()))
 			.willReturn(Optional.of(payment(reservation)));
 
-		var response = service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID);
+		var response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID));
 
 		assertThat(response.completedSynchronously()).isFalse();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
@@ -233,8 +234,8 @@ class ReservationCancellationCutoffContractTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		var response = service.requestCancellation(
-			RESERVATION_UID.toString(), cancellationRequest(), GUEST_ID);
+		var response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), cancellationRequest().toCancellation(), GUEST_ID));
 
 		assertThat(response.completedSynchronously()).isTrue();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
@@ -252,8 +253,9 @@ class ReservationCancellationCutoffContractTest {
 		return new PaymentCancellationCommandService(
 			new ReservationReader(reservationRepository),
 			inventoryManager,
-			paymentRepository,
-			operationRepository,
+			new PaymentReader(paymentRepository),
+			new PaymentOperationReader(operationRepository),
+			new PaymentOperationWriter(operationRepository),
 			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 			couponUsageManager,
 			searchRefreshPublisher,

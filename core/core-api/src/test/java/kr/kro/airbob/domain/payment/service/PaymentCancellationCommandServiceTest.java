@@ -38,8 +38,10 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchW
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.support.error.InvalidInputException;
+import kr.kro.airbob.domain.payment.PaymentCancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
@@ -83,8 +85,9 @@ class PaymentCancellationCommandServiceTest {
 		service = new PaymentCancellationCommandService(
 			new ReservationReader(reservationRepository),
 			inventoryManager,
-			paymentRepository,
-			operationRepository,
+			new PaymentReader(paymentRepository),
+			new PaymentOperationReader(operationRepository),
+			new PaymentOperationWriter(operationRepository),
 			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 			couponUsageManager,
 			searchRefreshPublisher,
@@ -103,8 +106,8 @@ class PaymentCancellationCommandServiceTest {
 			1L, PaymentOperationType.CANCEL)).willReturn(Optional.empty());
 		given(paymentRepository.findByReservationIdWithLock(1L)).willReturn(Optional.of(payment));
 
-		Cancellation response = service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("게스트 요청", null), GUEST_ID);
+		Cancellation response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("게스트 요청", null), GUEST_ID));
 
 		assertThat(response.operationId()).isNotNull();
 		assertThat(response.status()).isEqualTo(Status.PENDING);
@@ -139,8 +142,8 @@ class PaymentCancellationCommandServiceTest {
 		given(operationRepository.findFirstByReservationIdAndOperationTypeOrderByIdDesc(
 			1L, PaymentOperationType.CANCEL)).willReturn(Optional.of(existing));
 
-		Cancellation response = service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("첫 요청", 100_000L), GUEST_ID);
+		Cancellation response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("첫 요청", 100_000L), GUEST_ID));
 
 		assertThat(response.operationId()).isEqualTo(existing.getOperationUid());
 		then(inventoryManager).shouldHaveNoInteractions();
@@ -159,11 +162,11 @@ class PaymentCancellationCommandServiceTest {
 		given(operationRepository.findFirstByReservationIdAndOperationTypeOrderByIdDesc(
 			1L, PaymentOperationType.CANCEL)).willReturn(Optional.of(existing));
 
-		assertThatThrownBy(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("다른 요청", null), GUEST_ID))
+		assertThatThrownBy(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("다른 요청", null), GUEST_ID)))
 			.isInstanceOf(kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException.class);
-		assertThatThrownBy(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("첫 요청", 99_999L), GUEST_ID))
+		assertThatThrownBy(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("첫 요청", 99_999L), GUEST_ID)))
 			.isInstanceOf(kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException.class);
 
 		then(paymentRepository).shouldHaveNoInteractions();
@@ -189,8 +192,8 @@ class PaymentCancellationCommandServiceTest {
 			1L, PaymentOperationType.CANCEL)).willReturn(Optional.of(declined));
 		given(paymentRepository.findByReservationIdWithLock(1L)).willReturn(Optional.of(payment));
 
-		Cancellation response = service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("재시도", 100_000L), GUEST_ID);
+		Cancellation response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("재시도", 100_000L), GUEST_ID));
 
 		assertThat(response.operationId()).isNotEqualTo(declined.getOperationUid());
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
@@ -205,8 +208,8 @@ class PaymentCancellationCommandServiceTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		assertThatThrownBy(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("공격자", null), 999L))
+		assertThatThrownBy(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("공격자", null), 999L)))
 			.isInstanceOf(PaymentAccessDeniedException.class);
 
 		then(paymentRepository).shouldHaveNoInteractions();
@@ -224,8 +227,8 @@ class PaymentCancellationCommandServiceTest {
 			1L, PaymentOperationType.CANCEL)).willReturn(Optional.empty());
 		given(paymentRepository.findByReservationIdWithLock(1L)).willReturn(Optional.of(payment));
 
-		assertThatThrownBy(() -> service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("부분 환불", 50_000L), GUEST_ID))
+		assertThatThrownBy(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("부분 환불", 50_000L), GUEST_ID)))
 			.isInstanceOf(InvalidInputException.class);
 
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
@@ -239,8 +242,8 @@ class PaymentCancellationCommandServiceTest {
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 
-		Cancellation response = service.requestCancellation(
-			RESERVATION_UID.toString(), new PaymentRequest.Cancel("0원 예약 취소", null), GUEST_ID);
+		Cancellation response = PaymentOperationResponse.Cancellation.from(service.requestCancellation(
+			RESERVATION_UID.toString(), new PaymentCancellation("0원 예약 취소", null), GUEST_ID));
 
 		assertThat(response.completedSynchronously()).isTrue();
 		assertThat(response.operationId()).isNull();
@@ -272,10 +275,10 @@ class PaymentCancellationCommandServiceTest {
 				CHECK_OUT,
 				reservation.getId());
 
-		assertThatThrownBy(() -> service.requestCancellation(
+		assertThatThrownBy(() -> PaymentOperationResponse.Cancellation.from(service.requestCancellation(
 			RESERVATION_UID.toString(),
-			new PaymentRequest.Cancel("0원 예약 취소", null),
-			GUEST_ID))
+			new PaymentCancellation("0원 예약 취소", null),
+			GUEST_ID)))
 			.isInstanceOf(ReservationInventoryInvariantViolationException.class);
 
 		then(couponUsageManager).shouldHaveNoInteractions();

@@ -10,23 +10,22 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @Service
 public class PaymentOperationRecoveryService {
-	private final PaymentOperationRepository repository;
+	private final PaymentOperationReader operationReader;
 	private final OutboxWriter outboxWriter;
 	private final PaymentOperationProperties properties;
 	private final Clock clock;
 
 	public PaymentOperationRecoveryService(
-		PaymentOperationRepository repository,
+		PaymentOperationReader operationReader,
 		OutboxWriter outboxWriter,
 		PaymentOperationProperties properties,
 		Clock clock
 	) {
-		this.repository = repository;
+		this.operationReader = operationReader;
 		this.outboxWriter = outboxWriter;
 		this.properties = properties;
 		this.clock = clock;
@@ -35,7 +34,7 @@ public class PaymentOperationRecoveryService {
 	@Transactional
 	public RecoveryBatch recoverDue() {
 		Instant now = clock.instant();
-		List<PaymentOperation> recoverable = repository.findRecoverableForUpdate(now, properties.batchSize());
+		List<PaymentOperation> recoverable = operationReader.readRecoverableForUpdate(now, properties.batchSize());
 		int enqueued = 0;
 
 		for (PaymentOperation operation : recoverable) {

@@ -65,6 +65,7 @@ import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
@@ -176,8 +177,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 
 		clock.set(CONFIRMATION_ACCEPTED_AT);
 		Future<Accepted> confirmation = executor.submit(() ->
-			transactionTemplate.execute(status -> commandService.requestConfirmation(
-				confirmationRequest(), confirmingGuest.getId())));
+			transactionTemplate.execute(status -> PaymentOperationResponse.Accepted.from(commandService.requestConfirmation(
+				confirmationRequest().toConfirmation(), confirmingGuest.getId()))));
 
 		try {
 			assertBlocked(confirmation);
@@ -202,8 +203,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		clock.set(CONFIRMATION_ACCEPTED_AT);
 
 		Future<Accepted> confirmation = executor.submit(() -> transactionTemplate.execute(status -> {
-			Accepted accepted = commandService.requestConfirmation(
-				confirmationRequest(), confirmingGuest.getId());
+			Accepted accepted = PaymentOperationResponse.Accepted.from(commandService.requestConfirmation(
+				confirmationRequest().toConfirmation(), confirmingGuest.getId()));
 			confirmationPrepared.countDown();
 			awaitRelease(allowConfirmationCommit);
 			return accepted;
@@ -230,8 +231,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		CountDownLatch allowConfirmationCommit = new CountDownLatch(1);
 
 		Future<Accepted> confirmation = executor.submit(() -> transactionTemplate.execute(status -> {
-			Accepted accepted = commandService.requestConfirmation(
-				confirmationRequest(), confirmingGuest.getId());
+			Accepted accepted = PaymentOperationResponse.Accepted.from(commandService.requestConfirmation(
+				confirmationRequest().toConfirmation(), confirmingGuest.getId()));
 			confirmationPrepared.countDown();
 			awaitRelease(allowConfirmationCommit);
 			return accepted;

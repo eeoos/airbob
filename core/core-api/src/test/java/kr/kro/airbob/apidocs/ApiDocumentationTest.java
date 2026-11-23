@@ -183,6 +183,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import static kr.kro.airbob.core.domain.reservation.ReservationReadTestFixtures.guestDetail;
@@ -353,8 +354,8 @@ class ApiDocumentationTest {
 	void generatedSchemaMatchesRealMvcResponses() throws Exception {
 		JsonNode spec = specification("client");
 		when(context.getBean(PaymentOperationCommandService.class).requestConfirmation(any(), anyLong()))
-			.thenReturn(new PaymentOperationResponse.Accepted(UUID.fromString("00000000-0000-0000-0000-000000000001"),
-				PaymentOperationResponse.Status.PENDING, "/api/v1/payment-operations/00000000-0000-0000-0000-000000000001"));
+			.thenReturn(new PaymentOperationReceipt(UUID.fromString("00000000-0000-0000-0000-000000000001"),
+				PaymentOperationStatus.QUEUED, false));
 		String body = mvc.perform(post("/api/v1/payments/confirm").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
 			.content("""
 				{"payment_key":"example-payment-key","order_id":"00000000-0000-0000-0000-000000000002",
@@ -888,13 +889,13 @@ class ApiDocumentationTest {
 		String url = "/api/v1/payment-operations/" + operationId;
 		PaymentCancellationCommandService service = context.getBean(PaymentCancellationCommandService.class);
 		when(service.requestCancellation(eq(uid), any(), eq(10L)))
-			.thenReturn(new PaymentOperationResponse.Cancellation(operationId, PaymentOperationResponse.Status.PENDING, url, false));
+			.thenReturn(new PaymentOperationReceipt(operationId, PaymentOperationStatus.QUEUED, false));
 		String paid = mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isAccepted()).andExpect(header().string("Location", url))
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "202", paid);
 		assertThat(mapper.readTree(paid)).isEqualTo(mapper.readTree("{\"success\":true}"));
-		when(service.requestCancellation(eq(uid), any(), eq(10L))).thenReturn(PaymentOperationResponse.Cancellation.completed());
+		when(service.requestCancellation(eq(uid), any(), eq(10L))).thenReturn(PaymentOperationReceipt.completedWithoutOperation());
 		mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isAccepted()).andExpect(header().doesNotExist("Location"));
 		when(service.requestCancellation(eq(uid), any(), eq(10L))).thenThrow(new PaymentAccessDeniedException());
@@ -1015,7 +1016,7 @@ class ApiDocumentationTest {
 
 		for (PaymentOperationStatus state : List.of(PaymentOperationStatus.QUEUED, PaymentOperationStatus.APPLIED)) {
 			PaymentOperation operation = PaymentOperation.builder().operationUid(DOCUMENTATION_OPERATION_ID).status(state).build();
-			when(service.requestConfirmation(any(), eq(10L))).thenReturn(PaymentOperationResponse.Accepted.from(operation));
+			when(service.requestConfirmation(any(), eq(10L))).thenReturn(PaymentOperationReceipt.accepted(operation));
 			String body = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
 				.andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, "post", "202", body);

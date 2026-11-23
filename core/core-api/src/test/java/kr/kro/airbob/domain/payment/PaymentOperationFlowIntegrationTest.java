@@ -83,9 +83,11 @@ import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManag
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.payment.PaymentCancellation;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
@@ -113,7 +115,10 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationManualResolutionReco
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewProcessor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationReader;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationWriter;
+import kr.kro.airbob.domain.payment.service.PaymentReader;
 import kr.kro.airbob.domain.payment.service.PaymentRetryBackoff;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
@@ -142,6 +147,9 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	ReservationHistoryWriter.class,
 	ReservationHistoryBatchWriter.class,
 	PaymentCancellationCommandService.class,
+	PaymentReader.class,
+	PaymentOperationReader.class,
+	PaymentOperationWriter.class,
 	PaymentOperationLeaseManager.class,
 	PaymentOperationManualReviewCommandService.class,
 	PaymentOperationManualReviewProcessor.class,
@@ -410,11 +418,11 @@ class PaymentOperationFlowIntegrationTest {
 	void cancellationCommandThroughOutboxAppliesFullProviderCancellation() throws Exception {
 		preparePaidConfirmedReservation();
 
-		var accepted = cancellationCommandService.requestCancellation(
+		var accepted = PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
 			RESERVATION_UID.toString(),
-			new PaymentRequest.Cancel("사용자 요청", AMOUNT),
+			new PaymentCancellation("사용자 요청", AMOUNT),
 			ownerId
-		);
+		));
 		UUID operationUid = accepted.operationId();
 		acceptedStatusUrls.put(operationUid, accepted.statusUrl());
 		assertDurableState(operationUid, QUEUED, CANCELLATION_PENDING, 1, 0, List.of());
@@ -442,11 +450,11 @@ class PaymentOperationFlowIntegrationTest {
 	@Test
 	void cancellationProviderSuccessThenDbRollbackRecoversByCancellationInquiry() throws Exception {
 		preparePaidConfirmedReservation();
-		var accepted = cancellationCommandService.requestCancellation(
+		var accepted = PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
 			RESERVATION_UID.toString(),
-			new PaymentRequest.Cancel("사용자 요청", null),
+			new PaymentCancellation("사용자 요청", null),
 			ownerId
-		);
+		));
 		UUID operationUid = accepted.operationId();
 		acceptedStatusUrls.put(operationUid, accepted.statusUrl());
 		gateway.enqueueCancel(cancelled());

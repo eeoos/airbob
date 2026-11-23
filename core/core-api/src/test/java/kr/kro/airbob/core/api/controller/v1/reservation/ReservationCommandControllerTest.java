@@ -30,9 +30,11 @@ import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.reservation.ReservationCheckoutService;
 import kr.kro.airbob.core.domain.reservation.ReservationHoldCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationQuoteService;
+import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 
 @ExtendWith(MockitoExtension.class)
@@ -72,13 +74,12 @@ class ReservationCommandControllerTest {
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
 		PaymentRequest.Cancel request = new PaymentRequest.Cancel("게스트 요청", null);
 		String statusUrl = "/api/v1/payment-operations/" + operationUid;
-		Cancellation cancellation = new Cancellation(
+		PaymentOperationReceipt cancellation = new PaymentOperationReceipt(
 			operationUid,
-			Status.PENDING,
-			statusUrl,
+			PaymentOperationStatus.QUEUED,
 			false
 		);
-		given(cancellationCommandService.requestCancellation(reservationUid, request, MEMBER_ID))
+		given(cancellationCommandService.requestCancellation(reservationUid, request.toCancellation(), MEMBER_ID))
 			.willReturn(cancellation);
 
 		mockMvc.perform(post("/api/v1/reservations/{reservationUid}", reservationUid)
@@ -92,15 +93,15 @@ class ReservationCommandControllerTest {
 			.andExpect(content().string("{\"success\":true}"));
 
 		then(cancellationCommandService).should()
-			.requestCancellation(reservationUid, request, MEMBER_ID);
+			.requestCancellation(reservationUid, request.toCancellation(), MEMBER_ID);
 	}
 
 	@Test
 	void complimentaryCancellationKeepsTheSameV1EnvelopeWithoutAPollingLocation() throws Exception {
 		String reservationUid = "6df13da6-735a-4a4a-a8bc-3b8acbdac9bf";
 		PaymentRequest.Cancel request = new PaymentRequest.Cancel("0원 예약 취소", null);
-		given(cancellationCommandService.requestCancellation(reservationUid, request, MEMBER_ID))
-			.willReturn(Cancellation.completed());
+		given(cancellationCommandService.requestCancellation(reservationUid, request.toCancellation(), MEMBER_ID))
+			.willReturn(PaymentOperationReceipt.completedWithoutOperation());
 
 		mockMvc.perform(post("/api/v1/reservations/{reservationUid}", reservationUid)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -113,6 +114,6 @@ class ReservationCommandControllerTest {
 			.andExpect(content().string("{\"success\":true}"));
 
 		then(cancellationCommandService).should()
-			.requestCancellation(reservationUid, request, MEMBER_ID);
+			.requestCancellation(reservationUid, request.toCancellation(), MEMBER_ID);
 	}
 }

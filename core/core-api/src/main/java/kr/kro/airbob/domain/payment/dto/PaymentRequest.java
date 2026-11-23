@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import kr.kro.airbob.domain.payment.PaymentCancellation;
+import kr.kro.airbob.domain.payment.PaymentConfirmation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -24,7 +26,11 @@ public class PaymentRequest {
 		@NotNull @Positive Integer amount,
 		@Schema(description = "결제 시도 발급 응답의 payment_attempt_id", example = "00000000-0000-0000-0000-000000000030")
 		@NotNull UUID paymentAttemptId
-	) {}
+	) {
+		public PaymentConfirmation toConfirmation() {
+			return new PaymentConfirmation(paymentKey, orderId, amount, paymentAttemptId);
+		}
+	}
 
 	@Schema(name = "PaymentRequestCancel", example = "{\"cancel_reason\":\"여행 일정 변경\"}")
 	public record Cancel(
@@ -41,6 +47,10 @@ public class PaymentRequest {
 		@Schema(description = "생략하거나 null이면 전액 취소. 지정 시 현재 결제 잔액 전액이어야 합니다. 부분 취소는 지원하지 않으며 0원 예약에서는 생략하거나 null로 보냅니다.",
 			example = "10000", minimum = "1", nullable = true)
 		Long cancelAmount // 취소 금액, null이면 전액 취소
-		) {}
+		) {
+		public PaymentCancellation toCancellation() {
+			return new PaymentCancellation(cancelReason, cancelAmount);
+		}
+	}
 
 }

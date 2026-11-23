@@ -24,9 +24,11 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.support.response.ApiResponse;
+import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 
@@ -54,7 +56,7 @@ class PaymentControllerTest {
 	}
 
 	@Test
-	void confirmPaymentReturnsTheExactServiceResponseInAnAcceptedEnvelope() {
+	void confirmPaymentReturnsTheServiceResultInAnAcceptedEnvelope() {
 		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
 		UUID paymentAttemptId = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
@@ -62,13 +64,15 @@ class PaymentControllerTest {
 			"payment-key", reservationUid.toString(), 100_000, paymentAttemptId);
 		Accepted accepted = new Accepted(operationUid, Status.PENDING,
 			"/api/v1/payment-operations/" + operationUid);
-		given(commandService.requestConfirmation(eq(request), eq(10L))).willReturn(accepted);
+		PaymentOperationReceipt receipt = new PaymentOperationReceipt(
+			operationUid, PaymentOperationStatus.QUEUED, false);
+		given(commandService.requestConfirmation(eq(request.toConfirmation()), eq(10L))).willReturn(receipt);
 
 		ResponseEntity<ApiResponse<Accepted>> response = controller.confirmPayment(request, 10L);
 
 		org.assertj.core.api.Assertions.assertThat(response.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.ACCEPTED);
-		org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isSameAs(accepted);
-		then(commandService).should().requestConfirmation(request, 10L);
+		org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isEqualTo(accepted);
+		then(commandService).should().requestConfirmation(request.toConfirmation(), 10L);
 	}
 
 	@Test
@@ -80,14 +84,16 @@ class PaymentControllerTest {
 			"payment-key", reservationUid.toString(), 100_000, paymentAttemptId);
 		Accepted accepted = new Accepted(operationUid, Status.PENDING,
 			"/api/v1/payment-operations/" + operationUid);
-		given(commandService.requestConfirmation(eq(request), eq(10L))).willReturn(accepted);
+		PaymentOperationReceipt receipt = new PaymentOperationReceipt(
+			operationUid, PaymentOperationStatus.QUEUED, false);
+		given(commandService.requestConfirmation(eq(request.toConfirmation()), eq(10L))).willReturn(receipt);
 
 		ResponseEntity<ApiResponse<Accepted>> response = controller.confirmPayment(request, 10L);
 
 		org.assertj.core.api.Assertions.assertThat(response.getStatusCode())
 			.isEqualTo(org.springframework.http.HttpStatus.ACCEPTED);
-		org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isSameAs(accepted);
-		then(commandService).should().requestConfirmation(request, 10L);
+		org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isEqualTo(accepted);
+		then(commandService).should().requestConfirmation(request.toConfirmation(), 10L);
 	}
 
 	@Test
@@ -97,7 +103,9 @@ class PaymentControllerTest {
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
 		Accepted accepted = new Accepted(operationUid, Status.PENDING,
 			"/api/v1/payment-operations/" + operationUid);
-		given(commandService.requestConfirmation(org.mockito.ArgumentMatchers.any(), eq(10L))).willReturn(accepted);
+		PaymentOperationReceipt receipt = new PaymentOperationReceipt(
+			operationUid, PaymentOperationStatus.QUEUED, false);
+		given(commandService.requestConfirmation(org.mockito.ArgumentMatchers.any(), eq(10L))).willReturn(receipt);
 
 		mockMvc.perform(post("/api/v1/payments/confirm")
 				.contentType(MediaType.APPLICATION_JSON)

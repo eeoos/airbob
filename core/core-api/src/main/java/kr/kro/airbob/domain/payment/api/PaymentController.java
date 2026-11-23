@@ -12,10 +12,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import kr.kro.airbob.core.api.security.CurrentMemberId;
-import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.support.error.ErrorCode;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
@@ -60,7 +60,8 @@ public class PaymentController {
 		@CurrentMemberId Long memberId
 	) {
 		return ResponseEntity.accepted()
-			.body(ApiResponse.success(paymentOperationCommandService.requestConfirmation(request, memberId)));
+			.body(ApiResponse.success(Accepted.from(
+				paymentOperationCommandService.requestConfirmation(request.toConfirmation(), memberId))));
 	}
 
 	@Operation(operationId = "Payment.getPaymentByPaymentKey", summary = "결제 키로 결제 조회",

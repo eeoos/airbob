@@ -75,7 +75,8 @@ public class ReservationCommandController implements ReservationCommandApi {
 		String reservationUid,
 		PaymentRequest.Cancel request,
 		Long memberId) {
-		Cancellation response = cancellationCommandService.requestCancellation(reservationUid, request, memberId);
+		Cancellation response = Cancellation.from(
+			cancellationCommandService.requestCancellation(reservationUid, request.toCancellation(), memberId));
 		ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.accepted();
 		if (response.statusUrl() != null) {
 			responseBuilder.location(URI.create(response.statusUrl()));

@@ -8,7 +8,7 @@ import java.util.UUID;
 import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
-import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.PaymentOperationReceipt;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
@@ -49,9 +49,9 @@ public class PaymentOperationResponse {
 		@Schema(description = "같은 API 서버에서 조회할 상대 URL", example = "/api/v1/payment-operations/00000000-0000-0000-0000-000000000040", requiredMode = Schema.RequiredMode.REQUIRED)
 		String statusUrl
 	) {
-		public static Accepted from(PaymentOperation operation) {
-			UUID operationUid = operation.getOperationUid();
-			return new Accepted(operationUid, Status.from(operation.getStatus()),
+		public static Accepted from(PaymentOperationReceipt receipt) {
+			UUID operationUid = receipt.operationUid();
+			return new Accepted(operationUid, Status.from(receipt.status()),
 				"/api/v1/payment-operations/" + operationUid);
 		}
 	}
@@ -64,11 +64,14 @@ public class PaymentOperationResponse {
 		String statusUrl,
 		boolean completedSynchronously
 	) {
-		public static Cancellation accepted(PaymentOperation operation) {
-			UUID operationUid = operation.getOperationUid();
+		public static Cancellation from(PaymentOperationReceipt receipt) {
+			if (receipt.completedSynchronously()) {
+				return completed();
+			}
+			UUID operationUid = receipt.operationUid();
 			return new Cancellation(
 				operationUid,
-				Status.from(operation.getStatus()),
+				Status.from(receipt.status()),
 				"/api/v1/payment-operations/" + operationUid,
 				false
 			);

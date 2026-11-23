@@ -38,6 +38,7 @@ import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
@@ -74,7 +75,8 @@ class PaymentOperationCommandServiceTest {
 		service = new PaymentOperationCommandService(
 			new ReservationReader(reservationRepository),
 			inventoryManager,
-			paymentOperationRepository,
+			new PaymentOperationReader(paymentOperationRepository),
+			new PaymentOperationWriter(paymentOperationRepository),
 			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 			outboxWriter,
 			Clock.fixed(NOW, ZoneOffset.UTC)
@@ -106,7 +108,7 @@ class PaymentOperationCommandServiceTest {
 		PaymentRequest.Confirm request = request();
 		assertThat(request.paymentAttemptId()).isEqualTo(PAYMENT_ATTEMPT_ID);
 
-		Accepted accepted = service.requestConfirmation(request, GUEST_ID);
+		Accepted accepted = PaymentOperationResponse.Accepted.from(service.requestConfirmation(request.toConfirmation(), GUEST_ID));
 
 		assertThat(accepted.status()).isEqualTo(Status.PENDING);
 		assertThat(accepted.statusUrl()).isEqualTo("/api/v1/payment-operations/" + accepted.operationId());
@@ -132,7 +134,7 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 
-		service.requestConfirmation(request(PAYMENT_ATTEMPT_ID), GUEST_ID);
+		PaymentOperationResponse.Accepted.from(service.requestConfirmation(request(PAYMENT_ATTEMPT_ID).toConfirmation(), GUEST_ID));
 
 		InOrder order = org.mockito.Mockito.inOrder(
 			pendingReservation,
@@ -189,7 +191,7 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.of(existing));
 
-		Accepted replay = service.requestConfirmation(request(PAYMENT_ATTEMPT_ID), GUEST_ID);
+		Accepted replay = PaymentOperationResponse.Accepted.from(service.requestConfirmation(request(PAYMENT_ATTEMPT_ID).toConfirmation(), GUEST_ID));
 
 		assertThat(replay.operationId()).isEqualTo(EXISTING_OPERATION_UID);
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
@@ -219,7 +221,7 @@ class PaymentOperationCommandServiceTest {
 	void nonOwnerCreatesNeitherOperationNorOutbox() {
 		givenReservationLocks(pendingReservation);
 
-		assertThatThrownBy(() -> service.requestConfirmation(request(), 999L))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request().toConfirmation(), 999L)))
 			.isInstanceOf(PaymentAccessDeniedException.class);
 
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -235,9 +237,9 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.of(existing));
 
-		assertThat(service.requestConfirmation(request("pk-one", 100_000), GUEST_ID).operationId())
+		assertThat(PaymentOperationResponse.Accepted.from(service.requestConfirmation(request("pk-one", 100_000).toConfirmation(), GUEST_ID)).operationId())
 			.isEqualTo(EXISTING_OPERATION_UID);
-		assertThatThrownBy(() -> service.requestConfirmation(request("pk-two", 100_000), GUEST_ID))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request("pk-two", 100_000).toConfirmation(), GUEST_ID)))
 			.isInstanceOf(PaymentOperationConflictException.class);
 
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -259,7 +261,7 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> service.requestConfirmation(request(), GUEST_ID))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request().toConfirmation(), GUEST_ID)))
 			.isInstanceOf(ExpiredReservationConfirmationException.class);
 
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
@@ -277,7 +279,7 @@ class PaymentOperationCommandServiceTest {
 			.given(inventoryManager).transitionHeldToOccupied(
 				ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 
-		assertThatThrownBy(() -> service.requestConfirmation(request(), GUEST_ID))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request().toConfirmation(), GUEST_ID)))
 			.isInstanceOf(ReservationInventoryInvariantViolationException.class);
 
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
@@ -290,7 +292,7 @@ class PaymentOperationCommandServiceTest {
 		PaymentRequest.Confirm malformed = new PaymentRequest.Confirm(
 			"pk", "not-a-uuid", 100_000, PAYMENT_ATTEMPT_ID);
 
-		assertThatThrownBy(() -> service.requestConfirmation(malformed, GUEST_ID))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(malformed.toConfirmation(), GUEST_ID)))
 			.isInstanceOf(InvalidInputException.class);
 
 		then(reservationRepository).shouldHaveNoInteractions();
@@ -322,7 +324,7 @@ class PaymentOperationCommandServiceTest {
 	}
 
 	private void assertPaymentAttemptRejected(PaymentRequest.Confirm request) {
-		Throwable thrown = catchThrowable(() -> service.requestConfirmation(request, GUEST_ID));
+		Throwable thrown = catchThrowable(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request.toConfirmation(), GUEST_ID)));
 
 		assertThat(thrown).isInstanceOf(BaseException.class);
 		assertThat(((BaseException)thrown).getErrorCode().getCode()).isEqualTo("R024");
