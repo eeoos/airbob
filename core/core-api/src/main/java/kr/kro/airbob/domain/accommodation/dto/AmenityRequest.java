@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
+import kr.kro.airbob.domain.accommodation.NewAmenity;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -25,5 +26,8 @@ public class AmenityRequest {
 		@Schema(description = "개수. 0이면 저장하지 않습니다. 같은 코드의 합계는 2147483647 이하여야 합니다.", example = "1", minimum = "0")
 		Integer count
 	) {
+		public NewAmenity toNewAmenity() {
+			return new NewAmenity(name, count);
+		}
 	}
 }

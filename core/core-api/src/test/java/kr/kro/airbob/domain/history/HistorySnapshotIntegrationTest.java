@@ -44,7 +44,6 @@ import kr.kro.airbob.core.domain.member.MemberService;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -235,8 +234,7 @@ class HistorySnapshotIntegrationTest {
 	void accommodationHistoryScd2() {
 		Member host = memberRepository.save(Member.builder().email("host@test.com").nickname("host").build());
 
-		AccommodationResponse.Create created = accommodationCommandService.createAccommodation(host.getId());
-		Long accommodationId = created.id();
+		Long accommodationId = accommodationCommandService.createAccommodation(host.getId());
 
 		List<AccommodationHistory> afterCreate = accommodationHistoryRepository.findAll();
 		assertThat(afterCreate).hasSize(1);

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
+import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
@@ -29,7 +30,8 @@ public class AccommodationHostController implements AccommodationHostApi {
     @Override
     public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(
         Long memberId) {
-        AccommodationResponse.Create response = accommodationCommandService.createAccommodation(memberId);
+        AccommodationResponse.Create response = new AccommodationResponse.Create(
+            accommodationCommandService.createAccommodation(memberId));
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success(response));
     }
@@ -38,7 +40,7 @@ public class AccommodationHostController implements AccommodationHostApi {
     public ResponseEntity<ApiResponse<Void>> updateAccommodation(Long accommodationId,
         AccommodationRequest.Update request,
         Long memberId) {
-        accommodationCommandService.updateAccommodation(accommodationId, request, memberId);
+        accommodationCommandService.updateAccommodation(accommodationId, request.toUpdate(), memberId);
         return ResponseEntity.ok(ApiResponse.success());
     }
 
@@ -70,8 +72,9 @@ public class AccommodationHostController implements AccommodationHostApi {
         Long accommodationId,
         List<MultipartFile> images,
         Long memberId) {
-        ImageResponse.ImageUploadResult response = accommodationImageService.uploadImages(accommodationId, images,
-            memberId);
+        List<StoredImage> uploaded = accommodationImageService.uploadImages(accommodationId, images, memberId);
+        ImageResponse.ImageUploadResult response = ImageResponse.ImageUploadResult.from(
+            uploaded.stream().map(ImageResponse.ImageInfo::from).toList());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }

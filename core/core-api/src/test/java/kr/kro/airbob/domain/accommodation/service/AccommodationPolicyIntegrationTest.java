@@ -50,7 +50,8 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationCommandService.class, MemberReader.class, ReservationReader.class})
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationCommandService.class, MemberReader.class, ReservationReader.class,
+	AccommodationReader.class, AccommodationWriter.class, AccommodationValidator.class, AccommodationLocationResolver.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 정책 저장 후 호스트 조회 MySQL 계약")
@@ -109,7 +110,7 @@ class AccommodationPolicyIntegrationTest {
 
 		updatePolicy(fixture, 4, 0, 2);
 		commandService.updateAccommodation(fixture.id(),
-			AccommodationRequest.Update.builder().name("수정된 이름").build(), fixture.hostId());
+			AccommodationRequest.Update.builder().name("수정된 이름").build().toUpdate(), fixture.hostId());
 
 		assertThat(readPolicy(fixture)).isEqualTo(new PolicyResponse.PolicyInfo(4, 0, 2));
 		assertThat(policyId(fixture)).isEqualTo(policyId);
@@ -131,7 +132,7 @@ class AccommodationPolicyIntegrationTest {
 
 	private void updatePolicy(Fixture fixture, int max, int infant, int pet) {
 		commandService.updateAccommodation(fixture.id(), AccommodationRequest.Update.builder()
-			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(max, infant, pet)).build(), fixture.hostId());
+			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(max, infant, pet)).build().toUpdate(), fixture.hostId());
 	}
 
 	private PolicyResponse.PolicyInfo readPolicy(Fixture fixture) {

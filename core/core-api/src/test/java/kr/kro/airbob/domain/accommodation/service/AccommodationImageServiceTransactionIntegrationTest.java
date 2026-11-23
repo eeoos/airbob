@@ -157,6 +157,9 @@ class AccommodationImageServiceTransactionIntegrationTest {
 	@EnableTransactionManagement
 	@Import({
 		AccommodationImageService.class,
+		AccommodationReader.class,
+		AccommodationImageReader.class,
+		AccommodationImageWriter.class,
 		ImageStorageTransactionEventListener.class
 	})
 	static class TestConfiguration {

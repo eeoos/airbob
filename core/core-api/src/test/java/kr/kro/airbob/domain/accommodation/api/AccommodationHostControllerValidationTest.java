@@ -20,7 +20,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -45,8 +44,14 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.*;
 import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
+import kr.kro.airbob.domain.accommodation.service.AccommodationImageReader;
 import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
+import kr.kro.airbob.domain.accommodation.service.AccommodationImageWriter;
+import kr.kro.airbob.domain.accommodation.service.AccommodationLocationResolver;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
+import kr.kro.airbob.domain.accommodation.service.AccommodationReader;
+import kr.kro.airbob.domain.accommodation.service.AccommodationValidator;
+import kr.kro.airbob.domain.accommodation.service.AccommodationWriter;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.geo.GeocodingService;
@@ -74,8 +79,8 @@ class AccommodationHostControllerValidationTest {
 	@Mock S3ImageUploader uploader;
 	@Mock ApplicationEventPublisher events;
 	@Mock AccommodationQueryService queryService;
-	@InjectMocks AccommodationCommandService commandService;
-	@InjectMocks AccommodationImageService imageService;
+	AccommodationCommandService commandService;
+	AccommodationImageService imageService;
 
 	private MockMvc mvc;
 	private ObjectMapper mapper;
@@ -83,6 +88,15 @@ class AccommodationHostControllerValidationTest {
 
 	@BeforeEach
 	void setUp() {
+		AccommodationReader accommodationReader = new AccommodationReader(accommodations);
+		commandService = new AccommodationCommandService(accommodationReader,
+			new AccommodationWriter(accommodations, history, addresses, policies, amenities, clock),
+			new AccommodationValidator(codes, reservations, images, clock),
+			new AccommodationLocationResolver(geocoding, timeZones),
+			members, search, cache, inventory);
+		imageService = new AccommodationImageService(accommodationReader,
+			new AccommodationImageReader(images), new AccommodationImageWriter(images),
+			uploader, events, cache, search);
 		mapper = new ObjectMapper().findAndRegisterModules().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mvc = MockMvcBuilders.standaloneSetup(new AccommodationHostController(commandService, imageService, queryService))
 			.setControllerAdvice(new GlobalExceptionHandler())

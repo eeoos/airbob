@@ -20,7 +20,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -73,11 +72,17 @@ class AccommodationCommandServiceTest {
 	@Mock private AccommodationInventorySeedService inventorySeedService;
 	@Mock private Clock clock;
 
-	@InjectMocks
 	private AccommodationCommandService accommodationCommandService;
 
 	@BeforeEach
 	void setUpClock() {
+		accommodationCommandService = new AccommodationCommandService(
+			new AccommodationReader(accommodationRepository),
+			new AccommodationWriter(accommodationRepository, accommodationHistoryRepository, addressRepository,
+				occupancyPolicyRepository, accommodationAmenityRepository, clock),
+			new AccommodationValidator(commonCodeReader, reservationReader, accommodationImageRepository, clock),
+			new AccommodationLocationResolver(geocodingService, timeZoneResolver),
+			memberReader, searchRefreshPublisher, cacheInvalidationPublisher, inventorySeedService);
 		lenient().when(clock.instant()).thenReturn(NOW);
 		lenient().when(reservationReader.existsFutureInventoryReservation(anyLong(), eq(NOW)))
 			.thenReturn(false);
@@ -95,7 +100,7 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(accommodation));
 
 		accommodationCommandService.updateAccommodation(1L, AccommodationRequest.Update.builder()
-			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(6, 2, 3)).build(), 2L);
+			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(6, 2, 3)).build().toUpdate(), 2L);
 
 		assertThat(accommodation.getOccupancyPolicy()).isSameAs(policy);
 		assertThat(policy.getMaxOccupancy()).isEqualTo(6);
@@ -126,7 +131,7 @@ class AccommodationCommandServiceTest {
 		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
 		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-		accommodationCommandService.updateAccommodation(1L, request, 2L);
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getAddress().getLatitude()).isEqualTo(37.5665);
 		assertThat(accommodation.getAddress().getLongitude()).isEqualTo(126.9780);
@@ -165,7 +170,7 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(accommodation));
 		when(geocodingService.getCoordinates(anyString())).thenReturn(GeocodeResult.fail());
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A008");
@@ -203,7 +208,7 @@ class AccommodationCommandServiceTest {
 		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
 		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A008");
@@ -244,7 +249,7 @@ class AccommodationCommandServiceTest {
 		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
 		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-		accommodationCommandService.updateAccommodation(1L, request, 2L);
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
 		assertThat(accommodation.getAddress().getLatitude()).isEqualTo(37.5665);
@@ -336,7 +341,7 @@ class AccommodationCommandServiceTest {
 		when(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "NOT_A_TYPE"))
 			.thenReturn(false);
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A004");
@@ -360,7 +365,7 @@ class AccommodationCommandServiceTest {
 			1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception ->
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
 
@@ -385,7 +390,7 @@ class AccommodationCommandServiceTest {
 			1L, 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception ->
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
 
@@ -431,7 +436,7 @@ class AccommodationCommandServiceTest {
 		when(commonCodeReader.isValidCode(eq(AMENITY_TYPE), anyString()))
 			.thenAnswer(invocation -> "WIFI".equals(invocation.getArgument(1)));
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A007");
@@ -466,7 +471,7 @@ class AccommodationCommandServiceTest {
 			when(commonCodeReader.isValidCode(AMENITY_TYPE, "WIFI"))
 				.thenReturn(true);
 
-			accommodationCommandService.updateAccommodation(1L, request, 2L);
+			accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 			assertThat(accommodation.getType()).isEqualTo("PRIVATE_ROOM");
 			verify(accommodationAmenityRepository).saveAll(argThat(amenities -> {
@@ -497,7 +502,7 @@ class AccommodationCommandServiceTest {
 		when(clock.instant()).thenReturn(NOW);
 		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
@@ -522,7 +527,7 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(accommodation));
 		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
@@ -561,7 +566,7 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
 		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request, 2L))
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 
 		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
@@ -603,7 +608,7 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
 		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-		accommodationCommandService.updateAccommodation(1L, request, 2L);
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getAddress().getCity()).isEqualTo("Busan");
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
@@ -631,7 +636,7 @@ class AccommodationCommandServiceTest {
 		when(clock.instant()).thenReturn(NOW);
 		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
 
-		accommodationCommandService.updateAccommodation(1L, request, 2L);
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(16, 0));
 		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
@@ -740,7 +745,7 @@ class AccommodationCommandServiceTest {
 		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
 		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
 
-		accommodationCommandService.updateAccommodation(1L, request, 2L);
+		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("America/New_York");
 		verify(inventorySeedService).seedCurrentHorizon(accommodation);

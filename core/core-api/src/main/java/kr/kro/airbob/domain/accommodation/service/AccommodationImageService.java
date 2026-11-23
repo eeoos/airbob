@@ -3,32 +3,27 @@ package kr.kro.airbob.domain.accommodation.service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.domain.image.EmptyImageFileException;
 import kr.kro.airbob.core.domain.image.ImageFileSizeExceededException;
-import kr.kro.airbob.core.domain.image.ImageNotFoundException;
 import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageDeletionRequested;
 import kr.kro.airbob.core.domain.image.ImageStorageTransactionEvents.ImageUploaded;
 import kr.kro.airbob.core.domain.image.ImageUploadException;
 import kr.kro.airbob.core.domain.image.InvalidImageFormatException;
 import kr.kro.airbob.core.domain.image.S3ImageUploader;
+import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationImage;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.port.AccommodationSearchRefreshRequester;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,23 +36,24 @@ public class AccommodationImageService {
 	public static final String IMAGE_JPEG = "image/jpeg";
 	public static final String IMAGE_PNG = "image/png";
 
-	private final AccommodationImageRepository accommodationImageRepository;
-	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReader accommodationReader;
+	private final AccommodationImageReader accommodationImageReader;
+	private final AccommodationImageWriter accommodationImageWriter;
 	private final S3ImageUploader s3ImageUploader;
 	private final ApplicationEventPublisher applicationEventPublisher;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
 
+	/** 이미지를 저장소에 올리고 숙소에 붙인다. 이번 요청으로 추가된 이미지를 돌려준다. */
 	@Transactional
-	public ImageResponse.ImageUploadResult uploadImages(
+	public List<StoredImage> uploadImages(
 		Long accommodationId,
 		List<MultipartFile> images,
 		Long memberId
 	) {
-		Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
+		Accommodation accommodation = accommodationReader.readOwned(accommodationId, memberId);
 
-		List<ImageResponse.ImageInfo> imageInfos = new ArrayList<>();
-		List<AccommodationImage> savedImages = new ArrayList<>();
+		List<String> imageUrls = new ArrayList<>();
 
 		for (MultipartFile image : images) {
 			validateImageFile(image);
@@ -74,45 +70,33 @@ public class AccommodationImageService {
 			// 이후 DB 저장이나 outbox 발행이 실패하면 방금 업로드한 객체를 롤백 시 정리한다.
 			applicationEventPublisher.publishEvent(new ImageUploaded(imageUrl));
 
-			AccommodationImage accommodationImage = AccommodationImage.builder()
-				.accommodation(accommodation)
-				.imageUrl(imageUrl)
-				.build();
-			savedImages.add(accommodationImage);
+			imageUrls.add(imageUrl);
 		}
 
-		List<AccommodationImage> actuallySavedImages = accommodationImageRepository.saveAll(savedImages);
+		List<StoredImage> uploadedImages = accommodationImageWriter.addAll(accommodation, imageUrls);
 
-		for (AccommodationImage savedImage : actuallySavedImages) {
-			imageInfos.add(ImageResponse.ImageInfo.builder()
-				.id(savedImage.getId())
-				.imageUrl(savedImage.getImageUrl())
-				.build());
-		}
-
-		boolean thumbnailChanged = findAndUpdateThumbnail(accommodation);
+		boolean thumbnailChanged = accommodationImageWriter.refreshThumbnail(accommodation);
 		publishReindexEventIfNeeded(accommodation, thumbnailChanged);
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.IMAGE);
 
-		return ImageResponse.ImageUploadResult.from(imageInfos);
+		return uploadedImages;
 	}
 
 	@Transactional
 	public void deleteImage(Long accommodationId, Long imageId, Long memberId) {
-		Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
+		Accommodation accommodation = accommodationReader.readOwned(accommodationId, memberId);
 
-		AccommodationImage image = accommodationImageRepository.findById(imageId)
-			.orElseThrow(ImageNotFoundException::new);
+		AccommodationImage image = accommodationImageReader.readById(imageId);
 
 		if (!image.getAccommodation().getId().equals(accommodationId)) {
 			throw new InvalidInputException();
 		}
 
-		accommodationImageRepository.delete(image);
+		accommodationImageWriter.delete(image);
 
 		boolean thumbnailChanged = image.getImageUrl().equals(accommodation.getThumbnailUrl())
-			&& findAndUpdateThumbnail(accommodation);
+			&& accommodationImageWriter.refreshThumbnail(accommodation);
 		publishReindexEventIfNeeded(accommodation, thumbnailChanged);
 		// DB 롤백 시 원본 객체가 유실되지 않도록 실제 삭제는 커밋 이후로 미룬다.
 		applicationEventPublisher.publishEvent(new ImageDeletionRequested(image.getImageUrl()));
@@ -136,18 +120,6 @@ public class AccommodationImageService {
 		}
 	}
 
-	private boolean findAndUpdateThumbnail(Accommodation accommodation) {
-		List<AccommodationImage> remainingImages =
-			accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodation.getId());
-		String newThumbnailUrl = remainingImages.isEmpty() ? null : remainingImages.getFirst().getImageUrl();
-
-		if (!Objects.equals(accommodation.getThumbnailUrl(), newThumbnailUrl)) {
-			accommodation.updateThumbnailUrl(newThumbnailUrl);
-			return true;
-		}
-		return false;
-	}
-
 	private void publishReindexEventIfNeeded(
 		Accommodation accommodation,
 		boolean thumbnailChanged
@@ -155,11 +127,5 @@ public class AccommodationImageService {
 		if (thumbnailChanged && accommodation.getStatus() == AccommodationStatus.PUBLISHED) {
 			searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		}
-	}
-
-	private Accommodation findByIdAndMemberIdExceptDeleted(Long accommodationId, Long memberId) {
-		return accommodationRepository.findByIdAndMemberIdAndStatusNot(
-			accommodationId, memberId, AccommodationStatus.DELETED
-		).orElseThrow(AccommodationNotFoundException::new);
 	}
 }
