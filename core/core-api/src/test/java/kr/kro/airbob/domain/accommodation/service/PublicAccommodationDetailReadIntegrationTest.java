@@ -42,6 +42,7 @@ import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -179,7 +180,7 @@ class PublicAccommodationDetailReadIntegrationTest {
 		assertThat(snapshot.policy().maxOccupancy()).isEqualTo(2);
 		assertThat(snapshot.policy().infantOccupancy()).isZero();
 		assertThat(snapshot.reviewSummary().totalCount()).isZero();
-		assertThat(snapshot.amenities()).contains(new AmenityResponse.AmenityInfo("TV", 0));
+		assertThat(snapshot.amenities()).contains(new AccommodationDetailSnapshot.Amenity("TV", 0));
 		assertThat(snapshot.images().getFirst().imageUrl()).isEqualTo("/contract/changed.jpg");
 		assertReadQueries(statistics);
 	}

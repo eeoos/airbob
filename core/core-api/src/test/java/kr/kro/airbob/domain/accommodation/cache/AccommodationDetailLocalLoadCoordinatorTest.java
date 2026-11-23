@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 
 @DisplayName("숙소 상세 로컬 단일 조회 조정자 단위 테스트")
 class AccommodationDetailLocalLoadCoordinatorTest {

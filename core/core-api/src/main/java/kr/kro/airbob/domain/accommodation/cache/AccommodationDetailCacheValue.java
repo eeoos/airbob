@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.accommodation.cache;
 
-import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 
 /**
  * Redis에 저장되는 숙소 상세 값

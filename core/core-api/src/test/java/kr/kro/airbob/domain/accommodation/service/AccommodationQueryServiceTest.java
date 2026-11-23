@@ -19,7 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;

@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 
 @JsonTest
