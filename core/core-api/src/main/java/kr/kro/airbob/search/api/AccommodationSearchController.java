@@ -35,8 +35,8 @@ public class AccommodationSearchController implements AccommodationSearchApi {
 			pageable = PageRequest.of(pageable.getPageNumber(), DEFAULT_PAGE_SIZE);
 		}
 
-		AccommodationSearchResponse.AccommodationSearchInfos infos =
-			accommodationSearchService.searchAccommodations(searchRequest, mapBounds, pageable, memberId);
+		AccommodationSearchResponse.AccommodationSearchInfos infos = AccommodationSearchResponse.AccommodationSearchInfos.from(
+			accommodationSearchService.searchAccommodations(searchRequest.toCondition(mapBounds), pageable, memberId));
 
 		return ResponseEntity.ok(ApiResponse.success(infos));
 	}

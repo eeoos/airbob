@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PositiveOrZero;
+import kr.kro.airbob.search.AccommodationSearchCondition;
+import kr.kro.airbob.search.AccommodationSearchPage;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +17,7 @@ import lombok.Setter;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AccommodationSearchRequest {
 	public static final int DEFAULT_PAGE_SIZE = 18;
-	public static final int MAX_PAGE_NUMBER = 14;
+	public static final int MAX_PAGE_NUMBER = AccommodationSearchPage.MAX_PAGE_NUMBER;
 
 	@Getter
 	@Setter
@@ -73,35 +75,11 @@ public class AccommodationSearchRequest {
 		}
 
 		// 총 인원 수 계산 (유아, 펫 제외)
-		@Schema(hidden = true)
-		public double getTotalGuests() {
-			return (adultOccupancy != null ? adultOccupancy.longValue() : 0L) +
-				(childOccupancy != null ? childOccupancy : 0);
-		}
-
-		public boolean hasPet() {
-			return (petOccupancy != null) && petOccupancy > 0;
-		}
-
-		@Schema(hidden = true)
-		public boolean isValidOccupancy() {
-			int adults = adultOccupancy != null ? adultOccupancy : 0;
-			return adults >= 1;
-		}
-
-		public void setDefaultOccupancy() {
-			if (adultOccupancy == null || adultOccupancy < 1) {
-				this.adultOccupancy = 1;
-			}
-			if (childOccupancy == null) {
-				this.childOccupancy = 0;
-			}
-			if (infantOccupancy == null) {
-				this.infantOccupancy = 0;
-			}
-			if (petOccupancy == null) {
-				this.petOccupancy = 0;
-			}
+		public AccommodationSearchCondition toCondition(MapBoundsDto mapBounds) {
+			return new AccommodationSearchCondition(
+				destination, minPrice, maxPrice, checkIn, checkOut,
+				adultOccupancy, childOccupancy, infantOccupancy, petOccupancy,
+				amenityTypes, accommodationTypes, mapBounds.toMapArea());
 		}
 	}
 
@@ -136,6 +114,14 @@ public class AccommodationSearchRequest {
 
 		public boolean hasAllBounds() {
 			return topLeftLat != null && topLeftLng != null && bottomRightLat != null && bottomRightLng != null;
+		}
+
+		/** 네 좌표가 모두 있으면 지도 영역, 아니면 null. */
+		public AccommodationSearchCondition.MapArea toMapArea() {
+			if (!hasAllBounds()) {
+				return null;
+			}
+			return new AccommodationSearchCondition.MapArea(topLeftLat, topLeftLng, bottomRightLat, bottomRightLng);
 		}
 	}
 }

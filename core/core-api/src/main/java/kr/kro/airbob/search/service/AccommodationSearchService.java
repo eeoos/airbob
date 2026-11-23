@@ -1,291 +1,73 @@
 package kr.kro.airbob.search.service;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.ElasticsearchException;
-import co.elastic.clients.elasticsearch._types.FieldValue;
-import co.elastic.clients.elasticsearch._types.GeoLocation;
-import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
-import co.elastic.clients.elasticsearch._types.query_dsl.RangeRelation;
-import co.elastic.clients.elasticsearch.core.SearchRequest;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
-import co.elastic.clients.elasticsearch.core.search.Hit;
-
-import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.search.port.SearchWishlistReader;
+import kr.kro.airbob.search.AccommodationDocumentHits;
+import kr.kro.airbob.search.AccommodationSearchCondition;
+import kr.kro.airbob.search.AccommodationSearchItem;
+import kr.kro.airbob.search.AccommodationSearchPage;
 import kr.kro.airbob.search.document.AccommodationDocument;
-import kr.kro.airbob.search.dto.AccommodationSearchRequest;
-import kr.kro.airbob.search.dto.AccommodationSearchResponse;
-import kr.kro.airbob.search.exception.SearchUnavailableException;
+import kr.kro.airbob.search.port.SearchWishlistReader;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
-import static kr.kro.airbob.geo.dto.GoogleGeocodeResponse.Geometry.*;
-import static kr.kro.airbob.search.dto.AccommodationSearchRequest.MAX_PAGE_NUMBER;
 
 @Service
-@Slf4j
 @RequiredArgsConstructor
 public class AccommodationSearchService {
 
-    private final ElasticsearchClient esClient;
-    private final SearchWishlistReader wishlistReader;
-    private final BookingWindowProvider bookingWindowProvider;
+	private final AccommodationDocumentReader documentReader;
+	private final SearchWishlistReader wishlistReader;
+	private final BookingWindowProvider bookingWindowProvider;
 
-    private static final String INDEX = "accommodations";
+	public AccommodationSearchPage searchAccommodations(
+		AccommodationSearchCondition condition,
+		Pageable pageable,
+		Long memberId
+	) {
+		AccommodationSearchCondition search = condition.withDefaultOccupancy();
 
-    public AccommodationSearchResponse.AccommodationSearchInfos searchAccommodations(
-            AccommodationSearchRequest.AccommodationSearchRequestDto req,
-            AccommodationSearchRequest.MapBoundsDto mapBounds,
-            Pageable pageable,
-            Long memberId
-    ) {
+		// 색인의 maxGuests는 32비트 정수이므로 이보다 큰 합계는 수용 가능한 숙소가 없다.
+		if (search.totalGuests() > Integer.MAX_VALUE) {
+			return AccommodationSearchPage.empty(pageable);
+		}
 
-        if (!req.isValidOccupancy()) {
-            req.setDefaultOccupancy();
-        }
+		if (search.mapArea() == null && !search.hasDestination()) {
+			return AccommodationSearchPage.empty(pageable);
+		}
 
-        // 색인의 maxGuests는 32비트 정수이므로 이보다 큰 합계는 수용 가능한 숙소가 없다.
-        if (req.getTotalGuests() > Integer.MAX_VALUE) {
-            return createEmpty(pageable);
-        }
+		Set<String> eligibleTimeZones = eligibleTimeZones(search);
+		if (search.hasDateRange() && eligibleTimeZones.isEmpty()) {
+			return AccommodationSearchPage.empty(pageable);
+		}
 
-        Viewport viewport = determineViewport(mapBounds);
-        if (viewport == null && !hasText(req.getDestination())) {
-            return createEmpty(pageable);
-        }
+		AccommodationDocumentHits hits = documentReader.search(search, eligibleTimeZones, pageable);
+		List<AccommodationDocument> docs = hits.documents();
+		if (docs.isEmpty()) {
+			return AccommodationSearchPage.of(List.of(), pageable, hits.total());
+		}
 
-        Set<String> eligibleTimeZones = eligibleTimeZones(req);
-        if (hasDateRange(req) && eligibleTimeZones.isEmpty()) {
-            return createEmpty(pageable);
-        }
+		List<Long> ids = docs.stream().map(AccommodationDocument::accommodationId).toList();
+		Set<Long> wishlistIds = getWishlist(ids, memberId);
 
-        Query query = buildQuery(req, viewport, eligibleTimeZones);
+		List<AccommodationSearchItem> items = docs.stream()
+			.map(d -> new AccommodationSearchItem(d, wishlistIds.contains(d.accommodationId())))
+			.toList();
+		return AccommodationSearchPage.of(items, pageable, hits.total());
+	}
 
-        SearchRequest searchReq = new SearchRequest.Builder()
-                .index(INDEX)
-                .query(query)
-                .from((int) pageable.getOffset())
-                .size(pageable.getPageSize())
-                .build();
+	private Set<String> eligibleTimeZones(AccommodationSearchCondition condition) {
+		if (!condition.hasDateRange()) {
+			return Set.of();
+		}
+		return bookingWindowProvider.eligibleTimeZonesForStay(condition.checkIn(), condition.checkOut());
+	}
 
-        SearchResponse<AccommodationDocument> res;
-        try {
-            res = esClient.search(searchReq, AccommodationDocument.class);
-        } catch (IOException | ElasticsearchException e) {
-            log.error("ES search failed", e);
-            throw new SearchUnavailableException(e);
-        }
-
-        List<AccommodationDocument> docs = res.hits().hits()
-                .stream()
-                .map(Hit::source)
-                .filter(Objects::nonNull)
-                .toList();
-
-        long total = res.hits().total() != null ? res.hits().total().value() : docs.size();
-        if (docs.isEmpty()) {
-            return AccommodationSearchResponse.AccommodationSearchInfos.builder()
-                    .staySearchResultListing(List.of())
-                    .pageInfo(pageInfo(pageable, total))
-                    .build();
-        }
-
-        List<Long> ids = docs.stream().map(AccommodationDocument::accommodationId).toList();
-        Set<Long> wishlistIds = getWishlist(ids, memberId);
-
-        List<AccommodationSearchResponse.AccommodationSearchInfo> list =
-                docs.stream()
-                        .map(d -> AccommodationSearchResponse.AccommodationSearchInfo.from(
-                                d,
-                                wishlistIds.contains(d.accommodationId())
-                        ))
-                        .toList();
-
-        return AccommodationSearchResponse.AccommodationSearchInfos.builder()
-                .staySearchResultListing(list)
-                .pageInfo(pageInfo(pageable, total))
-                .build();
-    }
-
-    Query buildQuery(
-            AccommodationSearchRequest.AccommodationSearchRequestDto req,
-            Viewport viewport,
-            Set<String> eligibleTimeZones
-    ) {
-
-        BoolQuery.Builder b = new BoolQuery.Builder();
-
-        b.filter(f -> f.term(t -> t
-                .field("status")
-                .value(AccommodationStatus.PUBLISHED.name())
-        ));
-
-        if (viewport != null) {
-            b.filter(f -> f.geoBoundingBox(g -> g
-                .field("location")
-                .boundingBox(bb -> bb
-                    .tlbr(t -> t
-                        .topLeft(GeoLocation.of(gl -> gl.latlon(ll ->
-                            ll.lat(viewport.northeast().lat())
-                                .lon(viewport.southwest().lng())
-                        )))
-                        .bottomRight(GeoLocation.of(gl -> gl.latlon(ll ->
-                            ll.lat(viewport.southwest().lat())
-                                .lon(viewport.northeast().lng())
-                        )))
-                    )
-                )
-            ));
-        }
-
-        if (hasText(req.getDestination())) {
-            b.must(m -> m.multiMatch(mm -> mm
-                    .query(req.getDestination())
-                    .fields(
-                        "city^4",
-                        "district^3",
-                        "street^2",
-                        "addressDetail^1.5",
-                        "country",
-                        "name^2",
-                        "description"
-                    )
-            ));
-        }
-
-        //country, city, district, street, addressDetail
-        if (req.getMinPrice() != null || req.getMaxPrice() != null) {
-            b.filter(f -> f.range(r -> r
-                .number(n -> {
-                    n.field("basePrice");
-                    if (req.getMinPrice() != null)
-                        n.gte(req.getMinPrice().doubleValue());
-                    if (req.getMaxPrice() != null)
-                        n.lte(req.getMaxPrice().doubleValue());
-                    return n;
-                })
-            ));
-        }
-
-        // 원본
-        if (req.getTotalGuests() > 0) {
-            b.filter(f -> f.range(r -> r
-                .number(n -> n
-                    .field("maxGuests")
-                    .gte(req.getTotalGuests())   // Integer → Double
-                )
-            ));
-        }
-
-        if (req.getInfantOccupancy() != null && req.getInfantOccupancy() > 0) {
-            b.filter(f -> f.range(r -> r
-                .number(n -> n
-                    .field("maxInfants")
-                    .gte(req.getInfantOccupancy().doubleValue())
-                )
-            ));
-        }
-
-        if (req.hasPet()) {
-            b.filter(f -> f.range(r -> r
-                .number(n -> n
-                    .field("maxPets")
-                    .gte(req.getPetOccupancy().doubleValue())
-                )
-            ));
-        }
-
-        if (req.getCheckIn() != null && req.getCheckOut() != null) {
-            List<FieldValue> timeZoneValues = eligibleTimeZones.stream()
-                .sorted()
-                .map(FieldValue::of)
-                .toList();
-            b.filter(f -> f.terms(t -> t
-                .field("timeZoneId")
-                .terms(values -> values.value(timeZoneValues))
-            ));
-            b.mustNot(mn -> mn.range(r -> r
-                .date(d -> d
-                    .field("reservationRanges")
-                    .gte(req.getCheckIn().toString())
-                    .lt(req.getCheckOut().toString())
-                    .relation(RangeRelation.Intersects)
-                )
-            ));
-        }
-
-        // return Query.of(q -> q.bool(b.build()));
-        return new Query.Builder()
-            .bool(b.build())
-            .build();
-    }
-
-    private Set<String> eligibleTimeZones(
-            AccommodationSearchRequest.AccommodationSearchRequestDto request
-    ) {
-        if (!hasDateRange(request)) {
-            return Set.of();
-        }
-        return bookingWindowProvider.eligibleTimeZonesForStay(
-            request.getCheckIn(), request.getCheckOut());
-    }
-
-    private boolean hasDateRange(AccommodationSearchRequest.AccommodationSearchRequestDto request) {
-        return request.getCheckIn() != null && request.getCheckOut() != null;
-    }
-
-    private Viewport determineViewport(AccommodationSearchRequest.MapBoundsDto bounds) {
-        if (bounds.hasAllBounds()) {
-            Location ne = new Location(bounds.getTopLeftLat(), bounds.getBottomRightLng());
-            Location sw = new Location(bounds.getBottomRightLat(), bounds.getTopLeftLng());
-            return new Viewport(ne, sw);
-        }
-        return null;
-    }
-
-    private boolean hasText(String s) {
-        return s != null && !s.trim().isEmpty();
-    }
-
-    private Set<Long> getWishlist(List<Long> ids, Long memberId) {
-        if (memberId == null) return Set.of();
-        return wishlistReader.findWishlistedAccommodationIds(memberId, ids);
-    }
-
-    private AccommodationSearchResponse.AccommodationSearchInfos createEmpty(Pageable pageable) {
-        return AccommodationSearchResponse.AccommodationSearchInfos.builder()
-                .staySearchResultListing(List.of())
-                .pageInfo(AccommodationSearchResponse.PageInfo.fail(
-                        pageable.getPageSize(),
-                        pageable.getPageNumber()))
-                .build();
-    }
-
-    private AccommodationSearchResponse.PageInfo pageInfo(Pageable pageable, long total) {
-        int size = pageable.getPageSize();
-        int page = pageable.getPageNumber();
-        int pages = (int) Math.ceil((double) total / size);
-        boolean hasNext = page < Math.min(pages - 1, MAX_PAGE_NUMBER);
-
-        return AccommodationSearchResponse.PageInfo.builder()
-                .pageSize(size)
-                .currentPage(page)
-                .totalPages(pages)
-                .totalElements(total)
-                .isFirst(page == 0)
-                .isLast(!hasNext)
-                .hasNext(hasNext)
-                .hasPrevious(page > 0)
-                .build();
-    }
+	private Set<Long> getWishlist(List<Long> ids, Long memberId) {
+		if (memberId == null) return Set.of();
+		return wishlistReader.findWishlistedAccommodationIds(memberId, ids);
+	}
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse;
+import kr.kro.airbob.search.AccommodationSearchPage;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -77,6 +78,14 @@ public class AccommodationSearchResponse {
 		@Schema(description = "페이지 정보. 다음 요청 가능 여부는 has_next로 확인합니다.", requiredMode = Schema.RequiredMode.REQUIRED)
 		PageInfo pageInfo
 	){
+		public static AccommodationSearchInfos from(AccommodationSearchPage page) {
+			return AccommodationSearchInfos.builder()
+				.staySearchResultListing(page.items().stream()
+					.map(item -> AccommodationSearchInfo.from(item.document(), item.wishlisted()))
+					.toList())
+				.pageInfo(PageInfo.from(page))
+				.build();
+		}
 	}
 
 	@Builder
@@ -99,16 +108,16 @@ public class AccommodationSearchResponse {
 		@Schema(description = "현재 페이지가 0보다 큰지 여부", example = "false", requiredMode = Schema.RequiredMode.REQUIRED)
 		boolean hasPrevious
 	){
-		public static PageInfo fail(int pageSize, int pageNumber) {
+		public static PageInfo from(AccommodationSearchPage page) {
 			return PageInfo.builder()
-				.pageSize(pageSize)
-				.currentPage(pageNumber)
-				.totalPages(0)
-				.totalElements(0)
-				.isFirst(pageNumber == 0)
-				.isLast(true)
-				.hasNext(false)
-				.hasPrevious(pageNumber > 0)
+				.pageSize(page.pageSize())
+				.currentPage(page.currentPage())
+				.totalPages(page.totalPages())
+				.totalElements(page.totalElements())
+				.isFirst(page.currentPage() == 0)
+				.isLast(!page.hasNext())
+				.hasNext(page.hasNext())
+				.hasPrevious(page.currentPage() > 0)
 				.build();
 		}
 	}

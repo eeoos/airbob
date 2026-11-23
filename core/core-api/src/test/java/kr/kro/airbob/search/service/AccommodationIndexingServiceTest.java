@@ -39,7 +39,7 @@ class AccommodationIndexingServiceTest {
 		given(snapshotReader.readPublished(ACCOMMODATION_UID))
 			.willReturn(Optional.of(document));
 		AccommodationIndexingService service =
-			new AccommodationIndexingService(searchRepository, snapshotReader);
+			new AccommodationIndexingService(new AccommodationDocumentWriter(searchRepository), snapshotReader);
 
 		service.refreshAccommodationIndex(ACCOMMODATION_UID);
 
@@ -53,7 +53,7 @@ class AccommodationIndexingServiceTest {
 		given(snapshotReader.readPublished(ACCOMMODATION_UID))
 			.willReturn(Optional.empty());
 		AccommodationIndexingService service =
-			new AccommodationIndexingService(searchRepository, snapshotReader);
+			new AccommodationIndexingService(new AccommodationDocumentWriter(searchRepository), snapshotReader);
 
 		service.refreshAccommodationIndex(ACCOMMODATION_UID);
 
@@ -75,7 +75,7 @@ class AccommodationIndexingServiceTest {
 			return document;
 		});
 		AccommodationIndexingService service =
-			new AccommodationIndexingService(searchRepository, snapshotReader);
+			new AccommodationIndexingService(new AccommodationDocumentWriter(searchRepository), snapshotReader);
 
 		service.refreshAccommodationIndex(ACCOMMODATION_UID);
 

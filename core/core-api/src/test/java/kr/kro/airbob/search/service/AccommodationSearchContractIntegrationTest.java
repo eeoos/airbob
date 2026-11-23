@@ -39,12 +39,12 @@ import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.search.port.SearchWishlistReader;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest.AccommodationSearchRequestDto;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest.MapBoundsDto;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse.AccommodationSearchInfos;
 import kr.kro.airbob.search.infrastructure.elasticsearch.ElasticsearchAccommodationIndexAliasBootstrap;
+import kr.kro.airbob.search.port.SearchWishlistReader;
 
 @Testcontainers
 class AccommodationSearchContractIntegrationTest {
@@ -85,7 +85,7 @@ class AccommodationSearchContractIntegrationTest {
 	void fixture() throws Exception {
 		client.deleteByQuery(request -> request.index("accommodations").query(query -> query.matchAll(all -> all)).refresh(true));
 		wishlists = mock(SearchWishlistReader.class);
-		service = new AccommodationSearchService(client, wishlists,
+		service = new AccommodationSearchService(new AccommodationDocumentReader(client), wishlists,
 			new BookingWindowProvider(Clock.fixed(Instant.parse("2027-01-10T03:00:00Z"), ZoneOffset.UTC)));
 		index(List.of(
 			card(1, "서울", 100_000, 2, 1, 0, 37.5, 127.0, "PUBLISHED", "APT", List.of("WIFI"),
@@ -208,7 +208,7 @@ class AccommodationSearchContractIntegrationTest {
 	}
 
 	private AccommodationSearchInfos search(AccommodationSearchRequestDto request, MapBoundsDto bounds, int page, Long memberId) {
-		return service.searchAccommodations(request, bounds, PageRequest.of(page, 18), memberId);
+		return AccommodationSearchInfos.from(service.searchAccommodations(request.toCondition(bounds), PageRequest.of(page, 18), memberId));
 	}
 
 	private void assertIds(AccommodationSearchInfos response, Long... ids) {

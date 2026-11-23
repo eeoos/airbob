@@ -15,11 +15,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
@@ -36,10 +36,10 @@ import co.elastic.clients.elasticsearch.core.search.TotalHits;
 import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
 
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.search.port.SearchWishlistReader;
-import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.document.AccommodationDocument;
+import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.exception.SearchUnavailableException;
+import kr.kro.airbob.search.port.SearchWishlistReader;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 검색 서비스 테스트")
@@ -54,8 +54,13 @@ class AccommodationSearchServiceTest {
 	@Mock
 	private BookingWindowProvider bookingWindowProvider;
 
-	@InjectMocks
 	private AccommodationSearchService accommodationSearchService;
+
+	@BeforeEach
+	void setUp() {
+		accommodationSearchService = new AccommodationSearchService(
+			new AccommodationDocumentReader(esClient), wishlistReader, bookingWindowProvider);
+	}
 
 	@Test
 	@DisplayName("어느 숙소 현지 3개월 예약 창에도 들지 않는 날짜는 빈 결과를 반환한다")
@@ -67,14 +72,13 @@ class AccommodationSearchServiceTest {
 			request.getCheckIn(), request.getCheckOut())).willReturn(Set.of());
 
 		var result = accommodationSearchService.searchAccommodations(
-			request,
-			new AccommodationSearchRequest.MapBoundsDto(),
+			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
 			null
 		);
 
-		assertThat(result.staySearchResultListing()).isEmpty();
-		assertThat(result.pageInfo().totalElements()).isZero();
+		assertThat(result.items()).isEmpty();
+		assertThat(result.totalElements()).isZero();
 		verifyNoInteractions(esClient);
 	}
 
@@ -84,8 +88,8 @@ class AccommodationSearchServiceTest {
 		AccommodationSearchRequest.AccommodationSearchRequestDto request = dateRequest(
 			LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 13));
 
-		Query query = accommodationSearchService.buildQuery(
-			request, null, Set.of("Asia/Seoul", "Pacific/Auckland"));
+		Query query = new AccommodationDocumentReader(esClient).buildQuery(
+			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()), Set.of("Asia/Seoul", "Pacific/Auckland"));
 
 		assertThat(query.bool().filter())
 			.anySatisfy(filter -> {
@@ -115,8 +119,7 @@ class AccommodationSearchServiceTest {
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
 
 		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
-			request,
-			new AccommodationSearchRequest.MapBoundsDto(),
+			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
 			null
 		))
@@ -134,8 +137,7 @@ class AccommodationSearchServiceTest {
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
 
 		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
-			request,
-			new AccommodationSearchRequest.MapBoundsDto(),
+			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
 			null
 		))
@@ -174,8 +176,7 @@ class AccommodationSearchServiceTest {
 			.willReturn(response);
 
 		var result = accommodationSearchService.searchAccommodations(
-			request,
-			new AccommodationSearchRequest.MapBoundsDto(),
+			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
 			null
 		);
@@ -183,8 +184,8 @@ class AccommodationSearchServiceTest {
 		ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(esClient).search(requestCaptor.capture(), eq(AccommodationDocument.class));
 		assertThat(requestCaptor.getValue().trackTotalHits()).isNull();
-		assertThat(result.pageInfo().totalElements()).isEqualTo(10_000L);
-		assertThat(result.pageInfo().totalPages()).isEqualTo(556);
+		assertThat(result.totalElements()).isEqualTo(10_000L);
+		assertThat(result.totalPages()).isEqualTo(556);
 	}
 
 	private AccommodationSearchRequest.AccommodationSearchRequestDto dateRequest(
