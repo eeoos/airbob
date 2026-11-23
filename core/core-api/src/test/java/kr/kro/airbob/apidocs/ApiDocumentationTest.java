@@ -173,6 +173,10 @@ import kr.kro.airbob.core.domain.review.ReviewPage;
 import kr.kro.airbob.core.domain.review.ReviewService;
 import kr.kro.airbob.core.domain.review.ReviewSortType;
 import kr.kro.airbob.core.domain.review.ReviewUpdateForbiddenException;
+import kr.kro.airbob.core.domain.settlement.HostSettlementDetail;
+import kr.kro.airbob.core.domain.settlement.HostSettlementTotals;
+import kr.kro.airbob.core.domain.settlement.SettlementLine;
+import kr.kro.airbob.core.domain.settlement.SettlementSummary;
 import kr.kro.airbob.core.domain.statistics.DailyRevenueTotal;
 import kr.kro.airbob.core.domain.statistics.RevenueStatsService;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccessDeniedException;
@@ -214,11 +218,10 @@ import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
-import kr.kro.airbob.domain.settlement.entity.Settlement;
-import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
-import kr.kro.airbob.domain.settlement.exception.*;
-import kr.kro.airbob.domain.settlement.service.SettlementService;
+import kr.kro.airbob.core.domain.settlement.*;
+import kr.kro.airbob.core.domain.settlement.Settlement;
+import kr.kro.airbob.core.domain.settlement.SettlementService;
+import kr.kro.airbob.core.domain.settlement.SettlementStatus;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse;
 import kr.kro.airbob.search.exception.SearchUnavailableException;
@@ -2366,20 +2369,20 @@ class ApiDocumentationTest {
 		var service = context.getBean(SettlementService.class);
 		String list = "/api/v1/profile/host/settlements", summary = list + "/summary", detail = list + "/{settlementId}";
 		var settlement = documentationSettlement();
-		when(service.getHostSettlements(eq(10L), any(), any())).thenReturn(List.of(SettlementResponse.HostSettlement.from(settlement)));
+		when(service.getHostSettlements(eq(10L), any(), any())).thenReturn(List.of(SettlementSummary.from(settlement)));
 		String body = mvc.perform(get(list).cookie(SESSION).param("from", "2027-01-01").param("to", "2027-03-31").param("hostId", "999"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, list, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/0/settlement_month").asText()).isEqualTo("2027-01-01");
 		assertThat(mapper.readTree(body).at("/data/0/settled_at").isNull()).isTrue();
 		verify(service).getHostSettlements(10L, LocalDate.parse("2027-01-01"), LocalDate.parse("2027-03-31"));
-		when(service.getHostSummary(10L)).thenReturn(new SettlementResponse.HostSummary(0, 0, 0, 0));
+		when(service.getHostSummary(10L)).thenReturn(new HostSettlementTotals(0, 0, 0, 0));
 		String zero = mvc.perform(get(summary).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, summary, "get", "200", zero);
 		assertThat(mapper.readTree(zero).path("data")).isEqualTo(mapper.readTree("{\"pending_payout_total\":0,\"pending_count\":0,\"paid_payout_total\":0,\"paid_count\":0}"));
 		settlement.markPaid(Instant.parse("2027-02-01T04:00:00Z"));
-		when(service.getSettlementDetail(101L, 10L)).thenReturn(SettlementResponse.SettlementDetail.of(settlement,
-			List.of(new SettlementResponse.LineItem(201L, null, 150000, 20000, 130000))));
+		when(service.getSettlementDetail(101L, 10L)).thenReturn(new HostSettlementDetail(SettlementSummary.from(settlement),
+			List.of(new SettlementLine(201L, null, 150000L, 20000L, 130000L))));
 		String paid = mvc.perform(get(detail, 101).cookie(SESSION).param("hostId", "999")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, detail, "get", "200", paid);
 		assertThat(mapper.readTree(paid).at("/data/settled_at").asText()).isEqualTo("2027-02-01T04:00:00Z");
@@ -2399,7 +2402,7 @@ class ApiDocumentationTest {
 		String list = "/api/v1/admin/settlements", generate = list + "/generate", backfill = list + "/backfill", pay = list + "/{settlementId}/pay";
 		var negative = Settlement.createPending(10L, LocalDate.parse("2027-01-01"), 0, 50, new BigDecimal("0.03"));
 		org.springframework.test.util.ReflectionTestUtils.setField(negative, "id", 102L);
-		when(service.getSettlements(any(), any())).thenReturn(List.of(SettlementResponse.AdminSettlement.from(negative)));
+		when(service.getSettlements(any(), any())).thenReturn(List.of(SettlementSummary.from(negative)));
 		String body = mvc.perform(get(list).cookie(SESSION).param("month", "2027-01").param("status", "PENDING"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, list, "get", "200", body);
