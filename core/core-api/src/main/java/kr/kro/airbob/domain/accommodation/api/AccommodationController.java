@@ -18,16 +18,16 @@ public class AccommodationController implements AccommodationApi {
     public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getAccommodation(
         Long accommodationId,
         Long viewerId) {
-        AccommodationResponse.DetailInfo response = accommodationQueryService.findAccommodation(accommodationId,
-            viewerId);
+        AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(
+            accommodationQueryService.findAccommodation(accommodationId, viewerId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @Override
     public ResponseEntity<ApiResponse<AccommodationResponse.Availability>> getAccommodationAvailability(
         Long accommodationId) {
-        AccommodationResponse.Availability response =
-            accommodationQueryService.findAccommodationAvailability(accommodationId);
+        AccommodationResponse.Availability response = AccommodationResponse.Availability.from(
+            accommodationQueryService.findAccommodationAvailability(accommodationId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

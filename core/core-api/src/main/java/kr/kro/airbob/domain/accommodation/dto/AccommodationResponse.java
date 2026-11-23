@@ -13,12 +13,16 @@ import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetail;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.HostAccommodationPage;
+import kr.kro.airbob.domain.accommodation.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.PublicAccommodationDetail;
 import kr.kro.airbob.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.port.AccommodationAvailability;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -78,6 +82,10 @@ public class AccommodationResponse {
 				.pageInfo(pageInfo)
 				.build();
 		}
+
+		public static HostAccommodationInfos from(HostAccommodationPage page) {
+			return from(page.accommodations().stream().map(HostAccommodationInfo::from).toList(), page.pageInfo());
+		}
 	}
 
 	@Builder
@@ -100,6 +108,15 @@ public class AccommodationResponse {
 		@Schema(description = "조회 시점에 점유 중인 연속 숙박 구간. 없으면 빈 배열입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
 		List<UnavailableDateRange> unavailableRanges
 	) {
+		public static Availability from(AccommodationAvailability availability) {
+			return new Availability(
+				availability.startInclusive(),
+				availability.endExclusive(),
+				availability.unavailableRanges().stream()
+					.map(range -> new UnavailableDateRange(range.startInclusive(), range.endExclusive()))
+					.toList()
+			);
+		}
 	}
 
 	@Builder
@@ -135,6 +152,10 @@ public class AccommodationResponse {
 		ReviewSummary reviewSummary
 
 	) {
+		public static DetailInfo from(PublicAccommodationDetail detail) {
+			return from(detail.detail(), detail.inWishlist());
+		}
+
 		public static DetailInfo from(AccommodationDetailSnapshot snapshot, Boolean isInWishlist) {
 			return DetailInfo.builder()
 				.id(snapshot.id())
@@ -219,6 +240,16 @@ public class AccommodationResponse {
 		@Schema(description = "이미지 ID 오름차순 목록. 없으면 빈 배열입니다.")
 		List<ImageResponse.ImageInfo> images
 	) {
+		public static HostDetail from(HostAccommodationDetail detail) {
+			return from(
+				detail.accommodation(),
+				detail.amenities().stream()
+					.map(amenity -> new AmenityResponse.AmenityInfo(amenity.type(), amenity.count()))
+					.toList(),
+				detail.images().stream().map(ImageResponse.ImageInfo::from).toList()
+			);
+		}
+
 		public static HostDetail from(HostAccommodationDetailProjection accommodation,
 			List<AmenityResponse.AmenityInfo> amenityInfos,
 			List<ImageResponse.ImageInfo> imageInfos) {

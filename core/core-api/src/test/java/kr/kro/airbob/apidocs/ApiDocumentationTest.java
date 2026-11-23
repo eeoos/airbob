@@ -138,7 +138,14 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetail;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.HostAccommodationPage;
+import kr.kro.airbob.domain.accommodation.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.PublicAccommodationDetail;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.port.AccommodationAvailability;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -389,8 +396,8 @@ class ApiDocumentationTest {
 
 	@Test
 	void draftAccommodationPreservesNullableAddressAndPolicyFields() throws Exception {
-		AccommodationResponse.HostDetail draft = mapper.readValue(
-			"{\"id\":101,\"address\":{},\"policy\":{},\"amenities\":[],\"images\":[]}", AccommodationResponse.HostDetail.class);
+		HostAccommodationDetail draft = new HostAccommodationDetail(new HostAccommodationDetailProjection(101L, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null, null, null, null), List.of(), List.of());
 		when(context.getBean(AccommodationQueryService.class).findHostAccommodationDetail(101L, 10L)).thenReturn(draft);
 		String body = mvc.perform(get("/api/v1/profile/host/accommodations/101").cookie(SESSION))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -620,8 +627,8 @@ class ApiDocumentationTest {
 		assertThat(operation.has("requestBody")).isFalse();
 		assertThat(operation.path("security").isEmpty()).isTrue();
 		when(context.getBean(AccommodationQueryService.class).findAccommodationAvailability(101L))
-			.thenReturn(new AccommodationResponse.Availability(LocalDate.parse("2027-01-01"), LocalDate.parse("2027-04-01"),
-				List.of(new AccommodationResponse.UnavailableDateRange(LocalDate.parse("2027-01-10"), LocalDate.parse("2027-01-12")))));
+			.thenReturn(new AccommodationAvailability(LocalDate.parse("2027-01-01"), LocalDate.parse("2027-04-01"),
+				List.of(new AccommodationAvailability.DateRange(LocalDate.parse("2027-01-10"), LocalDate.parse("2027-01-12")))));
 		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/unavailable_ranges/0/end_date_exclusive").asText()).isEqualTo("2027-01-12");
@@ -630,14 +637,12 @@ class ApiDocumentationTest {
 
 	@Test
 	void accommodationDetailPreservesNullableFieldsAndOptionalAuthentication() throws Exception {
-		var detail = mapper.readValue("""
-			{"id":101,"name":"가상 숙소","description":"숙소 설명","type":"APARTMENT","base_price":100000,
-			 "currency":null,"check_in_time":"15:00:00","check_out_time":"11:00:00","time_zone_id":"Asia/Seoul",
-			 "is_in_wishlist":false,"address_summary":{"country":"대한민국","city":"서울","state":null,"district":null},
-			 "coordinate":{"latitude":37.5,"longitude":127.0},"host":{"id":10,"nickname":null,"thumbnail_image_url":null},
-			 "policy":{"max_occupancy":4,"infant_occupancy":1,"pet_occupancy":0},"amenities":[],"images":[],
-			 "review_summary":{"total_count":0,"average_rating":0}}
-			""", AccommodationResponse.DetailInfo.class);
+		var detail = new PublicAccommodationDetail(new AccommodationDetailSnapshot(101L, "가상 숙소", "숙소 설명", "APARTMENT",
+			100000L, null, LocalTime.of(15, 0), LocalTime.of(11, 0), "Asia/Seoul",
+			new AccommodationDetailSnapshot.AddressSummary("대한민국", null, "서울", null),
+			new AccommodationDetailSnapshot.Coordinate(37.5, 127.0), new AccommodationDetailSnapshot.Host(10L, null, null),
+			new AccommodationDetailSnapshot.Policy(4, 1, 0), List.of(), List.of(),
+			new AccommodationDetailSnapshot.ReviewSummary(0, BigDecimal.ZERO)), false);
 		var service = context.getBean(AccommodationQueryService.class);
 		when(service.findAccommodation(101L, null)).thenReturn(detail);
 		String body = mvc.perform(get("/api/v1/accommodations/101")).andExpect(status().isOk())
@@ -657,10 +662,10 @@ class ApiDocumentationTest {
 
 	@Test
 	void accommodationHostListDocumentsDraftNullsAndOnlyUserSuppliedFilters() throws Exception {
-		var draft = new AccommodationResponse.HostAccommodationInfo(101L, null, null, AccommodationStatus.DRAFT, null,
-			new AddressResponse.AddressSummaryInfo(null, null, null, null), null);
+		var draft = new HostAccommodationProjection(101L, null, null, AccommodationStatus.DRAFT, null,
+			null, null, null, null, null);
 		when(context.getBean(AccommodationQueryService.class).findMyAccommodations(eq(10L), any(), eq(AccommodationStatus.DRAFT)))
-			.thenReturn(new AccommodationResponse.HostAccommodationInfos(List.of(draft), new CursorResponse.PageInfo(false, null, 1)));
+			.thenReturn(new HostAccommodationPage(List.of(draft), new CursorResponse.PageInfo(false, null, 1)));
 		String path = "/api/v1/profile/host/accommodations";
 		String body = mvc.perform(get(path).cookie(SESSION).param("status", "DRAFT")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
@@ -682,7 +687,7 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		var service = context.getBean(AccommodationQueryService.class);
 		when(service.findMyAccommodations(eq(10L), any(), eq(AccommodationStatus.DRAFT)))
-			.thenReturn(new AccommodationResponse.HostAccommodationInfos(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+			.thenReturn(new HostAccommodationPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 		LocalDateTime createdAt = LocalDateTime.parse("2027-01-01T12:30:00");
 		String cursor = new CursorEncoder(mapper).encode(new CursorData(80L, createdAt));
 		String body = mvc.perform(get(path).cookie(SESSION).param("cursor", cursor).param("size", "7").param("status", "DRAFT"))

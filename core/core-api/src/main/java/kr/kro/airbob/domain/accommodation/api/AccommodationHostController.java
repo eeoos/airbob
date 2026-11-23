@@ -94,8 +94,8 @@ public class AccommodationHostController implements AccommodationHostApi {
         CursorRequest.CursorPageRequest request,
         AccommodationStatus status,
         Long memberId) {
-        AccommodationResponse.HostAccommodationInfos response = accommodationQueryService.findMyAccommodations(
-            memberId, request, status);
+        AccommodationResponse.HostAccommodationInfos response = AccommodationResponse.HostAccommodationInfos.from(
+            accommodationQueryService.findMyAccommodations(memberId, request, status));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -103,8 +103,8 @@ public class AccommodationHostController implements AccommodationHostApi {
     public ResponseEntity<ApiResponse<AccommodationResponse.HostDetail>> getHostAccommodationDetail(
         Long accommodationId,
         Long hostId) {
-        AccommodationResponse.HostDetail response = accommodationQueryService.findHostAccommodationDetail(
-            accommodationId, hostId);
+        AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
+            accommodationQueryService.findHostAccommodationDetail(accommodationId, hostId));
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

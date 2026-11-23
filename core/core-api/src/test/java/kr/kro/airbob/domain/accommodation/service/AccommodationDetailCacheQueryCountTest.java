@@ -85,7 +85,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	AccommodationDetailCacheInvalidationListener.class,
 	AccommodationDetailReader.class, WishlistReader.class,
 	AccommodationQueryService.class,
-	ReservationAvailabilityReader.class
+	ReservationAvailabilityReader.class, AccommodationReader.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 상세 캐시 쿼리 수 통합 테스트")
@@ -162,7 +162,7 @@ class AccommodationDetailCacheQueryCountTest {
 	void anonymousColdMissThenWarmHit() {
 		Statistics cold = prepareMeasurement();
 
-		AccommodationResponse.DetailInfo first = queryService.findAccommodation(accommodation.getId(), null);
+		AccommodationResponse.DetailInfo first = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(first.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(3);
@@ -171,7 +171,7 @@ class AccommodationDetailCacheQueryCountTest {
 		assertThat(first.amenities()).hasSize(1);
 
 		Statistics warm = prepareMeasurement();
-		AccommodationResponse.DetailInfo second = queryService.findAccommodation(accommodation.getId(), null);
+		AccommodationResponse.DetailInfo second = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(second).isEqualTo(first);
 		assertThat(warm.getPrepareStatementCount()).isZero();
@@ -182,13 +182,13 @@ class AccommodationDetailCacheQueryCountTest {
 	void authenticatedColdMissThenWarmHit() {
 		Statistics cold = prepareMeasurement();
 
-		queryService.findAccommodation(accommodation.getId(), host.getId());
+		AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
 
 		Statistics warm = prepareMeasurement();
 		AccommodationResponse.DetailInfo second =
-			queryService.findAccommodation(accommodation.getId(), host.getId());
+			AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(second.isInWishlist()).isFalse();
 		assertThat(warm.getPrepareStatementCount()).isEqualTo(1);
@@ -202,26 +202,26 @@ class AccommodationDetailCacheQueryCountTest {
 		entityManager.persist(WishlistAccommodation.builder().wishlist(wishlist).accommodation(accommodation).build());
 		Statistics cold = prepareMeasurement();
 
-		var ownerView = queryService.findAccommodation(accommodation.getId(), host.getId());
+		var ownerView = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
 		assertThat(ownerView.isInWishlist()).isTrue();
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
 		assertThat(cold.getEntityLoadCount()).isZero();
 
 		Statistics otherWarm = prepareMeasurement();
-		var otherView = queryService.findAccommodation(accommodation.getId(), other.getId());
+		var otherView = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), other.getId()));
 		assertThat(otherView.isInWishlist()).isFalse();
 		assertThat(otherView.images()).isEqualTo(ownerView.images());
 		assertThat(otherView.amenities()).isEqualTo(ownerView.amenities());
 		assertThat(otherWarm.getPrepareStatementCount()).isEqualTo(1);
 
 		Statistics anonymousWarm = prepareMeasurement();
-		assertThat(queryService.findAccommodation(accommodation.getId(), null).isInWishlist()).isFalse();
+		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null)).isInWishlist()).isFalse();
 		assertThat(anonymousWarm.getPrepareStatementCount()).isZero();
 
 		entityManager.createQuery("delete WishlistAccommodation wa where wa.wishlist.id = :wishlistId")
 			.setParameter("wishlistId", wishlist.getId()).executeUpdate();
 		Statistics afterRemoval = prepareMeasurement();
-		assertThat(queryService.findAccommodation(accommodation.getId(), host.getId()).isInWishlist()).isFalse();
+		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId())).isInWishlist()).isFalse();
 		assertThat(afterRemoval.getPrepareStatementCount()).isEqualTo(1);
 	}
 

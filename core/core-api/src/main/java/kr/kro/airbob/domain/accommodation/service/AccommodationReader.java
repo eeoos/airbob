@@ -4,9 +4,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.InventorySeedTarget;
 import kr.kro.airbob.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
@@ -42,6 +47,32 @@ public class AccommodationReader {
 		return accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			accommodationId, hostId, AccommodationStatus.DELETED
 		).orElseThrow(AccommodationNotFoundException::new);
+	}
+
+	/** 게시 숙소의 시간대. 게시 숙소가 아니면 AccommodationNotFoundException. */
+	public String readPublishedTimeZoneId(Long accommodationId) {
+		return accommodationRepository
+			.findBookingProjectionByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
+			.orElseThrow(AccommodationNotFoundException::new)
+			.timeZoneId();
+	}
+
+	/** 호스트 숙소 목록을 커서 다음부터 한 페이지 읽는다. status가 null이면 상태로 거르지 않는다. */
+	public Slice<HostAccommodationProjection> readHostPage(
+		Long hostId, CursorRequest.CursorPageRequest cursorRequest, AccommodationStatus status) {
+		return accommodationRepository.findMyAccommodationsByHostIdWithCursor(
+			hostId,
+			cursorRequest.lastId(),
+			cursorRequest.lastCreatedAt(),
+			status,
+			PageRequest.of(0, cursorRequest.size())
+		);
+	}
+
+	/** 호스트의 숙소 상세. 없거나 다른 호스트의 숙소면 AccommodationNotFoundException. */
+	public HostAccommodationDetailProjection readHostDetail(Long accommodationId, Long hostId) {
+		return accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
+			.orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	/** 예약 견적용 숙소와 숙박 인원 정책. 잠그지 않는다. */
