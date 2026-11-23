@@ -156,7 +156,7 @@ flowchart LR
     class U1,U2,U3 unit
 ```
 
-[발급 트랜잭션](core/core-api/src/main/java/kr/kro/airbob/domain/coupon/service/CouponSkipLockedIssueService.java)에서는 쿠폰 정책을 공유 잠금으로 확인한 뒤, 선택한 재고 행의 DELETE와 `member_coupon` INSERT를 함께 커밋합니다. 회원·쿠폰 유니크 제약을 위반하거나 저장이 실패하면 재고 삭제도 롤백됩니다.
+[발급 트랜잭션](core/core-api/src/main/java/kr/kro/airbob/core/domain/coupon/CouponSkipLockedIssueService.java)에서는 쿠폰 정책을 공유 잠금으로 확인한 뒤, 선택한 재고 행의 DELETE와 `member_coupon` INSERT를 함께 커밋합니다. 회원·쿠폰 유니크 제약을 위반하거나 저장이 실패하면 재고 삭제도 롤백됩니다.
 
 #### 빈 조회와 품절을 구분하기
 
@@ -166,7 +166,7 @@ flowchart LR
 2. 새 트랜잭션의 스냅샷에서 중복 발급 여부·정책·잔여 재고를 다시 확인합니다.
 3. 재고가 없으면 품절(`CP002`), 재고가 남아 있으면 횟수와 시간 예산 안에서 재시도합니다. 한도를 넘기면 재시도 가능한 경합(`CP012`)으로 응답합니다.
 
-마지막 재고를 다른 요청이 잠근 상태, 중복 발급, 저장 실패 시 재고 복구는 [MySQL 동시성 테스트](core/core-api/src/test/java/kr/kro/airbob/domain/coupon/CouponConcurrencyTest.java)에서 확인합니다.
+마지막 재고를 다른 요청이 잠근 상태, 중복 발급, 저장 실패 시 재고 복구는 [MySQL 동시성 테스트](core/core-api/src/test/java/kr/kro/airbob/core/domain/coupon/CouponConcurrencyTest.java)에서 확인합니다.
 
 현재 기본값은 대리 키와 `REPEATABLE_READ`입니다. 복합 키 및 `READ_COMMITTED`도 비교했지만 기존 선택을 바꿀 만큼 일관된 이점을 확인하지 못했습니다. 재고 수량에 비례하는 저장 공간과 사전 준비 비용이 필요하며, 발급 시작 후에는 수량 변경이나 재입고를 허용하지 않습니다.
 

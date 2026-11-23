@@ -27,7 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
-import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
+import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction;

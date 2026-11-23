@@ -41,8 +41,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
-import kr.kro.airbob.domain.coupon.service.CouponUsageManager;
+import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
+import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
