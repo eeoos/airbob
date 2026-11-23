@@ -80,7 +80,7 @@ public class ReservationQuoteService {
 
 		ReservationQuote quote = ReservationQuote.create(
 			memberId,
-			request,
+			request.toNewQuote(),
 			accommodation.getName(),
 			currency,
 			stayPrice,

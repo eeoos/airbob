@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -38,6 +39,9 @@ public class ReservationRequest {
 			example = "7", minimum = "1", nullable = true)
 		Long couponId
 	) {
+		public NewReservationQuote toNewQuote() {
+			return new NewReservationQuote(accommodationId, checkInDate, checkOutDate, guestCount, couponId);
+		}
 	}
 
 	@Schema(name = "ReservationRequestCheckout")

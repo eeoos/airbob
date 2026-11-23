@@ -20,9 +20,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
-import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -40,9 +37,6 @@ class ReservationServiceTest {
 	@Mock
 	private ReservationTransactionService transactionService;
 
-	@Mock
-	private PaymentCancellationCommandService cancellationCommandService;
-
 	private ReservationRequest.Checkout validRequest;
 	private Long memberId;
 	private Reservation pendingReservation;
@@ -51,7 +45,6 @@ class ReservationServiceTest {
 	void setUp() {
 		reservationService = new ReservationService(
 			transactionService,
-			cancellationCommandService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		memberId = 1L;
@@ -152,30 +145,4 @@ class ReservationServiceTest {
 		}
 	}
 
-	@Nested
-	@DisplayName("예약 취소 테스트")
-	class CancelReservationTest {
-
-		@Test
-		@DisplayName("예약 취소 시 결제 operation command에 위임된다")
-		void delegatesCancellation() {
-			String reservationUid = UUID.randomUUID().toString();
-			PaymentRequest.Cancel cancelRequest = new PaymentRequest.Cancel("사용자 취소 요청", 200_000L);
-			Cancellation expected = new Cancellation(
-				UUID.randomUUID(),
-				kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status.PENDING,
-				"/api/v1/payment-operations/operation-id",
-				false
-			);
-			given(cancellationCommandService.requestCancellation(reservationUid, cancelRequest, memberId))
-				.willReturn(expected);
-
-			Cancellation actual = reservationService.cancelReservation(
-				reservationUid, cancelRequest, memberId);
-
-			assertThat(actual).isEqualTo(expected);
-			then(cancellationCommandService).should()
-				.requestCancellation(reservationUid, cancelRequest, memberId);
-		}
-	}
 }

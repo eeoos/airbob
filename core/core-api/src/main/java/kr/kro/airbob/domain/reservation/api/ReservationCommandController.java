@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
@@ -24,6 +25,7 @@ public class ReservationCommandController implements ReservationCommandApi {
 	private final ReservationQuoteService quoteService;
 	private final ReservationService reservationService;
 	private final ReservationHoldCommandService holdCommandService;
+	private final PaymentCancellationCommandService cancellationCommandService;
 
 	@Override
 	public ResponseEntity<ApiResponse<ReservationResponse.Quote>> createQuote(
@@ -70,7 +72,7 @@ public class ReservationCommandController implements ReservationCommandApi {
 		String reservationUid,
 		PaymentRequest.Cancel request,
 		Long memberId) {
-		Cancellation response = reservationService.cancelReservation(reservationUid, request, memberId);
+		Cancellation response = cancellationCommandService.requestCancellation(reservationUid, request, memberId);
 		ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.accepted();
 		if (response.statusUrl() != null) {
 			responseBuilder.location(URI.create(response.statusUrl()));

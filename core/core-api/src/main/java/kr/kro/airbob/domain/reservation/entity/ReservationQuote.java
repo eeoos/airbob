@@ -16,7 +16,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -96,7 +96,7 @@ public class ReservationQuote extends BaseEntity {
 
 	public static ReservationQuote create(
 		Long memberId,
-		ReservationRequest.Quote request,
+		NewReservationQuote request,
 		String orderName,
 		String currency,
 		ReservationStayPricePolicy.StayPrice stayPrice,

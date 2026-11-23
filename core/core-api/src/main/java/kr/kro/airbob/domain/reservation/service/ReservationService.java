@@ -5,9 +5,6 @@ import java.time.Clock;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -19,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 public class ReservationService {
 
 	private final ReservationTransactionService transactionService;
-	private final PaymentCancellationCommandService cancellationCommandService;
 	private final Clock clock;
 
 	public ReservationResponse.Ready createPendingReservation(
@@ -34,14 +30,6 @@ public class ReservationService {
 			"견적 기반 예약 생성"
 		);
 		return ReservationResponse.Ready.from(reservation, clock.instant());
-	}
-
-	public Cancellation cancelReservation(
-		String reservationUid,
-		PaymentRequest.Cancel request,
-		Long memberId
-	) {
-		return cancellationCommandService.requestCancellation(reservationUid, request, memberId);
 	}
 
 	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {

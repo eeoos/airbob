@@ -32,6 +32,7 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -50,6 +51,7 @@ class ReservationCheckoutControllerTest {
 	@Mock private ReservationQuoteService quoteService;
 	@Mock private ReservationService reservationService;
 	@Mock private ReservationHoldCommandService holdCommandService;
+	@Mock private PaymentCancellationCommandService cancellationCommandService;
 
 	private MockMvc mockMvc;
 
@@ -61,7 +63,8 @@ class ReservationCheckoutControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationCommandController(quoteService, reservationService, holdCommandService))
+			new ReservationCommandController(quoteService, reservationService, holdCommandService,
+				cancellationCommandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))

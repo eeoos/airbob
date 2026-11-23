@@ -163,6 +163,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -230,6 +231,7 @@ import kr.kro.airbob.search.exception.SearchUnavailableException;
 	CouponStockPreparationService.class,
 	MemberAdminService.class,
 	MemberService.class,
+	PaymentCancellationCommandService.class,
 	PaymentOperationCommandService.class,
 	PaymentOperationManualReviewCommandService.class,
 	PaymentOperationManualReviewQueryService.class,
@@ -872,18 +874,18 @@ class ApiDocumentationTest {
 		assertThat(spec.at("/components/schemas/PaymentRequestCancel/example").has("cancel_amount")).isFalse();
 		UUID operationId = UUID.fromString("00000000-0000-0000-0000-000000000040");
 		String url = "/api/v1/payment-operations/" + operationId;
-		ReservationService service = context.getBean(ReservationService.class);
-		when(service.cancelReservation(eq(uid), any(), eq(10L)))
+		PaymentCancellationCommandService service = context.getBean(PaymentCancellationCommandService.class);
+		when(service.requestCancellation(eq(uid), any(), eq(10L)))
 			.thenReturn(new PaymentOperationResponse.Cancellation(operationId, PaymentOperationResponse.Status.PENDING, url, false));
 		String paid = mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isAccepted()).andExpect(header().string("Location", url))
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "202", paid);
 		assertThat(mapper.readTree(paid)).isEqualTo(mapper.readTree("{\"success\":true}"));
-		when(service.cancelReservation(eq(uid), any(), eq(10L))).thenReturn(PaymentOperationResponse.Cancellation.completed());
+		when(service.requestCancellation(eq(uid), any(), eq(10L))).thenReturn(PaymentOperationResponse.Cancellation.completed());
 		mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isAccepted()).andExpect(header().doesNotExist("Location"));
-		when(service.cancelReservation(eq(uid), any(), eq(10L))).thenThrow(new PaymentAccessDeniedException());
+		when(service.requestCancellation(eq(uid), any(), eq(10L))).thenThrow(new PaymentAccessDeniedException());
 		String denied = mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "403", "P004", denied);
