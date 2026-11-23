@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
-import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestClaim;
+import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutRequestClaim;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 
 @Repository

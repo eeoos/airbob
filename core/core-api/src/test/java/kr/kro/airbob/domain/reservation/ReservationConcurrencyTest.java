@@ -2,7 +2,7 @@ package kr.kro.airbob.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
-import static kr.kro.airbob.domain.reservation.service.ReservationTransactionTestDriver.createPendingReservation;
+import static kr.kro.airbob.domain.reservation.service.ReservationCheckoutTestDriver.createPendingReservation;
 
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -72,6 +72,7 @@ import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
@@ -82,10 +83,9 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
-import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -106,15 +106,13 @@ class ReservationConcurrencyTest {
 	private static final LocalDateTime COUPON_NOW = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
 
 	@Autowired
-	private ReservationService reservationService;
-	@Autowired
 	private PaymentCancellationCommandService cancellationCommandService;
 	@Autowired
 	private ReservationHoldCommandService reservationHoldCommandService;
 	@Autowired
 	private ReservationQuoteService quoteService;
 	@Autowired
-	private ReservationTransactionService transactionService;
+	private ReservationCheckoutService checkoutService;
 	@Autowired
 	private ReservationRepository reservationRepository;
 	@Autowired
@@ -247,7 +245,7 @@ class ReservationConcurrencyTest {
 	void occupancyLimitIsEnforcedByTheAuthoritativeTransaction() {
 		LocalDate checkIn = WINDOW_START.plusDays(30);
 
-		assertThatThrownBy(() -> createPendingReservation(transactionService,
+		assertThatThrownBy(() -> createPendingReservation(checkoutService,
 			new ReservationCreateCommand(accommodation.getId(), checkIn, checkIn.plusDays(2), 3),
 			guests.getFirst().getId(),
 			"occupancy limit"))
@@ -264,7 +262,7 @@ class ReservationConcurrencyTest {
 		Coupon coupon = issueFixedCoupon(guest, 200_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
 
-		Reservation confirmed = createPendingReservation(transactionService,
+		Reservation confirmed = createPendingReservation(checkoutService,
 			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
@@ -295,7 +293,7 @@ class ReservationConcurrencyTest {
 		Member guest = guests.getFirst();
 		Coupon coupon = issueFixedCoupon(guest, 200_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
-		Reservation confirmed = createPendingReservation(transactionService,
+		Reservation confirmed = createPendingReservation(checkoutService,
 			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
@@ -341,7 +339,7 @@ class ReservationConcurrencyTest {
 		Member guest = guests.getFirst();
 		Coupon coupon = issueFixedCoupon(guest, 50_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
-		Reservation pending = createPendingReservation(transactionService,
+		Reservation pending = createPendingReservation(checkoutService,
 			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
@@ -365,7 +363,7 @@ class ReservationConcurrencyTest {
 		Member guest = guests.getFirst();
 		Coupon coupon = issueFixedCoupon(guest, 50_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
-		Reservation pending = createPendingReservation(transactionService,
+		Reservation pending = createPendingReservation(checkoutService,
 			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
@@ -417,7 +415,7 @@ class ReservationConcurrencyTest {
 	@DisplayName("같은 결제 승인 요청이 동시에 도착해도 하나의 결제 작업과 이벤트를 공유한다")
 	void concurrentPaymentApprovalClaimsOnce() throws InterruptedException {
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
-		Reservation pendingReservation = createPendingReservation(transactionService,
+		Reservation pendingReservation = createPendingReservation(checkoutService,
 			new ReservationCreateCommand(
 				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
 			guests.getFirst().getId(),
@@ -478,7 +476,7 @@ class ReservationConcurrencyTest {
 	void concurrentPaymentCancellationReturnsTheSameOperation() throws InterruptedException {
 		Member guest = guests.getFirst();
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
-		Reservation reservation = createPendingReservation(transactionService,
+		Reservation reservation = createPendingReservation(checkoutService,
 			new ReservationCreateCommand(
 				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
 			guest.getId(),
@@ -578,8 +576,8 @@ class ReservationConcurrencyTest {
 					readyLatch.countDown();
 					startLatch.await();
 
-					reservationService.createPendingReservation(
-						request, guest.getId(), idempotencyKey);
+					ReservationResponse.Ready.from(checkoutService.checkout(
+						request.toCheckout(), guest.getId(), idempotencyKey));
 					successCount.incrementAndGet();
 
 				} catch (ReservationConflictException | ReservationInventoryBusyException e) {
@@ -667,7 +665,7 @@ class ReservationConcurrencyTest {
 					readyLatch.countDown();
 					startLatch.await();
 
-					createPendingReservation(transactionService,
+					createPendingReservation(checkoutService,
 						request, guest.getId(), "DB 권위 트랜잭션 테스트");
 					successCount.incrementAndGet();
 				} catch (ReservationConflictException | ReservationInventoryBusyException e) {
@@ -741,7 +739,7 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				createPendingReservation(transactionService,
+				createPendingReservation(checkoutService,
 					new ReservationCreateCommand(accommodation.getId(), checkInDate, checkOutDate, 2),
 					guestA.getId(),
 					"different accommodation A"
@@ -759,7 +757,7 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				createPendingReservation(transactionService,
+				createPendingReservation(checkoutService,
 					new ReservationCreateCommand(accommodation2.getId(), checkInDate, checkOutDate, 2),
 					guestB.getId(),
 					"different accommodation B"
@@ -829,7 +827,7 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				createPendingReservation(transactionService,
+				createPendingReservation(checkoutService,
 					requestA, guestA.getId(), "overlap request A");
 				successCount.incrementAndGet();
 			} catch (ReservationConflictException | ReservationInventoryBusyException e) {
@@ -846,7 +844,7 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				createPendingReservation(transactionService,
+				createPendingReservation(checkoutService,
 					requestB, guestB.getId(), "overlap request B");
 				successCount.incrementAndGet();
 			} catch (ReservationConflictException | ReservationInventoryBusyException e) {

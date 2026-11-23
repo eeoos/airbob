@@ -22,6 +22,7 @@ import kr.kro.airbob.domain.reservation.GuestReservationPage;
 import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.HostReservationPage;
+import kr.kro.airbob.domain.reservation.ReservationReady;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -123,26 +124,24 @@ public class ReservationResponse {
 		@Schema(description = "예약 게스트의 현재 닉네임. 과거 데이터는 null일 수 있습니다.", example = "여행자", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
 		String customerName
 	) {
-		public static Ready from(Reservation reservation, Instant serverTime) {
-			long discountAmount = reservation.getDiscountAmount() == null
-				? 0L : reservation.getDiscountAmount();
+		public static Ready from(ReservationReady ready) {
 			return Ready.builder()
-				.reservationUid(reservation.getReservationUid().toString())
-				.orderName(reservation.getAccommodation().getName())
-				.checkIn(reservation.getCheckInDate())
-				.checkOut(reservation.getCheckOutDate())
-				.guestCount(reservation.getGuestCount())
-				.subtotal(Math.addExact(reservation.getTotalPrice(), discountAmount))
-				.discountAmount(discountAmount)
-				.amount(reservation.getTotalPrice())
-				.currency(reservation.getCurrency())
-				.status(reservation.effectiveStatus(serverTime))
-				.paymentRequired(reservation.requiresPayment())
-				.paymentAllowed(reservation.isPaymentAllowedAt(serverTime))
-				.holdExpiresAt(activeHoldExpiresAt(reservation))
-				.serverTime(serverTime)
-				.customerEmail(reservation.getGuest().getEmail())
-				.customerName(reservation.getGuest().getNickname())
+				.reservationUid(ready.reservationUid().toString())
+				.orderName(ready.orderName())
+				.checkIn(ready.checkIn())
+				.checkOut(ready.checkOut())
+				.guestCount(ready.guestCount())
+				.subtotal(ready.subtotal())
+				.discountAmount(ready.discountAmount())
+				.amount(ready.amount())
+				.currency(ready.currency())
+				.status(ready.status())
+				.paymentRequired(ready.paymentRequired())
+				.paymentAllowed(ready.paymentAllowed())
+				.holdExpiresAt(ready.holdExpiresAt())
+				.serverTime(ready.serverTime())
+				.customerEmail(ready.customerEmail())
+				.customerName(ready.customerName())
 				.build();
 		}
 	}
@@ -374,13 +373,6 @@ public class ReservationResponse {
 				.build();
 		}
 	}
-
-	private static Instant activeHoldExpiresAt(Reservation reservation) {
-		return reservation.getStatus() == ReservationStatus.PAYMENT_PENDING
-			? reservation.getExpiresAt()
-			: null;
-	}
-
 
 	@Builder
 	@Schema(name = "ReservationResponseHostReservationInfo")

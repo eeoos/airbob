@@ -70,8 +70,8 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
@@ -111,7 +111,7 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private ReservationService reservationService;
+	@Autowired private ReservationCheckoutService checkoutService;
 	@Autowired private ReservationQuoteService quoteService;
 	@Autowired private ExpiredReservationCleanupService cleanupService;
 	@MockitoSpyBean private ReservationInventoryManager inventoryManager;
@@ -236,10 +236,10 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 			2,
 			couponId
 		), guest.getId());
-		return reservationService.createPendingReservation(
-			new ReservationRequest.Checkout(quote.quoteUid(), "inventory cleanup race"),
+		return ReservationResponse.Ready.from(checkoutService.checkout(
+			new ReservationRequest.Checkout(quote.quoteUid(), "inventory cleanup race").toCheckout(),
 			guest.getId(),
-			idempotencyKey);
+			idempotencyKey));
 	}
 
 	private Long reservationId(ReservationResponse.Ready checkout) {

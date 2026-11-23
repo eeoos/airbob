@@ -63,7 +63,7 @@ review는 accommodation(리뷰 대상), reservation(작성 자격), search(색�
 reservation(예약 대상), search(검색 문서), review, recentlyviewed, payment가 accommodation에 의존한다. accommodation은 이들에 의존하지 않는다.
 
 - 다른 도메인은 `AccommodationReader`(숙소, 견적·체크아웃 스냅샷, 재고 seed 대상, 최근 본 숙소)와 `AccommodationAmenityReader`로 읽는다.
-  체크아웃의 `FOR SHARE NOWAIT` 스냅샷도 같은 트랜잭션에서 Reader를 거쳐 읽으며, NOWAIT 분류는 `ReservationTransactionService`가 그대로 한다.
+  체크아웃의 `FOR SHARE NOWAIT` 스냅샷도 같은 트랜잭션에서 Reader를 거쳐 읽으며, NOWAIT 분류는 `ReservationCheckoutService`가 그대로 한다.
 - accommodation이 필요로 하는 다른 도메인 기능은 accommodation이 소유한 포트(`core.domain.accommodation.port`)로 쓴다.
 
   | 포트 | 쓰는 곳 | 구현 |
@@ -96,6 +96,8 @@ payment(결제할 예약의 잠금과 상태 전이), search(검색 문서의 �
   잠금·전이 메서드는 `MANDATORY`라서 호출한 Business의 트랜잭션 안에서만 돈다. seed와 정리 스케줄러, 시작 시 seed(`ApplicationRunner`)는 Implement 한 번 호출로 끝나는 유지보수 작업이라 Business 없이 Implement를 바로 부른다.
 - 예약 조회(PR 15c-2)는 `ReservationQueryService`가 `ReservationReader`로 읽고 도메인 레코드를 돌려준다. 게스트 목록·상세의 상태와 결제 가능 여부는 조회 시각 기준으로 Business가 계산해 담고(`GuestReservationPage.Item.of`, `GuestReservationDetail.of`), Controller가 `ReservationResponse`의 `from`으로 응답을 만든다.
   조회 projection 4개는 Business 출력에 담기므로 도메인 루트에 둔다.
+- 체크아웃(PR 15c-3)은 `ReservationCheckoutService.checkout`이 하나의 `READ_COMMITTED` 트랜잭션에서 한다. 멱등 요청 행 잠금 → 견적 잠금 → 숙소 `FOR SHARE NOWAIT` 스냅샷 → 날짜 행 `FOR UPDATE NOWAIT` → 예약 저장 → 쿠폰 사용 → 재고 점유 → 이력 순서는 그대로다.
+  입력은 `ReservationCheckout`(멱등성 지문도 이 두 값으로 만든다), 출력은 `ReservationReady`다. 상태와 결제 가능 여부를 커밋 직전 시각으로 계산하는 점만 전과 다르다(전에는 커밋 뒤 시각).
 - 예약 취소 API(PR 15b)는 Controller가 결제 취소 Business `PaymentCancellationCommandService`를 직접 호출한다. 전에는 `ReservationService`가 그대로 넘겼는데, 이는 Business가 다른 Business를 부르는 구조라 옮긴 뒤 엄격 규칙에 걸린다.
 - 남은 순환은 reservation ↔ payment다. 게스트·호스트 예약 상세가 결제 정보를 결제 테이블 left join으로 한 쿼리에 읽고(쿼리 수 테스트가 SQL 1개를 고정), 응답에 결제 DTO와 결제 enum을 담는다.
   읽기 전용 간선이고 쿼리를 둘로 나누면 계약이 바뀌므로 동결로 남긴다. 예약 취소 요청·응답도 결제 DTO(`PaymentRequest.Cancel`, `PaymentOperationResponse.Cancellation`)를 쓴다.
@@ -286,6 +288,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 15b (reservation 취소 경로와 견적 입력) | 0 | 2 | 6 (`ReservationQuote` → 요청 DTO 해소) |
 | PR 15c-1 (reservation 재고 계층) | 0 | 2 | 6 |
 | PR 15c-2 (reservation 조회) | 0 | 2 | 6 |
+| PR 15c-3 (reservation 체크아웃) | 0 | 2 | 6 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -335,7 +338,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 15b | 예약 취소 API가 결제 취소 Business(`PaymentCancellationCommandService`)를 직접 호출(`ReservationService`의 위임 제거), `ReservationQuote`가 요청 DTO 대신 `NewReservationQuote`를 받음 | 동결 위반 감소, 스냅샷 불변 | 완료 |
 | 15c-1 | reservation 재고 계층: 여러 Business와 payment가 쓰는 `ReservationInventoryService`를 Implement `ReservationInventoryManager`로, 숙소 재고 seed 포트 구현을 `ReservationInventorySeeder`로, 과거 FREE 행 정리를 `ReservationInventoryManager`로(메서드별 `@Transactional` 그대로) | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | 완료 |
 | 15c-2 | 예약 조회: 게스트·호스트 목록과 상세를 `ReservationQueryService`로 옮기고 `ReservationReader`로 읽음, 출력을 도메인 레코드(`GuestReservationPage`, `GuestReservationDetail`, `HostReservationPage`, 호스트 상세 projection)로 | 스냅샷·쿼리 수 불변 | 완료 |
-| 15c-3 | 체크아웃: `ReservationService` → `ReservationTransactionService` 위임 정리, Repository 사용을 Implement로, 입출력을 도메인 레코드로 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
+| 15c-3 | 체크아웃: `ReservationService`와 `ReservationTransactionService`를 `ReservationCheckoutService`로 합침, Repository 사용을 `ReservationReader`·`ReservationWriter`·`ReservationHistoryWriter`·`ReservationQuoteReader`로, 입력 `ReservationCheckout`·출력 `ReservationReady` | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | 완료 |
 | 15c-4 | 견적·홀드·만료 정리·견적 정리 서비스의 Repository 사용을 Implement로, 입출력을 도메인 레코드로 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 15d | reservation 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | |
 | 16~ | payment 이전(경계·계층화·이동) → settlement, search, messaging, 나머지 공통 패키지 | `payment.md`의 실행 펜스와 수동 처리 불변식 | |

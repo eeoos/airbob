@@ -33,12 +33,13 @@ import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
+import kr.kro.airbob.domain.reservation.ReservationReady;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("예약 견적·checkout API 테스트")
@@ -49,7 +50,7 @@ class ReservationCheckoutControllerTest {
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
 	@Mock private ReservationQuoteService quoteService;
-	@Mock private ReservationService reservationService;
+	@Mock private ReservationCheckoutService checkoutService;
 	@Mock private ReservationHoldCommandService holdCommandService;
 	@Mock private PaymentCancellationCommandService cancellationCommandService;
 
@@ -63,7 +64,7 @@ class ReservationCheckoutControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationCommandController(quoteService, reservationService, holdCommandService,
+			new ReservationCommandController(quoteService, checkoutService, holdCommandService,
 				cancellationCommandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
@@ -125,7 +126,7 @@ class ReservationCheckoutControllerTest {
 			.andExpect(jsonPath("$.data.server_time").value("2026-08-25T03:00:00Z"));
 
 		then(quoteService).should().createQuote(request, MEMBER_ID);
-		then(reservationService).shouldHaveNoInteractions();
+		then(checkoutService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -136,24 +137,25 @@ class ReservationCheckoutControllerTest {
 			UUID.fromString(QUOTE_UID),
 			"늦은 체크인 예정입니다"
 		);
-		ReservationResponse.Ready response = ReservationResponse.Ready.builder()
-			.reservationUid(UUID.fromString("8ff131af-946c-4fe1-889d-e7cd7deaeec0").toString())
-			.orderName("한강 전망 숙소")
-			.checkIn(LocalDate.of(2026, 9, 10))
-			.checkOut(LocalDate.of(2026, 9, 13))
-			.guestCount(2)
-			.subtotal(360_000L)
-			.discountAmount(30_000L)
-			.amount(330_000L)
-			.currency("KRW")
-			.status(ReservationStatus.PAYMENT_PENDING)
-			.paymentRequired(true)
-			.paymentAllowed(true)
-			.holdExpiresAt(NOW.plusSeconds(15 * 60))
-			.serverTime(NOW)
-			.build();
-		given(reservationService.createPendingReservation(request, MEMBER_ID, idempotencyKey))
-			.willReturn(response);
+		ReservationReady ready = new ReservationReady(
+			UUID.fromString("8ff131af-946c-4fe1-889d-e7cd7deaeec0"),
+			"한강 전망 숙소",
+			LocalDate.of(2026, 9, 10),
+			LocalDate.of(2026, 9, 13),
+			2,
+			360_000L,
+			30_000L,
+			330_000L,
+			"KRW",
+			ReservationStatus.PAYMENT_PENDING,
+			true,
+			true,
+			NOW.plusSeconds(15 * 60),
+			NOW,
+			null,
+			null);
+		given(checkoutService.checkout(request.toCheckout(), MEMBER_ID, idempotencyKey))
+			.willReturn(ready);
 
 		var result = mockMvc.perform(post("/api/v1/reservations")
 				.header("Idempotency-Key", idempotencyKey)
@@ -170,8 +172,8 @@ class ReservationCheckoutControllerTest {
 			.andReturn();
 
 		assertThat(result.getResponse().getContentAsString()).doesNotContain(idempotencyKey);
-		then(reservationService).should()
-			.createPendingReservation(request, MEMBER_ID, idempotencyKey);
+		then(checkoutService).should()
+			.checkout(request.toCheckout(), MEMBER_ID, idempotencyKey);
 		then(quoteService).shouldHaveNoInteractions();
 	}
 
@@ -195,7 +197,7 @@ class ReservationCheckoutControllerTest {
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
-		then(reservationService).shouldHaveNoInteractions();
+		then(checkoutService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -209,7 +211,7 @@ class ReservationCheckoutControllerTest {
 					"""))
 			.andExpect(status().isBadRequest());
 
-		then(reservationService).shouldHaveNoInteractions();
+		then(checkoutService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -225,7 +227,7 @@ class ReservationCheckoutControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false));
 
-		then(reservationService).shouldHaveNoInteractions();
+		then(checkoutService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -242,6 +244,6 @@ class ReservationCheckoutControllerTest {
 			.andExpect(status().isNotFound());
 
 		then(quoteService).shouldHaveNoInteractions();
-		then(reservationService).shouldHaveNoInteractions();
+		then(checkoutService).shouldHaveNoInteractions();
 	}
 }

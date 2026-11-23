@@ -19,6 +19,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +39,12 @@ public class ReservationReader implements AccommodationReservationReader {
 	public Reservation readByUidForUpdate(UUID reservationUid) {
 		return reservationRepository.findByReservationUidWithLock(reservationUid)
 			.orElseThrow(ReservationNotFoundException::new);
+	}
+
+	/** 이미 끝난 멱등 체크아웃 요청이 만든 예약을 다시 읽는다. 게스트가 다르면 상태가 바뀐 것으로 본다. */
+	public Reservation readCheckoutReplay(Long reservationId, Long guestId) {
+		return reservationRepository.findCheckoutReplayByIdAndGuestId(reservationId, guestId)
+			.orElseThrow(ReservationStateChangeException::new);
 	}
 
 	/** 색인 기간 안에서 숙소의 활성 예약 날짜 구간. 잠그지 않는 조회다. */

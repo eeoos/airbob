@@ -28,6 +28,7 @@ import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.GuestReservationPage;
 import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.HostReservationListProjection;
+import kr.kro.airbob.domain.reservation.ReservationReady;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
@@ -114,7 +115,7 @@ class ReservationResponseTest {
 			.expiresAt(SERVER_TIME.plusSeconds(15 * 60))
 			.build();
 
-		ReservationResponse.Ready response = ReservationResponse.Ready.from(reservation, SERVER_TIME);
+		ReservationResponse.Ready response = ReservationResponse.Ready.from(ReservationReady.of(reservation, SERVER_TIME));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		assertThat(response.paymentRequired()).isTrue();
@@ -160,7 +161,7 @@ class ReservationResponseTest {
 			.expiresAt(SERVER_TIME)
 			.build();
 
-		ReservationResponse.Ready response = ReservationResponse.Ready.from(reservation, SERVER_TIME);
+		ReservationResponse.Ready response = ReservationResponse.Ready.from(ReservationReady.of(reservation, SERVER_TIME));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(response.paymentAllowed()).isFalse();

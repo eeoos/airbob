@@ -64,13 +64,13 @@ import kr.kro.airbob.domain.reservation.service.ReservationReader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ReservationTransactionService 테스트")
-class ReservationTransactionServiceTest {
+@DisplayName("ReservationCheckoutService 테스트")
+class ReservationCheckoutServiceTest {
 	private static final String TIME_ZONE_ID = "America/New_York";
 	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 11);
 	private static final Instant NOW = Instant.parse("2026-08-11T15:00:00Z");
 
-	private ReservationTransactionService transactionService;
+	private ReservationCheckoutService checkoutService;
 
 	@Mock
 	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
@@ -114,17 +114,17 @@ class ReservationTransactionServiceTest {
 	@BeforeEach
 	void setUp() {
 		holdPolicy = new ReservationHoldPolicy(Duration.ofMinutes(7));
-		transactionService = new ReservationTransactionService(
+		checkoutService = new ReservationCheckoutService(
 			searchRefreshPublisher,
 			new MemberReader(memberRepository),
-			reservationRepository,
+			new ReservationReader(reservationRepository),
+			new ReservationWriter(reservationRepository, checkoutRequestStore),
 			new AccommodationReader(accommodationRepository),
-			historyRepository,
+			new ReservationHistoryWriter(historyRepository),
 			couponUsageManager,
 			bookingWindowProvider,
 			holdPolicy,
-			quoteRepository,
-			checkoutRequestStore,
+			new ReservationQuoteReader(quoteRepository),
 			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
@@ -311,7 +311,7 @@ class ReservationTransactionServiceTest {
 				overCapacity.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 
-			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(
+			assertThatThrownBy(() -> checkoutService.createPendingReservationInTx(
 				overCapacity, memberId, "정원 검증"))
 				.isInstanceOf(ReservationOccupancyExceededException.class);
 
@@ -346,7 +346,7 @@ class ReservationTransactionServiceTest {
 				});
 
 			// when
-			Reservation result = transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성");
+			Reservation result = checkoutService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성");
 
 			// then
 			assertThat(result).isNotNull();
@@ -405,7 +405,7 @@ class ReservationTransactionServiceTest {
 			});
 			given(couponUsageManager.use(memberId, 77L, 99L, 200_000L)).willReturn(200_000L);
 
-			Reservation result = transactionService.createPendingReservationInTx(
+			Reservation result = checkoutService.createPendingReservationInTx(
 				complimentaryRequest, memberId, "0원 예약");
 
 			assertThat(result.getTotalPrice()).isZero();
@@ -441,7 +441,7 @@ class ReservationTransactionServiceTest {
 					return reservation;
 				});
 
-			Reservation result = transactionService.createPendingReservationInTx(
+			Reservation result = checkoutService.createPendingReservationInTx(
 				dstRequest, memberId, "DST 경계 예약 생성");
 
 			Instant expectedCheckInAt = Instant.parse("2027-03-13T20:00:00Z");
@@ -460,7 +460,7 @@ class ReservationTransactionServiceTest {
 				.willReturn(Optional.empty());
 
 			// when & then
-			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
+			assertThatThrownBy(() -> checkoutService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(MemberNotFoundException.class);
 
 			then(reservationRepository).should(never()).saveAndFlush(any());
@@ -477,7 +477,7 @@ class ReservationTransactionServiceTest {
 				.willReturn(Optional.empty());
 
 			// when & then
-			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
+			assertThatThrownBy(() -> checkoutService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(AccommodationNotFoundException.class);
 
 			then(reservationRepository).should(never()).saveAndFlush(any());
@@ -498,7 +498,7 @@ class ReservationTransactionServiceTest {
 				invalidRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 
-			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(
+			assertThatThrownBy(() -> checkoutService.createPendingReservationInTx(
 				invalidRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(InvalidReservationDateException.class);
 
@@ -522,7 +522,7 @@ class ReservationTransactionServiceTest {
 				outsideRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 
-			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(
+			assertThatThrownBy(() -> checkoutService.createPendingReservationInTx(
 				outsideRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(ReservationOutsideBookingWindowException.class);
 
@@ -545,7 +545,7 @@ class ReservationTransactionServiceTest {
 				.willThrow(new ReservationConflictException());
 
 			// when & then
-			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
+			assertThatThrownBy(() -> checkoutService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(ReservationConflictException.class);
 
 			then(reservationRepository).should(never()).saveAndFlush(any());
@@ -577,7 +577,7 @@ class ReservationTransactionServiceTest {
 				});
 
 			// when
-			Reservation result = transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성");
+			Reservation result = checkoutService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성");
 
 			// then
 			assertThat(result).isNotNull();

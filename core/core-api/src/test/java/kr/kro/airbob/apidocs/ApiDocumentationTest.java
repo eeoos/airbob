@@ -80,11 +80,11 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.common.monitoring.QueryCountMetricRecorder;
 import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
@@ -163,6 +163,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.resolver.*;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.GuestReservationDetail;
 import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
@@ -170,54 +171,54 @@ import kr.kro.airbob.domain.reservation.GuestReservationPage;
 import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.HostReservationPage;
+import kr.kro.airbob.domain.reservation.ReservationReady;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
-import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
-import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.core.support.error.InvalidInputException;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationAdminResponse;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
-import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
+import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnavailableException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationManualReviewQueueItem;
-import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
-import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
-import kr.kro.airbob.core.support.error.BaseException;
-import kr.kro.airbob.core.support.error.InvalidInputException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import kr.kro.airbob.domain.settlement.service.SettlementService;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.exception.*;
-import kr.kro.airbob.search.service.AccommodationSearchService;
-import kr.kro.airbob.search.dto.AccommodationSearchResponse;
+import kr.kro.airbob.domain.settlement.service.SettlementService;
 import kr.kro.airbob.search.document.AccommodationDocument;
+import kr.kro.airbob.search.dto.AccommodationSearchResponse;
 import kr.kro.airbob.search.exception.SearchUnavailableException;
+import kr.kro.airbob.search.service.AccommodationSearchService;
 
 @SpringBootTest(classes = ApiDocumentationTest.MvcApplication.class, properties = {
 	"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"
@@ -248,7 +249,7 @@ import kr.kro.airbob.search.exception.SearchUnavailableException;
 	ReservationHoldCommandService.class,
 	ReservationQuoteService.class,
 	ReservationQueryService.class,
-	ReservationService.class,
+	ReservationCheckoutService.class,
 	RevenueStatsService.class,
 	ReviewImageService.class,
 	ReviewService.class,
@@ -385,8 +386,8 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		validateResponse(spec, "/api/v1/coupons", "get", "200", coupons);
 		assertThat(mapper.readTree(coupons).at("/data/infos/0/total_quantity").isNull()).isTrue();
-		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
-			.thenReturn(new ReservationResponse.Ready("00000000-0000-0000-0000-000000000020", "숙소", LocalDate.parse("2027-01-10"),
+		when(context.getBean(ReservationCheckoutService.class).checkout(any(), anyLong(), any()))
+			.thenReturn(new ReservationReady(UUID.fromString("00000000-0000-0000-0000-000000000020"), "숙소", LocalDate.parse("2027-01-10"),
 				LocalDate.parse("2027-01-12"), 2, 10000L, 10000L, 0L, "KRW", ReservationStatus.CONFIRMED,
 				false, false, null, now, "docs@example.invalid", "여행자"));
 		String ready = mvc.perform(post("/api/v1/reservations").cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
@@ -821,8 +822,8 @@ class ApiDocumentationTest {
 
 		Instant now = Instant.parse("2027-01-01T00:00:00Z");
 		Reservation expired = documentationPendingReservation(now.minusSeconds(1));
-		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
-			.thenReturn(ReservationResponse.Ready.from(expired, now));
+		when(context.getBean(ReservationCheckoutService.class).checkout(any(), anyLong(), any()))
+			.thenReturn(ReservationReady.of(expired, now));
 		String replay = mvc.perform(post(path).cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
 			.contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
@@ -832,7 +833,7 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(replay).at("/data/hold_expires_at").asText()).isEqualTo("2026-12-31T23:59:59Z");
 		assertThat(mapper.readTree(replay).at("/data/customer_email").isNull()).isTrue();
 
-		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
+		when(context.getBean(ReservationCheckoutService.class).checkout(any(), anyLong(), any()))
 			.thenThrow(new ReservationInventoryBusyException(new IllegalStateException("test contention")));
 		String busy = mvc.perform(post(path).cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
 			.contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isServiceUnavailable())
@@ -2611,7 +2612,7 @@ class ApiDocumentationTest {
 
 	@Test
 	void allowedFrontendOriginsCanReadTheDocumentedRetryAndLocationHeaders() throws Exception {
-		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
+		when(context.getBean(ReservationCheckoutService.class).checkout(any(), anyLong(), any()))
 			.thenThrow(new ReservationInventoryBusyException(new IllegalStateException("test contention")));
 		var response = mvc.perform(post("/api/v1/reservations").cookie(SESSION)
 			.header("Origin", "https://www.airbob.cloud").header("Idempotency-Key", "checkout-00000001")

@@ -13,9 +13,9 @@ import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
+import kr.kro.airbob.domain.reservation.service.ReservationCheckoutService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class ReservationCommandController implements ReservationCommandApi {
 
 	private final ReservationQuoteService quoteService;
-	private final ReservationService reservationService;
+	private final ReservationCheckoutService checkoutService;
 	private final ReservationHoldCommandService holdCommandService;
 	private final PaymentCancellationCommandService cancellationCommandService;
 
@@ -42,8 +42,8 @@ public class ReservationCommandController implements ReservationCommandApi {
 		String idempotencyKey,
 		Long memberId
 	) {
-		ReservationResponse.Ready response = reservationService.createPendingReservation(
-			request, memberId, idempotencyKey);
+		ReservationResponse.Ready response = ReservationResponse.Ready.from(
+			checkoutService.checkout(request.toCheckout(), memberId, idempotencyKey));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
