@@ -1,11 +1,11 @@
-package kr.kro.airbob.domain.recentlyviewed.api;
+package kr.kro.airbob.core.api.controller.v1.recentlyviewed;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
+import kr.kro.airbob.core.api.controller.v1.recentlyviewed.response.RecentlyViewedResponse;
+import kr.kro.airbob.core.domain.recentlyviewed.RecentlyViewedService;
 import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,10 +33,10 @@ public class RecentlyViewedController implements RecentlyViewedApi {
 	}
 
 	@Override
-	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewed(
+	public ResponseEntity<ApiResponse<RecentlyViewedResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewed(
 		Long memberId) {
-		AccommodationResponse.RecentlyViewedAccommodationInfos response =
-			recentlyViewedService.getRecentlyViewed(memberId);
+		RecentlyViewedResponse.RecentlyViewedAccommodationInfos response =
+			RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(recentlyViewedService.getRecentlyViewed(memberId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 
 	}

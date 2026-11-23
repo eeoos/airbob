@@ -86,7 +86,6 @@ import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
-import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse;
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
@@ -106,6 +105,7 @@ import kr.kro.airbob.core.domain.accommodation.HostAccommodationPage;
 import kr.kro.airbob.core.domain.accommodation.HostAccommodationProjection;
 import kr.kro.airbob.core.domain.accommodation.PublicAccommodationDetail;
 import kr.kro.airbob.core.domain.accommodation.PublishingFieldRequiredException;
+import kr.kro.airbob.core.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationAvailability;
 import kr.kro.airbob.core.domain.auth.AuthService;
 import kr.kro.airbob.core.domain.auth.InvalidPasswordException;
@@ -144,6 +144,7 @@ import kr.kro.airbob.core.domain.payment.PaymentDetail;
 import kr.kro.airbob.core.domain.payment.PaymentOperationDetail;
 import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewQueue;
 import kr.kro.airbob.core.domain.payment.PaymentOperationReceipt;
+import kr.kro.airbob.core.domain.recentlyviewed.RecentlyViewedAccommodation;
 import kr.kro.airbob.core.domain.reservation.GuestReservationDetail;
 import kr.kro.airbob.core.domain.reservation.GuestReservationListProjection;
 import kr.kro.airbob.core.domain.reservation.GuestReservationPage;
@@ -213,10 +214,10 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationType;
 import kr.kro.airbob.core.domain.payment.PaymentQueryService;
 import kr.kro.airbob.core.domain.payment.PaymentStatus;
 import kr.kro.airbob.core.domain.payment.PaymentTransaction;
+import kr.kro.airbob.core.domain.recentlyviewed.RecentlyViewedService;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.domain.recentlyviewed.service.RecentlyViewedService;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import kr.kro.airbob.core.domain.settlement.*;
 import kr.kro.airbob.core.domain.settlement.Settlement;
@@ -1994,12 +1995,12 @@ class ApiDocumentationTest {
 		String path = "/api/v1/members/recently-viewed";
 		RecentlyViewedService service = context.getBean(RecentlyViewedService.class);
 		var cards = List.of(
-			new AccommodationResponse.RecentlyViewedAccommodationInfo(Instant.parse("2027-01-10T02:00:00.123Z"),
-				101L, "서울 하우스", "https://example.invalid/stay.jpg", new AddressResponse.AddressSummaryInfo("대한민국", null, "서울", null),
-				AccommodationResponse.ReviewSummary.of(2, new BigDecimal("4.50")), true),
-			new AccommodationResponse.RecentlyViewedAccommodationInfo(Instant.parse("2027-01-09T00:00:00Z"),
-				102L, null, null, new AddressResponse.AddressSummaryInfo(null, null, null, null), null, false));
-		when(service.getRecentlyViewed(10L)).thenReturn(AccommodationResponse.RecentlyViewedAccommodationInfos.from(cards));
+			new RecentlyViewedAccommodation(Instant.parse("2027-01-10T02:00:00.123Z"),
+				new RecentlyViewedAccommodationProjection(101L, "서울 하우스", "https://example.invalid/stay.jpg",
+					"대한민국", null, "서울", null, 2, new BigDecimal("4.50")), true),
+			new RecentlyViewedAccommodation(Instant.parse("2027-01-09T00:00:00Z"),
+				new RecentlyViewedAccommodationProjection(102L, null, null, null, null, null, null, null, null), false));
+		when(service.getRecentlyViewed(10L)).thenReturn(cards);
 		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		JsonNode data = mapper.readTree(response).path("data");
@@ -2015,7 +2016,7 @@ class ApiDocumentationTest {
 		JsonNode fields = spec.at("/components/schemas/AccommodationResponseRecentlyViewedAccommodationInfo/required");
 		assertThat(fields.toString()).contains("viewed_at", "accommodation_id", "accommodation_name", "thumbnail_url",
 			"address_summary", "review_summary", "is_in_wishlist");
-		when(service.getRecentlyViewed(10L)).thenReturn(AccommodationResponse.RecentlyViewedAccommodationInfos.from(List.of()));
+		when(service.getRecentlyViewed(10L)).thenReturn(List.of());
 		String empty = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"accommodations\":[],\"total_count\":0}}"));

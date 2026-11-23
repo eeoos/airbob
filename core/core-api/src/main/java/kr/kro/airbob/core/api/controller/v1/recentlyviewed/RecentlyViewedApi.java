@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.recentlyviewed.api;
+package kr.kro.airbob.core.api.controller.v1.recentlyviewed;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -10,11 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
-import kr.kro.airbob.core.api.security.CurrentMemberId;
-import kr.kro.airbob.core.support.response.ApiResponse;
-import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.config.apidocs.ApiErrors;
+import kr.kro.airbob.core.api.controller.v1.recentlyviewed.response.RecentlyViewedResponse;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.support.error.ErrorCode;
+import kr.kro.airbob.core.support.response.ApiResponse;
 
 @Tag(name = "최근 본 숙소")
 @RequestMapping("/api")
@@ -48,6 +48,6 @@ public interface RecentlyViewedApi {
 		description = "로그인 회원이 기록한 숙소 중 현재 공개된 숙소를 최근 기록 시각 내림차순으로 최대 100개 반환합니다. 같은 밀리초의 기록은 숙소 ID 문자열 내림차순입니다. 페이지·커서 매개변수는 없습니다. 없는 숙소·초안·비공개·삭제된 숙소는 응답에서 제외하고 기록에서도 제거합니다. 숙소·주소·리뷰 요약·본인의 활성 위시리스트 저장 여부는 현재 값입니다. 리뷰가 없으면 0건·0점이며 주소가 없는 과거 숙소도 주소 필드가 null인 객체로 반환합니다. 빈 기록은 accommodations=[], total_count=0입니다. 조회는 기록 시각과 목록 만료 시각을 갱신하지 않습니다.")
 	@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "처리 완료", useReturnTypeSchema = true)
 	@GetMapping("/v1/members/recently-viewed")
-	ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewed(
+	ResponseEntity<ApiResponse<RecentlyViewedResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewed(
 		@CurrentMemberId Long memberId);
 }

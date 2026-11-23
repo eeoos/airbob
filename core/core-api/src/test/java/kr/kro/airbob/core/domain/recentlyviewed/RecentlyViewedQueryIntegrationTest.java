@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.recentlyviewed.service;
+package kr.kro.airbob.core.domain.recentlyviewed;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -46,8 +46,8 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.RecentlyViewedAccommodationInfo;
-import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.RecentlyViewedAccommodationInfos;
+import kr.kro.airbob.core.api.controller.v1.recentlyviewed.response.RecentlyViewedResponse.RecentlyViewedAccommodationInfo;
+import kr.kro.airbob.core.api.controller.v1.recentlyviewed.response.RecentlyViewedResponse.RecentlyViewedAccommodationInfos;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 
@@ -59,7 +59,7 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class, WishlistReader.class, AccommodationReader.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class, RecentlyViewedReader.class, RecentlyViewedWriter.class, WishlistReader.class, AccommodationReader.class,
 	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")
@@ -115,7 +115,7 @@ class RecentlyViewedQueryIntegrationTest {
 		insertMixedHistory();
 		Statistics statistics = prepareMeasurement();
 
-		RecentlyViewedAccommodationInfos result = service.getRecentlyViewed(MEMBER_ID);
+		RecentlyViewedAccommodationInfos result = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
 
 		assertContract(result);
 		assertCardRead(statistics);
@@ -126,7 +126,7 @@ class RecentlyViewedQueryIntegrationTest {
 	@DisplayName("다음 조회에 최신 숙소·주소·후기·공개 상태를 반영하고 회원별 찜과 기록을 구분한다")
 	void readsCurrentCardDataAndMemberSpecificMembership() {
 		insertMixedHistory();
-		service.getRecentlyViewed(MEMBER_ID);
+		RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
 		jdbc.update("UPDATE accommodation SET name = '춘천 호수집', thumbnail_url = NULL WHERE id = 31");
 		jdbc.update("""
 			UPDATE address SET country = '대한민국', state = '강원특별자치도', city = '춘천', district = '남산면'
@@ -145,7 +145,7 @@ class RecentlyViewedQueryIntegrationTest {
 		addHistory(OTHER_KEY, 31, "2026-09-08T00:00:00Z");
 		Statistics statistics = prepareMeasurement();
 
-		RecentlyViewedAccommodationInfos result = service.getRecentlyViewed(MEMBER_ID);
+		RecentlyViewedAccommodationInfos result = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
 
 		assertThat(result.totalCount()).isEqualTo(2);
 		assertThat(result.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
@@ -166,7 +166,7 @@ class RecentlyViewedQueryIntegrationTest {
 		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("31", "40");
 
 		statistics = prepareMeasurement();
-		RecentlyViewedAccommodationInfos otherResult = service.getRecentlyViewed(8L);
+		RecentlyViewedAccommodationInfos otherResult = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(8L));
 
 		assertThat(otherResult.totalCount()).isEqualTo(1);
 		assertThat(otherResult.accommodations().getFirst()).isEqualTo(
@@ -210,7 +210,7 @@ class RecentlyViewedQueryIntegrationTest {
 		}
 		var history = redis.opsForZSet().reverseRangeWithScores(KEY, 0, -1);
 		Statistics statistics = prepareMeasurement();
-		RecentlyViewedAccommodationInfos after = service.getRecentlyViewed(MEMBER_ID);
+		RecentlyViewedAccommodationInfos after = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
 
 		assertCardRead(statistics);
 		assertThat(after.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
@@ -230,7 +230,7 @@ class RecentlyViewedQueryIntegrationTest {
 	void emptyHistoryDoesNotReadDatabase() {
 		Statistics statistics = prepareMeasurement();
 
-		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
+		assertEmpty(RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID)));
 
 		assertThat(statistics.getPrepareStatementCount()).isZero();
 		assertThat(statistics.getEntityLoadCount()).isZero();
@@ -244,13 +244,13 @@ class RecentlyViewedQueryIntegrationTest {
 		addHistory(KEY, 999, "2026-09-06T00:00:00Z");
 		Statistics statistics = prepareMeasurement();
 
-		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
+		assertEmpty(RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID)));
 
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(redis.hasKey(KEY)).isFalse();
 		statistics.clear();
-		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
+		assertEmpty(RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID)));
 		assertThat(statistics.getPrepareStatementCount()).isZero();
 	}
 
@@ -261,7 +261,7 @@ class RecentlyViewedQueryIntegrationTest {
 		jdbc.update("UPDATE wishlist SET status = 'DELETED' WHERE id IN (51, 52)");
 		Statistics statistics = prepareMeasurement();
 
-		var result = service.getRecentlyViewed(MEMBER_ID);
+		var result = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
 
 		assertThat(result.accommodations()).allSatisfy(card -> assertThat(card.isInWishlist()).isFalse());
 		assertCardRead(statistics);
