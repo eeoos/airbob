@@ -30,6 +30,7 @@ import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
@@ -42,6 +43,7 @@ class ReservationCommandControllerTest {
 	@Mock private ReservationService reservationService;
 	@Mock private ReservationQuoteService quoteService;
 	@Mock private ReservationHoldCommandService holdCommandService;
+	@Mock private PaymentCancellationCommandService cancellationCommandService;
 
 	private MockMvc mockMvc;
 
@@ -52,7 +54,8 @@ class ReservationCommandControllerTest {
 			.findAndRegisterModules()
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationCommandController(quoteService, reservationService, holdCommandService))
+			new ReservationCommandController(quoteService, reservationService, holdCommandService,
+				cancellationCommandService))
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.build();
@@ -75,7 +78,7 @@ class ReservationCommandControllerTest {
 			statusUrl,
 			false
 		);
-		given(reservationService.cancelReservation(reservationUid, request, MEMBER_ID))
+		given(cancellationCommandService.requestCancellation(reservationUid, request, MEMBER_ID))
 			.willReturn(cancellation);
 
 		mockMvc.perform(post("/api/v1/reservations/{reservationUid}", reservationUid)
@@ -88,15 +91,15 @@ class ReservationCommandControllerTest {
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
 			.andExpect(content().string("{\"success\":true}"));
 
-		then(reservationService).should()
-			.cancelReservation(reservationUid, request, MEMBER_ID);
+		then(cancellationCommandService).should()
+			.requestCancellation(reservationUid, request, MEMBER_ID);
 	}
 
 	@Test
 	void complimentaryCancellationKeepsTheSameV1EnvelopeWithoutAPollingLocation() throws Exception {
 		String reservationUid = "6df13da6-735a-4a4a-a8bc-3b8acbdac9bf";
 		PaymentRequest.Cancel request = new PaymentRequest.Cancel("0원 예약 취소", null);
-		given(reservationService.cancelReservation(reservationUid, request, MEMBER_ID))
+		given(cancellationCommandService.requestCancellation(reservationUid, request, MEMBER_ID))
 			.willReturn(Cancellation.completed());
 
 		mockMvc.perform(post("/api/v1/reservations/{reservationUid}", reservationUid)
@@ -109,7 +112,7 @@ class ReservationCommandControllerTest {
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
 			.andExpect(content().string("{\"success\":true}"));
 
-		then(reservationService).should()
-			.cancelReservation(reservationUid, request, MEMBER_ID);
+		then(cancellationCommandService).should()
+			.requestCancellation(reservationUid, request, MEMBER_ID);
 	}
 }

@@ -31,6 +31,7 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
@@ -46,6 +47,7 @@ class ReservationHoldControllerTest {
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
 	@Mock private ReservationHoldCommandService holdCommandService;
+	@Mock private PaymentCancellationCommandService cancellationCommandService;
 	@Mock private ReservationQuoteService quoteService;
 	@Mock private ReservationService reservationService;
 
@@ -59,7 +61,8 @@ class ReservationHoldControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationCommandController(quoteService, reservationService, holdCommandService))
+			new ReservationCommandController(quoteService, reservationService, holdCommandService,
+				cancellationCommandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))

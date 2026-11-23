@@ -9,7 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.NewReservationQuote;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 
 @DisplayName("예약 견적 엔티티 테스트")
@@ -20,13 +20,13 @@ class ReservationQuoteTest {
 	private static final long COUPON_ID = 55L;
 	private static final Instant QUOTED_AT = Instant.parse("2026-08-25T03:00:00Z");
 
-	private ReservationRequest.Quote request;
+	private NewReservationQuote request;
 	private ReservationStayPricePolicy.StayPrice stayPrice;
 	private ReservationQuote quote;
 
 	@BeforeEach
 	void setUp() {
-		request = new ReservationRequest.Quote(
+		request = new NewReservationQuote(
 			ACCOMMODATION_ID,
 			LocalDate.of(2026, 9, 10),
 			LocalDate.of(2026, 9, 13),

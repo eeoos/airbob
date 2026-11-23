@@ -4,4 +4,3 @@ kr.kro.airbob.domain.payment.entity.PaymentOperation depends on kr.kro.airbob.do
 kr.kro.airbob.domain.payment.entity.PaymentTransaction depends on kr.kro.airbob.domain.payment.service.gateway.CancelledPayment
 kr.kro.airbob.domain.payment.entity.PaymentTransaction depends on kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment
 kr.kro.airbob.domain.payment.entity.PaymentTransaction depends on kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment$VirtualAccountDetails
-kr.kro.airbob.domain.reservation.entity.ReservationQuote depends on kr.kro.airbob.domain.reservation.dto.ReservationRequest$Quote

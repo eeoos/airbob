@@ -27,7 +27,6 @@ import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
@@ -56,7 +55,6 @@ class ReservationReadControllerValidationTest {
 	@Mock ReservationCheckoutRequestStore checkoutRequestStore;
 	@Mock ReservationInventoryService inventoryService;
 	@Mock Clock clock;
-	@Mock PaymentCancellationCommandService cancellationService;
 	@InjectMocks ReservationTransactionService transactionService;
 
 	private MockMvc mvc;
@@ -64,7 +62,7 @@ class ReservationReadControllerValidationTest {
 	@BeforeEach
 	void setUp() {
 		UserContext.set(new UserInfo(10L));
-		var service = new ReservationService(transactionService, cancellationService, clock);
+		var service = new ReservationService(transactionService, clock);
 		mvc = MockMvcBuilders.standaloneSetup(
 				new ReservationGuestController(service), new ReservationHostController(service))
 			.setControllerAdvice(new GlobalExceptionHandler())

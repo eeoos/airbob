@@ -108,6 +108,8 @@ class ReservationConcurrencyTest {
 	@Autowired
 	private ReservationService reservationService;
 	@Autowired
+	private PaymentCancellationCommandService cancellationCommandService;
+	@Autowired
 	private ReservationHoldCommandService reservationHoldCommandService;
 	@Autowired
 	private ReservationQuoteService quoteService;
@@ -277,7 +279,7 @@ class ReservationConcurrencyTest {
 			.containsExactly(
 				AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType());
 
-		reservationService.cancelReservation(
+		cancellationCommandService.requestCancellation(
 			confirmed.getReservationUid().toString(), new PaymentRequest.Cancel("0원 예약 취소", null), guest.getId());
 
 		Reservation cancelled = reservationRepository.findByReservationUid(confirmed.getReservationUid()).orElseThrow();
@@ -308,7 +310,7 @@ class ReservationConcurrencyTest {
 			""");
 
 		try {
-			assertThatThrownBy(() -> reservationService.cancelReservation(
+			assertThatThrownBy(() -> cancellationCommandService.requestCancellation(
 				confirmed.getReservationUid().toString(),
 				new PaymentRequest.Cancel("0원 취소 롤백", null),
 				guest.getId()))
