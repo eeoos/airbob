@@ -15,13 +15,16 @@ import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressRespon
 import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
+import kr.kro.airbob.domain.reservation.GuestReservationDetail;
+import kr.kro.airbob.domain.reservation.GuestReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.GuestReservationPage;
+import kr.kro.airbob.domain.reservation.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.HostReservationListProjection;
+import kr.kro.airbob.domain.reservation.HostReservationPage;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -219,15 +222,15 @@ public class ReservationResponse {
 		@Schema(description = "숙소의 현재 기본 정보", requiredMode = Schema.RequiredMode.REQUIRED)
 		AccommodationResponse.AccommodationBasicInfo accommodation
 	) {
-		public static GuestReservationInfo from(GuestReservationListProjection reservation, Instant serverTime) {
-
+		public static GuestReservationInfo from(GuestReservationPage.Item item) {
+			GuestReservationListProjection reservation = item.reservation();
 			return GuestReservationInfo.builder()
 				.reservationId(reservation.id())
 				.reservationUid(reservation.reservationUid().toString())
 				.checkInDate(reservation.checkInDate())
 				.checkOutDate(reservation.checkOutDate())
 				.timeZoneId(reservation.timeZoneId())
-				.status(Reservation.effectiveStatus(reservation.status(), reservation.expiresAt(), serverTime))
+				.status(item.status())
 				.createdAt(toUtcInstant(reservation.createdAt()))
 				.accommodation(new AccommodationResponse.AccommodationBasicInfo(
 					reservation.accommodationId(), reservation.accommodationName(), reservation.accommodationThumbnailUrl()))
@@ -243,12 +246,10 @@ public class ReservationResponse {
 		@Schema(description = "다음 페이지 조회 정보", requiredMode = Schema.RequiredMode.REQUIRED)
 		CursorResponse.PageInfo pageInfo
 	) {
-		public static GuestReservationInfos from(
-			List<GuestReservationInfo> reservationInfos,
-			CursorResponse.PageInfo pageInfo) {
+		public static GuestReservationInfos from(GuestReservationPage page) {
 			return GuestReservationInfos.builder()
-				.reservations(reservationInfos)
-				.pageInfo(pageInfo)
+				.reservations(page.reservations().stream().map(GuestReservationInfo::from).toList())
+				.pageInfo(page.pageInfo())
 				.build();
 		}
 	}
@@ -339,9 +340,8 @@ public class ReservationResponse {
 		@Schema(description = "결제 기록. 미결제·0원 예약 등 기록이 없으면 null입니다.", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
 		PaymentResponse.GuestPaymentInfo payment
 	) {
-		public static GuestDetail from(GuestReservationDetailProjection detail,
-			boolean canWriteReview,
-			Instant serverTime) {
+		public static GuestDetail from(GuestReservationDetail guestDetail) {
+			GuestReservationDetailProjection detail = guestDetail.detail();
 			ZoneId timeZone = ZoneId.of(detail.timeZoneId());
 			LocalDateTime checkInDateTime = LocalDateTime.ofInstant(detail.checkInAt(), timeZone);
 			LocalDateTime checkOutDateTime = LocalDateTime.ofInstant(detail.checkOutAt(), timeZone);
@@ -349,11 +349,10 @@ public class ReservationResponse {
 			return GuestDetail.builder()
 				.reservationUid(detail.reservationUid().toString())
 				.reservationCode(detail.reservationCode())
-				.status(Reservation.effectiveStatus(detail.status(), detail.expiresAt(), serverTime))
-				.paymentAllowed(Reservation.isPaymentAllowedAt(
-					detail.status(), detail.totalPrice(), detail.expiresAt(), serverTime))
+				.status(guestDetail.status())
+				.paymentAllowed(guestDetail.paymentAllowed())
 				.holdExpiresAt(detail.status() == ReservationStatus.PAYMENT_PENDING ? detail.expiresAt() : null)
-				.serverTime(serverTime)
+				.serverTime(guestDetail.serverTime())
 				.createdAt(toUtcInstant(detail.createdAt()))
 				.guestCount(detail.guestCount())
 				.checkInDateTime(checkInDateTime)
@@ -362,7 +361,7 @@ public class ReservationResponse {
 				.checkInTime(checkInDateTime.toLocalTime())
 				.checkOutTime(checkOutDateTime.toLocalTime())
 				.requestMessage(detail.requestMessage())
-				.canWriteReview(canWriteReview)
+				.canWriteReview(guestDetail.canWriteReview())
 				.accommodation(new AccommodationResponse.AccommodationBasicInfo(
 					detail.accommodationId(), detail.accommodationName(), detail.accommodationThumbnailUrl()))
 				.address(new AddressResponse.AddressInfo(detail.country(), detail.state(), detail.city(),
@@ -439,13 +438,10 @@ public class ReservationResponse {
 		@Schema(description = "다음 페이지 조회 정보", requiredMode = Schema.RequiredMode.REQUIRED)
 		CursorResponse.PageInfo pageInfo
 	) {
-		public static HostReservationInfos from(
-			List<HostReservationInfo> reservationInfos,
-			CursorResponse.PageInfo pageInfo) {
-
+		public static HostReservationInfos from(HostReservationPage page) {
 			return HostReservationInfos.builder()
-				.reservations(reservationInfos)
-				.pageInfo(pageInfo)
+				.reservations(page.reservations().stream().map(HostReservationInfo::from).toList())
+				.pageInfo(page.pageInfo())
 				.build();
 		}
 	}

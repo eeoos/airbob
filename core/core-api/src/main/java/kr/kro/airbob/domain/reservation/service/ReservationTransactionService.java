@@ -2,46 +2,31 @@ package kr.kro.airbob.domain.reservation.service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.RandomStringUtils;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse;
-import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
-import kr.kro.airbob.core.domain.accommodation.Address;
 import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationSearchRefreshRequester;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
-import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
-import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
-import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
-import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckInClosedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
-import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
@@ -55,15 +40,11 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
-import kr.kro.airbob.domain.reservation.port.ReservationReviewReader;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestClaim;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -73,10 +54,8 @@ import lombok.extern.slf4j.Slf4j;
 public class ReservationTransactionService {
 
 	private final AccommodationSearchRefreshRequester searchRefreshPublisher;
-	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	private final MemberReader memberReader;
-	private final ReservationReviewReader reviewReader;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationReader accommodationReader;
 	private final ReservationHistoryRepository historyRepository;
@@ -248,99 +227,6 @@ public class ReservationTransactionService {
 	private void requestSearchRefresh(Reservation reservation) {
 		searchRefreshPublisher.requestRefresh(
 			reservation.getAccommodation().getAccommodationUid());
-	}
-
-	@Transactional(readOnly = true)
-	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId,
-		CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
-		Instant now = clock.instant();
-
-		Slice<GuestReservationListProjection> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
-			memberId,
-			cursorRequest.lastId(),
-			cursorRequest.lastCreatedAt(),
-			filterType,
-			now,
-			PageRequest.of(0, cursorRequest.size())
-		);
-
-		List<ReservationResponse.GuestReservationInfo> reservationInfos = reservationSlice.getContent().stream()
-			.map(reservation -> ReservationResponse.GuestReservationInfo.from(reservation, now))
-			.collect(Collectors.toList());
-
-		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-			reservationSlice.getContent(),
-			reservationSlice.hasNext(),
-			GuestReservationListProjection::id,
-			GuestReservationListProjection::createdAt
-		);
-
-		return ReservationResponse.GuestReservationInfos.from(reservationInfos, pageInfo);
-	}
-
-	@Transactional(readOnly = true)
-	public ReservationResponse.GuestDetail findMyReservationDetail(String reservationUidStr, Long memberId) {
-		UUID reservationUid = parseReservationUid(reservationUidStr);
-
-		GuestReservationDetailProjection reservation = reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId)
-			.orElseThrow(ReservationNotFoundException::new);
-
-		Instant serverTime = clock.instant();
-		boolean canWriteReview = canWriteReview(memberId, reservation, serverTime);
-
-		return ReservationResponse.GuestDetail.from(
-			reservation, canWriteReview, serverTime);
-	}
-
-	@Transactional(readOnly = true)
-	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
-		Slice<HostReservationListProjection> reservationSlice = reservationRepository.findHostReservationsByHostIdWithCursor(
-			hostId,
-			cursorRequest.lastId(),
-			cursorRequest.lastCreatedAt(),
-			filterType,
-			clock.instant(),
-			PageRequest.of(0, cursorRequest.size())
-		);
-
-		List<HostReservationListProjection> reservations = reservationSlice.getContent();
-
-		List<ReservationResponse.HostReservationInfo> reservationInfos = reservations.stream()
-			.map(ReservationResponse.HostReservationInfo::from).collect(Collectors.toList());
-
-		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-			reservations,
-			reservationSlice.hasNext(),
-			HostReservationListProjection::id,
-			HostReservationListProjection::createdAt
-		);
-
-		return ReservationResponse.HostReservationInfos.from(reservationInfos, pageInfo);
-	}
-
-	@Transactional(readOnly = true)
-	public ReservationResponse.HostDetail findHostReservationDetail(String reservationUidStr, Long hostId) {
-		UUID reservationUid = parseReservationUid(reservationUidStr);
-		return reservationRepository.findHostReservationDetailByUidAndHostId(reservationUid, hostId)
-			.map(ReservationResponse.HostDetail::from)
-			.orElseThrow(ReservationNotFoundException::new);
-	}
-
-	private UUID parseReservationUid(String reservationUid) {
-		try {
-			return UUID.fromString(reservationUid);
-		} catch (IllegalArgumentException | NullPointerException exception) {
-			throw new ReservationNotFoundException();
-		}
-	}
-
-	private boolean canWriteReview(Long memberId, GuestReservationDetailProjection reservation, Instant serverTime) {
-		if (reservation.accommodationStatus() != AccommodationStatus.PUBLISHED
-			|| !reservation.status().isReviewableReservation()
-			|| reservation.checkOutAt().isAfter(serverTime)) {
-			return false;
-		}
-		return !reviewReader.hasPublishedReview(reservation.accommodationId(), memberId);
 	}
 
 	private String createReservationCode() {

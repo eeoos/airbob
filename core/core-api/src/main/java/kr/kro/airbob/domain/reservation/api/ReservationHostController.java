@@ -3,18 +3,18 @@ package kr.kro.airbob.domain.reservation.api;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
+import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
+import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
 public class ReservationHostController implements ReservationHostApi {
 
-	private final ReservationService reservationService;
+	private final ReservationQueryService queryService;
 
 	@Override
 	public ResponseEntity<ApiResponse<ReservationResponse.HostReservationInfos>> getHostReservations(
@@ -22,7 +22,8 @@ public class ReservationHostController implements ReservationHostApi {
 		ReservationFilterType filterType,
 		Long hostId) {
 
-		ReservationResponse.HostReservationInfos response = reservationService.findHostReservations(hostId, cursorRequest, filterType);
+		ReservationResponse.HostReservationInfos response = ReservationResponse.HostReservationInfos.from(
+			queryService.findHostReservations(hostId, cursorRequest, filterType));
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -32,7 +33,8 @@ public class ReservationHostController implements ReservationHostApi {
 		String reservationUid,
 		Long hostId) {
 
-		ReservationResponse.HostDetail response = reservationService.findHostReservationDetail(reservationUid, hostId);
+		ReservationResponse.HostDetail response = ReservationResponse.HostDetail.from(
+			queryService.findHostReservationDetail(reservationUid, hostId));
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

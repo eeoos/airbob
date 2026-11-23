@@ -34,8 +34,8 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.ClockConfig;
+import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
@@ -47,13 +47,14 @@ import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.reservation.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.GuestReservationPage;
+import kr.kro.airbob.domain.reservation.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import jakarta.persistence.EntityManager;
 
 @DataJpaTest
@@ -138,7 +139,7 @@ class ReservationRepositoryQueryTest {
 
 		var firstPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, filter, now, PageRequest.of(0, 2));
-		var firstDtos = firstPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(reservation, now));
+		var firstDtos = firstPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(reservation, now)));
 		assertThat(firstDtos).extracting(ReservationResponse.GuestReservationInfo::reservationId)
 			.containsExactly(lastTie.getId(), middleTie.getId());
 		assertThat(firstDtos.getContent()).allSatisfy(dto -> {
@@ -156,7 +157,7 @@ class ReservationRepositoryQueryTest {
 		sqlInspector.clear();
 		var lastPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), cursor.id(), cursor.createdAt(), filter, now, PageRequest.of(0, 2));
-		var lastDtos = lastPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(reservation, now));
+		var lastDtos = lastPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(reservation, now)));
 		assertThat(lastDtos).extracting(ReservationResponse.GuestReservationInfo::reservationId)
 			.containsExactly(firstTie.getId(), oldest.getId());
 		assertThat(lastDtos.getContent().getLast().accommodation().name()).isEqualTo("without-address");

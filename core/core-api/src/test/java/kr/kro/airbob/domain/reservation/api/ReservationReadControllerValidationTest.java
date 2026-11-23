@@ -12,7 +12,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,47 +21,28 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
-import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
-import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
-import kr.kro.airbob.core.domain.member.MemberReader;
+import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryManager;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
-import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
-import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.service.ReservationService;
-import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
-import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
+import kr.kro.airbob.domain.reservation.service.ReservationQueryService;
+import kr.kro.airbob.domain.reservation.service.ReservationReader;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationReadControllerValidationTest {
 
-	@Mock AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock CursorPageInfoCreator cursorPageInfoCreator;
-	@Mock MemberReader memberReader;
 	@Mock ReviewRepository reviewRepository;
 	@Mock ReservationRepository reservationRepository;
-	@Mock AccommodationReader accommodationReader;
-	@Mock ReservationHistoryRepository historyRepository;
-	@Mock CouponUsageManager couponUsageManager;
-	@Mock BookingWindowProvider bookingWindowProvider;
-	@Mock ReservationHoldPolicy holdPolicy;
-	@Mock ReservationQuoteRepository quoteRepository;
-	@Mock ReservationCheckoutRequestStore checkoutRequestStore;
-	@Mock ReservationInventoryManager inventoryManager;
 	@Mock Clock clock;
-	@InjectMocks ReservationTransactionService transactionService;
 
 	private MockMvc mvc;
 
 	@BeforeEach
 	void setUp() {
 		UserContext.set(new UserInfo(10L));
-		var service = new ReservationService(transactionService, clock);
+		var service = new ReservationQueryService(new ReservationReader(reservationRepository),
+			new ReviewReader(reviewRepository), cursorPageInfoCreator, clock);
 		mvc = MockMvcBuilders.standaloneSetup(
 				new ReservationGuestController(service), new ReservationHostController(service))
 			.setControllerAdvice(new GlobalExceptionHandler())
