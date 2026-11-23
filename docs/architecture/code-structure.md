@@ -192,6 +192,7 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 - **다른 도메인이 쓰는 기능**: Service가 아니라 Reader/Writer에 둔다. Service는 Controller용 흐름만 갖는다.
   예: 숙소의 코드 검증은 `CommonCodeService`가 아니라 `CommonCodeReader.isValidCode`를 쓴다. 이전 구조 도메인의 Service도 마찬가지다.
 - **값 정규화 규칙**: 코드 대문자화처럼 저장 값의 규칙은 엔티티 정적 메서드에 둔다(예: `CommonCode.normalizeCode`). 요청 DTO의 공백 제거는 검증 전에 필요하므로 그대로 둔다.
+- **엔티티 입력**: 엔티티 팩터리와 변경 메서드는 요청 DTO나 외부 연동 결과(`GeocodeResult` 등) 대신 도메인 입력 레코드나 값을 받는다(예: `Address.createAddress(NewAddress, 위도, 경도)`). 변환은 요청 DTO의 `toXxx()`가 맡는다.
 - **잠금 후 다시 읽기**: `EntityManager.refresh(..., PESSIMISTIC_WRITE)`처럼 영속성 컨텍스트를 직접 다루는 일은 Repository 커스텀 메서드에 둔다(예: `MemberRepository.refreshWithWriteLock`). Business·Implement는 `EntityManager`를 직접 쓰지 않는다.
 - **도메인 레코드 위치**: Business가 반환하는 조회 결과는 도메인 루트 패키지에 둔다(예: `WishlistSummary`, `WishlistAccommodationItem`).
   QueryDSL이 `@QueryProjection`으로 바로 만들어도 된다. Implement 안에서만 쓰는 projection(소유자 확인용 헤더, native query 인터페이스)은 `repository/projection`에 남긴다.
@@ -238,6 +239,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 12b (review 이전) | 18 | 10 | 13 |
 | PR 13a (accommodation Repository 사용 정리) | 9 | 10 | 13 |
 | PR 13b (accommodation 순환 정리) | 9 | 5 (accommodation ↔ reservation, accommodation ↔ search, payment → accommodation 해소) | 13 |
+| PR 13c (accommodation 엔티티 입력) | 9 | 5 | 9 (`Accommodation`·`Address`·`OccupancyPolicy` → 요청 DTO·`GeocodeResult` 해소) |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -275,8 +277,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 12b | review 이전: `ReviewReader`·`ReviewWriter`·`ReviewImageReader`·`ReviewImageWriter` 추출, Business 입출력을 원시값과 도메인 레코드(`ReviewItem`, `ReviewPage`, `StoredImage`)로, 패키지 이동 | 엄격 규칙 통과, 스냅샷 불변 | 완료 |
 | 13a | accommodation Repository 사용 정리: reservation(견적·체크아웃·재고 seed)·search·recentlyviewed의 accommodation Repository 사용을 `AccommodationReader`·`AccommodationAmenityReader`로, accommodation의 예약 조회를 `ReservationReader`로. 다른 도메인이 받는 projection(`InventorySeedTarget`, `RecentlyViewedAccommodationProjection`)은 repository 패키지 밖 도메인 루트로 | 동결 위반 감소, 쿼리·잠금 순서 불변 | 완료 |
 | 13b | accommodation 순환 정리: accommodation이 소유한 포트(검색 갱신 요청, 재고 seed, 미래 예약 확인, 예약 가능일)를 search·reservation이 구현해 accommodation → reservation·search 간선 제거, 검색 문서 → 주소 응답 변환을 search로 | 동결 위반 감소, 트랜잭션 경계 불변 | 완료 |
-| 13c | accommodation 내부 계층화: 엔티티의 요청 DTO·`GeocodeResult` 의존 제거, Reader/Writer, Business 입출력 | 엄격 규칙 준비, 스냅샷 불변 | |
-| 13d | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | |
+| 13c | accommodation 엔티티 입력: 엔티티가 받던 요청 DTO를 도메인 입력 레코드(`AccommodationPatch`, `NewAddress`, `NewOccupancyPolicy`)로, `Address`는 `GeocodeResult` 대신 좌표를 받음 | 동결 위반 감소, 스냅샷 불변 | 완료 |
+| 13d | accommodation 내부 계층화: Reader/Writer, Business 입출력에서 web DTO 제거 | 엄격 규칙 준비, 스냅샷 불변 | |
+| 13e | accommodation 패키지 이동(cache 하위 패키지 포함) | 엄격 규칙 통과, 스냅샷 불변 | |
 | 14~ | 도메인별 이전(PR 하나에 도메인 하나). 순서: coupon → reservation, payment → settlement, search, messaging, 나머지 공통 패키지 | `reservation.md`·`payment.md`의 락 순서와 트랜잭션 경계 불변식 | |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), geocoding·S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |

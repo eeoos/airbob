@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import kr.kro.airbob.common.validation.NotBlankWhenPresent;
+import kr.kro.airbob.domain.accommodation.AccommodationPatch;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest.AmenityInfo;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -65,5 +66,8 @@ public class AccommodationRequest {
         @Schema(description = "숙소 현지 체크아웃 시간. HH:mm 또는 HH:mm:ss. 체크인 시간보다 늦으면 안 됩니다.", example = "11:00", nullable = true)
         LocalTime checkOutTime
     ){
+        public AccommodationPatch toPatch() {
+            return new AccommodationPatch(name, description, basePrice, currency, type, checkInTime, checkOutTime);
+        }
     }
 }

@@ -24,8 +24,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.core.domain.member.Member;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.Update;
+import kr.kro.airbob.domain.accommodation.AccommodationPatch;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -102,36 +101,36 @@ public class Accommodation extends BaseEntity {
 			.build();
 	}
 
-	public void updateAccommodation(Update request) {
-		if (request.name() != null) {
-			this.name = request.name();
+	public void updateAccommodation(AccommodationPatch patch) {
+		if (patch.name() != null) {
+			this.name = patch.name();
 		}
 
-		if (request.description() != null) {
-			this.description = request.description();
+		if (patch.description() != null) {
+			this.description = patch.description();
 		}
 
-		if (request.basePrice() != null) {
-			this.basePrice = request.basePrice();
+		if (patch.basePrice() != null) {
+			this.basePrice = patch.basePrice();
 		}
 
-		if (request.currency() != null) {
-			// this.currency = request.currency();
+		if (patch.currency() != null) {
+			// this.currency = patch.currency();
 			// todo: 국제화를 고려하지 못하여 KRW로 하드코딩
 			this.currency = "KRW";
 		}
 
-		if (request.type() != null) {
+		if (patch.type() != null) {
 			// 유효성은 서비스 계층(CommonCodeService.isValidCode)에서 사전 검증됨
-			this.type = request.type().toUpperCase(Locale.ROOT);
+			this.type = patch.type().toUpperCase(Locale.ROOT);
 		}
 
-		if (request.checkInTime() != null) {
-			this.checkInTime =request.checkInTime();
+		if (patch.checkInTime() != null) {
+			this.checkInTime =patch.checkInTime();
 		}
 
-		if (request.checkOutTime() != null) {
-			this.checkOutTime =request.checkOutTime();
+		if (patch.checkOutTime() != null) {
+			this.checkOutTime =patch.checkOutTime();
 		}
 	}
 

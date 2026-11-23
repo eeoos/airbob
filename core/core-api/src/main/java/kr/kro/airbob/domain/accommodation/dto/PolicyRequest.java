@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+import kr.kro.airbob.domain.accommodation.NewOccupancyPolicy;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -29,5 +30,8 @@ public class PolicyRequest {
 		@Schema(description = "반려동물 수용 수. 허용하지 않으면 0입니다.", example = "0", minimum = "0")
 		Integer petOccupancy
 	){
+		public NewOccupancyPolicy toNewOccupancyPolicy() {
+			return new NewOccupancyPolicy(maxOccupancy, infantOccupancy, petOccupancy);
+		}
 	}
 }

@@ -23,6 +23,7 @@ import kr.kro.airbob.core.domain.image.InsufficientImageCountException;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import kr.kro.airbob.core.support.error.InvalidInputException;
+import kr.kro.airbob.domain.accommodation.NewAddress;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
@@ -98,7 +99,7 @@ public class AccommodationCommandService {
 		Map<String, Integer> amenityCountMap = getAmenityCountMap(request.amenityInfos());
 		ResolvedLocation resolvedLocation = resolveLocation(accommodation, request.addressInfo());
 		validateTemporalSettingsChange(accommodation, request, resolvedLocation);
-		accommodation.updateAccommodation(request);
+		accommodation.updateAccommodation(request.toPatch());
 		updateLocation(accommodation, resolvedLocation);
 		updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
 		updateAmenities(accommodation, amenityCountMap);
@@ -333,11 +334,11 @@ public class AccommodationCommandService {
 
 		OccupancyPolicy currentPolicy = accommodation.getOccupancyPolicy();
 		if (currentPolicy == null) {
-			OccupancyPolicy newPolicy = OccupancyPolicy.createOccupancyPolicy(occupancyPolicyInfo);
+			OccupancyPolicy newPolicy = OccupancyPolicy.createOccupancyPolicy(occupancyPolicyInfo.toNewOccupancyPolicy());
 			OccupancyPolicy savedPolicy = occupancyPolicyRepository.save(newPolicy);
 			accommodation.updateOccupancyPolicy(savedPolicy);
 		} else {
-			currentPolicy.update(occupancyPolicyInfo);
+			currentPolicy.update(occupancyPolicyInfo.toNewOccupancyPolicy());
 		}
 	}
 
@@ -348,15 +349,16 @@ public class AccommodationCommandService {
 		if (addressInfo == null) {
 			return null;
 		}
+		NewAddress newAddress = addressInfo.toNewAddress();
 
 		Address currentAddress = accommodation.getAddress();
 		if (currentAddress != null
-			&& !currentAddress.isChanged(addressInfo)
+			&& !currentAddress.isChanged(newAddress)
 			&& accommodation.getTimeZoneId() != null) {
 			return null;
 		}
 
-		String addressStr = Address.buildAddressStringForGeocoding(addressInfo);
+		String addressStr = Address.buildAddressStringForGeocoding(newAddress);
 		GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
 		if (geocodeResult == null
 			|| !geocodeResult.success()
@@ -367,7 +369,7 @@ public class AccommodationCommandService {
 
 		ZoneId timeZone = timeZoneResolver.resolve(geocodeResult.latitude(), geocodeResult.longitude())
 			.orElseThrow(AccommodationLocationResolutionException::new);
-		return new ResolvedLocation(Address.createAddress(addressInfo, geocodeResult), timeZone);
+		return new ResolvedLocation(Address.createAddress(newAddress, geocodeResult.latitude(), geocodeResult.longitude()), timeZone);
 	}
 
 	private void updateLocation(Accommodation accommodation, ResolvedLocation resolvedLocation) {
