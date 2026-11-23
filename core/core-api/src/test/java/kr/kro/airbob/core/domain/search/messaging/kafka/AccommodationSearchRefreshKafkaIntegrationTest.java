@@ -49,12 +49,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import kr.kro.airbob.core.domain.search.AccommodationIndexingService;
 import kr.kro.airbob.core.domain.search.messaging.event.AccommodationSearchRefreshRequestedV1;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.core.support.messaging.kafka.MessagingKafkaConfiguration;
+import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFactory;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
-import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
 
 @SpringJUnitConfig(AccommodationSearchRefreshKafkaIntegrationTest.KafkaTestConfiguration.class)
 @TestPropertySource(properties = {

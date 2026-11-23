@@ -20,8 +20,8 @@ import kr.kro.airbob.core.domain.reservation.ReservationHistoryWriter;
 import kr.kro.airbob.core.domain.reservation.ReservationReader;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 import kr.kro.airbob.core.domain.reservation.inventory.ReservationInventoryManager;
+import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 import kr.kro.airbob.core.support.persistence.history.ChangeType;
-import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @Component
 public class PaymentOperationManualReviewProcessor {

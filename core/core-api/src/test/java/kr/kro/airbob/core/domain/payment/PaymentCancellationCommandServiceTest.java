@@ -46,7 +46,7 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryReposi
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
+import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentCancellationCommandServiceTest {

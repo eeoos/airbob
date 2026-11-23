@@ -50,16 +50,16 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.core.support.messaging.kafka.MessagingKafkaConfiguration;
+import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFactory;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertGateway;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSummaryCode;
 import kr.kro.airbob.messaging.alert.monitoring.OperatorAlertMetrics;
-import kr.kro.airbob.messaging.event.EventEnvelope;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
-import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
 
 @SpringJUnitConfig(OperatorAlertKafkaIntegrationTest.TestConfiguration.class)
 @TestPropertySource(properties = {

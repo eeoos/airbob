@@ -14,7 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.domain.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.core.domain.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
-import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
+import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 검색 refresh 발행 계약")

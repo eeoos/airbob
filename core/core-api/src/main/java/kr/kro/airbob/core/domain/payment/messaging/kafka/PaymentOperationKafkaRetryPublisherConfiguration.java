@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
+import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFactory;
 
 @Configuration(proxyBeanMethods = false)
 public class PaymentOperationKafkaRetryPublisherConfiguration {

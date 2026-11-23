@@ -36,7 +36,7 @@ shrunk store with the fix.
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`core/domain/payment/messaging/`,
 `core/domain/accommodation/cache/messaging/`, `core/domain/search/messaging/`); reusable contracts and infrastructure
-live under `messaging/`.
+live under `core/support/messaging/` (operator alerts are still under `messaging/alert/`).
 
 ## Cross-cutting rules
 

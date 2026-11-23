@@ -16,8 +16,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import kr.kro.airbob.core.domain.payment.PaymentOperationResolutionAction;
-import kr.kro.airbob.messaging.outbox.monitoring.JdbcOutboxHealthSnapshotRepository;
-import kr.kro.airbob.messaging.outbox.monitoring.OutboxHealthSnapshot;
+import kr.kro.airbob.core.support.messaging.outbox.monitoring.JdbcOutboxHealthSnapshotRepository;
+import kr.kro.airbob.core.support.messaging.outbox.monitoring.OutboxHealthSnapshot;
 
 @Testcontainers
 class OperationalHealthSnapshotRepositoryIntegrationTest {

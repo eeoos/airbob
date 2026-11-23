@@ -2,8 +2,8 @@ package kr.kro.airbob.messaging.alert.event;
 
 import java.util.Objects;
 
-import kr.kro.airbob.messaging.event.EventDescriptor;
-import kr.kro.airbob.messaging.event.IntegrationEventDestination;
+import kr.kro.airbob.core.support.messaging.event.EventDescriptor;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventDestination;
 
 public record OperatorAlertSourcePosition(
 	String topic,

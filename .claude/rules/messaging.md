@@ -14,9 +14,9 @@ Operations: `docs/operations/outbox-operations.md` and
 
 ## Events and outbox
 
-- Use `messaging.event.IntegrationEvent` and `EventDescriptor`; encode/decode with
+- Use `core.support.messaging.event.IntegrationEvent` and `EventDescriptor`; encode/decode with
   `IntegrationEventCodec`.
-- Append via `messaging.outbox.application.OutboxWriter` inside the business transaction. Its
+- Append via `core.support.messaging.outbox.application.OutboxWriter` inside the business transaction. Its
   implementation (`JpaOutboxWriter`) uses mandatory transaction propagation.
 - Outbox rows are insert-only. The Debezium connector treats any other operation on the table as
   fatal (`table.op.invalid.behavior: fatal`).

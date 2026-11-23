@@ -14,12 +14,12 @@ import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
+import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.core.support.messaging.kafka.KafkaRetryHeaders;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
-import kr.kro.airbob.messaging.event.EventEnvelope;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.infrastructure.kafka.KafkaRetryHeaders;
 import lombok.RequiredArgsConstructor;
 
 @Component
