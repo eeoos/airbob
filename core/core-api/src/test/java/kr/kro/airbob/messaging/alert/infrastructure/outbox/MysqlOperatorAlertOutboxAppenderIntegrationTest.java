@@ -34,6 +34,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertPublication;
@@ -42,8 +44,6 @@ import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSummaryCode;
-import kr.kro.airbob.messaging.event.EventEnvelope;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 
 @Testcontainers
 @SpringJUnitConfig(MysqlOperatorAlertOutboxAppenderIntegrationTest.TestConfiguration.class)

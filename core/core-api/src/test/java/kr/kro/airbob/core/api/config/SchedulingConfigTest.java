@@ -14,8 +14,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import kr.kro.airbob.AirbobApplication;
 import kr.kro.airbob.core.domain.search.messaging.kafka.AccommodationSearchKafkaConsumerConfiguration;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.core.support.messaging.kafka.MessagingKafkaConfiguration;
 
 @DisplayName("스케줄러 설정 테스트")
 class SchedulingConfigTest {

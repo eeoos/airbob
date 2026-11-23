@@ -4,9 +4,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.UUID;
 
-import kr.kro.airbob.messaging.event.EventDescriptor;
-import kr.kro.airbob.messaging.event.IntegrationEvent;
-import kr.kro.airbob.messaging.event.IntegrationEventDestination;
+import kr.kro.airbob.core.support.messaging.event.EventDescriptor;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEvent;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventDestination;
 
 public record OperatorAlertRequestedV1(
 	UUID alertUid,

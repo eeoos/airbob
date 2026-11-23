@@ -29,7 +29,7 @@ import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.outbox.OutboxAccommodationDetailCacheInvalidationPublisher;
-import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
+import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 
 @SpringJUnitConfig(AccommodationDetailCacheInvalidationListenerTest.TestConfiguration.class)
 @DisplayName("숙소 상세 캐시 무효화 트랜잭션 이벤트 테스트")

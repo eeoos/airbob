@@ -75,7 +75,7 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryReposi
 import kr.kro.airbob.core.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
-import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
+import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")

@@ -9,7 +9,7 @@ import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInv
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationEvent;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.core.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
-import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
+import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 import lombok.RequiredArgsConstructor;
 
 /**

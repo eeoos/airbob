@@ -51,11 +51,11 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationRecoveryService.Recover
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.messaging.event.EventEnvelope;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
-import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessage;
-import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
+import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
+import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMessage;
+import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 
 @DataJpaTest
 @Testcontainers

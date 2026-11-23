@@ -47,15 +47,15 @@ import kr.kro.airbob.core.api.config.JpaAuditingConfig;
 import kr.kro.airbob.core.api.config.QueryDslConfig;
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
+import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.infrastructure.outbox.MysqlOperatorAlertOutboxAppender;
-import kr.kro.airbob.messaging.event.EventEnvelope;
-import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
 
 @DataJpaTest
 @Testcontainers

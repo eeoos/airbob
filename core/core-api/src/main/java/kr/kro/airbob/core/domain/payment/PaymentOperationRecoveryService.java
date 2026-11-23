@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
+import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 
 @Service
 public class PaymentOperationRecoveryService {
