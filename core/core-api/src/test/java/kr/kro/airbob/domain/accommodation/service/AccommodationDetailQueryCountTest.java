@@ -76,7 +76,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	AccommodationDetailReader.class, WishlistReader.class,
 	AccommodationInventoryDayRepository.class,
 	ReservationInventoryService.class,
-	ReservationAvailabilityReader.class
+	ReservationAvailabilityReader.class, AccommodationReader.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 상세 조회 쿼리 테스트")
@@ -165,7 +165,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.HostDetail response =
-			accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId());
+			AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
 
 		assertThat(response.name()).isEqualTo("host-editor-accommodation");
 		assertThat(response.policy().maxOccupancy()).isEqualTo(4);
@@ -189,7 +189,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.HostDetail response =
-			accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId());
+			AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
 
 		assertThat(response.id()).isEqualTo(accommodation.getId());
 		assertThat(response.address().city()).isNull();
@@ -209,8 +209,8 @@ class AccommodationDetailQueryCountTest {
 		Accommodation accommodation = savePublishedAccommodation(host, "owned-accommodation");
 		Statistics statistics = prepareQueryMeasurement();
 
-		assertThatThrownBy(() -> accommodationQueryService.findHostAccommodationDetail(
-			missing ? Long.MAX_VALUE : accommodation.getId(), other.getId()))
+		assertThatThrownBy(() -> AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(
+			missing ? Long.MAX_VALUE : accommodation.getId(), other.getId())))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isOne();
 	}
@@ -224,7 +224,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response =
-			accommodationQueryService.findAccommodation(accommodation.getId(), null);
+			AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(response.reviewSummary().totalCount()).isEqualTo(4);
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
@@ -245,7 +245,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response =
-			accommodationQueryService.findAccommodation(accommodation.getId(), null);
+			AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(response.reviewSummary().totalCount()).isZero();
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -261,7 +261,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response =
-			accommodationQueryService.findAccommodation(accommodation.getId(), host.getId());
+			AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(response.isInWishlist()).isFalse();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
@@ -280,7 +280,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.Availability response =
-			accommodationQueryService.findAccommodationAvailability(accommodation.getId());
+			AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(accommodation.getId()));
 
 		assertThat(response.bookingWindowStartInclusive()).isEqualTo(windowStart);
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(windowEndExclusive);

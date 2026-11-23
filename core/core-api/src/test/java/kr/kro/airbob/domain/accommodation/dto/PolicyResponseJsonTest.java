@@ -13,7 +13,7 @@ import org.springframework.core.io.ClassPathResource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 
 @JsonTest

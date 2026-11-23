@@ -21,16 +21,16 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.QHostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.QHostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.QRecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QPublicAccommodationDetailProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationDetailProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

@@ -64,7 +64,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
-	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class, ReservationAvailabilityReader.class,
+	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class, ReservationAvailabilityReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	HostAccommodationListQueryIntegrationTest.SqlCaptureConfig.class
 })
@@ -183,10 +183,10 @@ class HostAccommodationListQueryIntegrationTest {
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
 		sqlCapture.statements.clear();
-		HostAccommodationInfos result = service.findMyAccommodations(hostId,
+		HostAccommodationInfos result = HostAccommodationInfos.from(service.findMyAccommodations(hostId,
 			CursorPageRequest.builder().size(size)
 				.lastId(cursor == null ? null : cursor.id())
-				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), status);
+				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), status));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		return result;
 	}

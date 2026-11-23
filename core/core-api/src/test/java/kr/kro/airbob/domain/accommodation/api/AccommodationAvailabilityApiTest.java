@@ -21,7 +21,7 @@ import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
 
 import java.time.format.DateTimeFormatter;
 
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.port.AccommodationAvailability;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
 
 @DisplayName("숙소 예약 가능 정보 API 테스트")
@@ -47,10 +47,10 @@ class AccommodationAvailabilityApiTest {
 	@DisplayName("숙소 ID의 예약 가능 기간과 예약 불가 구간을 반환한다")
 	void returnsAccommodationAvailability() throws Exception {
 		when(accommodationQueryService.findAccommodationAvailability(42L))
-			.thenReturn(new AccommodationResponse.Availability(
+			.thenReturn(new AccommodationAvailability(
 				LocalDate.of(2026, 8, 13),
 				LocalDate.of(2026, 11, 13),
-				List.of(new AccommodationResponse.UnavailableDateRange(
+				List.of(new AccommodationAvailability.DateRange(
 					LocalDate.of(2026, 8, 20),
 					LocalDate.of(2026, 8, 23)
 				))

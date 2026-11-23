@@ -3,39 +3,36 @@ package kr.kro.airbob.domain.accommodation.service;
 import java.util.Collections;
 import java.util.List;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.AccommodationDetailSnapshot;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetail;
+import kr.kro.airbob.domain.accommodation.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.HostAccommodationPage;
+import kr.kro.airbob.domain.accommodation.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.PublicAccommodationDetail;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.port.AccommodationAvailability;
 import kr.kro.airbob.domain.accommodation.port.AccommodationAvailabilityReader;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AccommodationQueryService {
 
-	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReader accommodationReader;
 	private final AccommodationAvailabilityReader availabilityReader;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 	private final AccommodationDetailReader accommodationDetailReader;
 	private final AccommodationDetailCache accommodationDetailCache;
 
-	public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
+	public PublicAccommodationDetail findAccommodation(Long accommodationId, Long viewerId) {
 		AccommodationDetailSnapshot snapshot = accommodationDetailCache.getOrLoad(
 			accommodationId,
 			() -> accommodationDetailReader.load(accommodationId)
@@ -43,56 +40,31 @@ public class AccommodationQueryService {
 		boolean isInWishlist = viewerId != null
 			&& accommodationDetailReader.isInWishlist(accommodationId, viewerId);
 
-		return AccommodationResponse.DetailInfo.from(snapshot, isInWishlist);
+		return new PublicAccommodationDetail(snapshot, isInWishlist);
 	}
 
 	@Transactional(readOnly = true)
-	public AccommodationResponse.Availability findAccommodationAvailability(Long accommodationId) {
-		String timeZoneId = accommodationRepository
-			.findBookingProjectionByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
-			.orElseThrow(AccommodationNotFoundException::new)
-			.timeZoneId();
-		AccommodationAvailability availability = availabilityReader.readAvailability(accommodationId, timeZoneId);
-		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = availability.unavailableRanges().stream()
-			.map(range -> new AccommodationResponse.UnavailableDateRange(
-				range.startInclusive(), range.endExclusive()))
-			.toList();
-
-		return new AccommodationResponse.Availability(
-			availability.startInclusive(),
-			availability.endExclusive(),
-			unavailableRanges
-		);
+	public AccommodationAvailability findAccommodationAvailability(Long accommodationId) {
+		String timeZoneId = accommodationReader.readPublishedTimeZoneId(accommodationId);
+		return availabilityReader.readAvailability(accommodationId, timeZoneId);
 	}
 
 	@Transactional(readOnly = true)
-	public AccommodationResponse.HostAccommodationInfos findMyAccommodations(
+	public HostAccommodationPage findMyAccommodations(
 		Long hostId,
 		CursorRequest.CursorPageRequest cursorRequest,
 		AccommodationStatus status
 	) {
-		Slice<HostAccommodationProjection> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
-			hostId,
-			cursorRequest.lastId(),
-			cursorRequest.lastCreatedAt(),
-			status,
-			PageRequest.of(0, cursorRequest.size())
-		);
+		Slice<HostAccommodationProjection> accommodationSlice =
+			accommodationReader.readHostPage(hostId, cursorRequest, status);
 
 		List<HostAccommodationProjection> accommodations = accommodationSlice.getContent();
 		if (accommodations.isEmpty()) {
 			CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 				Collections.emptyList(), false, acc -> 0L, acc -> null
 			);
-			return AccommodationResponse.HostAccommodationInfos.builder()
-				.accommodations(Collections.emptyList())
-				.pageInfo(pageInfo)
-				.build();
+			return new HostAccommodationPage(Collections.emptyList(), pageInfo);
 		}
-
-		List<AccommodationResponse.HostAccommodationInfo> accommodationInfos = accommodations.stream()
-			.map(AccommodationResponse.HostAccommodationInfo::from)
-			.toList();
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			accommodations,
@@ -101,25 +73,17 @@ public class AccommodationQueryService {
 			HostAccommodationProjection::createdAt
 		);
 
-		return AccommodationResponse.HostAccommodationInfos.from(accommodationInfos, pageInfo);
+		return new HostAccommodationPage(accommodations, pageInfo);
 	}
 
 	@Transactional(readOnly = true)
-	public AccommodationResponse.HostDetail findHostAccommodationDetail(Long accommodationId, Long hostId) {
-		HostAccommodationDetailProjection accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
-			.orElseThrow(AccommodationNotFoundException::new);
+	public HostAccommodationDetail findHostAccommodationDetail(Long accommodationId, Long hostId) {
+		HostAccommodationDetailProjection accommodation = accommodationReader.readHostDetail(accommodationId, hostId);
 
-		List<AmenityResponse.AmenityInfo> amenityInfos = accommodationDetailReader.loadAmenities(accommodationId).stream()
-			.map(amenity -> new AmenityResponse.AmenityInfo(amenity.type(), amenity.count()))
-			.toList();
-		List<ImageResponse.ImageInfo> imageInfos = accommodationDetailReader.loadImages(accommodationId).stream()
-			.map(ImageResponse.ImageInfo::from)
-			.toList();
-
-		return AccommodationResponse.HostDetail.from(
+		return new HostAccommodationDetail(
 			accommodation,
-			amenityInfos,
-			imageInfos
+			accommodationDetailReader.loadAmenities(accommodationId),
+			accommodationDetailReader.loadImages(accommodationId)
 		);
 	}
 

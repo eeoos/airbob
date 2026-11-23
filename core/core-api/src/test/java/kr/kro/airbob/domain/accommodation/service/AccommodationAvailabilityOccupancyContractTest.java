@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
@@ -45,7 +46,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new AccommodationQueryService(accommodationRepository,
+		service = new AccommodationQueryService(new AccommodationReader(accommodationRepository),
 			new ReservationAvailabilityReader(bookingWindowProvider, inventoryService, clock), cursorPageInfoCreator,
 			accommodationDetailReader, accommodationDetailCache);
 	}
@@ -62,7 +63,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 			.thenReturn(new BookingWindow(WINDOW_START, WINDOW_END_EXCLUSIVE));
 		when(clock.instant()).thenReturn(QUERIED_AT);
 
-		service.findAccommodationAvailability(accommodationId);
+		AccommodationResponse.Availability.from(service.findAccommodationAvailability(accommodationId));
 
 		verify(inventoryService).findUnavailableRangesSnapshot(
 			accommodationId,
