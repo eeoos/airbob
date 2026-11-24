@@ -68,13 +68,14 @@ def read_text(repo, revision, path):
     return None if text is None or '\0' in text else text
 
 
-def criteria_text(repo, base, head, path):
+def criteria_text(repo, base, head, path, added):
     """Criteria and rules come from the base commit, so a PR cannot weaken what it is reviewed against.
-    A file the PR adds is taken from head and labeled as such."""
+    Only a file this PR adds (`added`) is taken from head, and it is labeled as such; a file that main
+    deleted after the branch point is not brought back."""
     text = read_text(repo, base, path)
     if text is not None:
         return text
-    text = read_text(repo, head, path)
+    text = read_text(repo, head, path) if path in added else None
     return '(없음)' if text is None else f'(base에 없어 이 PR이 추가한 버전)\n\n{text}'
 
 
@@ -92,11 +93,12 @@ def build_request(repo, base, head, title='', body=''):
         raise ReviewSkipped(f'diff가 {len(diff):,}자로 한도 {DIFF_LIMIT:,}자를 넘습니다')
     entries = repo.name_status(f'{base}...{head}')
     paths = [path for _, path in entries]
-    sections = [f'# 리뷰 기준 ({GUIDE})\n\n{criteria_text(repo, base, head, GUIDE)}',
-                f'# 프로젝트 규칙 (CLAUDE.md)\n\n{criteria_text(repo, base, head, "CLAUDE.md")}']
+    added = {path for status, path in entries if status == 'A'}
+    sections = [f'# 리뷰 기준 ({GUIDE})\n\n{criteria_text(repo, base, head, GUIDE, added)}',
+                f'# 프로젝트 규칙 (CLAUDE.md)\n\n{criteria_text(repo, base, head, "CLAUDE.md", added)}']
     for name in matched_rules(repo, base, paths):
         sections.append(f'# 이 변경에 해당하는 영역 규칙 (.claude/rules/{name})\n\n'
-                        f'{criteria_text(repo, base, head, ".claude/rules/" + name)}')
+                        f'{criteria_text(repo, base, head, ".claude/rules/" + name, added)}')
     sections.append(f'# PR\n\n제목: {title or "(없음)"}\n\n{body or "(설명 없음)"}')
     commits = git_text(repo, 'log', '--format=%h %s', f'{base}..{head}')
     sections.append(f'# 커밋 ({base[:8]}..{head[:8]})\n\n{fenced(commits)}')
@@ -141,8 +143,8 @@ def summary_of(message):
 def review(user_message, client=None):
     """(summary, final message) of one review request.
 
-    The SDK retries a request that got no response (connection error, 429, 5xx) up to twice; such failed
-    requests are not billed.
+    The SDK retries up to twice on connection errors and on HTTP 408, 409, 429, and 5xx. A request the
+    server was still processing when the connection dropped may be billed.
     """
     if client is None:
         import anthropic  # installed only in the review job

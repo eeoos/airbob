@@ -57,8 +57,8 @@ class RequestTests(unittest.TestCase):
     def test_large_or_binary_files_are_left_to_the_diff(self):
         self.repo.write('scripts/big.py', 'x' * (claude_review.FILE_LIMIT + 1))
         (self.repo.root / 'scripts/data.bin').write_bytes(b'\xff\xfe\x00binary')
-        # UTF-16 text decodes as UTF-8 but carries NUL bytes.
-        (self.repo.root / 'scripts/utf16.txt').write_bytes('바이너리'.encode('utf-16-le'))
+        # ASCII as UTF-16 decodes as UTF-8 but carries NUL bytes, so only the NUL check catches it.
+        (self.repo.root / 'scripts/utf16.txt').write_bytes('AB'.encode('utf-16-le'))
         head = self.repo.commit('add files')
 
         text, omitted = claude_review.build_request(self.reader, self.base, head)
@@ -78,6 +78,17 @@ class RequestTests(unittest.TestCase):
 
         self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n# 리뷰 기준\n', text)
         self.assertIn('(.claude/rules/ci.md)\n\n' + RULE, text)
+
+    def test_criteria_that_main_deleted_after_the_branch_point_stay_deleted(self):
+        self.repo.write('scripts/kept.py', 'a = 2\n')
+        head = self.repo.commit('change scripts')
+        self.repo.git('checkout', '-q', self.base)
+        self.repo.git('rm', '-q', claude_review.GUIDE)
+        main = self.repo.commit('main deletes the guide')
+
+        text, _ = claude_review.build_request(self.reader, main, head)
+
+        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n(없음)', text)
 
     def test_criteria_the_pr_adds_are_labeled(self):
         directory = tempfile.TemporaryDirectory()
