@@ -1,0 +1,13 @@
+dependencyManagement {
+	imports {
+		mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:${libs.versions.spring.cloud.aws.get()}"
+	}
+}
+
+dependencies {
+	// S3Template (built by core-api's spring-cloud-aws auto-configuration) is part of S3StorageClient's public API.
+	api 'io.awspring.cloud:spring-cloud-aws-s3'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
