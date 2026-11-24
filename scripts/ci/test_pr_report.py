@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -47,6 +49,17 @@ class TestSummaryTests(unittest.TestCase):
         self.assertEqual(summary['modules_without_tests'], ['support/logging'])
         self.assertEqual(sorted((f['test_class'], f['name'], f['message']) for f in summary['failed']),
                          [('a.FooTest', 'errors()', 'boom'), ('a.FooTest', 'fails()', 'expected: 1')])
+
+    def test_the_cli_records_the_build_outcome(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'settings.gradle').write_text("include 'core:core-api'\n")
+            subprocess.run([sys.executable, '-B', str(Path(pr_report.__file__).resolve()), 'tests',
+                            '--build-outcome', 'failure', '--out', 'out/test-summary.json'],
+                           cwd=root, check=True, capture_output=True)
+            summary = json.loads((root / 'out/test-summary.json').read_text())
+        self.assertEqual((summary['build_outcome'], summary['suites']), ('failure', []))
+        self.assertFalse(pr_report.build_succeeded(summary))
 
 
 class AreaTests(unittest.TestCase):

@@ -46,6 +46,8 @@
 - [ci/pr_baseline.py](ci/pr_baseline.py): PR과 비교할 main 테스트 요약을 찾는다.
   - main 실행이 올린 `test-summary-<sha>`를 쓴다. PR base 커밋에 없으면 first-parent로 거슬러 올라가 가장 가까운 이전 main 커밋을 쓴다(최대 30개).
   - 보고서에는 "main 대비 테스트 증감"이 들어간다. 모듈별 증감, 사라진 클래스, 테스트가 줄어든 클래스, 새 클래스를 보여 주고, 감소에는 ⚠️를 단다.
+  - PR base는 PR 아티팩트가 아니라 `workflow_run` 이벤트 값을 쓴다. 아티팩트의 base와 다르면 비교하지 않는다. 이 저장소의 main 실행이 만든 아티팩트만 쓴다.
+  - 빌드가 성공하지 않은 요약은 일부 모듈의 테스트만 담았을 수 있다. 그래서 PR과 main 어느 쪽이든 비교하지 않는다. 찾지 못함·조회 실패·다운로드 실패도 구분해 표시한다.
 - [ci/pr_comment.py](ci/pr_comment.py): `pr-report.yml`(`workflow_run`)이 보고서를 PR 고정 댓글 하나로 만들거나 갱신한다.
   - 아티팩트는 데이터로만 다룬다. PR 번호, head 커밋, 저장소, 마커를 검증한 뒤 텍스트로 게시한다.
 
