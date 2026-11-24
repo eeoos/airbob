@@ -72,6 +72,9 @@ jobs:
           github_token: ${{ github.token }}
           # Post inline comments directly: classifying them afterwards is a separate API call outside the budget.
           classify_inline_comments: false
+          # TEMPORARY: the first runs failed before any model call with the error hidden. Claude has no
+          # shell here, so the log shows only the public PR diff and the error. Remove once diagnosed.
+          show_full_output: true
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
