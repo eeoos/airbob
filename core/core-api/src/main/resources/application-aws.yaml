@@ -39,16 +39,17 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
-# AWS SDK가 IAM Role에서 자동으로 자격증명을 가져옴
-# EC2 Instance Profile 또는 ECS Task Role 사용
+  # AWS SDK가 IAM Role에서 자동으로 자격증명을 가져옴
+  # EC2 Instance Profile 또는 ECS Task Role 사용
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+
 cloud:
   aws:
     s3:
       bucket: ${AWS_S3_BUCKET_NAME}
-    region:
-      static: ${AWS_REGION:ap-northeast-2}
-    stack:
-      auto: false
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN}
 

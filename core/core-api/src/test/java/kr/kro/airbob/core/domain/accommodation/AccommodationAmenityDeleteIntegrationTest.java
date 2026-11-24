@@ -238,7 +238,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 	void preservesManagedParentAndOwnedStateAfterPredicateDelete() {
 		Fixture fixture = createFixture(1);
 		when(geocodingService.getCoordinates(anyString()))
-			.thenReturn(GeocodeResult.success(37.5665, 126.9780, "Seoul"));
+			.thenReturn(GeocodeResult.success(37.5665, 126.9780));
 		AccommodationRequest.Update request = new AccommodationRequest.Update(
 			"managed parent after bulk delete",
 			null,

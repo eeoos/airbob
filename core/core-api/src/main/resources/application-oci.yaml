@@ -35,17 +35,20 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
+  # 키 두 개가 모두 있으면 고정 자격증명, 하나라도 비면 AWS SDK 기본 탐색을 쓴다
+  # 환경변수가 없을 때 시작 실패나 잘못된 값 바인딩 대신 기본 탐색으로 가도록 빈 기본값을 둔다
+  cloud:
+    aws:
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+
 cloud:
   aws:
-    credentials:
-      access-key: ${AWS_ACCESS_KEY_ID}
-      secret-key: ${AWS_SECRET_ACCESS_KEY}
     s3:
       bucket: ${AWS_S3_BUCKET_NAME}
-    region:
-      static: ${AWS_REGION:ap-northeast-2}
-    stack:
-      auto: false
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN}
 

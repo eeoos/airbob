@@ -27,17 +27,19 @@ spring:
     username: dummy
     password: dummy
 
+  # [AWS]
+  cloud:
+    aws:
+      credentials:
+        access-key: dummy-access-key
+        secret-key: dummy-secret-key
+      region:
+        static: ap-northeast-2
+
 cloud:
   aws:
-    credentials:
-      access-key: dummy-access-key
-      secret-key: dummy-secret-key
-    region:
-      static: ap-northeast-2
     s3:
       bucket: dummy-bucket
-    stack:
-      auto: false
   cloudfront:
     domain: dummy_cloudfront.cloudfront.net
 
