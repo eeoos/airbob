@@ -9,7 +9,8 @@ paths:
 
 - MySQL 8 with Flyway migrations under `core/core-api/src/main/resources/db/migration/`.
 - Roll forward only. Do not rewrite applied migrations, and do not automatically roll a V25+
-  database back to a pre-inventory binary.
+  database back to a pre-inventory binary. CI (`scripts/ci/contracts.py`) rejects an edit, deletion,
+  or rename of a migration that exists on the base side.
 - Earlier cutovers required stopping older readers/writers and passing guards before specific
   versions (V25, V28, V29, V30, V31, V32). Their procedures live in
   `docs/operations/reservation-inventory-cutover.md`, `docs/operations/coupon-issuance-operations.md`,
