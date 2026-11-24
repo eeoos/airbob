@@ -39,6 +39,11 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
 - 게시: `main`의 `pr-report.yml`
 - 각 실행의 Step Summary에도 같은 보고서가 남는다.
 
+**Claude 리뷰:** `claude-review.yml`이 PR을 열 때 Claude로 코드를 리뷰하고 요약·인라인 댓글을 단다.
+- 다시 리뷰하려면 `claude-review` 라벨을 붙인다. push마다 돌지 않는다.
+- `CI result`에 포함되지 않고 머지를 막지 않는다. 저장소 시크릿 `ANTHROPIC_API_KEY`를 쓰며 실행당 비용 상한을 둔다.
+- 기준과 판정 기록: [AI 코드 리뷰 기준](../development/code-review.md), [AI 리뷰 기록](../development/ai-review-log.md)
+
 AWS 앱 이미지가 새로 필요하면 `Publish AWS application image`를 수동 실행한다.
 검토한 `main` SHA를 입력하고 같은 CI를 통과한 뒤 ECR에 게시하며 OCI 배포는 하지 않는다.
 고정된 과거 B 이미지 게시와 AWS 자원 기동·종료 워크플로는 별도로 유지한다.

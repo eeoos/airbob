@@ -29,6 +29,11 @@ paths:
   and is not part of `CI result`; `pr-report.yml` (`workflow_run`, default-branch code) posts the one
   sticky comment. Never add `pull-requests: write` or `actions: read` to `ci.yml`: CD reuses it with
   `contents: read`, and a called workflow cannot request more than its caller grants.
+- Claude review: `claude-review.yml` runs `anthropics/claude-code-action` on same-repository PRs when
+  opened and when the `claude-review` label is added. It is informational, not part of `CI result`, and
+  stays outside `ci.yml` for the same permission reason. Keep its tools read-only plus the two comment
+  tools, and keep its per-run `--max-budget-usd` cap. Criteria and verdict records live in
+  `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
 
 ## OCI deployment
 

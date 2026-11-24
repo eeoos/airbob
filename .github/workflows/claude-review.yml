@@ -1,0 +1,48 @@
+name: Claude review
+
+# Second AI review of a pull request (the first, Codex, runs locally before push). Claude reads the diff
+# and the repository and comments; it is informational and not part of CI result. It lives outside
+# ci.yml because posting needs pull-requests: write, which CD's contents: read call of ci.yml cannot grant.
+# Criteria: docs/development/code-review.md. Verdicts: docs/development/ai-review-log.md.
+on:
+  pull_request:
+    types: [ opened, reopened, ready_for_review, labeled ]
+    paths-ignore: [ 'docs/**', '**/*.md' ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: Review the pull request
+    # Same-repository PRs only (no secrets for forks). Re-review by adding the claude-review label.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && !github.event.pull_request.draft
+      && (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            이 PR을 docs/development/code-review.md 기준에 따라 리뷰하라. 변경은 gh pr diff와 gh pr view로 보고, 필요한 파일은 저장소에서 읽어라.
+            줄을 특정할 수 있는 지적은 인라인 댓글로 남겨라. 전체 결과는 gh pr comment로 요약 댓글 하나에 남기고, 그 댓글은 "<!-- airbob-claude-review -->"로 시작하라.
+          # Read-only tools plus the two ways to comment; no edits, pushes, or other commands.
+          claude_args: >-
+            --model claude-opus-5-5 --max-turns 30 --max-budget-usd 3
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
