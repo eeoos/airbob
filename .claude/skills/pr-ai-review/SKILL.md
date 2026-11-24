@@ -65,14 +65,13 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 ## B. PR 후: Claude 리뷰
 
 1. **실행을 기다린다.**
-   - `claude-review.yml`은 PR을 열 때 돈다.
+   - `claude-review.yml`은 PR을 열 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다.
    - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
 2. **결과를 읽는다.**
-   - 요약 댓글은 `<!-- airbob-claude-review -->`로 시작한다. `gh pr view <번호> --comments`로 읽는다.
-     - 꼬리말의 "실행" ID가 기다린 실행의 ID와 같은 요약만 쓴다.
-     - 실행이 요약을 게시하지 못하면(예산·턴 상한, 실패) 가장 최근 요약은 이전 실행의 것이다. 맞는 요약이 없으면 이번 리뷰를 "미완료"로 기록한다.
-   - 인라인 댓글은 `gh api --paginate repos/{owner}/{repo}/pulls/<번호>/comments`로 모두 읽는다. 이번 실행의 것은 요약 댓글 끝의 URL 목록으로 고른다. 같은 커밋을 다시 리뷰하면 작성자와 `commit_id`만으로는 실행을 구분할 수 없다.
-   - 비용은 실행 로그의 비용 값이나 Console에서 확인한다.
+   - 리뷰는 `<!-- airbob-claude-review -->`로 시작하는 댓글 하나다. 인라인 댓글은 없다. `gh pr view <번호> --comments`로 읽는다.
+     - 꼬리말의 "실행" ID가 기다린 실행의 ID와 같은 댓글만 쓴다.
+     - 실행이 실패하면 댓글이 없으므로, 가장 최근 댓글은 이전 실행의 것이다. 맞는 댓글이 없으면 이번 리뷰를 "미완료"로 기록하고 실행 로그에서 원인을 본다.
+   - 토큰 수와 추정 비용은 댓글 꼬리말에 있다.
 3. **검증하고 고친다.** A의 3·4와 같다.
    - 넘김·오탐 판정의 근거도 Codex에게 묻는다. Claude 리뷰어는 작성자와 같은 계열이라, 다른 계열의 확인이 더 필요하다.
    - 지적마다 Codex가 이미 낸 것인지 표시한다. 이 표시가 "2단계 추가 발견"의 근거가 된다.

@@ -39,9 +39,11 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
 - 게시: `main`의 `pr-report.yml`
 - 각 실행의 Step Summary에도 같은 보고서가 남는다.
 
-**Claude 리뷰:** `claude-review.yml`이 PR을 열 때 Claude로 코드를 리뷰하고 요약·인라인 댓글을 단다.
+**Claude 리뷰:** `claude-review.yml`이 PR을 열 때 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
 - 다시 리뷰하려면 `claude-review` 라벨을 붙인다. push마다 돌지 않는다.
-- `CI result`에 포함되지 않고 머지를 막지 않는다. 실행당 비용 상한을 둔다.
+- `CI result`에 포함되지 않고 머지를 막지 않는다.
+- Messages API를 한 번 호출한다. 요청과 출력의 크기 한도로 비용을 제한하고, 댓글에 토큰 수와 추정 비용을 남긴다.
+- `claude-code-action`은 쓰지 않는다. 월간 API 크레딧이 그 액션이 시작한 실행에는 적용되지 않기 때문이다.
 - 인증은 API 키 없이 ID 페더레이션(GitHub OIDC)으로 한다.
   - Console의 페더레이션 규칙은 이 저장소의 PR 실행(`repo:eeoos/airbob:pull_request`)만 받는다.
   - 규칙·조직·서비스 계정·workspace ID는 저장소 변수 `ANTHROPIC_*`에 둔다.

@@ -9,7 +9,7 @@ AI가 작성한 변경을 다른 AI가 리뷰한 결과와 판정을 남긴다.
 | 단계 | 리뷰어 | 시점 | 실행 |
 |---|---|---|---|
 | PR 전 | Codex(다른 계열 모델) | 커밋과 로컬 테스트를 마친 뒤 push 전 | 로컬 `codex exec`, `.claude/skills/pr-ai-review` |
-| PR 후 | Claude | PR을 열 때. 다시 볼 때는 `claude-review` 라벨 | `.github/workflows/claude-review.yml` |
+| PR 후 | Claude | PR을 열 때. 다시 볼 때는 `claude-review` 라벨 | `.github/workflows/claude-review.yml`의 `scripts/ci/claude_review.py`(Messages API 1회, 도구 없음) |
 
 - Codex를 먼저 둔다. 작성자와 계열이 다른 모델이 작성자의 사각지대를 가장 많이 찾기 때문이다.
 - 리뷰어는 고치지 않는다. 작성자(Claude Code)가 지적마다 코드를 읽거나 재현해 확인한 뒤 판정하고 고친다.

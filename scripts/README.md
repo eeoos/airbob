@@ -49,6 +49,10 @@
   - PR base는 PR 아티팩트가 아니라 `workflow_run` 이벤트 값을 쓴다. 아티팩트의 base와 다르면 비교하지 않는다. 이 저장소의 main 실행이 만든 아티팩트만 쓴다.
   - 빌드 성공이 기록되지 않은 요약은 일부 모듈의 테스트만 담았을 수 있다. 빌드가 실패한 경우와 `build_outcome`이 없는 이전 형식이 여기에 해당한다. 그래서 PR과 main 어느 쪽이든 비교하지 않는다.
   - 찾지 못함·조회 실패·다운로드 실패도 구분해 표시한다.
+- [ci/claude_review.py](ci/claude_review.py): `claude-review.yml`이 PR을 Claude로 리뷰하고 결과를 새 댓글로 단다.
+  - git에서 리뷰 기준, `CLAUDE.md`, 바뀐 경로에 해당하는 `.claude/rules`, PR 설명, 커밋, diff, 바뀐 파일을 모은다.
+  - Messages API를 도구 없이 한 번 호출한다(구조화 출력). 인증은 ID 페더레이션(GitHub OIDC)이다.
+  - 로컬에서는 `--dry-run <파일>`로 보낼 요청을 파일로 확인할 수 있다.
 - [ci/pr_comment.py](ci/pr_comment.py): `pr-report.yml`(`workflow_run`)이 보고서를 PR 고정 댓글 하나로 만들거나 갱신한다.
   - 아티팩트는 데이터로만 다룬다. PR 번호, head 커밋, 저장소, 마커를 검증한 뒤 텍스트로 게시한다.
 

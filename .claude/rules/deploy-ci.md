@@ -29,18 +29,17 @@ paths:
   and is not part of `CI result`; `pr-report.yml` (`workflow_run`, default-branch code) posts the one
   sticky comment. Never add `pull-requests: write` or `actions: read` to `ci.yml`: CD reuses it with
   `contents: read`, and a called workflow cannot request more than its caller grants.
-- Claude review: `claude-review.yml` runs `anthropics/claude-code-action` on same-repository PRs when
+- Claude review: `claude-review.yml` runs `scripts/ci/claude_review.py` on same-repository PRs when
   opened and when the `claude-review` label is added. It is informational, not part of `CI result`, and
-  stays outside `ci.yml` for the same permission reason. A step prepares the diff, commit list, and PR
-  description from the event's base and head SHAs in a new directory under `runner.temp` (outside the
-  checkout). Keep Claude's tools to Read/Grep/Glob and the inline-comment tool with Bash disallowed: git
-  options such as `--output` write files, and `gh pr comment` could edit or delete this account's other
-  comments (the PR report). The summary comes back as structured output and a separate step posts it.
-  It authenticates to the Claude API with workload identity federation (GitHub OIDC, rule subject
-  `repo:eeoos/airbob:pull_request`, IDs in repository variables); do not add an API key secret, and keep
-  `id-token: write` on that job only. Keep the per-run `--max-budget-usd` cap and `classify_inline_comments: false` (the
-  classifier is a separate API call outside that cap). Criteria and verdict records live in
-  `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
+  stays outside `ci.yml` for the same permission reason. The script collects the context from Git at the
+  event's base and head SHAs, sends one Messages API request with no tools (structured output), and
+  posts the result as a new PR comment; keep it tool-free and bounded by its size limits and
+  `max_tokens`. Do not switch to `anthropics/claude-code-action`: the monthly API credit does not cover
+  runs that the action starts. It authenticates with workload identity federation (GitHub OIDC, rule
+  subject `repo:eeoos/airbob:pull_request`, IDs in repository variables); do not add an API key secret,
+  and keep `id-token: write` on that job only. The `anthropic` SDK version is pinned in the workflow.
+  Criteria and verdict records live in `docs/development/code-review.md` and
+  `docs/development/ai-review-log.md`.
 
 ## OCI deployment
 
