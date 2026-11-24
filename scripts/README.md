@@ -43,6 +43,9 @@
   - `tests`: `app` 잡에서 모든 모듈의 JUnit XML을 `test-summary.json`으로 요약한다.
   - `facts`: `report` 잡에서 CI 잡 결과, 테스트, 바뀐 영역, 계약 신호를 `facts.json`과 `report.md`로 만든다. 계약 신호는 API 스냅샷, 마이그레이션, 오류 코드, ArchUnit 동결, 보관 해시, 설정, 빌드다.
   - 로컬에서는 `facts --base <커밋> --head <커밋> --out-dir <폴더>`로 과거 변경을 재현할 수 있다.
+- [ci/pr_baseline.py](ci/pr_baseline.py): PR과 비교할 main 테스트 요약을 찾는다.
+  - main 실행이 올린 `test-summary-<sha>`를 쓴다. PR base 커밋에 없으면 first-parent로 거슬러 올라가 가장 가까운 이전 main 커밋을 쓴다(최대 30개).
+  - 보고서에는 "main 대비 테스트 증감"이 들어간다. 모듈별 증감, 사라진 클래스, 테스트가 줄어든 클래스, 새 클래스를 보여 주고, 감소에는 ⚠️를 단다.
 - [ci/pr_comment.py](ci/pr_comment.py): `pr-report.yml`(`workflow_run`)이 보고서를 PR 고정 댓글 하나로 만들거나 갱신한다.
   - 아티팩트는 데이터로만 다룬다. PR 번호, head 커밋, 저장소, 마커를 검증한 뒤 텍스트로 게시한다.
 
