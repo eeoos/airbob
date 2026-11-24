@@ -29,24 +29,30 @@ jobs:
     timeout-minutes: 20
     steps:
       # The event's head commit, so the files Claude reads, the diff, and the inline comments all refer
-      # to one commit even if the PR moves while this run waits or works. The action then restores
-      # .claude/ and CLAUDE.md from the base branch and keeps the PR's versions in .claude-pr/.
+      # to one commit even if the PR moves while this run waits or works. The action then restores some
+      # configuration paths (.claude/, CLAUDE.md, .mcp.json, ...) from the base branch and keeps the PR's
+      # versions in .claude-pr/.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
       # Both ends of the change come from the event, so the diff stays the same if the base moves or the
-      # PR is merged while this run waits. Claude reads these files instead of running git, whose options
-      # (such as --output) could write files.
+      # PR is merged while this run waits. Claude gets no shell and reads these files instead. They are
+      # written to a new directory outside the checkout, so a file or link the PR adds cannot redirect them.
       - name: Prepare the change for review
         env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_INPUT: ${{ runner.temp }}/claude-review
         run: |
-          mkdir -p build/claude-review
-          git log --format='%h %s' "$BASE_SHA..$HEAD_SHA" > build/claude-review/commits.txt
-          git diff "$BASE_SHA...$HEAD_SHA" > build/claude-review/pr.diff
+          mkdir "$REVIEW_INPUT"
+          git log --format='%h %s' "$BASE_SHA..$HEAD_SHA" > "$REVIEW_INPUT/commits.txt"
+          git diff "$BASE_SHA...$HEAD_SHA" > "$REVIEW_INPUT/pr.diff"
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title,body --jq '.title + "\n\n" + .body' \
+            > "$REVIEW_INPUT/description.md"
       - name: Review with Claude
         id: review
         uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
@@ -61,15 +67,19 @@ jobs:
             HEAD: ${{ github.event.pull_request.head.sha }}
 
             이 PR을 docs/development/code-review.md 기준에 따라 리뷰하라.
-            - 변경: build/claude-review/pr.diff, 커밋 목록: build/claude-review/commits.txt, PR 설명: gh pr view
-            - 작업 디렉터리는 HEAD 커밋이다. 다만 .claude/와 CLAUDE.md는 base 버전으로 되돌려져 있으니, 이 경로의 PR 버전은 .claude-pr/에서 읽어라.
+            - 변경: ${{ runner.temp }}/claude-review/pr.diff
+            - 커밋 목록: ${{ runner.temp }}/claude-review/commits.txt
+            - PR 제목과 설명: ${{ runner.temp }}/claude-review/description.md
+            - 작업 디렉터리는 HEAD 커밋이다. 다만 액션이 일부 설정 경로(.claude/, CLAUDE.md, .mcp.json 등)를 base 버전으로 되돌려 두었으니, 그런 경로의 PR 버전은 .claude-pr/<원래 경로>에서 읽어라.
             - 줄을 특정할 수 있는 지적은 인라인 댓글로 남기고, commit_id에는 HEAD를 넘겨라.
             - 전체 결과는 summary에 요약 댓글 본문으로 써라. 끝에 이번에 단 인라인 댓글의 URL 목록을 붙여라. 요약 댓글은 다음 단계가 게시한다.
-          # Read-only tools and inline comments only: no git (its options can write files) and no
-          # gh pr comment (it could edit or delete this account's other comments, such as the PR report).
+          # Read-only file tools and inline comments only. No shell: git options such as --output write
+          # files, and gh pr comment could edit or delete this account's other comments (the PR report).
           claude_args: >-
             --model claude-opus-5-5 --max-turns 30 --max-budget-usd 3
-            --allowedTools "Read,Grep,Glob,Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
+            --add-dir ${{ runner.temp }}/claude-review
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment"
+            --disallowedTools Bash
             --json-schema '{"type":"object","properties":{"summary":{"type":"string"}},"required":["summary"],"additionalProperties":false}'
       - name: Post the summary comment
         if: ${{ steps.review.outputs.structured_output != '' }}
@@ -79,6 +89,6 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SUMMARY: ${{ fromJSON(steps.review.outputs.structured_output).summary }}
         run: |
-          printf '<!-- airbob-claude-review -->\n%s\n\n<sub>리뷰한 커밋: %s · 기준: docs/development/code-review.md · claude-review.yml</sub>\n' \
-            "$SUMMARY" "$HEAD_SHA" > "$RUNNER_TEMP/claude-review.md"
-          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/claude-review.md"
+          printf '<!-- airbob-claude-review -->\n%s\n\n<sub>리뷰한 커밋: %s · 실행: %s/%s · 기준: docs/development/code-review.md</sub>\n' \
+            "$SUMMARY" "$HEAD_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$RUNNER_TEMP/claude-review-comment.md"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/claude-review-comment.md"

@@ -31,11 +31,11 @@ paths:
   `contents: read`, and a called workflow cannot request more than its caller grants.
 - Claude review: `claude-review.yml` runs `anthropics/claude-code-action` on same-repository PRs when
   opened and when the `claude-review` label is added. It is informational, not part of `CI result`, and
-  stays outside `ci.yml` for the same permission reason. It reviews a diff prepared from the event's
-  base and head SHAs. Keep Claude's tools to Read/Grep/Glob, `gh pr view`, and the inline-comment tool:
-  no git (`--output` writes files) and no `gh pr comment` (it could edit or delete this account's other
-  comments, such as the PR report). The summary comes back as structured output and a separate step
-  posts it. Keep the per-run `--max-budget-usd` cap and `classify_inline_comments: false` (the
+  stays outside `ci.yml` for the same permission reason. A step prepares the diff, commit list, and PR
+  description from the event's base and head SHAs in a new directory under `runner.temp` (outside the
+  checkout). Keep Claude's tools to Read/Grep/Glob and the inline-comment tool with Bash disallowed: git
+  options such as `--output` write files, and `gh pr comment` could edit or delete this account's other
+  comments (the PR report). The summary comes back as structured output and a separate step posts it. Keep the per-run `--max-budget-usd` cap and `classify_inline_comments: false` (the
   classifier is a separate API call outside that cap). Criteria and verdict records live in
   `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
 
