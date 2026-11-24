@@ -99,7 +99,7 @@ def run(args):
                 'spring.cloud.aws.credentials.access-key':'local-disabled','spring.cloud.aws.credentials.secret-key':'local-disabled',
                 'spring.cloud.aws.region.static':'ap-northeast-2','spring.cloud.aws.s3.endpoint':'http://127.0.0.1:9',
                 'management.endpoints.web.exposure.include':'health,prometheus',
-                'logging.level.kr.kro.airbob.core.api.security.SessionAuthFilter':'WARN','logging.level.org.hibernate.SQL':'OFF',
+                'logging.level.kr.kro.airbob.domain.auth.filter.SessionAuthFilter':'WARN','logging.level.org.hibernate.SQL':'OFF',
             }
             config = private/'application.properties'
             config.write_text('\n'.join(k+'='+v for k,v in properties.items())+'\n')

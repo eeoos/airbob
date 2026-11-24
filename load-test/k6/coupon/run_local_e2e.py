@@ -671,7 +671,7 @@ def run(args):
                 'spring.cloud.aws.region.static': 'ap-northeast-2', 'spring.cloud.aws.s3.endpoint': 'http://127.0.0.1:9',
                 'management.endpoints.web.exposure.include': 'health,prometheus',
                 'management.health.elasticsearch.enabled': 'false',
-                'logging.level.kr.kro.airbob.core.api.security.SessionAuthFilter': 'WARN',
+                'logging.level.kr.kro.airbob.domain.auth.filter.SessionAuthFilter': 'WARN',
                 'logging.level.org.hibernate.SQL': 'OFF',
             }
             config_path = private / 'local.properties'
