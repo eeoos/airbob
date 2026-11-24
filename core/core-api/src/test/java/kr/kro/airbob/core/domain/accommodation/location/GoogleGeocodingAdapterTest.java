@@ -72,7 +72,7 @@ class GoogleGeocodingAdapterTest {
 	}
 
 	private static GoogleGeocodeResponse.Result result(double lat, double lng) {
-		return new GoogleGeocodeResponse.Result("주소",
+		return new GoogleGeocodeResponse.Result(
 			new GoogleGeocodeResponse.Geometry(new GoogleGeocodeResponse.Geometry.Location(lat, lng), null));
 	}
 }

@@ -12,7 +12,6 @@ public class GoogleGeocodeResponse {
 	private List<Result> results;
 
 	public record Result(
-		String formattedAddress,
 		Geometry geometry
 		) {
 	}

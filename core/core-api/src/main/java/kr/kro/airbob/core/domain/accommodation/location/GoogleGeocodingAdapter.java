@@ -53,8 +53,7 @@ public class GoogleGeocodingAdapter implements GeocodingGateway {
 
 		return GeocodeResult.success(
 			location.lat(),
-			location.lng(),
-			result.formattedAddress()
+			location.lng()
 		);
 	}
 
