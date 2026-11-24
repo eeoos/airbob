@@ -37,6 +37,8 @@ jobs:
           persist-credentials: false
       - name: Verify change selection and CI result handling
         run: python3 -B -m unittest discover -s scripts/ci -p 'test_*.py'
+      - name: Reject archived load-test and applied migration changes
+        run: python3 -B scripts/ci/contracts.py
       - name: Select checks from the exact change
         id: scope
         env:
@@ -62,6 +64,20 @@ jobs:
           cache: gradle
       - name: Build and test the application
         run: ./gradlew build
+      # The PR report reads this summary; a reporting problem must not fail the build.
+      - name: Summarize test results for the PR report
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: python3 -B scripts/ci/pr_report.py tests --out build/test-summary.json
+      - name: Keep the test summary
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: test-summary-${{ github.sha }}
+          path: build/test-summary.json
+          if-no-files-found: warn
+          retention-days: 30
       - name: Keep the tested JAR for this main commit
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -237,3 +253,43 @@ jobs:
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
         run: python3 -B scripts/ci/check_result.py
+
+  # Deterministic PR facts (tests, changed areas, contract signals) for the PR report comment.
+  # CD reuses this workflow with contents: read, so this job only collects; pr-report.yml posts the
+  # comment after the run. It is informational and not part of CI result.
+  report:
+    name: PR report
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [scope, app, infrastructure, data, api_docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download the test summary of this run
+        if: ${{ needs.app.result != 'skipped' }}
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: test-summary-${{ github.sha }}
+          path: build/pr-report-input
+      - name: Collect the PR facts
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          python3 -B scripts/ci/pr_report.py facts --base "$BASE_SHA" --head "$GITHUB_SHA" \
+            --tests build/pr-report-input/test-summary.json --needs-env CI_NEEDS \
+            --pr "$PR_NUMBER" --pr-head "$PR_HEAD_SHA" --out-dir build/pr-report
+          cat build/pr-report/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the report for the comment workflow
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-report-${{ github.event.pull_request.head.sha }}
+          path: build/pr-report/
+          if-no-files-found: error
+          retention-days: 7

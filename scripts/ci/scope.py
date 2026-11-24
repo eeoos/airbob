@@ -75,7 +75,8 @@ def require_sha(value):
     return value
 
 
-def changed_paths(event_name, event, sha, read_git=git):
+def comparison_range(event_name, event, sha, read_git=git):
+    """The verified Git range of the tested change: base...merge for a PR, before..after for a main push."""
     require_sha(sha)
     if read_git('rev-parse', 'HEAD') != sha:
         raise ValueError('checkout does not match the tested commit')
@@ -92,6 +93,11 @@ def changed_paths(event_name, event, sha, read_git=git):
     else:
         raise ValueError('unsupported CI event')
     read_git('cat-file', '-e', before + '^{commit}')
+    return comparison
+
+
+def changed_paths(event_name, event, sha, read_git=git):
+    comparison = comparison_range(event_name, event, sha, read_git)
     return [p for p in read_git('diff', '--name-only', '--no-renames', '-z', comparison, '--').split('\0') if p]
 
 

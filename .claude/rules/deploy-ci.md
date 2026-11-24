@@ -23,6 +23,12 @@ paths:
   must not trigger an OCI deployment or be copied to its deployment directory.
 - API-documentation-only CI must validate contracts without requesting OCI deployment. Required
   `CI result` includes documentation job outcomes; app builds already validate contracts via `check`.
+- `scripts/ci/contracts.py` runs in the `scope` job and fails CI when an archived `load-test/` file no
+  longer matches `load-test/archive-source.json` or an applied Flyway migration is edited or deleted.
+- PR report: `ci.yml`'s `report` job collects deterministic facts read-only (`scripts/ci/pr_report.py`)
+  and is not part of `CI result`; `pr-report.yml` (`workflow_run`, default-branch code) posts the one
+  sticky comment. Never add `pull-requests: write` or `actions: read` to `ci.yml`: CD reuses it with
+  `contents: read`, and a called workflow cannot request more than its caller grants.
 
 ## OCI deployment
 

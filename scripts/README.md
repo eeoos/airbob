@@ -35,6 +35,22 @@
 
 - [ci/scope.py](ci/scope.py): 정확한 Git 변경 범위에서 앱·API 문서·인프라·데이터 검사와 OCI 배포 여부를 고른다.
 - [ci/check_result.py](ci/check_result.py): 선택한 모든 검사가 성공했는지 확인하는 필수 `CI result` 검사다.
+- [ci/contracts.py](ci/contracts.py): 아래 두 가지가 바뀌면 `scope` 잡을 실패시킨다. 이 경우 `CI result`도 실패한다.
+  - 보관 부하 테스트 파일: `load-test/archive-source.json`에 기록된 해시·모드와 다르거나, 기록되지 않은 파일이 있는 경우
+  - 이미 적용된 Flyway 마이그레이션: 수정·삭제된 경우
+  - 로컬에서는 `--base <커밋> [--head <커밋>]`으로 과거 변경도 검사할 수 있다.
+- [ci/pr_report.py](ci/pr_report.py): PR 점검 보고서의 사실을 결정적으로 모은다. AI는 쓰지 않는다.
+  - `tests`: `app` 잡에서 모든 모듈의 JUnit XML을 `test-summary.json`으로 요약한다.
+  - `facts`: `report` 잡에서 CI 잡 결과, 테스트, 바뀐 영역, 계약 신호를 `facts.json`과 `report.md`로 만든다. 계약 신호는 API 스냅샷, 마이그레이션, 오류 코드, ArchUnit 동결, 보관 해시, 설정, 빌드다.
+  - 로컬에서는 `facts --base <커밋> --head <커밋> --out-dir <폴더>`로 과거 변경을 재현할 수 있다.
+- [ci/pr_comment.py](ci/pr_comment.py): `pr-report.yml`(`workflow_run`)이 보고서를 PR 고정 댓글 하나로 만들거나 갱신한다.
+  - 아티팩트는 데이터로만 다룬다. PR 번호, head 커밋, 저장소, 마커를 검증한 뒤 텍스트로 게시한다.
+
+`ci.yml`은 CD가 읽기 권한으로 재사용하므로 PR 쓰기 권한을 요청하지 않는다. 그래서 역할을 나눈다.
+- 수집: `ci.yml`의 `report` 잡(읽기 전용, `CI result`에 포함되지 않음)
+- 게시: main의 `pr-report.yml`
+
+`scripts/ci/test_*.py`는 `scope` 잡에서 매번 실행된다.
 
 PR과 main 배포는 같은 CI 정의를 사용한다. 전체 흐름은 [CI·CD 안내](../docs/operations/oci-deployment-runbook.md#ci와-cd의-역할)를 따른다.
 
