@@ -39,11 +39,15 @@ paths:
   script with `pull-requests: write` and OIDC, so the boundary is repository write access. The planned
   follow-up is `pull_request_target` (main's code, PR head read only as Git objects) with a federation
   rule narrowed to that workflow; do not widen this job's permissions before then. Do not switch to
-  `anthropics/claude-code-action`: the monthly API credit does not cover runs that the action starts. It
-  authenticates with workload identity federation (GitHub OIDC, rule subject
+  `anthropics/claude-code-action`: the monthly API credit does not cover runs that the action starts.
+  The job authenticates with workload identity federation (GitHub OIDC, rule subject
   `repo:eeoos/airbob:pull_request`, IDs in repository variables); do not add an API key secret, and keep
-  `id-token: write` on that job only. The `anthropic` SDK version is pinned in the workflow. Criteria
-  and verdict records live in `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
+  `id-token: write` on that job only. Its Python packages are pinned by version and hash in
+  `scripts/ci/claude-review-requirements.txt` and installed with `--require-hashes`; regenerate the file
+  with `uv pip compile --universal --python-version 3.12 --generate-hashes`. Documentation-only PRs are
+  skipped, but agent policy (`CLAUDE.md`, `AGENTS.md`, `.claude/`) and the review criteria are reviewed.
+  Criteria and verdict records live in `docs/development/code-review.md` and
+  `docs/development/ai-review-log.md`.
 
 ## OCI deployment
 

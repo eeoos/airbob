@@ -9,7 +9,16 @@ name: Claude review
 on:
   pull_request:
     types: [ opened, reopened, ready_for_review, labeled ]
-    paths-ignore: [ 'docs/**', '**/*.md' ]
+    # Documentation-only changes are not reviewed. Agent policy (CLAUDE.md, AGENTS.md, .claude/) and the
+    # review criteria are not documentation, so later patterns include them again.
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!**/*.md'
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - '.claude/**'
+      - 'docs/development/code-review.md'
 
 permissions:
   contents: read
@@ -28,7 +37,8 @@ jobs:
       && !github.event.pull_request.draft
       && (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The first run took about five minutes; xhigh on a request near the size limit can take longer.
+    timeout-minutes: 20
     # id-token: write lets the script exchange this run's GitHub OIDC token for a short-lived Claude API
     # token (workload identity federation), so there is no API key secret.
     permissions:
@@ -43,10 +53,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # Every package is pinned by version and hash (uv pip compile --universal --generate-hashes), like the
+      # SHA-pinned actions: this job holds an OIDC request token and a pull-requests: write token.
       - name: Install the Anthropic SDK
         run: |
           python3 -m venv "$RUNNER_TEMP/claude-review-venv"
-          "$RUNNER_TEMP/claude-review-venv/bin/pip" install --quiet anthropic==2.8.0
+          "$RUNNER_TEMP/claude-review-venv/bin/pip" install --quiet --require-hashes --only-binary :all: \
+            -r scripts/ci/claude-review-requirements.txt
       - name: Review with Claude
         env:
           GITHUB_TOKEN: ${{ github.token }}

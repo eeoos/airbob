@@ -110,6 +110,20 @@ class RequestTests(unittest.TestCase):
         with self.assertRaises(claude_review.ReviewSkipped):
             claude_review.build_request(self.reader, self.base, head)
 
+    def test_changed_files_beyond_the_request_budget_are_left_to_the_diff(self):
+        self.repo.write('scripts/kept.py', 'b = 2\n' * 1000)
+        head = self.repo.commit('long file')
+        text, omitted = claude_review.build_request(self.reader, self.base, head)
+        self.assertEqual(omitted, [])
+
+        # A smaller budget leaves the file to the diff but still reviews the change within the limit.
+        limit = len(claude_review.SYSTEM) + len(text) - 3000
+        with mock.patch.object(claude_review, 'REQUEST_LIMIT', limit):
+            text, omitted = claude_review.build_request(self.reader, self.base, head)
+        self.assertEqual(omitted, ['scripts/kept.py'])
+        self.assertLessEqual(len(claude_review.SYSTEM) + len(text), limit)
+        self.assertIn('+b = 2', text)
+
     def test_a_request_beyond_the_total_limit_is_not_sent(self):
         self.repo.write('scripts/kept.py', 'a = 2\n')
         head = self.repo.commit('small change')

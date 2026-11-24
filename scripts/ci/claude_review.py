@@ -31,10 +31,12 @@ MAX_TOKENS = 64000  # includes thinking, which grows with EFFORT
 PRICES = dict(input=4.0, output=20.0, cache_write=5.0, cache_read=0.2)
 AUDIENCE = 'https://api.anthropic.com'
 GUIDE = 'docs/development/code-review.md'
-DIFF_LIMIT = 400_000     # characters; a larger change is not reviewed
-FILES_LIMIT = 600_000    # characters of changed files sent in full, in diff order
+# Size limits in characters. The first run (PR #223) sent 254,648 characters as 128,392 input tokens,
+# about 2 characters per token for this mix of Korean and code, so REQUEST_LIMIT is about 400,000 tokens
+# (about $1.60 of input at PRICES) on top of at most MAX_TOKENS of output (about $1.28).
+DIFF_LIMIT = 400_000     # a larger change is not reviewed
 FILE_LIMIT = 100_000     # a larger file is left to the diff
-REQUEST_LIMIT = 1_200_000  # characters of the whole request; a larger one is not sent
+REQUEST_LIMIT = 800_000  # the whole request; changed files fill what the rest leaves, then go to the diff
 SCHEMA = {'type': 'object', 'properties': {'summary': {'type': 'string'}},
           'required': ['summary'], 'additionalProperties': False}
 SYSTEM = ('너는 airbob 저장소의 pull request를 리뷰한다. 이 저장소의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성했다. '
@@ -103,24 +105,26 @@ def build_request(repo, base, head, title='', body=''):
     commits = git_text(repo, 'log', '--format=%h %s', f'{base}..{head}')
     sections.append(f'# 커밋 ({base[:8]}..{head[:8]})\n\n{fenced(commits)}')
     sections.append(f'# 변경 (git diff {base[:8]}...{head[:8]})\n\n{fenced(diff, "diff")}')
+    # Changed files fill what the rest of the request leaves; the listing of omitted files needs room too.
+    budget = REQUEST_LIMIT - len(SYSTEM) - len('\n\n'.join(sections)) - 2 * sum(len(path) + 2 for path in paths) - 200
+    if budget < 0:
+        raise ReviewSkipped(f'파일 본문 없이도 요청이 한도 {REQUEST_LIMIT:,}자를 넘습니다')
     full, omitted, used = [], [], 0
     for status, path in entries:
         if status == 'D':
             continue
         text = read_text(repo, head, path)
-        if text is None or len(text) > FILE_LIMIT or used + len(text) > FILES_LIMIT:
+        entry = None if text is None or len(text) > FILE_LIMIT else f'## {path}\n\n{fenced(text)}'
+        if entry is None or used + len(entry) + 2 > budget:
             omitted.append(path)
             continue
-        used += len(text)
-        full.append(f'## {path}\n\n{fenced(text)}')
+        used += len(entry) + 2
+        full.append(entry)
     files = '# 바뀐 파일의 전체 내용 (head)\n\n' + ('\n\n'.join(full) or '(없음)')
     if omitted:
         files += '\n\n전체 내용을 싣지 않은 파일(크기 한도 또는 바이너리, diff만 있음): ' + ', '.join(omitted)
     sections.append(files)
-    message = '\n\n'.join(sections)
-    if len(SYSTEM) + len(message) > REQUEST_LIMIT:
-        raise ReviewSkipped(f'요청이 {len(SYSTEM) + len(message):,}자로 한도 {REQUEST_LIMIT:,}자를 넘습니다')
-    return message, omitted
+    return '\n\n'.join(sections), omitted
 
 
 def summary_of(message):

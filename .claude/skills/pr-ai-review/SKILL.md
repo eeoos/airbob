@@ -14,7 +14,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 1. **범위를 정한다.**
    - base는 PR이 향할 브랜치다. 보통 `origin/main`이다. 이전 PR 브랜치 위에 쌓았으면 그 브랜치다.
    - `git diff --stat <base>...HEAD`로 확인한다.
-   - 문서(`docs/`, `*.md`)만 바뀌었으면 건너뛰고, PR 본문에 "문서만 바뀌어 생략"이라고 쓴다.
+   - 문서(`docs/`, `*.md`)만 바뀌었으면 건너뛰고, PR 본문에 "문서만 바뀌어 생략"이라고 쓴다. 단 에이전트 규칙(`CLAUDE.md`, `AGENTS.md`, `.claude/`)과 리뷰 기준(`docs/development/code-review.md`)은 문서로 보지 않는다.
 2. **Codex를 실행한다.**
    - Claude 샌드박스 밖에서 실행한다(`dangerouslyDisableSandbox`). 네트워크와 `~/.codex`가 필요하다.
    - 몇 분 걸리므로 백그라운드로 돌리고, 시작과 끝 시각을 적는다.
