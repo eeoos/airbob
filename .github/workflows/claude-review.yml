@@ -92,14 +92,18 @@ jobs:
             --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment"
             --disallowedTools Bash
             --json-schema '{"type":"object","properties":{"summary":{"type":"string"}},"required":["summary"],"additionalProperties":false}'
+      # The output is parsed in the shell: fromJSON() in env fails the step on an empty output even when
+      # the if condition would skip it.
       - name: Post the summary comment
-        if: ${{ steps.review.outputs.structured_output != '' }}
+        if: ${{ success() && steps.review.outputs.structured_output != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          SUMMARY: ${{ fromJSON(steps.review.outputs.structured_output).summary }}
+          STRUCTURED_OUTPUT: ${{ steps.review.outputs.structured_output }}
         run: |
+          summary=$(jq -r '.summary // empty' <<< "$STRUCTURED_OUTPUT")
+          if [ -z "$summary" ]; then echo 'Claude returned no summary; nothing to post.'; exit 0; fi
           printf '<!-- airbob-claude-review -->\n%s\n\n<sub>리뷰한 커밋: %s · 실행: %s/%s · 기준: docs/development/code-review.md</sub>\n' \
-            "$SUMMARY" "$HEAD_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$RUNNER_TEMP/claude-review-comment.md"
+            "$summary" "$HEAD_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$RUNNER_TEMP/claude-review-comment.md"
           gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/claude-review-comment.md"
