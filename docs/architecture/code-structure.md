@@ -349,6 +349,9 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 - **HTTP 클라이언트는 Feign 대신 기존 RestClient를 유지한다.**
 - **spring-javaformat, Spring Boot 4/Java 25 업그레이드, 테스트 태그 체계는 이 계획에 포함하지 않는다.**
 - **API 응답 포맷(`ApiResponse`)과 OpenAPI 스냅샷은 구조 변경 중에 바꾸지 않는다.**
+- **예외는 `ErrorCode` enum과 도메인별 예외 클래스를 유지한다.** `ErrorCode`가 이미 HTTP 상태·코드·메시지를 한곳에 두어 템플릿의 `ErrorType` 역할을 한다.
+  남은 차이는 `BaseException`을 상속한 도메인 예외 클래스(85개)를 `CoreException(ErrorType)` 하나로 합치는지뿐이다.
+  합치면 테스트의 예외 타입 단언을 대량으로 바꿔야 하고 구체적인 예외 타입으로 분류하기 어려워지는 데 비해 얻는 것이 적어 보류한다.
 
 ## PR 로드맵
 
@@ -405,7 +408,21 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 17i | Google Geocoding HTTP 전송을 `clients/client-google-geocoding`으로(client-toss-payments 방식). URL 조립·호출·응답 DTO는 모듈로, 키·활성화·`OK` 판정·실패 매핑은 `GoogleGeocodingAdapter`에 | CI scope, 모듈 테스트 | 완료 |
 | 17j | 마무리: ArchUnit의 레거시 패키지 참조와 엄격 규칙의 `allowEmptyShould` 정리, 현재 상태·목표 구조·CLAUDE.md 갱신 | 동결 저장소 | 완료 |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
-| 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리(다른 애그리거트는 ID로 참조), S3 모듈 분리, 예외를 `ErrorType`으로 통합 | 마이그레이션의 JAR 경로 계약 | |
+| 선택 | S3 전송을 client 모듈로 분리(17i와 같은 방식). 지금은 `core.domain.image.S3ImageUploader`가 spring-cloud-aws `S3Template`을 직접 쓴다 | 이미지 업로드·삭제 동작 불변 | |
+| 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리. 분리 전에 목표를 먼저 정한다(아래 "엔티티 분리 방식") | 마이그레이션의 JAR 경로 계약 | |
+| 보류 | 예외를 템플릿의 `ErrorType`으로 통합 | 위 "템플릿과 다르게 가는 부분"의 예외 항목 참고 | |
+
+권장 순서는 S3 모듈 분리 → REST Docs 전환(이후) → 필요가 생기면 엔티티 분리다. S3 분리는 작고 독립적이고, REST Docs 전환은 다른 항목과 서로 의존하지 않는다.
+엔티티 분리는 가장 크고 경로 계약을 바꾸므로 목표가 생길 때 한다.
+
+### 엔티티 분리 방식
+
+- **엔티티를 한 모듈로 옮기기만 하는 경우**: 모든 엔티티가 `storage/db-core`에 함께 있으므로 `Payment.reservation`, `Reservation.accommodation` 같은 연관관계를 그대로 둘 수 있다.
+  다만 엔티티의 상태 전이 로직도 함께 옮겨져 저장 모듈이 도메인 로직을 갖게 되므로, 템플릿의 의도(storage는 영속성만)와 맞지 않고 얻는 것이 적다.
+- **다른 애그리거트를 ID로 참조하도록 바꿔야 하는 경우**: 아래 두 방식에서만 필요하다.
+  - 템플릿처럼 엔티티(저장 모델)와 도메인 모델을 나눌 때. 순수 도메인 객체는 지연 로딩으로 다른 애그리거트를 따라갈 수 없으므로 ID를 들고, 필요하면 그 도메인의 Reader로 읽는다.
+  - 도메인별로 모듈을 나눌 때(예: payment 모듈). 다른 모듈의 엔티티와 연관관계를 맺으면 그 모듈에 컴파일 의존이 생기므로 ID로 끊는다.
+- 동결로 남긴 reservation ↔ payment 순환(위 "reservation의 경계")도 이 두 방식 중 하나를 택할 때 함께 정리한다.
 
 ### 도메인 이전 레시피 (wishlist 파일럿에서 확정, PR 7a~7c)
 
