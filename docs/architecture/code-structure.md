@@ -14,6 +14,7 @@ airbob은 [team-dodn/spring-boot-java-template](https://github.com/team-dodn/spr
 | `clients/client-slack` | Slack incoming webhook 전송(`SlackWebhookClient`). 2xx만 성공으로 보고, 실패는 URL·cause를 숨긴 `SlackWebhookException`으로 알린다 |
 | `clients/client-toss-payments` | Toss Payments 승인·취소·조회 전송(`TossPaymentsClient`), 응답 DTO, Basic 인증, 타임아웃. 4xx/5xx는 상태와 provider 코드만 담은 `TossPaymentsApiException`, 전송 실패는 cause 체인을 유지한 `RestClientException`으로 알린다 |
 | `clients/client-google-geocoding` | Google Geocoding 주소 조회 전송(`GoogleGeocodingClient`)과 응답 DTO(`GoogleGeocodeResponse`). 응답 `status`는 해석하지 않고 그대로 돌려주며, 전송 실패와 4xx/5xx는 Spring `RestClientException`으로 알린다 |
+| `clients/client-aws-s3` | S3 버킷 하나에 대한 객체 업로드·삭제(`S3StorageClient`). spring-cloud-aws `S3Template`을 감싸며 키 이름과 공개 URL은 정하지 않는다. 실패는 `S3Exception`이나 AWS SDK 런타임 예외로 알린다 |
 
 core-api의 `application.yaml`이 `spring.config.import`로 `monitoring.yml`과 `logging.yml`을 불러온다.
 readiness 그룹 구성(`accommodationInventory` 포함)처럼 애플리케이션 health indicator에 묶인 설정은
@@ -28,6 +29,8 @@ core-api의 `core/domain/operatoralert/infrastructure/slack`에 남는다.
 응답 상관 검증, 도메인 값 정규화는 core-api의 `TossPaymentsAdapter`에 남는다.
 지오코딩은 `google.api.*` 프로퍼티와 빈 등록(`core.domain.accommodation.location.config`), 활성화 여부,
 `OK` 상태 판정, 실패를 `GeocodeResult.fail()`로 바꾸는 일이 core-api의 `GoogleGeocodingAdapter`에 남는다.
+S3는 `cloud.aws.s3.*` 프로퍼티와 빈 등록(`core.domain.image.config`), 쓰기 허용 여부, 키 이름(`디렉터리/UUID.확장자`),
+키와 CloudFront URL 사이의 변환이 core-api의 `S3ImageUploader`에 남는다. `S3Template` 빈은 core-api의 spring-cloud-aws 자동 구성이 만든다.
 
 공통 패키지 중 템플릿 위치로 옮긴 것은 다음과 같다.
 
@@ -186,7 +189,7 @@ airbob/
 ├─ core/core-api        유일한 실행 모듈 (Presentation, Business, Implement, JPA 엔티티)
 ├─ support/monitoring   actuator, prometheus 의존성과 monitoring.yml
 ├─ support/logging      logging.yml
-├─ clients/client-slack, clients/client-toss-payments, clients/client-google-geocoding   외부 HTTP 전송 계층만 담당
+├─ clients/client-slack, clients/client-toss-payments, clients/client-google-geocoding, clients/client-aws-s3   외부 연동 전송 계층만 담당
 ├─ tests/api-docs       Spring REST Docs 전환 시 생성
 └─ (선택) core/core-enum, storage/db-core   엔티티를 분리하는 단계에서 생성
 ```
@@ -337,6 +340,7 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | PR 17h (geo 정리) | 0 | 2 | 0 |
 | PR 17i (Google Geocoding client 모듈) | 0 | 2 | 0 |
 | PR 17j (마무리) | 0 | 2 (동결로 남긴 reservation ↔ payment. 위 "reservation의 경계" 참고) | 0 |
+| PR 18 (S3 client 모듈) | 0 | 2 | 0 |
 
 새 위반을 저장소에 직접 추가해서 테스트를 통과시키지 않는다. 의도적으로 기준선을 다시 잡아야 하면
 `archunit.properties`에 `freeze.refreeze=true`를 잠시 두고 한 번 실행한 뒤 되돌리고, 이유를 PR에 남긴다.
@@ -407,12 +411,12 @@ Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행�
 | 17h | geo 포트·어댑터를 소비 도메인 `core.domain.accommodation.location`으로(`GeocodingGateway`, `GoogleGeocodingAdapter`), 도메인 결과에서 Google 타입 viewport 제거 | 위치 확인 동작 불변 | 완료 |
 | 17i | Google Geocoding HTTP 전송을 `clients/client-google-geocoding`으로(client-toss-payments 방식). URL 조립·호출·응답 DTO는 모듈로, 키·활성화·`OK` 판정·실패 매핑은 `GoogleGeocodingAdapter`에 | CI scope, 모듈 테스트 | 완료 |
 | 17j | 마무리: ArchUnit의 레거시 패키지 참조와 엄격 규칙의 `allowEmptyShould` 정리, 현재 상태·목표 구조·CLAUDE.md 갱신 | 동결 저장소 | 완료 |
+| 18 | S3 전송을 `clients/client-aws-s3`로 분리(17i와 같은 방식). 업로드·삭제는 모듈의 `S3StorageClient`로, 쓰기 허용·키 이름·CloudFront URL 변환은 `S3ImageUploader`에 | 이미지 업로드·삭제 동작 불변 | 완료 |
 | 이후 | Spring REST Docs 전환과 `tests/api-docs` 모듈. springdoc 스냅샷 태스크, `ApiDocumentationTest`, `api-docs.md`, CI scope를 대체한다 | 문서 산출물 경로를 CI·문서와 함께 바꾼다 | |
-| 선택 | S3 전송을 client 모듈로 분리(17i와 같은 방식). 지금은 `core.domain.image.S3ImageUploader`가 spring-cloud-aws `S3Template`을 직접 쓴다 | 이미지 업로드·삭제 동작 불변 | |
 | 선택 | `core-enum`과 `storage/db-core`로 엔티티 분리. 분리 전에 목표를 먼저 정한다(아래 "엔티티 분리 방식") | 마이그레이션의 JAR 경로 계약 | |
 | 보류 | 예외를 템플릿의 `ErrorType`으로 통합 | 위 "템플릿과 다르게 가는 부분"의 예외 항목 참고 | |
 
-권장 순서는 S3 모듈 분리 → REST Docs 전환(이후) → 필요가 생기면 엔티티 분리다. S3 분리는 작고 독립적이고, REST Docs 전환은 다른 항목과 서로 의존하지 않는다.
+권장 순서는 S3 모듈 분리(PR 18) → REST Docs 전환(이후) → 필요가 생기면 엔티티 분리다. S3 분리는 작고 독립적이고, REST Docs 전환은 다른 항목과 서로 의존하지 않는다.
 엔티티 분리는 가장 크고 경로 계약을 바꾸므로 목표가 생길 때 한다.
 
 ### 엔티티 분리 방식

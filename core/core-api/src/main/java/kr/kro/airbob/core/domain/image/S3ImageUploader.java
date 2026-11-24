@@ -9,15 +9,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
-import io.awspring.cloud.s3.ObjectMetadata;
-import io.awspring.cloud.s3.S3Template;
+import kr.kro.airbob.client.s3.S3StorageClient;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Object transport lives in {@link S3StorageClient} (clients:client-aws-s3); this adapter owns the
+ * write switch, key naming, and the mapping between keys and CloudFront URLs.
+ */
 @Slf4j
 @Component
 public class S3ImageUploader {
 
-	private final S3Template s3Template;
+	private final S3StorageClient s3StorageClient;
 	private final boolean writeEnabled;
 
 	@Value("${cloud.aws.s3.bucket}")
@@ -26,8 +29,9 @@ public class S3ImageUploader {
 	@Value("${cloud.cloudfront.domain}")
 	private String cloudfrontDomain;
 
-	public S3ImageUploader(S3Template s3Template, @Value("${cloud.aws.s3.write-enabled:true}") boolean writeEnabled) {
-		this.s3Template = s3Template;
+	public S3ImageUploader(S3StorageClient s3StorageClient,
+		@Value("${cloud.aws.s3.write-enabled:true}") boolean writeEnabled) {
+		this.s3StorageClient = s3StorageClient;
 		this.writeEnabled = writeEnabled;
 	}
 
@@ -38,13 +42,9 @@ public class S3ImageUploader {
 		String ext = originalFilename.substring(originalFilename.lastIndexOf(".") + 1);
 		String s3FileName = dirName + "/" + UUID.randomUUID() + "." + ext;
 
-		ObjectMetadata metadata = ObjectMetadata.builder()
-			.contentType(multipartFile.getContentType())
-			.contentLength(multipartFile.getSize())
-			.build();
-
 		try {
-			s3Template.upload(bucket, s3FileName, multipartFile.getInputStream(), metadata);
+			s3StorageClient.upload(s3FileName, multipartFile.getInputStream(), multipartFile.getContentType(),
+				multipartFile.getSize());
 		} catch (IOException e) {
 			log.error("S3 파일 업로드 실패: {}", s3FileName, e);
 			throw new IOException("파일 업로드 중 오류가 발생했습니다.", e);
@@ -60,7 +60,7 @@ public class S3ImageUploader {
 		try {
 			String s3FileKey = extractS3KeyFromUrl(fileUrl);
 			if (!s3FileKey.isEmpty()) {
-				s3Template.deleteObject(bucket, s3FileKey);
+				s3StorageClient.delete(s3FileKey);
 				log.info("s3 파일 삭제 성공: {}", s3FileKey);
 			} else {
 				log.warn("s3 파일 삭제 시도 - 유효하지 않은 키: {}", fileUrl);
