@@ -60,7 +60,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
    - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
 2. **결과를 읽는다.**
    - 요약 댓글은 `<!-- airbob-claude-review -->`로 시작한다. `gh pr view <번호> --comments`로 읽는다. 다시 리뷰하면 요약 댓글이 하나 더 생기므로 가장 최근 것을 본다.
-   - 인라인 댓글은 `gh api repos/{owner}/{repo}/pulls/<번호>/comments`로 읽는다.
+   - 인라인 댓글은 `gh api --paginate repos/{owner}/{repo}/pulls/<번호>/comments`로 모두 읽는다. 이번 실행의 것만 고른다. 기준은 작성자 `github-actions[bot]`와 요약 댓글 끝의 "리뷰한 커밋"과 같은 `commit_id`다.
    - 비용은 실행 로그의 비용 값이나 Console에서 확인한다.
 3. **검증하고 고친다.** A의 3·4와 같다. 지적마다 Codex가 이미 낸 것인지 표시한다. 이 표시가 "2단계 추가 발견"의 근거가 된다.
 4. **기록한다.**

@@ -31,8 +31,11 @@ paths:
   `contents: read`, and a called workflow cannot request more than its caller grants.
 - Claude review: `claude-review.yml` runs `anthropics/claude-code-action` on same-repository PRs when
   opened and when the `claude-review` label is added. It is informational, not part of `CI result`, and
-  stays outside `ci.yml` for the same permission reason. Keep its tools read-only plus the two comment
-  tools, and keep its per-run `--max-budget-usd` cap. Criteria and verdict records live in
+  stays outside `ci.yml` for the same permission reason. It reviews the event's head commit. Keep
+  Claude's tools read-only plus the inline-comment tool: the summary comes back as structured output and
+  a separate step posts it, because `gh pr comment` could edit or delete this account's other comments
+  (the PR report). Keep the per-run `--max-budget-usd` cap and `classify_inline_comments: false` (the
+  classifier is a separate API call outside that cap). Criteria and verdict records live in
   `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
 
 ## OCI deployment

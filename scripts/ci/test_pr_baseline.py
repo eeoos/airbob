@@ -139,19 +139,20 @@ class DeltaTests(unittest.TestCase):
         self.assertNotIn('| 모듈 |', lines)
         self.assertNotIn('⚠️', lines)
 
-    def test_summaries_from_before_the_build_outcome_was_recorded_are_compared(self):
-        legacy = summary({'a.T': 1})
-        del legacy['build_outcome']
-        self.assertIn('테스트 1 → 2 (+1)', self.render(summary({'a.T': 2}), 'b' * 40, legacy))
-
-    def test_a_failed_build_is_not_compared(self):
+    def test_a_build_not_known_to_succeed_is_not_compared(self):
         # A compile failure leaves an empty summary; it must not read as every test being deleted.
-        partial = summary({}, build_outcome='failure')
-        lines = self.render(partial, 'b' * 40, summary({'a.T': 100}))
-        self.assertIn('⚠️ 이 PR의 빌드가 성공하지 않아 일부 모듈의 테스트가 실행되지 않았을 수 있습니다. 비교하지 않았습니다.', lines)
-        self.assertNotIn('→', lines)
-        lines = self.render(summary({'a.T': 100}), 'b' * 40, summary({'a.T': 1}, build_outcome='failure'))
-        self.assertIn('⚠️ main `bbbbbbbb`의 빌드가 성공하지 않아 기준 요약이 불완전할 수 있습니다. 비교하지 않았습니다.', lines)
+        # Summaries from before build_outcome was recorded were also kept after failed builds.
+        legacy = summary({})
+        del legacy['build_outcome']
+        for partial in (summary({}, build_outcome='failure'), legacy):
+            lines = self.render(partial, 'b' * 40, summary({'a.T': 100}))
+            self.assertIn('⚠️ 이 PR의 빌드 성공이 확인되지 않아(실패 또는 이전 형식 요약) 일부 모듈의 테스트만 담겼을 수 있습니다. '
+                          '비교하지 않았습니다.', lines)
+            self.assertNotIn('→', lines)
+            lines = self.render(summary({'a.T': 100}), 'b' * 40, dict(partial, suites=summary({'a.T': 1})['suites']))
+            self.assertIn('⚠️ main `bbbbbbbb`의 빌드 성공이 확인되지 않아(실패 또는 이전 형식 요약) 기준 요약이 불완전할 수 있습니다. '
+                          '비교하지 않았습니다.', lines)
+            self.assertNotIn('→', lines)
 
     def test_each_search_status_is_explained(self):
         tests = summary({'a.T': 1})
@@ -199,6 +200,14 @@ class CommentDeltaTests(unittest.TestCase):
                       pr_comment.add_test_delta(self.BODY, directory, missing, '', '', 0))
         self.assertIn('main 커밋 30개 확인',
                       pr_comment.add_test_delta(self.BODY, directory, missing, '', 'not_found', 30))
+
+    def test_a_file_left_by_a_failed_download_is_not_read(self):
+        directory = self.artifact_dir(dict(base='b' * 40, tests=summary({'a.T': 2})))
+        baseline = Path(directory) / 'baseline.json'
+        baseline.write_text(json.dumps(summary({'a.T': 1})))
+        body = pr_comment.add_test_delta(self.BODY, directory, str(baseline), 'b' * 40, 'found', 1, 'failure')
+        self.assertIn('main `bbbbbbbb`의 테스트 요약을 내려받지 못했습니다.', body)
+        self.assertNotIn('→', body)
 
     def test_a_broken_comparison_is_reported_without_blocking_the_comment(self):
         directory = self.artifact_dir(dict(base='b' * 40, tests=summary({'a.T': 2})))

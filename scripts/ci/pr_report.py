@@ -684,8 +684,9 @@ def signed(number):
 
 def build_succeeded(summary):
     """`./gradlew build` stops at the first failure, so a failed build may have run only some modules' tests.
-    Summaries written before `build_outcome` existed come from successful builds."""
-    return summary.get('build_outcome') in (None, 'success')
+    The app job keeps the summary even after a failed build, so a summary without `build_outcome`
+    (written before it was recorded) is not known to be complete."""
+    return summary.get('build_outcome') == 'success'
 
 
 def render_test_delta(facts, baseline_sha, summary, status, searched=0):
@@ -699,7 +700,7 @@ def render_test_delta(facts, baseline_sha, summary, status, searched=0):
     if not isinstance(tests, dict) or 'suites' not in tests:
         return lines + ['이 PR의 테스트 요약이 없어 비교하지 않았습니다.']
     if not build_succeeded(tests):
-        return lines + [f'{WARN} 이 PR의 빌드가 성공하지 않아 일부 모듈의 테스트가 실행되지 않았을 수 있습니다. 비교하지 않았습니다.']
+        return lines + [f'{WARN} 이 PR의 빌드 성공이 확인되지 않아(실패 또는 이전 형식 요약) 일부 모듈의 테스트만 담겼을 수 있습니다. 비교하지 않았습니다.']
     if status == 'not_found':
         return lines + [f'main 기준 테스트 요약을 찾지 못했습니다(PR base부터 main 커밋 {searched}개 확인).']
     if status == 'base_mismatch':
@@ -709,7 +710,7 @@ def render_test_delta(facts, baseline_sha, summary, status, searched=0):
     if status != 'found' or summary is None:
         return lines + [f'{WARN} main 기준 테스트 요약을 조회하지 못했습니다. PR report 실행 로그를 보세요.']
     if not build_succeeded(summary):
-        return lines + [f'{WARN} main {code(short(baseline_sha))}의 빌드가 성공하지 않아 기준 요약이 불완전할 수 있습니다. 비교하지 않았습니다.']
+        return lines + [f'{WARN} main {code(short(baseline_sha))}의 빌드 성공이 확인되지 않아(실패 또는 이전 형식 요약) 기준 요약이 불완전할 수 있습니다. 비교하지 않았습니다.']
     delta = test_delta(tests, summary)
     base = facts.get('base') or ''
     source = f'main {code(short(baseline_sha))}'
