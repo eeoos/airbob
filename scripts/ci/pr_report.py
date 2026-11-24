@@ -184,7 +184,7 @@ def area_of(path):
         return 'infra'
     if path.startswith('load-test/'):
         return 'load-test'
-    if path.startswith('docs/'):
+    if path.startswith('docs/') or path.endswith('.md') and not path.startswith('.claude/') and path not in ('CLAUDE.md', 'AGENTS.md'):
         return 'docs'
     if path.startswith('.claude/') or path in ('CLAUDE.md', 'AGENTS.md'):
         return 'agent-policy'

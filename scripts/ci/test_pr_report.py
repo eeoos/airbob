@@ -78,7 +78,8 @@ class AreaTests(unittest.TestCase):
             'infra/aws/lab/main.tf': 'infra', 'load-test/k6/a.js': 'load-test',
             'docs/architecture/code-structure.md': 'docs',
             '.claude/rules/payment.md': 'agent-policy', 'CLAUDE.md': 'agent-policy',
-            'README.md': 'other',
+            'README.md': 'docs', 'scripts/README.md': 'docs', 'load-test/README.md': 'load-test',
+            'Makefile': 'other',
         }
         for path, area in cases.items():
             with self.subTest(path=path):
