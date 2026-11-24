@@ -21,6 +21,7 @@ import scope
 
 MARKER = '<!-- airbob-pr-report -->'
 COMMENT_LIMIT = 65000
+BASELINE_SEARCH_LIMIT = 30
 SCHEMA = 1
 
 MAIN = 'core/core-api/src/main/java/kr/kro/airbob/core/'
@@ -654,15 +655,81 @@ def render(facts, compact=False):
     return '\n'.join(lines) + '\n'
 
 
-def render_within_limit(facts, limit=COMMENT_LIMIT):
-    text = render(facts)
-    if len(text) <= limit:
-        return text
-    text = render(facts, compact=True)
+def test_totals(summary):
+    modules, classes = {}, {}
+    for suite in summary['suites']:
+        modules[f"{suite['module']} {suite['task']}"] = suite['tests']
+        for name, entry in suite['classes'].items():
+            classes[name] = classes.get(name, 0) + entry['tests']
+    return modules, classes
+
+
+def test_delta(head, base):
+    head_modules, head_classes = test_totals(head)
+    base_modules, base_classes = test_totals(base)
+    return dict(
+        before=sum(base_modules.values()), after=sum(head_modules.values()),
+        modules=[dict(module=module, before=base_modules.get(module, 0), after=head_modules.get(module, 0))
+                 for module in sorted(head_modules.keys() | base_modules.keys())],
+        removed_classes=sorted(base_classes.keys() - head_classes.keys()),
+        added_classes=sorted(head_classes.keys() - base_classes.keys()),
+        shrunk_classes=[dict(name=name, before=base_classes[name], after=head_classes[name])
+                        for name in sorted(head_classes.keys() & base_classes.keys())
+                        if head_classes[name] < base_classes[name]])
+
+
+def signed(number):
+    return f'+{number:,}' if number > 0 else f'{number:,}' if number < 0 else '±0'
+
+
+def render_test_delta(facts, baseline_sha, summary, searched):
+    """The "main 대비 테스트 증감" section; `summary` is the main test summary or None."""
+    lines = ['### main 대비 테스트 증감']
+    tests = facts.get('tests')
+    if not isinstance(tests, dict) or 'suites' not in tests:
+        return lines + ['이 PR의 테스트 요약이 없어 비교하지 않았습니다.']
+    if summary is None:
+        return lines + [f'main 기준 테스트 요약을 찾지 못했습니다(PR base부터 main 커밋 {searched}개 확인).']
+    delta = test_delta(tests, summary)
+    base = facts.get('base') or ''
+    source = f'main {code(short(baseline_sha))}'
+    if baseline_sha != base:
+        source += f' (PR base {code(short(base))}에는 요약이 없어 가장 가까운 이전 main 커밋)'
+    lines.append(f"기준: {source} · 테스트 {delta['before']:,} → {delta['after']:,} ({signed(delta['after'] - delta['before'])})"
+                 + (f' {WARN}' if delta['after'] < delta['before'] else ''))
+    changed = [m for m in delta['modules'] if m['before'] != m['after']]
+    if changed:
+        lines += ['', '| 모듈 | 태스크 | main | PR | 증감 |', '|---|---|---:|---:|---:|']
+        for m in changed:
+            module, task = m['module'].rsplit(' ', 1)
+            mark = f' {WARN}' if m['after'] < m['before'] else ''
+            lines.append(f"| {module} | {task} | {m['before']:,} | {m['after']:,} | {signed(m['after'] - m['before'])}{mark} |")
+    lines += details(f"{WARN} 사라진 테스트 클래스 {len(delta['removed_classes'])}개",
+                     [f'- {code(name)}' for name in delta['removed_classes']])
+    lines += details(f"{WARN} 테스트가 줄어든 클래스 {len(delta['shrunk_classes'])}개",
+                     [f"- {code(c['name'])} {c['before']} → {c['after']}" for c in delta['shrunk_classes']])
+    lines += details(f"새 테스트 클래스 {len(delta['added_classes'])}개", [f'- {code(name)}' for name in delta['added_classes']])
+    return lines
+
+
+def insert_section(body, lines, before='### 계약 신호'):
+    section = '\n'.join(lines) + '\n\n'
+    index = body.find(before)
+    return body[:index] + section + body[index:] if index >= 0 else body.rstrip('\n') + '\n\n' + section
+
+
+def fit(text, limit=COMMENT_LIMIT):
     if len(text) <= limit:
         return text
     note = '\n\n_보고서가 너무 길어 잘랐습니다. 전체 내용은 CI 실행의 Step Summary와 pr-report 아티팩트를 보세요._\n'
     return text[:limit - len(note)] + note
+
+
+def render_within_limit(facts, limit=COMMENT_LIMIT):
+    text = render(facts)
+    if len(text) <= limit:
+        return text
+    return fit(render(facts, compact=True), limit)
 
 
 # ---------------------------------------------------------------- CLI

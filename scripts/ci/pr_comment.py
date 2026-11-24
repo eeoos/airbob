@@ -41,10 +41,21 @@ def load_report(directory):
     body = (directory / 'report.md').read_text()
     if not body.startswith(pr_report.MARKER):
         raise ValueError('report.md does not start with the report marker')
-    if len(body) > pr_report.COMMENT_LIMIT:
-        note = '\n\n_보고서가 너무 길어 잘랐습니다._\n'
-        body = body[:pr_report.COMMENT_LIMIT - len(note)] + note
-    return int(number), body
+    return int(number), pr_report.fit(body)
+
+
+def add_test_delta(body, directory, baseline=None, baseline_sha=''):
+    """Insert the main comparison; a failure is reported in the comment instead of blocking it."""
+    try:
+        facts = json.loads((Path(directory) / 'facts.json').read_text())
+        summary = None
+        if baseline and Path(baseline).is_file():
+            scope.require_sha(baseline_sha)
+            summary = json.loads(Path(baseline).read_text())
+        lines = pr_report.render_test_delta(facts, baseline_sha, summary, pr_report.BASELINE_SEARCH_LIMIT)
+    except Exception as error:
+        lines = ['### main 대비 테스트 증감', f'{pr_report.WARN} 비교 실패: {type(error).__name__}: {pr_report.first_line(str(error))}']
+    return pr_report.fit(pr_report.insert_section(body, lines))
 
 
 def publish(request, repository, number, head_sha, body):
@@ -82,8 +93,11 @@ def main():
     parser.add_argument('--dir', required=True, help='downloaded pr-report artifact')
     parser.add_argument('--repository', required=True)
     parser.add_argument('--head-sha', required=True, help='head commit of the CI run (workflow_run.head_sha)')
+    parser.add_argument('--baseline', help='main test-summary.json found by pr_baseline.py (optional)')
+    parser.add_argument('--baseline-sha', default='', help='main commit of --baseline')
     args = parser.parse_args()
     number, body = load_report(args.dir)
+    body = add_test_delta(body, args.dir, args.baseline, args.baseline_sha)
     print(publish(github(os.environ['GITHUB_TOKEN']), args.repository, number, args.head_sha, body))
 
 
