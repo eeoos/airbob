@@ -124,6 +124,19 @@ class RequestTests(unittest.TestCase):
         self.assertLessEqual(len(claude_review.SYSTEM) + len(text), limit)
         self.assertIn('+b = 2', text)
 
+    def test_deleted_files_take_no_room_in_the_budget(self):
+        # Deleted paths are neither sent nor listed, so many of them must not push a fitting request out.
+        for index in range(300):
+            self.repo.write(f'scripts/deleted/{"long-name-" * 5}{index}.py', '')
+        base = self.repo.commit('many empty files')
+        for index in range(300):
+            (self.repo.root / f'scripts/deleted/{"long-name-" * 5}{index}.py').unlink()
+        head = self.repo.commit('delete them')
+        text, _ = claude_review.build_request(self.reader, base, head)
+
+        with mock.patch.object(claude_review, 'REQUEST_LIMIT', len(claude_review.SYSTEM) + len(text) + 300):
+            claude_review.build_request(self.reader, base, head)
+
     def test_a_request_beyond_the_total_limit_is_not_sent(self):
         self.repo.write('scripts/kept.py', 'a = 2\n')
         head = self.repo.commit('small change')

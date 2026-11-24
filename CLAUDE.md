@@ -78,9 +78,10 @@ directly, even if you have not opened a matching file yet.
 
 ## AI code review
 
-Before pushing a branch whose PR changes code (not only `docs/` or `*.md`), follow the `pr-ai-review`
-skill: a Codex review of the branch diff, then verify, fix, and record each finding. After the PR's
-Claude review comment arrives, follow part B of the same skill.
+Before pushing a branch whose PR changes code (not only `docs/` or `*.md`; agent policy in `CLAUDE.md`,
+`AGENTS.md`, `.claude/`, and the review criteria `docs/development/code-review.md` count as code),
+follow the `pr-ai-review` skill: a Codex review of the branch diff, then verify, fix, and record each
+finding. After the PR's Claude review comment arrives, follow part B of the same skill.
 
 ## Behavioral guidelines
 

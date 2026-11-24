@@ -5,7 +5,6 @@ annotated-types==0.8.0 \
 anthropic==2.8.0 \
     --hash=sha256:76ad332e2d500fc54d0112cf100544ad1a7605e71e092b98d9eb664d2b66e283 \
     --hash=sha256:d34e389ba0544cd64e033eb7475f46cc1ac6f2a388cdcd472b33ad4ac29ef40c
-    # via -r /var/folders/7n/mm__1dy515986ns1kbrdmw480000gn/T//claude-review-requirements.in
 anyio==4.16.0 \
     --hash=sha256:59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb \
     --hash=sha256:c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026

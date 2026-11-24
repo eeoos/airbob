@@ -105,8 +105,10 @@ def build_request(repo, base, head, title='', body=''):
     commits = git_text(repo, 'log', '--format=%h %s', f'{base}..{head}')
     sections.append(f'# 커밋 ({base[:8]}..{head[:8]})\n\n{fenced(commits)}')
     sections.append(f'# 변경 (git diff {base[:8]}...{head[:8]})\n\n{fenced(diff, "diff")}')
-    # Changed files fill what the rest of the request leaves; the listing of omitted files needs room too.
-    budget = REQUEST_LIMIT - len(SYSTEM) - len('\n\n'.join(sections)) - 2 * sum(len(path) + 2 for path in paths) - 200
+    # Changed files fill what the rest of the request leaves. Room is kept for listing every file that can be
+    # omitted (deleted files are neither sent nor listed) and for the section's heading and label.
+    listable = sum(len(path) + 2 for status, path in entries if status != 'D')
+    budget = REQUEST_LIMIT - len(SYSTEM) - len('\n\n'.join(sections)) - listable - 200
     if budget < 0:
         raise ReviewSkipped(f'파일 본문 없이도 요청이 한도 {REQUEST_LIMIT:,}자를 넘습니다')
     full, omitted, used = [], [], 0

@@ -43,11 +43,10 @@ paths:
   The job authenticates with workload identity federation (GitHub OIDC, rule subject
   `repo:eeoos/airbob:pull_request`, IDs in repository variables); do not add an API key secret, and keep
   `id-token: write` on that job only. Its Python packages are pinned by version and hash in
-  `scripts/ci/claude-review-requirements.txt` and installed with `--require-hashes`; regenerate the file
-  with `uv pip compile --universal --python-version 3.12 --generate-hashes`. Documentation-only PRs are
-  skipped, but agent policy (`CLAUDE.md`, `AGENTS.md`, `.claude/`) and the review criteria are reviewed.
-  Criteria and verdict records live in `docs/development/code-review.md` and
-  `docs/development/ai-review-log.md`.
+  `scripts/ci/claude-review-requirements.txt` and installed with `--require-hashes`; regenerate it with
+  the `uv pip compile` command in `scripts/README.md`. Documentation-only PRs are skipped, but agent
+  policy (`CLAUDE.md`, `AGENTS.md`, `.claude/`) and the review criteria are reviewed. Criteria and
+  verdict records live in `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
 
 ## OCI deployment
 
