@@ -29,12 +29,24 @@ jobs:
     timeout-minutes: 20
     steps:
       # The event's head commit, so the files Claude reads, the diff, and the inline comments all refer
-      # to one commit even if the PR moves while this run waits or works.
+      # to one commit even if the PR moves while this run waits or works. The action then restores
+      # .claude/ and CLAUDE.md from the base branch and keeps the PR's versions in .claude-pr/.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # Both ends of the change come from the event, so the diff stays the same if the base moves or the
+      # PR is merged while this run waits. Claude reads these files instead of running git, whose options
+      # (such as --output) could write files.
+      - name: Prepare the change for review
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p build/claude-review
+          git log --format='%h %s' "$BASE_SHA..$HEAD_SHA" > build/claude-review/commits.txt
+          git diff "$BASE_SHA...$HEAD_SHA" > build/claude-review/pr.diff
       - name: Review with Claude
         id: review
         uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
@@ -48,15 +60,16 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
             HEAD: ${{ github.event.pull_request.head.sha }}
 
-            작업 디렉터리는 HEAD 커밋이다. 이 PR을 docs/development/code-review.md 기준에 따라 리뷰하라.
-            변경은 git log와 git diff origin/${{ github.base_ref }}...HEAD로 보고, PR 설명은 gh pr view로 보라. 필요한 파일은 저장소에서 읽어라.
-            줄을 특정할 수 있는 지적은 인라인 댓글로 남기고, commit_id에는 HEAD를 넘겨라.
-            전체 결과는 summary에 요약 댓글 본문으로 써라. 요약 댓글은 다음 단계가 게시한다.
-          # Read-only tools and inline comments only. The summary is returned as structured output, so
-          # Claude cannot edit or delete other comments of this account, such as the PR report.
+            이 PR을 docs/development/code-review.md 기준에 따라 리뷰하라.
+            - 변경: build/claude-review/pr.diff, 커밋 목록: build/claude-review/commits.txt, PR 설명: gh pr view
+            - 작업 디렉터리는 HEAD 커밋이다. 다만 .claude/와 CLAUDE.md는 base 버전으로 되돌려져 있으니, 이 경로의 PR 버전은 .claude-pr/에서 읽어라.
+            - 줄을 특정할 수 있는 지적은 인라인 댓글로 남기고, commit_id에는 HEAD를 넘겨라.
+            - 전체 결과는 summary에 요약 댓글 본문으로 써라. 끝에 이번에 단 인라인 댓글의 URL 목록을 붙여라. 요약 댓글은 다음 단계가 게시한다.
+          # Read-only tools and inline comments only: no git (its options can write files) and no
+          # gh pr comment (it could edit or delete this account's other comments, such as the PR report).
           claude_args: >-
             --model claude-opus-5-5 --max-turns 30 --max-budget-usd 3
-            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
+            --allowedTools "Read,Grep,Glob,Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
             --json-schema '{"type":"object","properties":{"summary":{"type":"string"}},"required":["summary"],"additionalProperties":false}'
       - name: Post the summary comment
         if: ${{ steps.review.outputs.structured_output != '' }}

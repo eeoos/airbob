@@ -25,17 +25,28 @@ def candidate_commits(base, read_git=scope.git, limit=pr_report.BASELINE_SEARCH_
 
 
 def find_baseline(request, repository, repository_id, commits):
-    """(the newest main-run artifact of this repository among `commits` or None, commits looked up)."""
+    """(the newest main-run artifact of this repository among `commits` or None, commits looked up).
+
+    A pull request run whose ci.yml changes the artifact name can upload any name, so every page of
+    a name is read before moving to the next commit.
+    """
+    page_size = 100
     for searched, sha in enumerate(commits, start=1):
         name = f'test-summary-{sha}'
-        found = request('GET', f'{pr_comment.API}/repos/{repository}/actions/artifacts?'
-                        + urllib.parse.urlencode({'name': name, 'per_page': 100}))
-        for artifact in found.get('artifacts', []):
-            run = artifact.get('workflow_run') or {}
-            if artifact.get('name') == name and not artifact.get('expired') \
-                    and run.get('repository_id') == repository_id and run.get('head_repository_id') == repository_id \
-                    and run.get('head_branch') == 'main' and run.get('head_sha') == sha:
-                return dict(name=name, run_id=run['id'], sha=sha), searched
+        page = 1
+        while True:
+            found = request('GET', f'{pr_comment.API}/repos/{repository}/actions/artifacts?'
+                            + urllib.parse.urlencode({'name': name, 'per_page': page_size, 'page': page}))
+            artifacts = found.get('artifacts', [])
+            for artifact in artifacts:
+                run = artifact.get('workflow_run') or {}
+                if artifact.get('name') == name and not artifact.get('expired') \
+                        and run.get('repository_id') == repository_id and run.get('head_repository_id') == repository_id \
+                        and run.get('head_branch') == 'main' and run.get('head_sha') == sha:
+                    return dict(name=name, run_id=run['id'], sha=sha), searched
+            if len(artifacts) < page_size:
+                break
+            page += 1
     return None, len(commits)
 
 

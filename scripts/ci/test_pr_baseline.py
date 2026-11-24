@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.parse
 
 import pr_baseline
 import pr_comment
@@ -25,13 +26,15 @@ def artifact(sha, branch='main', expired=False, run=7, repository_id=REPO_ID, he
 
 
 def github_with(published):
-    """A fake GitHub API answering artifact searches from {sha: [artifact, ...]}; records the URLs."""
+    """A fake GitHub API answering artifact searches from {sha: [artifact, ...]} in pages; records the URLs."""
     requested = []
 
     def request(method, url, body=None):
         requested.append(url)
-        sha = url.split('test-summary-')[1][:40]
-        return {'artifacts': published.get(sha, [])}
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        sha = query['name'][0][len('test-summary-'):]
+        size, page = int(query['per_page'][0]), int(query['page'][0])
+        return {'artifacts': published.get(sha, [])[(page - 1) * size:page * size]}
     return request, requested
 
 
@@ -62,11 +65,14 @@ class BaselineSearchTests(unittest.TestCase):
         self.assertTrue(requested[0].startswith(f'{pr_comment.API}/repos/{REPO}/actions/artifacts?name=test-summary-'))
         self.assertIn('per_page=100', requested[0])
 
-    def test_a_valid_artifact_after_the_first_ten_is_found(self):
+    def test_a_valid_artifact_on_a_later_page_is_found(self):
+        # A PR run that changes the artifact name can upload many artifacts under a main commit's name.
         sha = 'a' * 40
-        request, _ = github_with({sha: [artifact(sha, branch='feature')] * 10 + [artifact(sha, run=11)]})
+        request, requested = github_with({sha: [artifact(sha, branch='feature')] * 100 + [artifact(sha, run=101)]})
         self.assertEqual(pr_baseline.find_baseline(request, REPO, REPO_ID, [sha]),
-                         (dict(name=f'test-summary-{sha}', run_id=11, sha=sha), 1))
+                         (dict(name=f'test-summary-{sha}', run_id=101, sha=sha), 1))
+        self.assertEqual(len(requested), 2)
+        self.assertIn('page=2', requested[1])
 
     def test_nothing_found_reports_how_many_commits_were_looked_up(self):
         request, _ = github_with({})
