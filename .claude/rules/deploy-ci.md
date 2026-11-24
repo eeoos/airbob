@@ -35,7 +35,10 @@ paths:
   description from the event's base and head SHAs in a new directory under `runner.temp` (outside the
   checkout). Keep Claude's tools to Read/Grep/Glob and the inline-comment tool with Bash disallowed: git
   options such as `--output` write files, and `gh pr comment` could edit or delete this account's other
-  comments (the PR report). The summary comes back as structured output and a separate step posts it. Keep the per-run `--max-budget-usd` cap and `classify_inline_comments: false` (the
+  comments (the PR report). The summary comes back as structured output and a separate step posts it.
+  It authenticates to the Claude API with workload identity federation (GitHub OIDC, rule subject
+  `repo:eeoos/airbob:pull_request`, IDs in repository variables); do not add an API key secret, and keep
+  `id-token: write` on that job only. Keep the per-run `--max-budget-usd` cap and `classify_inline_comments: false` (the
   classifier is a separate API call outside that cap). Criteria and verdict records live in
   `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
 
