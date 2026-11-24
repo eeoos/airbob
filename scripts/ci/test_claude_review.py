@@ -134,7 +134,11 @@ class RequestTests(unittest.TestCase):
         head = self.repo.commit('delete them')
         text, _ = claude_review.build_request(self.reader, base, head)
 
-        with mock.patch.object(claude_review, 'REQUEST_LIMIT', len(claude_review.SYSTEM) + len(text) + 300):
+        # The reserve is exact: a request that fits the limit to the character is reviewed, one more is not.
+        size = len(claude_review.SYSTEM) + len(text)
+        with mock.patch.object(claude_review, 'REQUEST_LIMIT', size):
+            self.assertEqual(claude_review.build_request(self.reader, base, head)[0], text)
+        with mock.patch.object(claude_review, 'REQUEST_LIMIT', size - 1), self.assertRaises(claude_review.ReviewSkipped):
             claude_review.build_request(self.reader, base, head)
 
     def test_a_request_beyond_the_total_limit_is_not_sent(self):

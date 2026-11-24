@@ -37,6 +37,9 @@ GUIDE = 'docs/development/code-review.md'
 DIFF_LIMIT = 400_000     # a larger change is not reviewed
 FILE_LIMIT = 100_000     # a larger file is left to the diff
 REQUEST_LIMIT = 800_000  # the whole request; changed files fill what the rest leaves, then go to the diff
+FILES_HEADING = '# 바뀐 파일의 전체 내용 (head)\n\n'
+NO_FILES = '(없음)'
+OMITTED_LABEL = '\n\n전체 내용을 싣지 않은 파일(크기 한도 또는 바이너리, diff만 있음): '
 SCHEMA = {'type': 'object', 'properties': {'summary': {'type': 'string'}},
           'required': ['summary'], 'additionalProperties': False}
 SYSTEM = ('너는 airbob 저장소의 pull request를 리뷰한다. 이 저장소의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성했다. '
@@ -105,10 +108,14 @@ def build_request(repo, base, head, title='', body=''):
     commits = git_text(repo, 'log', '--format=%h %s', f'{base}..{head}')
     sections.append(f'# 커밋 ({base[:8]}..{head[:8]})\n\n{fenced(commits)}')
     sections.append(f'# 변경 (git diff {base[:8]}...{head[:8]})\n\n{fenced(diff, "diff")}')
-    # Changed files fill what the rest of the request leaves. Room is kept for listing every file that can be
-    # omitted (deleted files are neither sent nor listed) and for the section's heading and label.
-    listable = sum(len(path) + 2 for status, path in entries if status != 'D')
-    budget = REQUEST_LIMIT - len(SYSTEM) - len('\n\n'.join(sections)) - listable - 200
+    # Changed files fill what the rest of the request leaves. The reserve is the files section with every
+    # file omitted: its heading, "(없음)", and the label listing each file that can be omitted (deleted
+    # files are neither sent nor listed). Each file sent instead takes its entry and a separator.
+    listable = [path for status, path in entries if status != 'D']
+    reserve = len('\n\n') + len(FILES_HEADING) + len(NO_FILES)
+    if listable:
+        reserve += len(OMITTED_LABEL) + len(', '.join(listable))
+    budget = REQUEST_LIMIT - len(SYSTEM) - len('\n\n'.join(sections)) - reserve
     if budget < 0:
         raise ReviewSkipped(f'파일 본문 없이도 요청이 한도 {REQUEST_LIMIT:,}자를 넘습니다')
     full, omitted, used = [], [], 0
@@ -122,9 +129,9 @@ def build_request(repo, base, head, title='', body=''):
             continue
         used += len(entry) + 2
         full.append(entry)
-    files = '# 바뀐 파일의 전체 내용 (head)\n\n' + ('\n\n'.join(full) or '(없음)')
+    files = FILES_HEADING + ('\n\n'.join(full) or NO_FILES)
     if omitted:
-        files += '\n\n전체 내용을 싣지 않은 파일(크기 한도 또는 바이너리, diff만 있음): ' + ', '.join(omitted)
+        files += OMITTED_LABEL + ', '.join(omitted)
     sections.append(files)
     return '\n\n'.join(sections), omitted
 
