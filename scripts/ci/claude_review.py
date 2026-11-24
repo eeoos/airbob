@@ -25,15 +25,16 @@ import scope
 
 MARKER = '<!-- airbob-claude-review -->'
 MODEL = 'claude-opus-5-5'
-EFFORT = 'high'
-MAX_TOKENS = 32000
+EFFORT = 'xhigh'
+MAX_TOKENS = 64000  # includes thinking, which grows with EFFORT
 # List prices of MODEL in USD per million tokens, used only for the cost line of the comment.
 PRICES = dict(input=4.0, output=20.0, cache_write=5.0, cache_read=0.2)
 AUDIENCE = 'https://api.anthropic.com'
 GUIDE = 'docs/development/code-review.md'
-DIFF_LIMIT = 400_000   # characters; a larger change is not reviewed
-FILES_LIMIT = 600_000  # characters of changed files sent in full, in diff order
-FILE_LIMIT = 100_000   # a larger file is left to the diff
+DIFF_LIMIT = 400_000     # characters; a larger change is not reviewed
+FILES_LIMIT = 600_000    # characters of changed files sent in full, in diff order
+FILE_LIMIT = 100_000     # a larger file is left to the diff
+REQUEST_LIMIT = 1_200_000  # characters of the whole request; a larger one is not sent
 SCHEMA = {'type': 'object', 'properties': {'summary': {'type': 'string'}},
           'required': ['summary'], 'additionalProperties': False}
 SYSTEM = ('너는 airbob 저장소의 pull request를 리뷰한다. 이 저장소의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성했다. '
@@ -59,10 +60,22 @@ def git_text(repo, *args):
 
 
 def read_text(repo, revision, path):
+    """The file as text, or None when it is missing or binary (not UTF-8, or containing NUL as UTF-16 does)."""
     try:
-        return repo.show(revision, path)
+        text = repo.show(revision, path)
     except UnicodeDecodeError:
         return None
+    return None if text is None or '\0' in text else text
+
+
+def criteria_text(repo, base, head, path):
+    """Criteria and rules come from the base commit, so a PR cannot weaken what it is reviewed against.
+    A file the PR adds is taken from head and labeled as such."""
+    text = read_text(repo, base, path)
+    if text is not None:
+        return text
+    text = read_text(repo, head, path)
+    return '(없음)' if text is None else f'(base에 없어 이 PR이 추가한 버전)\n\n{text}'
 
 
 def matched_rules(repo, revision, paths):
@@ -73,16 +86,17 @@ def matched_rules(repo, revision, paths):
 
 
 def build_request(repo, base, head, title='', body=''):
-    """(user message, changed files left to the diff); raises ReviewSkipped when the diff is too large."""
+    """(user message, changed files left to the diff); raises ReviewSkipped when the change is too large."""
     diff = git_text(repo, 'diff', f'{base}...{head}')
     if len(diff) > DIFF_LIMIT:
         raise ReviewSkipped(f'diff가 {len(diff):,}자로 한도 {DIFF_LIMIT:,}자를 넘습니다')
     entries = repo.name_status(f'{base}...{head}')
     paths = [path for _, path in entries]
-    sections = [f'# 리뷰 기준 ({GUIDE})\n\n{read_text(repo, head, GUIDE) or "(없음)"}',
-                f'# 프로젝트 규칙 (CLAUDE.md)\n\n{read_text(repo, head, "CLAUDE.md") or "(없음)"}']
-    for name in matched_rules(repo, head, paths):
-        sections.append(f'# 이 변경에 해당하는 영역 규칙 (.claude/rules/{name})\n\n{read_text(repo, head, ".claude/rules/" + name)}')
+    sections = [f'# 리뷰 기준 ({GUIDE})\n\n{criteria_text(repo, base, head, GUIDE)}',
+                f'# 프로젝트 규칙 (CLAUDE.md)\n\n{criteria_text(repo, base, head, "CLAUDE.md")}']
+    for name in matched_rules(repo, base, paths):
+        sections.append(f'# 이 변경에 해당하는 영역 규칙 (.claude/rules/{name})\n\n'
+                        f'{criteria_text(repo, base, head, ".claude/rules/" + name)}')
     sections.append(f'# PR\n\n제목: {title or "(없음)"}\n\n{body or "(설명 없음)"}')
     commits = git_text(repo, 'log', '--format=%h %s', f'{base}..{head}')
     sections.append(f'# 커밋 ({base[:8]}..{head[:8]})\n\n{fenced(commits)}')
@@ -101,7 +115,10 @@ def build_request(repo, base, head, title='', body=''):
     if omitted:
         files += '\n\n전체 내용을 싣지 않은 파일(크기 한도 또는 바이너리, diff만 있음): ' + ', '.join(omitted)
     sections.append(files)
-    return '\n\n'.join(sections), omitted
+    message = '\n\n'.join(sections)
+    if len(SYSTEM) + len(message) > REQUEST_LIMIT:
+        raise ReviewSkipped(f'요청이 {len(SYSTEM) + len(message):,}자로 한도 {REQUEST_LIMIT:,}자를 넘습니다')
+    return message, omitted
 
 
 def summary_of(message):
@@ -111,17 +128,22 @@ def summary_of(message):
                            f"{getattr(details, 'explanation', '')}")
     if message.stop_reason == 'max_tokens':
         raise RuntimeError(f'the review stopped at max_tokens ({MAX_TOKENS})')
-    text = next((block.text for block in message.content if block.type == 'text'), None)
-    if text is None:
+    # A fallback during streaming continues the answer in a new text block, so the blocks are joined.
+    texts = [block.text for block in message.content if block.type == 'text']
+    if not texts:
         raise RuntimeError(f'no text in the response (stop_reason {message.stop_reason})')
-    summary = (json.loads(text).get('summary') or '').strip()
+    summary = (json.loads(''.join(texts)).get('summary') or '').strip()
     if not summary:
         raise RuntimeError('the response has an empty summary')
     return summary
 
 
 def review(user_message, client=None):
-    """(summary, final message) of one request."""
+    """(summary, final message) of one review request.
+
+    The SDK retries a request that got no response (connection error, 429, 5xx) up to twice; such failed
+    requests are not billed.
+    """
     if client is None:
         import anthropic  # installed only in the review job
         client = anthropic.Anthropic()
@@ -135,11 +157,26 @@ def review(user_message, client=None):
     return summary_of(message), message
 
 
-def cost(usage):
-    """Tokens by kind and the estimated USD cost at PRICES (a fallback model may bill differently)."""
-    tokens = dict(input=usage.input_tokens, output=usage.output_tokens,
-                  cache_write=usage.cache_creation_input_tokens or 0, cache_read=usage.cache_read_input_tokens or 0)
-    return tokens, sum(count * PRICES[kind] for kind, count in tokens.items()) / 1_000_000
+def usage_details(usage):
+    """Tokens of each billed attempt, and the estimated cost at PRICES when only MODEL ran.
+
+    After a fallback the top-level usage holds only the last attempt; `usage.iterations` holds every one.
+    """
+    attempts = [item for item in (getattr(usage, 'iterations', None) or [])
+                if item.type in ('message', 'fallback_message')] or [usage]
+    parts, usd, priced = [], 0.0, True
+    for attempt in attempts:
+        model = getattr(attempt, 'model', None) or MODEL
+        tokens = dict(input=attempt.input_tokens, output=attempt.output_tokens,
+                      cache_write=attempt.cache_creation_input_tokens or 0,
+                      cache_read=attempt.cache_read_input_tokens or 0)
+        parts.append(f'{model} 입력 {tokens["input"]:,} / 출력 {tokens["output"]:,}')
+        if model == MODEL:
+            usd += sum(count * PRICES[kind] for kind, count in tokens.items()) / 1_000_000
+        else:
+            priced = False
+    cost = f'추정 비용 ${usd:.2f}' if priced else '대체 모델이 실행돼 비용은 Console에서 확인'
+    return f'토큰: {", ".join(parts)} · {cost}'
 
 
 def comment_body(text, head, run, details=''):
@@ -198,9 +235,7 @@ def main():
             return
         use_github_identity()
         text, message = review(user_message)
-        tokens, usd = cost(message.usage)
-        details = (f'모델: {message.model} · 토큰: 입력 {tokens["input"]:,} / 출력 {tokens["output"]:,}'
-                   f' · 추정 비용 ${usd:.2f}')
+        details = usage_details(message.usage)
         print(details)
     if args.dry_run:
         print(text)

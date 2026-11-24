@@ -32,9 +32,13 @@ paths:
 - Claude review: `claude-review.yml` runs `scripts/ci/claude_review.py` on same-repository PRs when
   opened and when the `claude-review` label is added. It is informational, not part of `CI result`, and
   stays outside `ci.yml` for the same permission reason. The script collects the context from Git at the
-  event's base and head SHAs, sends one Messages API request with no tools (structured output), and
-  posts the result as a new PR comment; keep it tool-free and bounded by its size limits and
-  `max_tokens`. Do not switch to `anthropics/claude-code-action`: the monthly API credit does not cover
+  event's base and head SHAs (criteria and rules from base), sends one review request to the Messages
+  API with no tools (structured output; the SDK retries only requests that got no response), and posts
+  the result as a new PR comment; keep it tool-free and bounded by its size limits and `max_tokens`.
+  Known gap: as a `pull_request` workflow it runs the PR's own workflow and script with
+  `pull-requests: write` and OIDC, so the boundary is repository write access. The planned follow-up is
+  `pull_request_target` (main's code, PR head read only as Git objects) with a federation rule narrowed
+  to that workflow; do not widen this job's permissions before then. Do not switch to `anthropics/claude-code-action`: the monthly API credit does not cover
   runs that the action starts. It authenticates with workload identity federation (GitHub OIDC, rule
   subject `repo:eeoos/airbob:pull_request`, IDs in repository variables); do not add an API key secret,
   and keep `id-token: write` on that job only. The `anthropic` SDK version is pinned in the workflow.

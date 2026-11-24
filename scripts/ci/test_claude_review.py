@@ -57,13 +57,41 @@ class RequestTests(unittest.TestCase):
     def test_large_or_binary_files_are_left_to_the_diff(self):
         self.repo.write('scripts/big.py', 'x' * (claude_review.FILE_LIMIT + 1))
         (self.repo.root / 'scripts/data.bin').write_bytes(b'\xff\xfe\x00binary')
+        # UTF-16 text decodes as UTF-8 but carries NUL bytes.
+        (self.repo.root / 'scripts/utf16.txt').write_bytes('바이너리'.encode('utf-16-le'))
         head = self.repo.commit('add files')
 
         text, omitted = claude_review.build_request(self.reader, self.base, head)
 
-        self.assertEqual(sorted(omitted), ['scripts/big.py', 'scripts/data.bin'])
+        self.assertEqual(sorted(omitted), ['scripts/big.py', 'scripts/data.bin', 'scripts/utf16.txt'])
         self.assertIn('전체 내용을 싣지 않은 파일(크기 한도 또는 바이너리, diff만 있음): ', text)
         self.assertIn('제목: (없음)\n\n(설명 없음)', text)
+
+    def test_criteria_and_rules_come_from_the_base_commit(self):
+        # A PR that weakens the criteria or narrows a rule is still reviewed against the base versions.
+        self.repo.write(claude_review.GUIDE, '# 약해진 기준\n')
+        self.repo.write('.claude/rules/ci.md', '---\npaths:\n  - "nothing/**"\n---\n')
+        self.repo.write('scripts/kept.py', 'a = 2\n')
+        head = self.repo.commit('weaken the rules')
+
+        text, _ = claude_review.build_request(self.reader, self.base, head)
+
+        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n# 리뷰 기준\n', text)
+        self.assertIn('(.claude/rules/ci.md)\n\n' + RULE, text)
+
+    def test_criteria_the_pr_adds_are_labeled(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        repo = TempRepo(directory.name)
+        repo.write('scripts/a.py', 'a\n')
+        base = repo.commit('base')
+        repo.write(claude_review.GUIDE, '# 새 기준\n')
+        head = repo.commit('add the guide')
+
+        text, _ = claude_review.build_request(pr_report.Repo(directory.name), base, head)
+
+        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n(base에 없어 이 PR이 추가한 버전)\n\n# 새 기준', text)
+        self.assertIn('# 프로젝트 규칙 (CLAUDE.md)\n\n(없음)', text)
 
     def test_a_change_beyond_the_diff_limit_is_not_reviewed(self):
         self.repo.write('scripts/big.py', 'x\n' * claude_review.DIFF_LIMIT)
@@ -71,10 +99,21 @@ class RequestTests(unittest.TestCase):
         with self.assertRaises(claude_review.ReviewSkipped):
             claude_review.build_request(self.reader, self.base, head)
 
+    def test_a_request_beyond_the_total_limit_is_not_sent(self):
+        self.repo.write('scripts/kept.py', 'a = 2\n')
+        head = self.repo.commit('small change')
+        with mock.patch.object(claude_review, 'REQUEST_LIMIT', 100), self.assertRaises(claude_review.ReviewSkipped):
+            claude_review.build_request(self.reader, self.base, head)
+
 
 class ResponseTests(unittest.TestCase):
     def test_the_summary_comes_from_the_structured_output(self):
         self.assertEqual(claude_review.summary_of(message('{"summary": "  | 파일 | 심각도 |  "}')), '| 파일 | 심각도 |')
+
+    def test_an_answer_continued_by_a_fallback_model_is_joined(self):
+        continued = message('{"summary": "앞부분')
+        continued.content += [SimpleNamespace(type='fallback'), SimpleNamespace(type='text', text=' 뒷부분"}')]
+        self.assertEqual(claude_review.summary_of(continued), '앞부분 뒷부분')
 
     def test_a_response_without_a_summary_fails_the_run(self):
         for bad in (message(stop_reason='refusal'), message(stop_reason='max_tokens'),
@@ -106,16 +145,28 @@ class ResponseTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         request = calls[0]
         self.assertEqual((request['model'], request['fallbacks']), ('claude-opus-5-5', 'default'))
-        self.assertEqual(request['output_config']['effort'], 'high')
+        self.assertEqual(request['output_config']['effort'], 'xhigh')
+        self.assertEqual(request['max_tokens'], 64000)
         self.assertEqual(request['output_config']['format']['schema']['required'], ['summary'])
         self.assertEqual(request['messages'], [{'role': 'user', 'content': '변경 내용'}])
         self.assertNotIn('tools', request)
 
     def test_cost_uses_the_list_prices(self):
-        tokens, usd = claude_review.cost(message(input_tokens=100_000, output_tokens=10_000,
-                                                 cache_read_input_tokens=50_000).usage)
-        self.assertEqual(tokens, dict(input=100_000, output=10_000, cache_write=0, cache_read=50_000))
-        self.assertAlmostEqual(usd, 0.4 + 0.2 + 0.01)
+        usage = message(input_tokens=100_000, output_tokens=10_000, cache_read_input_tokens=50_000).usage
+        # 100,000 × $4 + 10,000 × $20 + 50,000 × $0.2 per million tokens
+        self.assertEqual(claude_review.usage_details(usage),
+                         '토큰: claude-opus-5-5 입력 100,000 / 출력 10,000 · 추정 비용 $0.61')
+
+    def test_every_attempt_of_a_fallback_is_shown_and_not_priced(self):
+        attempt = dict(cache_creation_input_tokens=0, cache_read_input_tokens=0)
+        usage = message(input_tokens=2000, output_tokens=300).usage
+        usage.iterations = [
+            SimpleNamespace(type='message', model='claude-opus-5-5', input_tokens=1000, output_tokens=100, **attempt),
+            SimpleNamespace(type='fallback_message', model='claude-opus-4-8', input_tokens=2000, output_tokens=300,
+                            **attempt)]
+        self.assertEqual(claude_review.usage_details(usage),
+                         '토큰: claude-opus-5-5 입력 1,000 / 출력 100, claude-opus-4-8 입력 2,000 / 출력 300'
+                         ' · 대체 모델이 실행돼 비용은 Console에서 확인')
 
 
 class CommentTests(unittest.TestCase):
