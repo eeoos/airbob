@@ -5,14 +5,17 @@ airbob의 코드 변경과 PR 상당수는 AI 코딩 에이전트(Claude Code)�
 
 **AI의 설명("통과했다", "안전하다")을 믿지 않고, 테스트·계약 검사·측정이 만든 사실로 확인한다.**
 
+다른 AI의 리뷰도 같은 원칙을 따른다. 지적은 코드를 읽거나 재현해 사실로 확인한 뒤에만 고친다.
+
 ## 검증 흐름
 
 ```
-편집 ─ 컴파일 훅 ─ 응답 종료 전 테스트 훅 ─ PR CI ─ PR 점검 보고서 ─ CI result(필수) ─ main CD
-       (로컬)       (로컬, 변경 영역)       (계약 검사, 빌드·테스트, ArchUnit, OpenAPI 스냅샷)
+편집 ─ 컴파일 훅 ─ 응답 종료 전 테스트 훅 ─ Codex 리뷰 ─ PR CI ─ PR 점검 보고서·Claude 리뷰 ─ CI result(필수) ─ main CD
+       (로컬)       (로컬, 변경 영역)       (로컬, push 전) (계약 검사, 빌드·테스트, ArchUnit, OpenAPI 스냅샷)
 ```
 
 - 로컬 훅은 에이전트가 편집할 때마다 바로 실패를 돌려준다. 그래서 컴파일 오류나 깨진 테스트가 PR까지 가지 않는다.
+- 기계로 확인할 수 없는 결함은 두 단계 AI 리뷰가 찾는다. 먼저 작성자와 계열이 다른 Codex가 push 전에 보고, PR을 연 뒤 Claude가 다시 본다. 방식과 판정은 [AI 리뷰 기록](ai-review-log.md)에 있다.
 - PR CI는 사람과 AI의 변경을 구분하지 않고 같은 검사를 한다.
 - main CD는 같은 CI 정의를 다시 실행한 뒤에만 배포한다.
 
@@ -22,6 +25,7 @@ airbob의 코드 변경과 PR 상당수는 AI 코딩 에이전트(Claude Code)�
 |---|---|---|---|
 | 편집 직후 | `.claude/hooks/compile-on-edit.sh`: 편집한 Java 파일이 속한 모듈의 소스셋을 컴파일한다 | 테스트 | 에이전트에 컴파일 오류를 돌려준다 |
 | 응답 종료 전 | `.claude/hooks/test-before-stop.sh`: 커밋하지 않은 변경이 있는 영역의 테스트와 ArchUnit을 실행한다 | 테스트 | 에이전트가 작업을 끝내지 못한다 |
+| push 전 | Codex 리뷰(`.claude/skills/pr-ai-review`): 작성자와 계열이 다른 모델이 브랜치 diff를 [리뷰 기준](code-review.md)에 따라 리뷰한다 | 리뷰 | 작성자가 지적을 검증해 고치거나 사유를 남긴다 |
 | PR CI | `scripts/ci/contracts.py`: 보관 부하 테스트 파일의 해시·모드, 적용된 Flyway 마이그레이션의 수정·삭제 | 계약 검사 | CI 실패 |
 | PR CI | `scripts/ci/scope.py`와 `check_result.py`: 변경에 맞는 검사를 고르고, 선택한 검사가 실패·취소·누락되면 필수 검사 `CI result`를 실패시킨다 | 계약 검사 | CI 실패 |
 | PR CI | 테스트 1,968개: core-api 1,865, API 문서 85, client 모듈 18 (2026-11-24 기준) | 테스트 | CI 실패 |
@@ -30,6 +34,7 @@ airbob의 코드 변경과 PR 상당수는 AI 코딩 에이전트(Claude Code)�
 | PR CI | 쿼리 수 고정 테스트: 예약 상세 SQL 1개(`ReservationPaymentReadQueryIntegrationTest`), 숙소 상세 쿼리 수 등 | 측정 | CI 실패 |
 | PR CI | 배포 계약 테스트: `OciDeploymentContractTest`, `MessagingDeploymentContractTest`, 모든 GitHub Action의 SHA 고정(`infra/aws/tests/image-publication-test.sh`) | 계약 검사 | CI 실패 |
 | PR 댓글 | PR 점검 보고서(`scripts/ci/pr_report.py`, `pr_baseline.py`, `pr_comment.py`): CI 잡 결과, 모듈별 테스트, main 대비 테스트 증감, 계약 신호(API·마이그레이션·오류 코드·ArchUnit·보관 해시·설정·빌드), 바뀐 영역 | 측정 | 표시만 한다(⚠️) |
+| PR 댓글 | Claude 리뷰(`.github/workflows/claude-review.yml`): PR을 열 때 같은 기준으로 리뷰하고 요약·인라인 댓글을 단다 | 리뷰 | 표시만 한다. 작성자가 검증해 [AI 리뷰 기록](ai-review-log.md)에 판정을 남긴다 |
 
 에이전트가 따를 영역 불변식은 `CLAUDE.md`와 `.claude/rules/*.md`에 둔다. 위 장치들은 그 불변식 중 기계로 확인할 수 있는 부분을 강제한다.
 PR 보고서의 구조는 [실행 도구 안내](../../scripts/README.md#ci-검사-선택과-결과)를 본다.
@@ -45,6 +50,7 @@ PR 보고서의 구조는 [실행 도구 안내](../../scripts/README.md#ci-검�
 | 간헐 테스트 실패 | 전체 빌드에서 한 클래스의 테스트 20개가 실패했다 | 그 클래스만 다시 실행하고, 전체 빌드도 다시 돌렸다 | 테스트용 Redis 연결 문제로 판정했다. 변경과 무관하다는 근거를 PR에 남겼다 |
 | 패키지 구조 이전(PR 20여 개) | 대량의 클래스 이동과 계층 정리 | 테스트, ArchUnit, OpenAPI 스냅샷이 그대로인지 확인했다 | 동결 위반이 35/26/14에서 0/2/0으로 줄었다. 스냅샷은 바뀌지 않았다 |
 | PR 점검 보고서 봇 | 봇 자체를 AI가 작성했다 | 단위 테스트 50개를 만들고, 실제 과거 PR(#217~#220)로 재현했다 | 이력에서 기대한 판정(모듈 추가, API 변경, 해시 불일치)을 확인했다 |
+| 테스트 증감의 비교 기준 | #222에서 main 대비 테스트 증감을 추가하면서, 신뢰 경계를 PR head 검증까지만 생각하고 PR 아티팩트가 보낸 base 값을 그대로 믿었다 | Codex가 커밋을 리뷰했다(지적 7건). 작성자가 지적마다 코드로 확인해 판정했다 | 오탐 0건. 실제 결함 3건(빌드 실패를 테스트 삭제로 표시, PR이 고른 비교 기준, 잘못된 JSON이 댓글 게시를 막음)을 포함해 6건을 고쳤다 |
 
 ## 비어 있는 곳
 

@@ -26,7 +26,7 @@
 | 목적 | 문서 |
 |---|---|
 | 모듈·패키지 구조와 단계별 이전 계획 | [코드 구조](architecture/code-structure.md) |
-| AI가 만든 변경의 검증 장치와 사례 | [AI 변경 검증](development/ai-change-verification.md) |
+| AI가 만든 변경의 검증 장치와 사례 | [AI 변경 검증](development/ai-change-verification.md), [AI 코드 리뷰 기준](development/code-review.md), [AI 리뷰 기록](development/ai-review-log.md) |
 | 로컬 SQL 확인·쿼리 수 관측 | [SQL 추적과 모니터링](operations/query-count-monitoring.md) |
 | 예약 재고와 DB 전환 | [재고 전환](operations/reservation-inventory-cutover.md) |
 | 결제 실패·복구·수동 해결 | [결제 운영](operations/payment-operation-runbook.md) |
