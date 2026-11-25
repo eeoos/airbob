@@ -1,6 +1,7 @@
 name: Claude review
-# Quoted: in a plain YAML value, " #" starts a comment and would cut the name.
-run-name: "Claude review PR #${{ github.event.workflow_run.pull_requests[0].number }} at ${{ github.event.workflow_run.head_sha }}"
+# Quoted: in a plain YAML value, " #" starts a comment and would cut the name. The request run ID finds this
+# run even when the event links no PR or several.
+run-name: "Claude review PR #${{ github.event.workflow_run.pull_requests[0].number }} at ${{ github.event.workflow_run.head_sha }} (request ${{ github.event.workflow_run.id }})"
 
 # Second AI review of a pull request (the first, Codex, runs locally before push). claude-review-request.yml
 # runs on the PR and holds nothing; when it completes, this workflow runs. workflow_run always uses this
@@ -20,10 +21,10 @@ permissions:
   contents: read
   pull-requests: write
 
-# One review at a time per PR. A run that will not review gets a group of its own, so it cannot replace a
-# review that waits in the PR's group.
+# One review at a time per PR. A run that will not review (no successful request, or not exactly one linked
+# PR) gets a group of its own, so it cannot replace a review that waits in the PR's group.
 concurrency:
-  group: claude-review-${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  group: claude-review-${{ github.event.workflow_run.conclusion == 'success' && !github.event.workflow_run.pull_requests[1] && github.event.workflow_run.pull_requests[0].number || github.run_id }}
   cancel-in-progress: false
 
 jobs:

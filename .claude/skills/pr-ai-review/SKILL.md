@@ -74,12 +74,15 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
    - 리뷰는 main에 있는 워크플로, 스크립트, 리뷰 기준으로 돈다. 이것들을 바꾼 PR도 바꾸기 전 버전으로 리뷰되고, 바뀐 것은 머지 뒤 다음 PR부터 적용된다.
    - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
    - 리뷰를 받은 PR은 고치는 동안 초안으로 돌리거나 닫지 않는다. 초안을 준비 완료로 되돌리거나 다시 열면 라벨 없이 리뷰가 다시 돈다.
-   - 리뷰 실행은 브랜치가 main으로 찍히므로 브랜치가 아니라 실행 이름으로 찾고, 끝날 때까지 기다린다.
+   - 먼저 요청 실행을 찾고, 그 ID로 리뷰 실행을 찾아 끝날 때까지 기다린다. 리뷰 실행은 브랜치가 main으로 찍히고, 이름 끝에 `(request <요청 실행 ID>)`가 붙는다.
      ```
-     gh run list --workflow claude-review.yml --json databaseId,displayTitle,status,conclusion \
-       --jq '.[] | select(.displayTitle | startswith("Claude review PR #<번호> "))'
+     gh run list --workflow claude-review-request.yml --branch <브랜치> --json databaseId,headSha,conclusion
+     gh run list --workflow claude-review.yml --event workflow_run --branch main \
+       --json databaseId,displayTitle,status,conclusion \
+       --jq '.[] | select(.displayTitle | endswith("(request <요청 실행 ID>)"))'
      ```
-     요청 실행은 `gh run list --workflow claude-review-request.yml --branch <브랜치>`로 찾는다. 요청이 건너뛰어졌으면(초안, 다른 라벨) 리뷰도 돌지 않는다.
+     - `--event workflow_run --branch main`은 빼지 않는다. 그래야 main의 워크플로가 만든 실행만 남는다. PR 브랜치에서 같은 파일명으로 돈 실행은 PR이 바꾼 워크플로일 수 있다.
+     - 요청이 건너뛰어졌으면(초안, 다른 라벨) 리뷰도 돌지 않는다.
    - 요청은 성공했는데 리뷰 잡이 건너뛰어졌으면, 이벤트에 연결된 PR이 없거나 여럿인 경우다. 미완료로 기록하고 라벨로 다시 돌린다.
    - 실행이 취소(cancelled)되면 미완료로 보고 라벨로 다시 돌린다. 같은 PR의 리뷰 요청이 겹치면(예: 리뷰가 도는 동안 라벨을 다시 붙임) 대기 중이던 리뷰가 새 요청으로 바뀌며 취소될 수 있다.
 2. **결과를 읽는다.** 판정에 쓰는 리뷰 본문은 PR 댓글이 아니라 **기다린 리뷰 실행의 로그**에서 읽는다.
@@ -87,11 +90,13 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
    - 스크립트는 응답을 받으면 토큰 수를 출력하고, 리뷰 본문을 마커부터 `::***::` 줄(워크플로 명령을 다시 켠 줄)까지 출력한 뒤 게시한다.
 
      ```
-     gh run view <실행 ID> --log | awk -F'\t' '$2 == "Review with Claude" {sub(/^[^ ]+ /, "", $3); print $3}' \
+     gh run view <실행 ID> --log \
+       | awk -F'\t' '$2 == "Review with Claude" { sub(/^[^\t]*\t[^\t]*\t[^ ]+ ?/, ""); print }' \
        | sed -n '/^<!-- airbob-claude-review -->$/,/^::\*\*\*::$/p'
      ```
 
-     - 같은 실행 ID의 PR 댓글이 로그의 본문과 다르면 댓글은 쓰지 않고, 사용자에게 알린다.
+     잡 이름, 단계 이름, 시각만 떼고 줄의 나머지는 그대로 둔다. 본문 안의 탭도 보존된다.
+     - 같은 실행 ID의 PR 댓글은 꼬리말(`<sub>리뷰한 커밋`…)을 빼면, 로그 본문에서 마지막 `::***::` 줄을 뺀 것과 같아야 한다. 댓글이 길어 잘렸으면 잘림 안내 앞까지만 같다. 그 밖에 다르면 댓글은 쓰지 않고 사용자에게 알린다.
      - 본문이 있는데 댓글이 없으면, 로그의 본문으로 검증을 이어가고 "댓글 게시 실패"를 따로 기록한다.
    - 본문이 "Claude 리뷰를 하지 않았습니다"로 시작하면 크기 한도로 건너뛴 것이다. "생략(크기 한도)"으로 기록하고 지표(정확도, 2단계 추가 발견, 비용)에서 뺀다.
    - 로그에 "Unusable response"(`max_tokens`, JSON 오류)나 거절 오류("Claude declined")가 있으면 응답 처리 실패다. 이번 리뷰를 "미완료"로 기록한다.
