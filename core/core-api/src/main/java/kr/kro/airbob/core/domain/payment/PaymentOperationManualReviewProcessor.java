@@ -31,8 +31,7 @@ public class PaymentOperationManualReviewProcessor {
 	private static final String NOT_PAID_FAILURE_MESSAGE = "Payment was verified as not paid.";
 	private static final String NOT_PAID_HISTORY_REASON = "결제 미승인 수동 확정";
 	private static final int EVIDENCE_REFERENCE_MAX_LENGTH = 256;
-	private static final Pattern INTERNAL_EVIDENCE_REFERENCE =
-		Pattern.compile("^[A-Za-z0-9_\\-/:.,]+$");
+	private static final Pattern INTERNAL_EVIDENCE_REFERENCE = Pattern.compile("^[A-Za-z0-9_\\-/:.,]+$");
 
 	private final PaymentOperationRepository operationRepository;
 	private final ReservationReader reservationReader;
@@ -57,8 +56,7 @@ public class PaymentOperationManualReviewProcessor {
 		AccommodationSearchRefreshRequester searchRefreshPublisher,
 		OutboxWriter outboxWriter,
 		PaymentOperationManualResolutionRecorder resolutionRecorder,
-		Clock clock
-	) {
+		Clock clock) {
 		this.operationRepository = operationRepository;
 		this.reservationReader = reservationReader;
 		this.inventoryManager = inventoryManager;
@@ -76,8 +74,7 @@ public class PaymentOperationManualReviewProcessor {
 	public PaymentOperationManualReviewResult requestReconciliation(
 		UUID operationUid,
 		Long actorMemberId,
-		long expectedVersion
-	) {
+		long expectedVersion) {
 		validateActorMemberId(actorMemberId);
 		PaymentOperation operation = lockAtVersion(operationUid, expectedVersion);
 		validateReconciliationRequest(operation);
@@ -92,13 +89,11 @@ public class PaymentOperationManualReviewProcessor {
 			null,
 			previousStatus,
 			operation.getStatus(),
-			now
-		);
+			now);
 		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
 			operation.getOperationUid(),
 			operation.getReservation().getReservationUid(),
-			operation.getDispatchGeneration()
-		));
+			operation.getDispatchGeneration()));
 		operationRepository.flush();
 		return PaymentOperationManualReviewResult.from(operation);
 	}
@@ -109,8 +104,7 @@ public class PaymentOperationManualReviewProcessor {
 		Long actorMemberId,
 		long expectedVersion,
 		PaymentOperationResolutionReason reasonCode,
-		String evidenceReference
-	) {
+		String evidenceReference) {
 		validateActorMemberId(actorMemberId);
 		if (reasonCode == null) {
 			throw new PaymentOperationConflictException();
@@ -132,8 +126,7 @@ public class PaymentOperationManualReviewProcessor {
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
-			reservation.getId()
-		);
+			reservation.getId());
 
 		PaymentOperationStatus previousStatus = operation.getStatus();
 		Instant now = clock.instant();
@@ -154,8 +147,7 @@ public class PaymentOperationManualReviewProcessor {
 			evidenceReference,
 			previousStatus,
 			operation.getStatus(),
-			now
-		);
+			now);
 		operationRepository.flush();
 		return PaymentOperationManualReviewResult.from(operation);
 	}

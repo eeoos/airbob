@@ -20,8 +20,7 @@ public class CursorDecoder {
 
 	public <T extends CursorPayload> T decode(
 		String cursor,
-		Class<T> cursorType
-	) {
+		Class<T> cursorType) {
 		if (cursor == null || cursor.isBlank()) {
 			return null;
 		}

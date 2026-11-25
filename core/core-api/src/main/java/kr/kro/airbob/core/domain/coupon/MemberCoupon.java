@@ -25,10 +25,8 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(
-	name = "member_coupon",
-	uniqueConstraints = @UniqueConstraint(name = "uk_member_coupon", columnNames = {"member_id", "coupon_id"})
-)
+@Table(name = "member_coupon", uniqueConstraints = @UniqueConstraint(name = "uk_member_coupon", columnNames = {
+	"member_id", "coupon_id"}))
 public class MemberCoupon extends BaseEntity {
 
 	@Id

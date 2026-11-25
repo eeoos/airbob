@@ -5,6 +5,5 @@ public record CommonCodePatch(
 	String name,
 	String description,
 	Integer sortOrder,
-	Boolean active
-) {
+	Boolean active) {
 }

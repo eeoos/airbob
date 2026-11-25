@@ -33,8 +33,7 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationExecutionFenceUnavailab
 
 class MysqlPaymentOperationExecutionFenceTest {
 
-	private static final UUID OPERATION_UID =
-		UUID.fromString("4eab8ec3-dd26-4dab-a3f4-a5cb8f5af98f");
+	private static final UUID OPERATION_UID = UUID.fromString("4eab8ec3-dd26-4dab-a3f4-a5cb8f5af98f");
 	private static final String RAW_FAILURE = "raw-jdbc-failure-secret";
 
 	private Logger logger;
@@ -42,7 +41,7 @@ class MysqlPaymentOperationExecutionFenceTest {
 
 	@BeforeEach
 	void captureLogs() {
-		logger = (Logger) LoggerFactory.getLogger(MysqlPaymentOperationExecutionFence.class);
+		logger = (Logger)LoggerFactory.getLogger(MysqlPaymentOperationExecutionFence.class);
 		logAppender = new ListAppender<>();
 		logAppender.start();
 		logger.addAppender(logAppender);
@@ -196,10 +195,8 @@ class MysqlPaymentOperationExecutionFenceTest {
 		DataSource dataSource,
 		Connection connection,
 		PreparedStatement acquireStatement,
-		PreparedStatement releaseStatement
-	) {
+		PreparedStatement releaseStatement) {
 	}
 
-	private static final class ExpectedActionFailure extends RuntimeException {
-	}
+	private static final class ExpectedActionFailure extends RuntimeException {}
 }

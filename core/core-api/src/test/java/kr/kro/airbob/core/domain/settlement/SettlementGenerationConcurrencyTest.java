@@ -21,9 +21,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -45,22 +45,31 @@ import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository
 @DisplayName("정산 생성 동시성 테스트(월 단위 분산 락)")
 class SettlementGenerationConcurrencyTest {
 
-	@Autowired private SettlementService settlementService;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private org.springframework.transaction.PlatformTransactionManager transactionManager;
-	@Autowired private jakarta.persistence.EntityManager entityManager;
+	@Autowired
+	private SettlementService settlementService;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private org.springframework.transaction.PlatformTransactionManager transactionManager;
+	@Autowired
+	private jakarta.persistence.EntityManager entityManager;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -88,7 +97,7 @@ class SettlementGenerationConcurrencyTest {
 		long r1 = insertReservation("R1", acc1, host2);
 		long r2 = insertReservation("R2", acc2, host1);
 		insertConfirm(r1, 100000, LocalDate.of(2026, 5, 10)); // host1
-		insertConfirm(r2, 50000, LocalDate.of(2026, 5, 12));  // host2
+		insertConfirm(r2, 50000, LocalDate.of(2026, 5, 12)); // host2
 	}
 
 	@AfterEach
@@ -134,10 +143,10 @@ class SettlementGenerationConcurrencyTest {
 		// 금액 정확성(host1 net 100000 → commission 3000 → payout 97000)
 		Long host1Net = jdbc.queryForObject(
 			"SELECT s.net_amount FROM settlement s JOIN member m ON m.id = s.host_id "
-				+ "WHERE m.nickname = 'host1' AND s.settlement_month = ?", Long.class, MAY_1);
+				+ "WHERE m.nickname = 'host1' AND s.settlement_month = ?",
+			Long.class, MAY_1);
 		assertThat(host1Net).isEqualTo(100000);
 	}
-
 
 	@Test
 	void simultaneousPaymentsRecordExactlyOnePaidTransition() throws Exception {
@@ -160,7 +169,9 @@ class SettlementGenerationConcurrencyTest {
 				blocker.rollback();
 			}
 		}
-		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM settlement_history WHERE settlement_id = ? AND change_type = 'STATUS_CHANGE'", Integer.class, id))
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM settlement_history WHERE settlement_id = ? AND change_type = 'STATUS_CHANGE'",
+			Integer.class, id))
 			.isEqualTo(1);
 	}
 
@@ -172,18 +183,20 @@ class SettlementGenerationConcurrencyTest {
 		var paidButNotCommitted = new CountDownLatch(1);
 		var releasePayment = new CountDownLatch(1);
 		try (var pool = Executors.newFixedThreadPool(2)) {
-			var payment = pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactionManager)
-				.executeWithoutResult(status -> {
-					settlementService.markPaid(id);
-					entityManager.flush();
-					paidButNotCommitted.countDown();
-					try {
-						if (!releasePayment.await(15, TimeUnit.SECONDS)) throw new IllegalStateException("payment release timeout");
-					} catch (InterruptedException interrupted) {
-						Thread.currentThread().interrupt();
-						throw new IllegalStateException(interrupted);
-					}
-				}));
+			var payment = pool
+				.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+					.executeWithoutResult(status -> {
+						settlementService.markPaid(id);
+						entityManager.flush();
+						paidButNotCommitted.countDown();
+						try {
+							if (!releasePayment.await(15, TimeUnit.SECONDS))
+								throw new IllegalStateException("payment release timeout");
+						} catch (InterruptedException interrupted) {
+							Thread.currentThread().interrupt();
+							throw new IllegalStateException(interrupted);
+						}
+					}));
 			try {
 				assertThat(paidButNotCommitted.await(10, TimeUnit.SECONDS)).isTrue();
 				var generation = pool.submit(() -> settlementService.generateMonth(MAY));
@@ -199,7 +212,9 @@ class SettlementGenerationConcurrencyTest {
 		assertThat(row.get("status")).isEqualTo("PAID");
 		assertThat(((Number)row.get("gross_amount")).longValue()).isEqualTo(100000);
 		assertThat(row.get("settled_at")).isNotNull();
-		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM settlement_history WHERE settlement_id = ?", Integer.class, id)).isEqualTo(2);
+		assertThat(
+			jdbc.queryForObject("SELECT COUNT(*) FROM settlement_history WHERE settlement_id = ?", Integer.class, id))
+			.isEqualTo(2);
 	}
 
 	private String payOutcome(long id) {
@@ -212,14 +227,17 @@ class SettlementGenerationConcurrencyTest {
 	}
 
 	private long host1SettlementId() {
-		return jdbc.queryForObject("SELECT s.id FROM settlement s JOIN member m ON m.id = s.host_id WHERE m.nickname = 'host1' AND s.settlement_month = ?",
+		return jdbc.queryForObject(
+			"SELECT s.id FROM settlement s JOIN member m ON m.id = s.host_id WHERE m.nickname = 'host1' AND s.settlement_month = ?",
 			Long.class, MAY_1);
 	}
 
 	private void awaitSettlementWaiters(int count) throws Exception {
 		// 별도 테스트 컨테이너의 잠금 대기를 관찰해, 실제 SELECT/UPDATE 경쟁이 시작된 후 차단을 해제한다.
-		try (Connection observer = DriverManager.getConnection(mySQLContainer.getJdbcUrl(), "root", mySQLContainer.getPassword());
-			 var statement = observer.createStatement()) {
+		try (
+			Connection observer = DriverManager.getConnection(mySQLContainer.getJdbcUrl(), "root",
+				mySQLContainer.getPassword());
+			var statement = observer.createStatement()) {
 			long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
 			while (System.nanoTime() < deadline) {
 				try (var result = statement.executeQuery("""
@@ -229,7 +247,8 @@ class SettlementGenerationConcurrencyTest {
 					WHERE l.OBJECT_SCHEMA = 'airbobdb_test' AND l.OBJECT_NAME = 'settlement'
 					""")) {
 					result.next();
-					if (result.getInt(1) >= count) return;
+					if (result.getInt(1) >= count)
+						return;
 				}
 				Thread.sleep(25);
 			}

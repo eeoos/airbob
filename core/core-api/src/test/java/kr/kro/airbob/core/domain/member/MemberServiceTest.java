@@ -1,10 +1,10 @@
 package kr.kro.airbob.core.domain.member;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -15,12 +15,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 
-import kr.kro.airbob.core.api.controller.v1.member.request.MemberRequest;
-import kr.kro.airbob.core.domain.member.MemberProfile;
-import kr.kro.airbob.core.domain.member.port.SessionInvalidator;
-import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
-import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.jbcrypt.BCrypt;
@@ -30,144 +24,159 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import kr.kro.airbob.core.api.controller.v1.member.request.MemberRequest;
+import kr.kro.airbob.core.domain.member.port.SessionInvalidator;
+import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
+
 @ExtendWith(MockitoExtension.class)
 class MemberServiceTest {
-    private static final Instant NOW = Instant.parse("2026-08-12T05:30:00Z");
-    private static final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+	private static final Instant NOW = Instant.parse("2026-08-12T05:30:00Z");
+	private static final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    @Mock
-    private MemberRepository memberRepository;
-    @Mock
-    private MemberHistoryRepository historyRepository;
-    @Mock
-    private SessionInvalidator sessionInvalidator;
-    @Captor
-    private ArgumentCaptor<Member> memberCaptor;
+	@Mock
+	private MemberRepository memberRepository;
+	@Mock
+	private MemberHistoryRepository historyRepository;
+	@Mock
+	private SessionInvalidator sessionInvalidator;
+	@Captor
+	private ArgumentCaptor<Member> memberCaptor;
 
-    @Test
-    void createMemberStoresBCryptPasswordHash() {
-        MemberService memberService = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        MemberRequest.Signup request = MemberRequest.Signup.builder()
-            .email("guest@airbob.test")
-            .nickname("guest")
-            .password("password1")
-            .thumbnailImageUrl("https://img.example/guest.png")
-            .build();
-        given(memberRepository.existsByEmail(request.getEmail())).willReturn(false);
+	@Test
+	void createMemberStoresBCryptPasswordHash() {
+		MemberService memberService = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		MemberRequest.Signup request = MemberRequest.Signup.builder()
+			.email("guest@airbob.test")
+			.nickname("guest")
+			.password("password1")
+			.thumbnailImageUrl("https://img.example/guest.png")
+			.build();
+		given(memberRepository.existsByEmail(request.getEmail())).willReturn(false);
 
-        memberService.createMember(request.toNewMember());
+		memberService.createMember(request.toNewMember());
 
-        then(memberRepository).should().save(memberCaptor.capture());
-        Member savedMember = memberCaptor.getValue();
-        assertNotEquals("password1", savedMember.getPassword());
-        assertTrue(BCrypt.checkpw("password1", savedMember.getPassword()));
-        then(historyRepository).should().save(any(MemberHistory.class));
-    }
+		then(memberRepository).should().save(memberCaptor.capture());
+		Member savedMember = memberCaptor.getValue();
+		assertNotEquals("password1", savedMember.getPassword());
+		assertTrue(BCrypt.checkpw("password1", savedMember.getPassword()));
+		then(historyRepository).should().save(any(MemberHistory.class));
+	}
 
-    @Test
-    void activeAdminCheckRequiresActiveStatusAndAdminRole() {
-        MemberService service = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        given(memberRepository.existsByIdAndStatusAndRole(1L, MemberStatus.ACTIVE, MemberRole.ADMIN))
-            .willReturn(true);
+	@Test
+	void activeAdminCheckRequiresActiveStatusAndAdminRole() {
+		MemberService service = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		given(memberRepository.existsByIdAndStatusAndRole(1L, MemberStatus.ACTIVE, MemberRole.ADMIN))
+			.willReturn(true);
 
-        assertTrue(service.isActiveAdmin(1L));
-        assertFalse(service.isActiveAdmin(2L));
-    }
+		assertTrue(service.isActiveAdmin(1L));
+		assertFalse(service.isActiveAdmin(2L));
+	}
 
-    @Test
-    void duplicateEmailIsRejectedBeforeWritingMemberOrHistory() {
-        MemberService service = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        MemberRequest.Signup request = MemberRequest.Signup.builder()
-            .email("docs@example.invalid").nickname("여행자").password("example-password").build();
-        given(memberRepository.existsByEmail(request.getEmail())).willReturn(true);
+	@Test
+	void duplicateEmailIsRejectedBeforeWritingMemberOrHistory() {
+		MemberService service = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		MemberRequest.Signup request = MemberRequest.Signup.builder()
+			.email("docs@example.invalid").nickname("여행자").password("example-password").build();
+		given(memberRepository.existsByEmail(request.getEmail())).willReturn(true);
 
-        assertThatThrownBy(() -> service.createMember(request.toNewMember())).isInstanceOf(DuplicatedEmailException.class);
+		assertThatThrownBy(() -> service.createMember(request.toNewMember()))
+			.isInstanceOf(DuplicatedEmailException.class);
 
-        then(memberRepository).should(org.mockito.Mockito.never()).save(any(Member.class));
-        then(historyRepository).shouldHaveNoInteractions();
-    }
+		then(memberRepository).should(org.mockito.Mockito.never()).save(any(Member.class));
+		then(historyRepository).shouldHaveNoInteractions();
+	}
 
-    @Test
-    void unrelatedIntegrityFailureIsNotReportedAsDuplicateEmail() {
-        MemberService service = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        MemberRequest.Signup request = MemberRequest.Signup.builder()
-            .email("docs@example.invalid").nickname("여행자").password("example-password").build();
-        DataIntegrityViolationException failure = new DataIntegrityViolationException("unrelated database constraint");
-        given(memberRepository.save(any(Member.class))).willThrow(failure);
+	@Test
+	void unrelatedIntegrityFailureIsNotReportedAsDuplicateEmail() {
+		MemberService service = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		MemberRequest.Signup request = MemberRequest.Signup.builder()
+			.email("docs@example.invalid").nickname("여행자").password("example-password").build();
+		DataIntegrityViolationException failure = new DataIntegrityViolationException("unrelated database constraint");
+		given(memberRepository.save(any(Member.class))).willThrow(failure);
 
-        assertThatThrownBy(() -> service.createMember(request.toNewMember())).isSameAs(failure);
+		assertThatThrownBy(() -> service.createMember(request.toNewMember())).isSameAs(failure);
 
-        then(historyRepository).shouldHaveNoInteractions();
-    }
+		then(historyRepository).shouldHaveNoInteractions();
+	}
 
-    @Test
-    void deleteMemberRevokesAllSessions() {
-        MemberService memberService = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        Member member = Member.builder()
-            .id(10L)
-            .email("guest@airbob.test")
-            .password("hashed-password")
-            .nickname("guest")
-            .role(MemberRole.MEMBER)
-            .status(MemberStatus.ACTIVE)
-            .build();
-        given(memberRepository.findByIdForUpdate(10L)).willReturn(Optional.of(member));
-        given(historyRepository.findByMemberIdAndValidTo(10L, HistoryConstants.FOREVER))
-            .willReturn(Optional.empty());
+	@Test
+	void deleteMemberRevokesAllSessions() {
+		MemberService memberService = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		Member member = Member.builder()
+			.id(10L)
+			.email("guest@airbob.test")
+			.password("hashed-password")
+			.nickname("guest")
+			.role(MemberRole.MEMBER)
+			.status(MemberStatus.ACTIVE)
+			.build();
+		given(memberRepository.findByIdForUpdate(10L)).willReturn(Optional.of(member));
+		given(historyRepository.findByMemberIdAndValidTo(10L, HistoryConstants.FOREVER))
+			.willReturn(Optional.empty());
 
-        memberService.deleteMember(10L, "사용자 탈퇴");
+		memberService.deleteMember(10L, "사용자 탈퇴");
 
-        then(sessionInvalidator).should().invalidateAll(10L);
-    }
+		then(sessionInvalidator).should().invalidateAll(10L);
+	}
 
-    @Test
-    void deleteMemberClosesAndOpensHistoryAtSameUtcTime() {
-        MemberService memberService = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        Member member = Member.builder()
-            .id(10L)
-            .status(MemberStatus.ACTIVE)
-            .build();
-        MemberHistory currentHistory = MemberHistory.builder()
-            .memberId(10L)
-            .status(MemberStatus.ACTIVE)
-            .changeType(kr.kro.airbob.core.support.persistence.history.ChangeType.CREATE)
-            .validFrom(LocalDateTime.of(2026, 8, 1, 0, 0))
-            .validTo(HistoryConstants.FOREVER)
-            .build();
-        given(memberRepository.findByIdForUpdate(10L)).willReturn(Optional.of(member));
-        given(historyRepository.findByMemberIdAndValidTo(10L, HistoryConstants.FOREVER))
-            .willReturn(Optional.of(currentHistory));
-        ArgumentCaptor<MemberHistory> historyCaptor = ArgumentCaptor.forClass(MemberHistory.class);
+	@Test
+	void deleteMemberClosesAndOpensHistoryAtSameUtcTime() {
+		MemberService memberService = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		Member member = Member.builder()
+			.id(10L)
+			.status(MemberStatus.ACTIVE)
+			.build();
+		MemberHistory currentHistory = MemberHistory.builder()
+			.memberId(10L)
+			.status(MemberStatus.ACTIVE)
+			.changeType(kr.kro.airbob.core.support.persistence.history.ChangeType.CREATE)
+			.validFrom(LocalDateTime.of(2026, 8, 1, 0, 0))
+			.validTo(HistoryConstants.FOREVER)
+			.build();
+		given(memberRepository.findByIdForUpdate(10L)).willReturn(Optional.of(member));
+		given(historyRepository.findByMemberIdAndValidTo(10L, HistoryConstants.FOREVER))
+			.willReturn(Optional.of(currentHistory));
+		ArgumentCaptor<MemberHistory> historyCaptor = ArgumentCaptor.forClass(MemberHistory.class);
 
-        memberService.deleteMember(10L, "사용자 탈퇴");
+		memberService.deleteMember(10L, "사용자 탈퇴");
 
-        LocalDateTime expected = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
-        assertThat(currentHistory.getValidTo()).isEqualTo(expected);
-        then(historyRepository).should().save(historyCaptor.capture());
-        assertThat(historyCaptor.getValue().getValidFrom()).isEqualTo(expected);
-    }
+		LocalDateTime expected = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
+		assertThat(currentHistory.getValidTo()).isEqualTo(expected);
+		then(historyRepository).should().save(historyCaptor.capture());
+		assertThat(historyCaptor.getValue().getValidFrom()).isEqualTo(expected);
+	}
 
-    @Test
-    void getMemberInfoReturnsActiveMemberProfile() {
-        MemberService service = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        MemberProfile member = new MemberProfile(10L, "guest@airbob.test", "guest");
-        given(memberRepository.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
-            .willReturn(Optional.of(member));
+	@Test
+	void getMemberInfoReturnsActiveMemberProfile() {
+		MemberService service = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		MemberProfile member = new MemberProfile(10L, "guest@airbob.test", "guest");
+		given(memberRepository.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
+			.willReturn(Optional.of(member));
 
-        MemberProfile result = service.getMemberInfo(10L);
+		MemberProfile result = service.getMemberInfo(10L);
 
-        assertThat(result.id()).isEqualTo(10L);
-        assertThat(result.email()).isEqualTo("guest@airbob.test");
-        assertThat(result.nickname()).isEqualTo("guest");
-    }
+		assertThat(result.id()).isEqualTo(10L);
+		assertThat(result.email()).isEqualTo("guest@airbob.test");
+		assertThat(result.nickname()).isEqualTo("guest");
+	}
 
-    @Test
-    void getMemberInfoRejectsMissingOrInactiveMember() {
-        MemberService service = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
-        given(memberRepository.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
-            .willReturn(Optional.empty());
+	@Test
+	void getMemberInfoRejectsMissingOrInactiveMember() {
+		MemberService service = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, FIXED_CLOCK), sessionInvalidator);
+		given(memberRepository.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
+			.willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getMemberInfo(10L))
-            .isInstanceOf(MemberNotFoundException.class);
-    }
+		assertThatThrownBy(() -> service.getMemberInfo(10L))
+			.isInstanceOf(MemberNotFoundException.class);
+	}
 }

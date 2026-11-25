@@ -16,8 +16,7 @@ public interface WishlistRepositoryCustom {
 		Long lastId,
 		LocalDateTime lastCreatedAt,
 		Long accommodationId,
-		Pageable pageable
-	);
+		Pageable pageable);
 
 	// ===== 반정규화 카운터 원자적 유지 (DB단 bulk UPDATE) =====
 

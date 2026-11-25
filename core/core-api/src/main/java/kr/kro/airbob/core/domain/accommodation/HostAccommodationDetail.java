@@ -8,6 +8,5 @@ import kr.kro.airbob.core.domain.image.StoredImage;
 public record HostAccommodationDetail(
 	HostAccommodationDetailProjection accommodation,
 	List<AccommodationDetailSnapshot.Amenity> amenities,
-	List<StoredImage> images
-) {
+	List<StoredImage> images) {
 }

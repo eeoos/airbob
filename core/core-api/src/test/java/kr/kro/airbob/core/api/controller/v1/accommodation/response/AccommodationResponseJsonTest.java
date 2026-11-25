@@ -94,8 +94,7 @@ class AccommodationResponseJsonTest {
 			1L, "숙소", null, null, null, null, null, null,
 			"America/New_York", null, null, null, null, List.of(), List.of(), null);
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(
-			snapshot, false
-		);
+			snapshot, false);
 
 		JsonNode json = objectMapper.valueToTree(response);
 
@@ -111,8 +110,7 @@ class AccommodationResponseJsonTest {
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
 			accommodation,
 			List.of(),
-			List.of()
-		);
+			List.of());
 
 		JsonNode json = objectMapper.valueToTree(response);
 
@@ -123,10 +121,10 @@ class AccommodationResponseJsonTest {
 	@Test
 	@DisplayName("최근 조회 시각을 UTC Instant 형식으로 반환한다")
 	void serializesRecentlyViewedAtAsUtcInstant() {
-		RecentlyViewedResponse.RecentlyViewedAccommodationInfo response =
-			RecentlyViewedResponse.RecentlyViewedAccommodationInfo.builder()
-				.viewedAt(Instant.parse("2026-08-12T05:30:00Z"))
-				.build();
+		RecentlyViewedResponse.RecentlyViewedAccommodationInfo response = RecentlyViewedResponse.RecentlyViewedAccommodationInfo
+			.builder()
+			.viewedAt(Instant.parse("2026-08-12T05:30:00Z"))
+			.build();
 
 		JsonNode json = objectMapper.valueToTree(response);
 

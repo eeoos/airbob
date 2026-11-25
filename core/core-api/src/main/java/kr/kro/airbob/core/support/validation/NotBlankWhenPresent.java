@@ -13,11 +13,14 @@ import jakarta.validation.Payload;
 
 @Documented
 @Constraint(validatedBy = NotBlankWhenPresent.Validator.class)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE_USE, ElementType.RECORD_COMPONENT})
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE_USE,
+	ElementType.RECORD_COMPONENT})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface NotBlankWhenPresent {
+public @interface NotBlankWhenPresent{
 	String message() default "값이 있으면 공백만으로 구성할 수 없습니다.";
+
 	Class<?>[] groups() default {};
+
 	Class<? extends Payload>[] payload() default {};
 
 	class Validator implements ConstraintValidator<NotBlankWhenPresent, CharSequence> {

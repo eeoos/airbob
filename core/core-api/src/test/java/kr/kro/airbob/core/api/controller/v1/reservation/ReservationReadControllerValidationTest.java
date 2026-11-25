@@ -31,10 +31,14 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ExtendWith(MockitoExtension.class)
 class ReservationReadControllerValidationTest {
 
-	@Mock CursorPageInfoCreator cursorPageInfoCreator;
-	@Mock ReviewRepository reviewRepository;
-	@Mock ReservationRepository reservationRepository;
-	@Mock Clock clock;
+	@Mock
+	CursorPageInfoCreator cursorPageInfoCreator;
+	@Mock
+	ReviewRepository reviewRepository;
+	@Mock
+	ReservationRepository reservationRepository;
+	@Mock
+	Clock clock;
 
 	private MockMvc mvc;
 
@@ -44,7 +48,7 @@ class ReservationReadControllerValidationTest {
 		var service = new ReservationQueryService(new ReservationReader(reservationRepository),
 			new ReviewReader(reviewRepository), cursorPageInfoCreator, clock);
 		mvc = MockMvcBuilders.standaloneSetup(
-				new ReservationGuestController(service), new ReservationHostController(service))
+			new ReservationGuestController(service), new ReservationHostController(service))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.build();
@@ -68,7 +72,7 @@ class ReservationReadControllerValidationTest {
 	@ValueSource(strings = {"guest", "host"})
 	void missingOrInaccessibleReservationReturnsNotFound(String role) throws Exception {
 		mvc.perform(get("/api/v1/profile/{role}/reservations/{uid}", role,
-				"00000000-0000-0000-0000-000000000020"))
+			"00000000-0000-0000-0000-000000000020"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.error.code").value("R001"));
 		verifyNoInteractions(reviewRepository);

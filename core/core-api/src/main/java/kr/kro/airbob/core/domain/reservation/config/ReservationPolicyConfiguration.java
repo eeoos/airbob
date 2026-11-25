@@ -14,16 +14,17 @@ public class ReservationPolicyConfiguration {
 
 	@Bean
 	public ReservationHoldPolicy reservationHoldPolicy(
-		@Value("${reservation.hold.duration}") Duration duration
-	) {
+		@Value("${reservation.hold.duration}")
+		Duration duration) {
 		return new ReservationHoldPolicy(duration);
 	}
 
 	@Bean
 	public ReservationPaymentAttemptPolicy reservationPaymentAttemptPolicy(
-		@Value("${reservation.payment-attempt.minimum-remaining}") Duration minimumRemaining,
-		@Value("${reservation.hold.duration}") Duration holdDuration
-	) {
+		@Value("${reservation.payment-attempt.minimum-remaining}")
+		Duration minimumRemaining,
+		@Value("${reservation.hold.duration}")
+		Duration holdDuration) {
 		if (minimumRemaining.compareTo(holdDuration) >= 0) {
 			throw new IllegalArgumentException(
 				"minimum payment-attempt remaining time must be shorter than reservation hold duration");

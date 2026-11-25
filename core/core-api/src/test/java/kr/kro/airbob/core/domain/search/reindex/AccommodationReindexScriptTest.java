@@ -54,7 +54,8 @@ class AccommodationReindexScriptTest {
 		assertThat(requests.indexOf("GET /" + TARGET_INDEX + "/_count"))
 			.isLessThan(requests.indexOf("POST /_aliases"));
 		assertThat(requests)
-			.contains("\"remove\":{\"index\":\"accommodations-v20260815010101\",\"alias\":\"accommodations\",\"must_exist\":true}")
+			.contains(
+				"\"remove\":{\"index\":\"accommodations-v20260815010101\",\"alias\":\"accommodations\",\"must_exist\":true}")
 			.contains("\"add\":{\"index\":\"" + TARGET_INDEX
 				+ "\",\"alias\":\"accommodations\",\"is_write_index\":true}");
 		assertThat(docker)
@@ -83,9 +84,7 @@ class AccommodationReindexScriptTest {
 				"MYSQL_PORT", "3307",
 				"REINDEX_SOURCE_COMMIT", "cccccccccccccccccccccccccccccccccccccccc",
 				"LOGSTASH_JDBC_URL",
-				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
-			)
-		);
+				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"));
 
 		assertThat(execution.exitCode()).withFailMessage(execution.output()).isZero();
 		assertThat(Files.readString(tempDir.resolve("mysql.log")))
@@ -111,9 +110,7 @@ class AccommodationReindexScriptTest {
 				"MYSQL_HOST", "127.0.0.1",
 				"MYSQL_PORT", "3307",
 				"LOGSTASH_JDBC_URL",
-				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
-			)
-		);
+				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"));
 
 		assertThat(execution.exitCode()).isNotZero();
 		assertThat(execution.output()).contains("CONFIRM_MYSQL_SOURCE_QUIESCED=true");
@@ -134,9 +131,7 @@ class AccommodationReindexScriptTest {
 				"MYSQL_PORT", "3307",
 				"REINDEX_SOURCE_COMMIT", "dddddddddddddddddddddddddddddddddddddddd",
 				"LOGSTASH_JDBC_URL",
-				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
-			)
-		);
+				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"));
 
 		assertThat(execution.exitCode()).isNotZero();
 		assertThat(execution.output()).contains("must run from REINDEX_SOURCE_COMMIT");
@@ -180,9 +175,7 @@ class AccommodationReindexScriptTest {
 			true,
 			Map.of(
 				"LOGSTASH_MAX_RUNTIME_SECONDS", "1",
-				"LOGSTASH_POLL_INTERVAL_SECONDS", "0.05"
-			)
-		);
+				"LOGSTASH_POLL_INTERVAL_SECONDS", "0.05"));
 
 		assertThat(execution.exitCode()).isNotZero();
 		assertThat(execution.output())
@@ -286,8 +279,7 @@ class AccommodationReindexScriptTest {
 		Execution execution = execute(
 			"existing",
 			true,
-			Map.of("ELASTICSEARCH_PASSWORD", "secret\ninjected-option")
-		);
+			Map.of("ELASTICSEARCH_PASSWORD", "secret\ninjected-option"));
 
 		assertThat(execution.exitCode()).isNotZero();
 		assertThat(execution.output()).contains("credentials must not contain newlines");
@@ -329,8 +321,7 @@ class AccommodationReindexScriptTest {
 	private Execution execute(
 		String scenario,
 		boolean confirmPaused,
-		Map<String, String> environmentOverrides
-	) throws Exception {
+		Map<String, String> environmentOverrides) throws Exception {
 		Map<String, String> environment = new HashMap<>();
 		environment.put("FAKE_STATE_DIR", tempDir.toString());
 		environment.put("FAKE_SCENARIO", scenario);

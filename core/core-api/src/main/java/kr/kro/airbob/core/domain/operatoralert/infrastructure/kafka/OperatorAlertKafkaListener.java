@@ -34,31 +34,17 @@ public class OperatorAlertKafkaListener {
 	public OperatorAlertKafkaListener(
 		IntegrationEventCodec codec,
 		OperatorAlertGateway gateway,
-		OperatorAlertMetrics metrics
-	) {
+		OperatorAlertMetrics metrics) {
 		this.codec = codec;
 		this.gateway = gateway;
 		this.metrics = metrics;
 	}
 
-	@RetryableTopic(
-		attempts = "${operator-alert.kafka.attempts:4}",
-		backoff = @Backoff(delayExpression = "${operator-alert.kafka.backoff-ms:30000}"),
-		kafkaTemplate = "operatorAlertRetryKafkaTemplate",
-		listenerContainerFactory = OperatorAlertKafkaConsumerConfiguration.CONTAINER_FACTORY,
-		retryTopicSuffix = ".RETRY",
-		dltTopicSuffix = ".DLT",
-		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
-		dltStrategy = DltStrategy.FAIL_ON_ERROR,
-		autoCreateTopics = "false"
-	)
-	@KafkaListener(
-		topics = OperatorAlertRequestedV1.TOPIC,
-		groupId = "${operator-alert.kafka.group:operator-alert-delivery-group}",
-		containerFactory = OperatorAlertKafkaConsumerConfiguration.CONTAINER_FACTORY,
-		autoStartup = "${operator-alert.kafka.auto-startup:true}"
-	)
-	public void handle(@Payload String message, Acknowledgment acknowledgment) {
+	@RetryableTopic(attempts = "${operator-alert.kafka.attempts:4}", backoff = @Backoff(delayExpression = "${operator-alert.kafka.backoff-ms:30000}"), kafkaTemplate = "operatorAlertRetryKafkaTemplate", listenerContainerFactory = OperatorAlertKafkaConsumerConfiguration.CONTAINER_FACTORY, retryTopicSuffix = ".RETRY", dltTopicSuffix = ".DLT", sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC, dltStrategy = DltStrategy.FAIL_ON_ERROR, autoCreateTopics = "false")
+	@KafkaListener(topics = OperatorAlertRequestedV1.TOPIC, groupId = "${operator-alert.kafka.group:operator-alert-delivery-group}", containerFactory = OperatorAlertKafkaConsumerConfiguration.CONTAINER_FACTORY, autoStartup = "${operator-alert.kafka.auto-startup:true}")
+	public void handle(
+		@Payload
+		String message, Acknowledgment acknowledgment) {
 		try {
 			OperatorAlertRequestedV1 alert = decode(message).payload();
 			gateway.deliver(alert);
@@ -73,8 +59,7 @@ public class OperatorAlertKafkaListener {
 	@DltHandler
 	public void handleDlt(
 		ConsumerRecord<String, String> record,
-		Acknowledgment acknowledgment
-	) {
+		Acknowledgment acknowledgment) {
 		String topic = KafkaRetryHeaders.readStringHeader(
 			record.headers(), KafkaHeaders.ORIGINAL_TOPIC)
 			.orElse(record.topic());
@@ -92,8 +77,7 @@ public class OperatorAlertKafkaListener {
 		String topic,
 		int partition,
 		long offset,
-		Acknowledgment acknowledgment
-	) {
+		Acknowledgment acknowledgment) {
 		UUID alertUid = tryReadAlertUid(message).orElse(null);
 		metrics.dlt();
 		log.error(
@@ -101,8 +85,7 @@ public class OperatorAlertKafkaListener {
 			alertUid,
 			topic,
 			partition,
-			offset
-		);
+			offset);
 		acknowledgment.acknowledge();
 	}
 
@@ -110,8 +93,7 @@ public class OperatorAlertKafkaListener {
 		return codec.decode(
 			message,
 			OperatorAlertRequestedV1.DESCRIPTOR,
-			OperatorAlertRequestedV1.class
-		);
+			OperatorAlertRequestedV1.class);
 	}
 
 	private Optional<UUID> tryReadAlertUid(String message) {

@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus;
 
 public interface TossErrorCode {
 	HttpStatus getStatusCode();
+
 	String getErrorCode();
+
 	String name();
 }

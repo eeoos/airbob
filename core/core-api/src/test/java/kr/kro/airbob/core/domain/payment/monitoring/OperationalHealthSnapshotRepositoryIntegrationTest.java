@@ -136,8 +136,7 @@ class OperationalHealthSnapshotRepositoryIntegrationTest {
 		Instant queuedAt,
 		Instant leaseExpiresAt,
 		Instant reviewRequiredAt,
-		boolean reconciliationPending
-	) {
+		boolean reconciliationPending) {
 		String operationRef = UUID.randomUUID().toString();
 		jdbc.update("""
 			INSERT INTO payment_operation (
@@ -150,20 +149,17 @@ class OperationalHealthSnapshotRepositoryIntegrationTest {
 			Timestamp.from(queuedAt),
 			leaseExpiresAt == null ? null : Timestamp.from(leaseExpiresAt),
 			reviewRequiredAt == null ? null : Timestamp.from(reviewRequiredAt),
-			reconciliationPending
-		);
+			reconciliationPending);
 		return jdbc.queryForObject(
 			"SELECT id FROM payment_operation WHERE operation_ref = ?",
 			Long.class,
-			operationRef
-		);
+			operationRef);
 	}
 
 	private void insertResolution(
 		long operationId,
 		PaymentOperationResolutionAction action,
-		Instant createdAt
-	) {
+		Instant createdAt) {
 		jdbc.update("""
 			INSERT INTO payment_operation_resolution (
 			  payment_operation_id, resolution_action, created_at

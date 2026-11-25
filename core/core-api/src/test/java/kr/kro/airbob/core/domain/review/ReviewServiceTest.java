@@ -42,16 +42,26 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @DisplayName("리뷰 서비스 단위 테스트")
 class ReviewServiceTest {
 
-	@Mock private ReviewRepository reviewRepository;
-	@Mock private MemberReader memberReader;
-	@Mock private ReviewImageRepository reviewImageRepository;
-	@Mock private ReservationRepository reservationRepository;
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private AccommodationReviewSummaryRepository summaryRepository;
-	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
-	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Mock private Clock clock;
-	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	@Mock
+	private ReviewRepository reviewRepository;
+	@Mock
+	private MemberReader memberReader;
+	@Mock
+	private ReviewImageRepository reviewImageRepository;
+	@Mock
+	private ReservationRepository reservationRepository;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private AccommodationReviewSummaryRepository summaryRepository;
+	@Mock
+	private CursorPageInfoCreator cursorPageInfoCreator;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Mock
+	private Clock clock;
+	@Mock
+	private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 
 	private ReviewService reviewService;
 

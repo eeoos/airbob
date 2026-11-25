@@ -81,25 +81,20 @@ import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFa
 	"accommodation.detail-cache.invalidation.kafka.backoff-ms=100",
 	"accommodation.detail-cache.invalidation.kafka.auto-startup=true"
 })
-@EmbeddedKafka(
-	partitions = 1,
-	topics = {
-		AccommodationDetailCacheKafkaIntegrationTest.CACHE_TOPIC,
-		AccommodationDetailCacheKafkaIntegrationTest.CACHE_RETRY_TOPIC,
-		AccommodationDetailCacheKafkaIntegrationTest.CACHE_DLT_TOPIC,
-		"PAYMENT_OPERATION.events",
-		"PAYMENT_OPERATION.events.RETRY",
-		"PAYMENT_OPERATION.events.DLT",
-		"ACCOMMODATION_INDEX.events",
-		"ACCOMMODATION_INDEX.events.RETRY",
-		"ACCOMMODATION_INDEX.events.DLT",
-		"OPERATOR_ALERT.events",
-		"OPERATOR_ALERT.events.RETRY",
-		"OPERATOR_ALERT.events.DLT"
-	},
-	bootstrapServersProperty = "spring.kafka.bootstrap-servers",
-	brokerProperties = "auto.create.topics.enable=false"
-)
+@EmbeddedKafka(partitions = 1, topics = {
+	AccommodationDetailCacheKafkaIntegrationTest.CACHE_TOPIC,
+	AccommodationDetailCacheKafkaIntegrationTest.CACHE_RETRY_TOPIC,
+	AccommodationDetailCacheKafkaIntegrationTest.CACHE_DLT_TOPIC,
+	"PAYMENT_OPERATION.events",
+	"PAYMENT_OPERATION.events.RETRY",
+	"PAYMENT_OPERATION.events.DLT",
+	"ACCOMMODATION_INDEX.events",
+	"ACCOMMODATION_INDEX.events.RETRY",
+	"ACCOMMODATION_INDEX.events.DLT",
+	"OPERATOR_ALERT.events",
+	"OPERATOR_ALERT.events.RETRY",
+	"OPERATOR_ALERT.events.DLT"
+}, bootstrapServersProperty = "spring.kafka.bootstrap-servers", brokerProperties = "auto.create.topics.enable=false")
 @ExtendWith(OutputCaptureExtension.class)
 @DisplayName("숙소 상세 캐시 무효화 Kafka 격리 통합 테스트")
 class AccommodationDetailCacheKafkaIntegrationTest {
@@ -109,23 +104,19 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 	static final String CACHE_DLT_TOPIC = "ACCOMMODATION_CACHE.events.DLT";
 	static final String CACHE_GROUP = "accommodation-cache-integration-group";
 	private static final long ACCOMMODATION_ID = 41L;
-	private static final UUID EVENT_ID =
-		UUID.fromString("d23eff16-b83e-4fbf-acd6-34b71cf33cc7");
+	private static final UUID EVENT_ID = UUID.fromString("d23eff16-b83e-4fbf-acd6-34b71cf33cc7");
 	private static final String RAW_SECRET = "cache-poison-secret-019ffe7e-d014";
-	private static final String RESERVED_HEADER_SECRET =
-		"cache-reserved-header-secret-019ffe7e-d014";
+	private static final String RESERVED_HEADER_SECRET = "cache-reserved-header-secret-019ffe7e-d014";
 	private static final String CUSTOM_SECRET_HEADER = "x-cache-provider-secret";
 	private static final long ATTACKER_BACKOFF_DELAY_MS = 30_000L;
-	private static final String SANITIZED_POISON =
-		SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
+	private static final String SANITIZED_POISON = SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
 	private static final Set<String> SAFE_RETRY_DLT_HEADERS = Set.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
 		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
 		RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
 		KafkaHeaders.ORIGINAL_TOPIC,
 		KafkaHeaders.ORIGINAL_PARTITION,
-		KafkaHeaders.ORIGINAL_OFFSET
-	);
+		KafkaHeaders.ORIGINAL_OFFSET);
 	private static final String[] OTHER_STREAM_TOPICS = {
 		"PAYMENT_OPERATION.events",
 		"PAYMENT_OPERATION.events.RETRY",
@@ -154,8 +145,7 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 		KafkaTemplate<String, String> kafkaTemplate,
 		AccommodationDetailCache cache,
 		OperatorAlertEnqueueService alertEnqueueService,
-		IntegrationEventCodec codec
-	) {
+		IntegrationEventCodec codec) {
 		this.broker = broker;
 		this.kafkaTemplate = kafkaTemplate;
 		this.cache = cache;
@@ -184,8 +174,7 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 	@Test
 	@DisplayName("정상 이벤트는 커밋하고 failure와 poison은 캐시 전용 retry/DLT로 격리한다")
 	void commitsValidEventAndIsolatesFailuresWithoutLeakingSecrets(
-		CapturedOutput output
-	) throws Exception {
+		CapturedOutput output) throws Exception {
 		String validMessage = validMessage();
 		long validOffset = kafkaTemplate.send(
 			CACHE_TOPIC, "untrusted-key", validMessage)
@@ -304,8 +293,7 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 
 	private void addSpoofedReservedHeaders(
 		ProducerRecord<String, String> record,
-		long attackerBackoff
-	) {
+		long attackerBackoff) {
 		for (String headerName : SAFE_RETRY_DLT_HEADERS) {
 			record.headers().add(
 				headerName, RESERVED_HEADER_SECRET.getBytes(StandardCharsets.UTF_8));
@@ -334,10 +322,10 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 		assertThat(record.headers().lastHeader(KafkaHeaders.EXCEPTION_MESSAGE)).isNull();
 		assertThat(String.valueOf(record.key())).doesNotContain(RAW_SECRET);
 		assertThat(record.value()).doesNotContain(RAW_SECRET, RESERVED_HEADER_SECRET);
-		assertThat(headerNames(record)).noneMatch(name ->
-			name.contains(RAW_SECRET) || name.contains(RESERVED_HEADER_SECRET));
-		assertThat(headerValues(record)).noneMatch(value ->
-			value.contains(RAW_SECRET) || value.contains(RESERVED_HEADER_SECRET));
+		assertThat(headerNames(record))
+			.noneMatch(name -> name.contains(RAW_SECRET) || name.contains(RESERVED_HEADER_SECRET));
+		assertThat(headerValues(record))
+			.noneMatch(value -> value.contains(RAW_SECRET) || value.contains(RESERVED_HEADER_SECRET));
 	}
 
 	private List<String> headerNames(ConsumerRecord<String, String> record) {

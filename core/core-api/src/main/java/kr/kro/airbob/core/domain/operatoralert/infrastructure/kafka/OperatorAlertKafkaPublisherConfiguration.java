@@ -12,8 +12,7 @@ public class OperatorAlertKafkaPublisherConfiguration {
 
 	@Bean
 	public KafkaTemplate<String, String> operatorAlertRetryKafkaTemplate(
-		SanitizingRetryKafkaTemplateFactory templateFactory
-	) {
+		SanitizingRetryKafkaTemplateFactory templateFactory) {
 		return templateFactory.create(
 			OperatorAlertRequestedV1.DESCRIPTOR,
 			OperatorAlertRequestedV1.class,

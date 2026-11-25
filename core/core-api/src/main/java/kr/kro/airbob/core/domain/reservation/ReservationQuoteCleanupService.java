@@ -21,9 +21,10 @@ public class ReservationQuoteCleanupService {
 	public ReservationQuoteCleanupService(
 		ReservationQuoteWriter quoteWriter,
 		Clock clock,
-		@Value("${reservation.quote.retention:30d}") Duration retention,
-		@Value("${reservation.quote.cleanup-batch-size:500}") int batchSize
-	) {
+		@Value("${reservation.quote.retention:30d}")
+		Duration retention,
+		@Value("${reservation.quote.cleanup-batch-size:500}")
+		int batchSize) {
 		this.quoteWriter = Objects.requireNonNull(quoteWriter);
 		this.clock = Objects.requireNonNull(clock);
 		if (retention == null || retention.isZero() || retention.isNegative()) {
@@ -36,10 +37,7 @@ public class ReservationQuoteCleanupService {
 		this.batchSize = batchSize;
 	}
 
-	@Transactional(
-		isolation = Isolation.READ_COMMITTED,
-		timeoutString = "${reservation.quote.cleanup-transaction-timeout-seconds:10}"
-	)
+	@Transactional(isolation = Isolation.READ_COMMITTED, timeoutString = "${reservation.quote.cleanup-transaction-timeout-seconds:10}")
 	public int cleanupOneBatch() {
 		Instant cutoffExclusive = clock.instant().minus(retention);
 		return quoteWriter.deleteRetentionExpiredBatch(cutoffExclusive, batchSize);

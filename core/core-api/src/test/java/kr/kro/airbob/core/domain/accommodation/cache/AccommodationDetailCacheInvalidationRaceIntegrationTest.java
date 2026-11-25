@@ -74,8 +74,7 @@ class AccommodationDetailCacheInvalidationRaceIntegrationTest {
 				Duration.ofSeconds(5),
 				Duration.ofSeconds(5),
 				Duration.ofSeconds(30),
-				Duration.ofSeconds(1), Duration.ofSeconds(1))
-		);
+				Duration.ofSeconds(1), Duration.ofSeconds(1)));
 	}
 
 	@AfterAll
@@ -169,8 +168,7 @@ class AccommodationDetailCacheInvalidationRaceIntegrationTest {
 				Duration.ofSeconds(5),
 				Duration.ofSeconds(5),
 				Duration.ofSeconds(30),
-				Duration.ofSeconds(1), Duration.ofSeconds(1))
-		);
+				Duration.ofSeconds(1), Duration.ofSeconds(1)));
 		CountDownLatch loaderStarted = new CountDownLatch(1);
 		CountDownLatch releaseLoader = new CountDownLatch(1);
 

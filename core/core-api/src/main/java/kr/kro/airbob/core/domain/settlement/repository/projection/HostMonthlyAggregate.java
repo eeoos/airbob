@@ -4,7 +4,10 @@ package kr.kro.airbob.core.domain.settlement.repository.projection;
 // 컬럼 별칭을 getter 프로퍼티명과 일치시킴
 public interface HostMonthlyAggregate {
 	Long getHostId();
+
 	Long getGrossAmount();
+
 	Long getRefundAmount();
+
 	Long getNetAmount();
 }

@@ -59,7 +59,8 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class, RecentlyViewedReader.class, RecentlyViewedWriter.class, WishlistReader.class, AccommodationReader.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class,
+	RecentlyViewedReader.class, RecentlyViewedWriter.class, WishlistReader.class, AccommodationReader.class,
 	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")
@@ -88,13 +89,20 @@ class RecentlyViewedQueryIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private RecentlyViewedService service;
-	@Autowired private StringRedisTemplate redis;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
+	@Autowired
+	private RecentlyViewedService service;
+	@Autowired
+	private StringRedisTemplate redis;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
 
 	@BeforeEach
 	void setUp() {
@@ -115,7 +123,8 @@ class RecentlyViewedQueryIntegrationTest {
 		insertMixedHistory();
 		Statistics statistics = prepareMeasurement();
 
-		RecentlyViewedAccommodationInfos result = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
+		RecentlyViewedAccommodationInfos result = RecentlyViewedAccommodationInfos
+			.from(service.getRecentlyViewed(MEMBER_ID));
 
 		assertContract(result);
 		assertCardRead(statistics);
@@ -145,7 +154,8 @@ class RecentlyViewedQueryIntegrationTest {
 		addHistory(OTHER_KEY, 31, "2026-09-08T00:00:00Z");
 		Statistics statistics = prepareMeasurement();
 
-		RecentlyViewedAccommodationInfos result = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
+		RecentlyViewedAccommodationInfos result = RecentlyViewedAccommodationInfos
+			.from(service.getRecentlyViewed(MEMBER_ID));
 
 		assertThat(result.totalCount()).isEqualTo(2);
 		assertThat(result.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
@@ -166,7 +176,8 @@ class RecentlyViewedQueryIntegrationTest {
 		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("31", "40");
 
 		statistics = prepareMeasurement();
-		RecentlyViewedAccommodationInfos otherResult = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(8L));
+		RecentlyViewedAccommodationInfos otherResult = RecentlyViewedAccommodationInfos
+			.from(service.getRecentlyViewed(8L));
 
 		assertThat(otherResult.totalCount()).isEqualTo(1);
 		assertThat(otherResult.accommodations().getFirst()).isEqualTo(
@@ -210,7 +221,8 @@ class RecentlyViewedQueryIntegrationTest {
 		}
 		var history = redis.opsForZSet().reverseRangeWithScores(KEY, 0, -1);
 		Statistics statistics = prepareMeasurement();
-		RecentlyViewedAccommodationInfos after = RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(MEMBER_ID));
+		RecentlyViewedAccommodationInfos after = RecentlyViewedAccommodationInfos
+			.from(service.getRecentlyViewed(MEMBER_ID));
 
 		assertCardRead(statistics);
 		assertThat(after.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)

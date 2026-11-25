@@ -22,13 +22,13 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import kr.kro.airbob.core.support.error.BaseException;
-import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorPayload;
 import kr.kro.airbob.core.support.cursor.dto.ReviewCursorData;
 import kr.kro.airbob.core.support.cursor.exception.CursorEncodingException;
+import kr.kro.airbob.core.support.error.BaseException;
+import kr.kro.airbob.core.support.error.ErrorCode;
 
 @DisplayName("커서 인코딩과 디코딩 테스트")
 class CursorDecoderTest {
@@ -52,8 +52,7 @@ class CursorDecoderTest {
 	void roundTripsCursorData() {
 		CursorData expected = new CursorData(
 			17L,
-			LocalDateTime.of(2026, 8, 13, 12, 30, 0, 123456000)
-		);
+			LocalDateTime.of(2026, 8, 13, 12, 30, 0, 123456000));
 
 		String encoded = cursorEncoder.encode(expected);
 
@@ -67,8 +66,7 @@ class CursorDecoderTest {
 		ReviewCursorData expected = new ReviewCursorData(
 			23L,
 			LocalDateTime.of(2026, 8, 13, 14, 15, 0, 654321000),
-			5
-		);
+			5);
 
 		String encoded = cursorEncoder.encode(expected);
 
@@ -81,8 +79,7 @@ class CursorDecoderTest {
 	void roundTripsCampaignCursorData() {
 		CouponCampaignCursorData expected = new CouponCampaignCursorData(
 			29L,
-			LocalDateTime.of(2026, 8, 13, 15, 45, 0, 123456000)
-		);
+			LocalDateTime.of(2026, 8, 13, 15, 45, 0, 123456000));
 
 		String encoded = cursorEncoder.encode(expected);
 
@@ -104,8 +101,7 @@ class CursorDecoderTest {
 	void rejectsIncompleteCursorWhenEncoding() {
 		CursorData incompleteCursor = new CursorData(
 			17L,
-			null
-		);
+			null);
 
 		assertThatThrownBy(() -> cursorEncoder.encode(incompleteCursor))
 			.isInstanceOf(CursorEncodingException.class);
@@ -131,8 +127,7 @@ class CursorDecoderTest {
 			new CouponCampaignCursorData(29L, null),
 			new CouponCampaignCursorData(null, time),
 			new CouponCampaignCursorData(0L, time),
-			new CouponCampaignCursorData(-1L, time)
-		);
+			new CouponCampaignCursorData(-1L, time));
 	}
 
 	@ParameterizedTest
@@ -148,17 +143,13 @@ class CursorDecoderTest {
 			Arguments.of("{\"id\":29}", CouponCampaignCursorData.class),
 			Arguments.of(
 				"{\"last_issue_start_at\":\"2026-08-13T15:45:00\"}",
-				CouponCampaignCursorData.class
-			),
+				CouponCampaignCursorData.class),
 			Arguments.of(
 				"{\"id\":0,\"last_issue_start_at\":\"2026-08-13T15:45:00\"}",
-				CouponCampaignCursorData.class
-			),
+				CouponCampaignCursorData.class),
 			Arguments.of(
 				"{\"id\":-1,\"last_issue_start_at\":\"2026-08-13T15:45:00\"}",
-				CouponCampaignCursorData.class
-			)
-		);
+				CouponCampaignCursorData.class));
 	}
 
 	@Test
@@ -178,21 +169,16 @@ class CursorDecoderTest {
 	@Test
 	@DisplayName("JSON null 커서를 거부한다")
 	void rejectsJsonNullCursor() {
-		assertBadRequestCursor(() ->
-			cursorDecoder.decode(encodeJson("null"), CursorData.class)
-		);
+		assertBadRequestCursor(() -> cursorDecoder.decode(encodeJson("null"), CursorData.class));
 	}
 
 	@Test
 	@DisplayName("유효한 JSON 뒤에 값이 이어진 커서를 거부한다")
 	void rejectsTrailingJsonValue() {
 		String cursorWithTrailingValue = encodeJson(
-			"{\"id\":17,\"last_created_at\":\"2026-08-13T12:30:00\"} true"
-		);
+			"{\"id\":17,\"last_created_at\":\"2026-08-13T12:30:00\"} true");
 
-		assertBadRequestCursor(() ->
-			cursorDecoder.decode(cursorWithTrailingValue, CursorData.class)
-		);
+		assertBadRequestCursor(() -> cursorDecoder.decode(cursorWithTrailingValue, CursorData.class));
 	}
 
 	@ParameterizedTest
@@ -201,8 +187,7 @@ class CursorDecoderTest {
 	void rejectsNonPositiveCursorId(long id) {
 		String cursor = encodeJson(
 			"{\"id\":" + id
-				+ ",\"last_created_at\":\"2026-08-13T12:30:00\"}"
-		);
+				+ ",\"last_created_at\":\"2026-08-13T12:30:00\"}");
 
 		assertBadRequestCursor(() -> cursorDecoder.decode(cursor, CursorData.class));
 	}
@@ -213,26 +198,21 @@ class CursorDecoderTest {
 	void rejectsOutOfRangeReviewRating(int rating) {
 		String cursor = encodeJson(
 			"{\"id\":23,\"last_created_at\":\"2026-08-13T14:15:00\","
-				+ "\"last_rating\":" + rating + "}"
-		);
+				+ "\"last_rating\":" + rating + "}");
 
-		assertBadRequestCursor(() ->
-			cursorDecoder.decode(cursor, ReviewCursorData.class)
-		);
+		assertBadRequestCursor(() -> cursorDecoder.decode(cursor, ReviewCursorData.class));
 	}
 
 	@Test
 	@DisplayName("이전 서버가 발급한 SNAKE_CASE 커서를 해석한다")
 	void decodesLegacySnakeCaseCursor() {
 		String legacyCursor = encodeJson(
-			"{\"id\":17,\"last_created_at\":\"2026-08-13T12:30:00\"}"
-		);
+			"{\"id\":17,\"last_created_at\":\"2026-08-13T12:30:00\"}");
 
 		assertThat(cursorDecoder.decode(legacyCursor, CursorData.class))
 			.isEqualTo(new CursorData(
 				17L,
-				LocalDateTime.of(2026, 8, 13, 12, 30)
-			));
+				LocalDateTime.of(2026, 8, 13, 12, 30)));
 	}
 
 	@Test
@@ -240,15 +220,13 @@ class CursorDecoderTest {
 	void decodesLegacyReviewCursor() {
 		String legacyCursor = encodeJson(
 			"{\"id\":23,\"last_created_at\":\"2026-08-13T14:15:00\","
-				+ "\"last_rating\":4}"
-		);
+				+ "\"last_rating\":4}");
 
 		assertThat(cursorDecoder.decode(legacyCursor, ReviewCursorData.class))
 			.isEqualTo(new ReviewCursorData(
 				23L,
 				LocalDateTime.of(2026, 8, 13, 14, 15),
-				4
-			));
+				4));
 	}
 
 	@Test
@@ -257,8 +235,7 @@ class CursorDecoderTest {
 		String reviewCursor = cursorEncoder.encode(new ReviewCursorData(
 			23L,
 			LocalDateTime.of(2026, 8, 13, 14, 15),
-			4
-		));
+			4));
 
 		assertBadRequestCursor(() -> cursorDecoder.decode(reviewCursor, CursorData.class));
 	}
@@ -268,8 +245,7 @@ class CursorDecoderTest {
 	void rejectsGenericCursorForReviewRequest() {
 		String cursor = cursorEncoder.encode(new CursorData(
 			17L,
-			LocalDateTime.of(2026, 8, 13, 12, 30)
-		));
+			LocalDateTime.of(2026, 8, 13, 12, 30)));
 
 		assertBadRequestCursor(() -> cursorDecoder.decode(cursor, ReviewCursorData.class));
 	}

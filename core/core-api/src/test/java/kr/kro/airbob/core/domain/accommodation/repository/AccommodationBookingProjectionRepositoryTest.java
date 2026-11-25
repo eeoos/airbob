@@ -10,10 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -67,8 +67,7 @@ class AccommodationBookingProjectionRepositoryTest {
 
 		assertThat(accommodationRepository.findBookingProjectionByIdAndStatus(
 			published.getId(), AccommodationStatus.PUBLISHED))
-			.hasValueSatisfying(projection ->
-				assertThat(projection.timeZoneId()).isEqualTo("America/New_York"));
+			.hasValueSatisfying(projection -> assertThat(projection.timeZoneId()).isEqualTo("America/New_York"));
 		assertThat(accommodationRepository.findBookingProjectionByIdAndStatus(
 			draft.getId(), AccommodationStatus.PUBLISHED))
 			.isEmpty();
@@ -77,8 +76,7 @@ class AccommodationBookingProjectionRepositoryTest {
 	private Accommodation saveAccommodation(
 		Member host,
 		AccommodationStatus status,
-		String timeZoneId
-	) {
+		String timeZoneId) {
 		return accommodationRepository.save(Accommodation.builder()
 			.member(host)
 			.name("booking-projection-" + status)

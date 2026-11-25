@@ -1,7 +1,7 @@
 package kr.kro.airbob.core.api.controller.v1.reservation.response;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static kr.kro.airbob.core.domain.reservation.ReservationReadTestFixtures.guestDetail;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -87,11 +87,13 @@ class ReservationResponseTest {
 		try (var fixture = new ClassPathResource("contracts/guest-reservation-reviewable.json").getInputStream()) {
 			JsonNode expected = objectMapper.readTree(fixture);
 			JsonNode actual = objectMapper.readTree(objectMapper.writeValueAsString(
-				ReservationResponse.GuestDetail.from(GuestReservationDetail.of(guestDetail(reservation), true, SERVER_TIME))));
+				ReservationResponse.GuestDetail
+					.from(GuestReservationDetail.of(guestDetail(reservation), true, SERVER_TIME))));
 			assertThat(actual).isEqualTo(expected);
 		}
 		JsonNode denied = objectMapper.valueToTree(
-			ReservationResponse.GuestDetail.from(GuestReservationDetail.of(guestDetail(reservation), false, SERVER_TIME)));
+			ReservationResponse.GuestDetail
+				.from(GuestReservationDetail.of(guestDetail(reservation), false, SERVER_TIME)));
 		assertThat(denied.get("can_write_review").isBoolean()).isTrue();
 		assertThat(denied.get("can_write_review").booleanValue()).isFalse();
 	}
@@ -115,7 +117,8 @@ class ReservationResponseTest {
 			.expiresAt(SERVER_TIME.plusSeconds(15 * 60))
 			.build();
 
-		ReservationResponse.Ready response = ReservationResponse.Ready.from(ReservationReady.of(reservation, SERVER_TIME));
+		ReservationResponse.Ready response = ReservationResponse.Ready
+			.from(ReservationReady.of(reservation, SERVER_TIME));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		assertThat(response.paymentRequired()).isTrue();
@@ -161,7 +164,8 @@ class ReservationResponseTest {
 			.expiresAt(SERVER_TIME)
 			.build();
 
-		ReservationResponse.Ready response = ReservationResponse.Ready.from(ReservationReady.of(reservation, SERVER_TIME));
+		ReservationResponse.Ready response = ReservationResponse.Ready
+			.from(ReservationReady.of(reservation, SERVER_TIME));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(response.paymentAllowed()).isFalse();
@@ -175,8 +179,8 @@ class ReservationResponseTest {
 			20L, UUID.randomUUID(), null, null, "UTC", ReservationStatus.PAYMENT_PENDING,
 			SERVER_TIME, null, 10L, "expired stay", null);
 
-		ReservationResponse.GuestReservationInfo response =
-			ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(reservation, SERVER_TIME));
+		ReservationResponse.GuestReservationInfo response = ReservationResponse.GuestReservationInfo
+			.from(GuestReservationPage.Item.of(reservation, SERVER_TIME));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(reservation.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -227,13 +231,14 @@ class ReservationResponseTest {
 				reservation.getStatus(), createdAt, 2, reservation.getCheckInAt(), reservation.getCheckOutAt(),
 				reservationZone.getId(), reservation.getMessage(), 10L, accommodation.getName(), null,
 				null, null, null, null, null, null, null, 2L, guest.getNickname(), null, null));
-		ReservationResponse.GuestReservationInfo guestInfo =
-			ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(new GuestReservationListProjection(
+		ReservationResponse.GuestReservationInfo guestInfo = ReservationResponse.GuestReservationInfo
+			.from(GuestReservationPage.Item.of(new GuestReservationListProjection(
 				reservation.getId(), reservation.getReservationUid(), reservation.getCheckInDate(),
 				reservation.getCheckOutDate(), reservation.getTimeZoneId(), reservation.getStatus(),
-				reservation.getExpiresAt(), createdAt, accommodation.getId(), accommodation.getName(), null), SERVER_TIME));
-		ReservationResponse.HostReservationInfo hostInfo =
-			ReservationResponse.HostReservationInfo.from(new HostReservationListProjection(
+				reservation.getExpiresAt(), createdAt, accommodation.getId(), accommodation.getName(), null),
+				SERVER_TIME));
+		ReservationResponse.HostReservationInfo hostInfo = ReservationResponse.HostReservationInfo
+			.from(new HostReservationListProjection(
 				reservation.getId(), reservation.getReservationUid(), reservation.getReservationCode(),
 				reservation.getTotalPrice(), reservation.getCurrency(), reservation.getGuestCount(),
 				reservation.getCheckInDate(), reservation.getCheckOutDate(), reservation.getTimeZoneId(),

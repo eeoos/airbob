@@ -33,24 +33,21 @@ public class CommonCodeReader {
 	@Autowired
 	public CommonCodeReader(
 		CommonCodeGroupRepository groupRepository,
-		CommonCodeRepository commonCodeRepository
-	) {
+		CommonCodeRepository commonCodeRepository) {
 		this(groupRepository, commonCodeRepository, Ticker.systemTicker());
 	}
 
 	static CommonCodeReader withTicker(
 		CommonCodeGroupRepository groupRepository,
 		CommonCodeRepository commonCodeRepository,
-		Ticker ticker
-	) {
+		Ticker ticker) {
 		return new CommonCodeReader(groupRepository, commonCodeRepository, ticker);
 	}
 
 	private CommonCodeReader(
 		CommonCodeGroupRepository groupRepository,
 		CommonCodeRepository commonCodeRepository,
-		Ticker ticker
-	) {
+		Ticker ticker) {
 		this.groupRepository = groupRepository;
 		this.commonCodeRepository = commonCodeRepository;
 

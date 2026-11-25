@@ -43,10 +43,12 @@ public class MysqlPaymentOperationExecutionFence implements PaymentOperationExec
 
 	public MysqlPaymentOperationExecutionFence(
 		DataSource dataSource,
-		@Value("${payment.operation.execution-fence-timeout:15s}") Duration acquisitionTimeout,
-		@Value("${payment.operation.execution-fence-network-timeout:20s}") Duration networkTimeout,
-		@Value("${payment.operation.execution-fence-max-concurrency:2}") int maxConcurrency
-	) {
+		@Value("${payment.operation.execution-fence-timeout:15s}")
+		Duration acquisitionTimeout,
+		@Value("${payment.operation.execution-fence-network-timeout:20s}")
+		Duration networkTimeout,
+		@Value("${payment.operation.execution-fence-max-concurrency:2}")
+		int maxConcurrency) {
 		this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
 		this.acquisitionTimeoutSeconds = timeoutSeconds(acquisitionTimeout, "acquisitionTimeout");
 		this.acquisitionTimeoutNanos = acquisitionTimeout.toNanos();
@@ -135,8 +137,7 @@ public class MysqlPaymentOperationExecutionFence implements PaymentOperationExec
 		String lockName,
 		boolean lockAcquired,
 		boolean actionStarted,
-		Throwable actionFailure
-	) {
+		Throwable actionFailure) {
 		if (connection == null) {
 			return;
 		}
@@ -171,8 +172,7 @@ public class MysqlPaymentOperationExecutionFence implements PaymentOperationExec
 		UUID operationUid,
 		Connection connection,
 		boolean actionStarted,
-		Throwable actionFailure
-	) {
+		Throwable actionFailure) {
 		try {
 			connection.abort(Runnable::run);
 			return;
@@ -208,8 +208,7 @@ public class MysqlPaymentOperationExecutionFence implements PaymentOperationExec
 		UUID operationUid,
 		CleanupFailureType failureType,
 		boolean actionStarted,
-		Throwable actionFailure
-	) {
+		Throwable actionFailure) {
 		log.error(
 			"Payment operation execution fence cleanup failed: operationUid={}, failureType={}",
 			operationUid,
@@ -225,12 +224,11 @@ public class MysqlPaymentOperationExecutionFence implements PaymentOperationExec
 
 	private static void validateMaxConcurrency(
 		int maxConcurrency,
-		HikariDataSource hikariDataSource
-	) {
+		HikariDataSource hikariDataSource) {
 		if (maxConcurrency <= 0) {
 			throw new IllegalArgumentException("execution fence maxConcurrency must be positive");
 		}
-		long requiredPoolSize = (long) maxConcurrency * 2;
+		long requiredPoolSize = (long)maxConcurrency * 2;
 		int maximumPoolSize = hikariDataSource == null
 			? 0
 			: hikariDataSource.getMaximumPoolSize();
@@ -270,9 +268,8 @@ public class MysqlPaymentOperationExecutionFence implements PaymentOperationExec
 	private static void validateNetworkTimeout(
 		int acquisitionTimeoutSeconds,
 		int networkTimeoutSeconds,
-		int networkTimeoutMillis
-	) {
-		long acquisitionTimeoutMillis = (long) acquisitionTimeoutSeconds * 1_000;
+		int networkTimeoutMillis) {
+		long acquisitionTimeoutMillis = (long)acquisitionTimeoutSeconds * 1_000;
 		if (networkTimeoutSeconds <= acquisitionTimeoutSeconds
 			|| networkTimeoutMillis <= acquisitionTimeoutMillis) {
 			throw new IllegalArgumentException(

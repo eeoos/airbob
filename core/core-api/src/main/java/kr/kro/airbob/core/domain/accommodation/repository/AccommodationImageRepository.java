@@ -20,7 +20,8 @@ public interface AccommodationImageRepository extends JpaRepository<Accommodatio
 		order by image.id asc
 		""")
 	List<AccommodationImageProjection> findDetailImagesByAccommodationIdOrderByIdAsc(
-		@Param("accommodationId") Long accommodationId);
+		@Param("accommodationId")
+		Long accommodationId);
 
 	@Query("""
 		SELECT image
@@ -29,7 +30,7 @@ public interface AccommodationImageRepository extends JpaRepository<Accommodatio
 		ORDER BY image.id ASC
 		""")
 	List<AccommodationImage> findByAccommodationIdOrderByIdAsc(
-		@Param("accommodationId") Long accommodationId
-	);
+		@Param("accommodationId")
+		Long accommodationId);
 
 }

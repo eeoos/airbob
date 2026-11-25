@@ -5,6 +5,5 @@ public record HostSettlementTotals(
 	long pendingPayoutTotal,
 	long pendingCount,
 	long paidPayoutTotal,
-	long paidCount
-) {
+	long paidCount) {
 }

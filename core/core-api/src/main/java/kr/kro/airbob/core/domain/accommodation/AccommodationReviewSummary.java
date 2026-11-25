@@ -11,7 +11,6 @@ import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import kr.kro.airbob.core.support.persistence.BaseEntity;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

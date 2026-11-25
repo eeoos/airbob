@@ -81,8 +81,10 @@ class ExpiredReservationCleanupIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private ExpiredReservationCleanupService cleanupService;
-	@MockitoSpyBean private JdbcTemplate jdbc;
+	@Autowired
+	private ExpiredReservationCleanupService cleanupService;
+	@MockitoSpyBean
+	private JdbcTemplate jdbc;
 
 	@BeforeEach
 	void setUp() {
@@ -159,8 +161,7 @@ class ExpiredReservationCleanupIntegrationTest {
 			return invocation.callRealMethod();
 		}).when(jdbc).batchUpdate(
 			argThat(sql -> sql.contains("INSERT INTO reservation_history")),
-			any(BatchPreparedStatementSetter.class)
-		);
+			any(BatchPreparedStatementSetter.class));
 
 		assertThatThrownBy(cleanupService::cleanupExpiredPendingReservations)
 			.isInstanceOf(DataIntegrityViolationException.class)
@@ -250,10 +251,10 @@ class ExpiredReservationCleanupIntegrationTest {
 		assertThat(jdbc.queryForList("""
 			SELECT state, hold_expires_at FROM accommodation_inventory_day WHERE reservation_id = ?
 			""", reservationId)).hasSize(2).allSatisfy(row -> {
-				assertThat(row.get("state")).isEqualTo(state);
-				assertThat(row.get("hold_expires_at"))
-					.isEqualTo(expiresAt == null ? null : LocalDateTime.ofInstant(expiresAt, ZoneOffset.UTC));
-			});
+			assertThat(row.get("state")).isEqualTo(state);
+			assertThat(row.get("hold_expires_at"))
+				.isEqualTo(expiresAt == null ? null : LocalDateTime.ofInstant(expiresAt, ZoneOffset.UTC));
+		});
 	}
 
 	private void assertCouponState(long reservationId, boolean used) {

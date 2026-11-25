@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import io.micrometer.core.instrument.MeterRegistry;
-
 import kr.kro.airbob.core.support.messaging.outbox.application.OutboxCleanupBatchDeleter;
 import kr.kro.airbob.core.support.messaging.outbox.application.OutboxCleanupRepository;
 import kr.kro.airbob.core.support.messaging.outbox.application.OutboxCleanupService;
@@ -29,8 +28,7 @@ public class OutboxCleanupConfiguration {
 
 	@Bean
 	public OutboxCleanupBatchDeleter outboxCleanupBatchDeleter(
-		OutboxCleanupRepository repository
-	) {
+		OutboxCleanupRepository repository) {
 		return new OutboxCleanupBatchDeleter(repository);
 	}
 
@@ -38,14 +36,12 @@ public class OutboxCleanupConfiguration {
 	public OutboxCleanupService outboxCleanupService(
 		OutboxCleanupBatchDeleter batchDeleter,
 		OutboxCleanupProperties properties,
-		Clock clock
-	) {
+		Clock clock) {
 		return new OutboxCleanupService(
 			batchDeleter,
 			properties.retention(),
 			properties.batchSize(),
-			clock
-		);
+			clock);
 	}
 
 	@Bean
@@ -56,8 +52,7 @@ public class OutboxCleanupConfiguration {
 	@Bean
 	public OutboxCleanupScheduler outboxCleanupScheduler(
 		OutboxCleanupService service,
-		OutboxCleanupMetrics metrics
-	) {
+		OutboxCleanupMetrics metrics) {
 		return new OutboxCleanupScheduler(service, metrics);
 	}
 }

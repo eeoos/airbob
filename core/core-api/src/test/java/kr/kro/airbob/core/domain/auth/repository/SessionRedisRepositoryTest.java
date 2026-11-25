@@ -7,12 +7,13 @@ import static org.mockito.BDDMockito.when;
 
 import java.time.Duration;
 import java.util.Set;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -97,8 +98,7 @@ class SessionRedisRepositoryTest {
 
 		then(redisTemplate).should().delete(Set.of(
 			"SESSION:session-1",
-			"SESSION:session-2"
-		));
+			"SESSION:session-2"));
 		then(redisTemplate).should().delete("MEMBER_SESSIONS:10");
 	}
 

@@ -19,8 +19,7 @@ class ReservationStayPricePolicyTest {
 		ReservationStayPricePolicy.StayPrice price = ReservationStayPricePolicy.calculate(
 			120_000L,
 			LocalDate.of(2026, 9, 10),
-			LocalDate.of(2026, 9, 13)
-		);
+			LocalDate.of(2026, 9, 13));
 
 		assertThat(price.nightlyPrice()).isEqualTo(120_000L);
 		assertThat(price.nights()).isEqualTo(3L);
@@ -45,7 +44,6 @@ class ReservationStayPricePolicyTest {
 		assertThatThrownBy(() -> ReservationStayPricePolicy.calculate(
 			Long.MAX_VALUE,
 			LocalDate.of(2026, 9, 10),
-			LocalDate.of(2026, 9, 12)
-		)).isInstanceOf(ArithmeticException.class);
+			LocalDate.of(2026, 9, 12))).isInstanceOf(ArithmeticException.class);
 	}
 }

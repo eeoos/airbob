@@ -8,10 +8,10 @@ public record ReservationHoldRelease(
 	UUID reservationUid,
 	ReservationStatus status,
 	boolean releasedNow,
-	Instant serverTime
-) {
+	Instant serverTime) {
 
 	public static ReservationHoldRelease of(Reservation reservation, boolean releasedNow, Instant serverTime) {
-		return new ReservationHoldRelease(reservation.getReservationUid(), reservation.getStatus(), releasedNow, serverTime);
+		return new ReservationHoldRelease(reservation.getReservationUid(), reservation.getStatus(), releasedNow,
+			serverTime);
 	}
 }

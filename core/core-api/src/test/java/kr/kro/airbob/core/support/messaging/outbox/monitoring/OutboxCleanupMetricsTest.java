@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-
 import kr.kro.airbob.core.support.messaging.outbox.application.OutboxCleanupResult;
 
 class OutboxCleanupMetricsTest {

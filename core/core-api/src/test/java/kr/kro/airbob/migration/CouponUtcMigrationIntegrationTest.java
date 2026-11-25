@@ -13,30 +13,32 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 class CouponUtcMigrationIntegrationTest {
 
-	@Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4.11");
+	@Container
+	static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4.11");
 
 	@Test
 	void convertsBusinessDatesOnceWhilePreservingAuditInventoryAndOwnership() throws Exception {
 		flyway("29").migrate();
 		try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
-			 var sql = connection.createStatement()) {
+			var sql = connection.createStatement()) {
 			sql.execute("SET time_zone = '+09:00'");
-			sql.executeUpdate("""
-				INSERT INTO coupon (id,name,discount_type,discount_value,is_active,total_quantity,issued_quantity,
-				issue_strategy,issue_start_at,issue_end_at,usable_from,usable_until,stock_prepared_at,created_at,updated_at)
-				VALUES (1,'surrogate','FIXED_AMOUNT',1000,true,2,0,'SKIP_SURROGATE_RR',
-				'2026-10-10 00:30:00.123456','2026-10-10 01:30:00.123456',
-				'2026-10-10 00:30:00.123456','2026-11-10 00:30:00.123456',
-				'2026-10-09 23:30:00.123456','2026-10-09 14:00:00.654321','2026-10-09 14:05:00.654321'),
-				(2,'composite','FIXED_AMOUNT',1000,true,1,0,'SKIP_COMPOSITE_RC',
-				'2026-10-10 00:30:00.123456','2026-10-10 01:30:00.123456',
-				'2026-10-10 00:30:00.123456','2026-11-10 00:30:00.123456',
-				'2026-10-09 23:30:00.123456','2026-10-09 14:00:00.654321','2026-10-09 14:05:00.654321'),
-				(3,'historical','FIXED_AMOUNT',1000,false,NULL,1,'DB',
-				'2026-10-10 00:30:00.123456','2026-10-10 01:30:00.123456',
-				'2026-10-10 00:30:00.123456','2026-11-10 00:30:00.123456',
-				NULL,'2026-10-09 14:00:00.654321','2026-10-09 14:05:00.654321')
-				""");
+			sql.executeUpdate(
+				"""
+					INSERT INTO coupon (id,name,discount_type,discount_value,is_active,total_quantity,issued_quantity,
+					issue_strategy,issue_start_at,issue_end_at,usable_from,usable_until,stock_prepared_at,created_at,updated_at)
+					VALUES (1,'surrogate','FIXED_AMOUNT',1000,true,2,0,'SKIP_SURROGATE_RR',
+					'2026-10-10 00:30:00.123456','2026-10-10 01:30:00.123456',
+					'2026-10-10 00:30:00.123456','2026-11-10 00:30:00.123456',
+					'2026-10-09 23:30:00.123456','2026-10-09 14:00:00.654321','2026-10-09 14:05:00.654321'),
+					(2,'composite','FIXED_AMOUNT',1000,true,1,0,'SKIP_COMPOSITE_RC',
+					'2026-10-10 00:30:00.123456','2026-10-10 01:30:00.123456',
+					'2026-10-10 00:30:00.123456','2026-11-10 00:30:00.123456',
+					'2026-10-09 23:30:00.123456','2026-10-09 14:00:00.654321','2026-10-09 14:05:00.654321'),
+					(3,'historical','FIXED_AMOUNT',1000,false,NULL,1,'DB',
+					'2026-10-10 00:30:00.123456','2026-10-10 01:30:00.123456',
+					'2026-10-10 00:30:00.123456','2026-11-10 00:30:00.123456',
+					NULL,'2026-10-09 14:00:00.654321','2026-10-09 14:05:00.654321')
+					""");
 			sql.executeUpdate("""
 				INSERT INTO member(id,email,nickname,role,status,updated_at)
 				VALUES (1,'utc-1@test.com','member','MEMBER','ACTIVE',UTC_TIMESTAMP(6)),
@@ -61,7 +63,8 @@ class CouponUtcMigrationIntegrationTest {
 					assertThat(rows.getString("issue_end_at")).isEqualTo("2026-10-09 16:30:00.123456");
 					assertThat(rows.getString("usable_from")).isEqualTo("2026-10-09 15:30:00.123456");
 					assertThat(rows.getString("usable_until")).isEqualTo("2026-11-09 15:30:00.123456");
-					assertThat(rows.getString("stock_prepared_at")).isEqualTo(id == 3 ? null : "2026-10-09 14:30:00.123456");
+					assertThat(rows.getString("stock_prepared_at"))
+						.isEqualTo(id == 3 ? null : "2026-10-09 14:30:00.123456");
 					assertThat(rows.getString("created_at")).isEqualTo("2026-10-09 14:00:00.654321");
 					assertThat(rows.getString("updated_at")).isEqualTo("2026-10-09 14:05:00.654321");
 					assertThat(rows.getObject("total_quantity")).isEqualTo(id == 3 ? null : 3 - id);

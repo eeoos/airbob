@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,14 +39,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.retrytopic.RetryTopicHeaders;
+import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
-import org.springframework.kafka.retrytopic.RetryTopicHeaders;
-import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import kr.kro.airbob.core.domain.operatoralert.OperatorAlertEnqueueService;
 import kr.kro.airbob.core.domain.operatoralert.OperatorAlertRequest;
@@ -71,16 +71,11 @@ import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFa
 	"accommodation.indexing.kafka.backoff-ms=100",
 	"accommodation.indexing.kafka.auto-startup=true"
 })
-@EmbeddedKafka(
-	partitions = 1,
-	topics = {
-		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_TOPIC,
-		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_RETRY_TOPIC,
-		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_DLT_TOPIC
-	},
-	bootstrapServersProperty = "spring.kafka.bootstrap-servers",
-	brokerProperties = "auto.create.topics.enable=false"
-)
+@EmbeddedKafka(partitions = 1, topics = {
+	AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_TOPIC,
+	AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_RETRY_TOPIC,
+	AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_DLT_TOPIC
+}, bootstrapServersProperty = "spring.kafka.bootstrap-servers", brokerProperties = "auto.create.topics.enable=false")
 @DisplayName("숙소 검색 refresh Kafka 격리 통합 테스트")
 @ExtendWith(OutputCaptureExtension.class)
 class AccommodationSearchRefreshKafkaIntegrationTest {
@@ -88,20 +83,17 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	static final String INDEXING_TOPIC = "ACCOMMODATION_INDEX.events";
 	static final String INDEXING_RETRY_TOPIC = "ACCOMMODATION_INDEX.events.RETRY";
 	static final String INDEXING_DLT_TOPIC = "ACCOMMODATION_INDEX.events.DLT";
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
 	private static final String RAW_SECRET = "search-poison-secret-019ffe7e";
 	private static final String CUSTOM_SECRET_HEADER = "x-search-provider-secret";
-	private static final String SANITIZED_POISON =
-		SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
+	private static final String SANITIZED_POISON = SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
 	private static final Set<String> SAFE_RETRY_DLT_HEADERS = Set.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
 		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
 		RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
 		KafkaHeaders.ORIGINAL_TOPIC,
 		KafkaHeaders.ORIGINAL_PARTITION,
-		KafkaHeaders.ORIGINAL_OFFSET
-	);
+		KafkaHeaders.ORIGINAL_OFFSET);
 	private static final String MESSAGE = """
 		{
 		  "event_id": "a479d1bb-6cc6-4ad4-864d-01bd8b4dc63a",
@@ -127,8 +119,7 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		KafkaTemplate<String, String> kafkaTemplate,
 		AccommodationIndexingService indexingService,
 		OperatorAlertEnqueueService alertEnqueueService,
-		IntegrationEventCodec eventCodec
-	) {
+		IntegrationEventCodec eventCodec) {
 		this.broker = broker;
 		this.kafkaTemplate = kafkaTemplate;
 		this.indexingService = indexingService;
@@ -293,8 +284,8 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 
 		@Bean("accommodationIndexAliasReadiness")
 		TestAliasReadiness accommodationIndexAliasReadiness(
-			@Value("${accommodation.indexing.kafka.auto-startup:true}") boolean autoStartup
-		) {
+			@Value("${accommodation.indexing.kafka.auto-startup:true}")
+			boolean autoStartup) {
 			return new TestAliasReadiness(autoStartup);
 		}
 	}

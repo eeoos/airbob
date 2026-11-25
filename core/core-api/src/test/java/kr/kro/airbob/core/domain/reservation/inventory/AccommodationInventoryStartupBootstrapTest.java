@@ -20,7 +20,8 @@ import org.springframework.mock.env.MockEnvironment;
 @DisplayName("Accommodation inventory startup bootstrap")
 class AccommodationInventoryStartupBootstrapTest {
 
-	@Mock private ReservationInventorySeeder inventorySeeder;
+	@Mock
+	private ReservationInventorySeeder inventorySeeder;
 
 	@Test
 	@DisplayName("readiness stays DOWN until every published accommodation batch is verified")
@@ -30,8 +31,8 @@ class AccommodationInventoryStartupBootstrapTest {
 			.willReturn(new ReservationInventorySeeder.SeedBatch(2, 19L));
 		given(inventorySeeder.seedNextPublishedBatch(19L, 2))
 			.willReturn(new ReservationInventorySeeder.SeedBatch(1, 23L));
-		AccommodationInventoryStartupBootstrap bootstrap =
-			new AccommodationInventoryStartupBootstrap(inventorySeeder, readiness, 2);
+		AccommodationInventoryStartupBootstrap bootstrap = new AccommodationInventoryStartupBootstrap(inventorySeeder,
+			readiness, 2);
 
 		assertThat(readiness.isReady()).isFalse();
 		assertThat(readiness.health().getStatus()).isEqualTo(Status.DOWN);
@@ -48,8 +49,8 @@ class AccommodationInventoryStartupBootstrapTest {
 		AccommodationInventoryReadiness readiness = readiness(true);
 		given(inventorySeeder.seedNextPublishedBatch(0L, 200))
 			.willThrow(new IllegalArgumentException("invalid inventory timezone"));
-		AccommodationInventoryStartupBootstrap bootstrap =
-			new AccommodationInventoryStartupBootstrap(inventorySeeder, readiness, 200);
+		AccommodationInventoryStartupBootstrap bootstrap = new AccommodationInventoryStartupBootstrap(inventorySeeder,
+			readiness, 200);
 
 		assertThatThrownBy(() -> bootstrap.run(null))
 			.isInstanceOf(IllegalArgumentException.class)
@@ -64,8 +65,7 @@ class AccommodationInventoryStartupBootstrapTest {
 	void disabledBootstrapIsReadyOnlyForExplicitBypassProfiles(String profile) {
 		MockEnvironment environment = new MockEnvironment();
 		environment.setActiveProfiles(profile);
-		AccommodationInventoryReadiness readiness =
-			new AccommodationInventoryReadiness(false, environment);
+		AccommodationInventoryReadiness readiness = new AccommodationInventoryReadiness(false, environment);
 
 		assertThat(readiness.isReady()).isTrue();
 		assertThat(readiness.health().getStatus()).isEqualTo(Status.UP);
@@ -75,8 +75,7 @@ class AccommodationInventoryStartupBootstrapTest {
 	@Test
 	@DisplayName("property false만으로는 readiness를 열 수 없다")
 	void disabledBootstrapWithoutBypassProfileStaysDown() {
-		AccommodationInventoryReadiness readiness =
-			new AccommodationInventoryReadiness(false, new MockEnvironment());
+		AccommodationInventoryReadiness readiness = new AccommodationInventoryReadiness(false, new MockEnvironment());
 
 		assertThat(readiness.isReady()).isFalse();
 		assertThat(readiness.health().getStatus()).isEqualTo(Status.DOWN);

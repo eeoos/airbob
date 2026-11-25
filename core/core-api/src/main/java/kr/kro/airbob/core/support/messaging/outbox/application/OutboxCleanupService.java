@@ -16,8 +16,7 @@ public class OutboxCleanupService {
 		OutboxCleanupBatchDeleter batchDeleter,
 		Duration retention,
 		int batchSize,
-		Clock clock
-	) {
+		Clock clock) {
 		this.batchDeleter = Objects.requireNonNull(batchDeleter, "batchDeleter must not be null");
 		this.retention = Objects.requireNonNull(retention, "retention must not be null");
 		if (batchSize <= 0) {

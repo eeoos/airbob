@@ -74,8 +74,7 @@ public class PaymentOperationResolution {
 		String evidenceReference,
 		PaymentOperationStatus previousStatus,
 		PaymentOperationStatus resultStatus,
-		Instant createdAt
-	) {
+		Instant createdAt) {
 		this.paymentOperation = Objects.requireNonNull(paymentOperation, "paymentOperation must not be null");
 		this.dispatchGeneration = paymentOperation.getDispatchGeneration();
 		if (dispatchGeneration <= 0) {
@@ -99,8 +98,7 @@ public class PaymentOperationResolution {
 		String evidenceReference,
 		PaymentOperationStatus previousStatus,
 		PaymentOperationStatus resultStatus,
-		Instant createdAt
-	) {
+		Instant createdAt) {
 		return new PaymentOperationResolution(
 			paymentOperation,
 			null,
@@ -110,8 +108,7 @@ public class PaymentOperationResolution {
 			evidenceReference,
 			previousStatus,
 			resultStatus,
-			createdAt
-		);
+			createdAt);
 	}
 
 	public static PaymentOperationResolution recordAdmin(
@@ -122,8 +119,7 @@ public class PaymentOperationResolution {
 		String evidenceReference,
 		PaymentOperationStatus previousStatus,
 		PaymentOperationStatus resultStatus,
-		Instant createdAt
-	) {
+		Instant createdAt) {
 		return new PaymentOperationResolution(
 			paymentOperation,
 			actorMemberId,
@@ -133,8 +129,7 @@ public class PaymentOperationResolution {
 			evidenceReference,
 			previousStatus,
 			resultStatus,
-			createdAt
-		);
+			createdAt);
 	}
 
 	private void validateActor() {

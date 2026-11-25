@@ -16,8 +16,7 @@ public class OutboxHealthRefreshScheduler {
 	public OutboxHealthRefreshScheduler(
 		OutboxHealthSnapshotRepository repository,
 		OutboxHealthMetrics metrics,
-		Clock clock
-	) {
+		Clock clock) {
 		this.repository = repository;
 		this.metrics = metrics;
 		this.clock = clock;

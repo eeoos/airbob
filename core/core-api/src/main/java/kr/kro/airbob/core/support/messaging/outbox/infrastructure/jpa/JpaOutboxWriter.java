@@ -26,8 +26,7 @@ public class JpaOutboxWriter implements OutboxWriter {
 	public JpaOutboxWriter(
 		OutboxMessageRepository repository,
 		IntegrationEventCodec codec,
-		Clock clock
-	) {
+		Clock clock) {
 		this.repository = repository;
 		this.codec = codec;
 		this.clock = clock;
@@ -55,8 +54,7 @@ public class JpaOutboxWriter implements OutboxWriter {
 			descriptor.eventVersion(),
 			payload,
 			occurredAt,
-			nullIfBlank(event.deduplicationKey())
-		));
+			nullIfBlank(event.deduplicationKey())));
 	}
 
 	private String requireText(String value, String fieldName) {

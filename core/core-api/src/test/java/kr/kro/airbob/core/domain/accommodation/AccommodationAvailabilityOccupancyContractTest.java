@@ -33,13 +33,20 @@ class AccommodationAvailabilityOccupancyContractTest {
 	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 25);
 	private static final LocalDate WINDOW_END_EXCLUSIVE = WINDOW_START.plusMonths(3);
 
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
-	@Mock private BookingWindowProvider bookingWindowProvider;
-	@Mock private AccommodationDetailReader accommodationDetailReader;
-	@Mock private AccommodationDetailCache accommodationDetailCache;
-	@Mock private Clock clock;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private CursorPageInfoCreator cursorPageInfoCreator;
+	@Mock
+	private BookingWindowProvider bookingWindowProvider;
+	@Mock
+	private AccommodationDetailReader accommodationDetailReader;
+	@Mock
+	private AccommodationDetailCache accommodationDetailCache;
+	@Mock
+	private Clock clock;
 
 	private AccommodationQueryService service;
 
@@ -56,8 +63,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 		long accommodationId = 42L;
 		when(accommodationRepository.findBookingProjectionByIdAndStatus(
 			accommodationId,
-			AccommodationStatus.PUBLISHED
-		)).thenReturn(Optional.of(new AccommodationBookingProjection("Asia/Seoul")));
+			AccommodationStatus.PUBLISHED)).thenReturn(Optional.of(new AccommodationBookingProjection("Asia/Seoul")));
 		when(bookingWindowProvider.currentFor("Asia/Seoul"))
 			.thenReturn(new BookingWindow(WINDOW_START, WINDOW_END_EXCLUSIVE));
 		when(clock.instant()).thenReturn(QUERIED_AT);
@@ -68,7 +74,6 @@ class AccommodationAvailabilityOccupancyContractTest {
 			accommodationId,
 			WINDOW_START,
 			WINDOW_END_EXCLUSIVE,
-			QUERIED_AT
-		);
+			QUERIED_AT);
 	}
 }

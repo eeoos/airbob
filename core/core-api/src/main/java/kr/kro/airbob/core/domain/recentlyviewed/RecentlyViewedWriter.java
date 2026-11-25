@@ -34,7 +34,8 @@ public class RecentlyViewedWriter {
 		long timestamp = System.currentTimeMillis();
 		// 기록·개수 제한·만료 갱신 사이에 다른 요청이 끼어 과도하게 삭제되지 않도록 함께 실행한다.
 		redisTemplate.execute(ADD_HISTORY, List.of(RecentlyViewedKeys.of(memberId)), accommodationId.toString(),
-			Long.toString(timestamp), Integer.toString(MAX_COUNT), Long.toString(Duration.ofDays(TTL_DAYS).toSeconds()));
+			Long.toString(timestamp), Integer.toString(MAX_COUNT),
+			Long.toString(Duration.ofDays(TTL_DAYS).toSeconds()));
 	}
 
 	public void remove(Long accommodationId, Long memberId) {

@@ -12,22 +12,22 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AccommodationController implements AccommodationApi {
 
-    private final AccommodationQueryService accommodationQueryService;
+	private final AccommodationQueryService accommodationQueryService;
 
-    @Override
-    public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getAccommodation(
-        Long accommodationId,
-        Long viewerId) {
-        AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(
-            accommodationQueryService.findAccommodation(accommodationId, viewerId));
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
+	@Override
+	public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getAccommodation(
+		Long accommodationId,
+		Long viewerId) {
+		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(
+			accommodationQueryService.findAccommodation(accommodationId, viewerId));
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<AccommodationResponse.Availability>> getAccommodationAvailability(
-        Long accommodationId) {
-        AccommodationResponse.Availability response = AccommodationResponse.Availability.from(
-            accommodationQueryService.findAccommodationAvailability(accommodationId));
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
+	@Override
+	public ResponseEntity<ApiResponse<AccommodationResponse.Availability>> getAccommodationAvailability(
+		Long accommodationId) {
+		AccommodationResponse.Availability response = AccommodationResponse.Availability.from(
+			accommodationQueryService.findAccommodationAvailability(accommodationId));
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
 }

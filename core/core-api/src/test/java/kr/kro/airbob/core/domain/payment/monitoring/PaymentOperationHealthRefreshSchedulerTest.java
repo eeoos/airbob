@@ -24,8 +24,10 @@ class PaymentOperationHealthRefreshSchedulerTest {
 	private static final Instant NOW = Instant.parse("2026-08-17T00:00:00Z");
 	private static final Duration STALE_AFTER = Duration.ofSeconds(30);
 
-	@Mock private PaymentOperationHealthSnapshotRepository repository;
-	@Mock private PaymentOperationHealthMetrics metrics;
+	@Mock
+	private PaymentOperationHealthSnapshotRepository repository;
+	@Mock
+	private PaymentOperationHealthMetrics metrics;
 
 	@Test
 	void refreshesOneReadOnlyAggregateSnapshot() {
@@ -68,7 +70,6 @@ class PaymentOperationHealthRefreshSchedulerTest {
 			repository,
 			metrics,
 			Clock.fixed(NOW, ZoneOffset.UTC),
-			STALE_AFTER
-		);
+			STALE_AFTER);
 	}
 }

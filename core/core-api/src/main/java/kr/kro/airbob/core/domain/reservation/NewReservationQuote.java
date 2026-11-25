@@ -8,6 +8,5 @@ public record NewReservationQuote(
 	LocalDate checkInDate,
 	LocalDate checkOutDate,
 	Integer guestCount,
-	Long couponId
-) {
+	Long couponId) {
 }

@@ -9,8 +9,7 @@ public interface ReservationCheckoutRequestStore {
 	ReservationCheckoutRequestClaim lockOrCreate(
 		long memberId,
 		ReservationCheckoutIdentity identity,
-		Instant createdAt
-	);
+		Instant createdAt);
 
 	void complete(long checkoutRequestId, long reservationId, Instant completedAt);
 }

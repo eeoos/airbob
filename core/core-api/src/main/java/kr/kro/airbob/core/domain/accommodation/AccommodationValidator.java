@@ -72,8 +72,7 @@ public class AccommodationValidator {
 			.collect(Collectors.toMap(
 				Map.Entry::getKey,
 				Map.Entry::getValue,
-				this::sumAmenityCounts
-			));
+				this::sumAmenityCounts));
 
 		boolean hasInvalidCode = amenityCountMap.keySet().stream()
 			.anyMatch(code -> !commonCodeReader.isValidCode(CommonCodeGroups.AMENITY_TYPE, code));
@@ -88,8 +87,7 @@ public class AccommodationValidator {
 	public void validateTemporalSettingsChange(
 		Accommodation accommodation,
 		AccommodationPatch patch,
-		ResolvedLocation resolvedLocation
-	) {
+		ResolvedLocation resolvedLocation) {
 		LocalTime nextCheckInTime = patch.checkInTime() != null
 			? patch.checkInTime() : accommodation.getCheckInTime();
 		LocalTime nextCheckOutTime = patch.checkOutTime() != null
@@ -104,8 +102,7 @@ public class AccommodationValidator {
 			&& reservationReader.existsFutureInventoryReservation(
 				accommodation.getId(), clock.instant())) {
 			throw new InvalidInputException(
-				"미래 유효 예약이 있는 숙소의 체크인 시간, 체크아웃 시간, 시간대는 변경할 수 없습니다."
-			);
+				"미래 유효 예약이 있는 숙소의 체크인 시간, 체크아웃 시간, 시간대는 변경할 수 없습니다.");
 		}
 	}
 
@@ -149,27 +146,23 @@ public class AccommodationValidator {
 			|| policy.getInfantOccupancy() == null
 			|| policy.getPetOccupancy() == null) {
 			throw new PublishingFieldRequiredException(
-				"occupancyPolicyInfo", "수용 인원 정책(세부 항목 포함)이 누락되었습니다."
-			);
+				"occupancyPolicyInfo", "수용 인원 정책(세부 항목 포함)이 누락되었습니다.");
 		}
 
 		if (accommodation.getCheckInTime() == null || accommodation.getCheckOutTime() == null) {
 			throw new PublishingFieldRequiredException(
-				"checkInTime/checkOutTime", "체크인/체크아웃 시간은 필수입니다."
-			);
+				"checkInTime/checkOutTime", "체크인/체크아웃 시간은 필수입니다.");
 		}
 		if (accommodation.getCheckOutTime().isAfter(accommodation.getCheckInTime())) {
 			throw new PublishingFieldRequiredException(
-				"checkInTime/checkOutTime", "체크아웃 시간은 체크인 시간보다 늦을 수 없습니다."
-			);
+				"checkInTime/checkOutTime", "체크아웃 시간은 체크인 시간보다 늦을 수 없습니다.");
 		}
 
 		long imageCount = accommodationImageRepository.countByAccommodationId(accommodation.getId());
 		int minImageCount = 1;
 		if (imageCount < minImageCount) {
 			throw new InsufficientImageCountException(
-				"이미지는 최소 " + minImageCount + "개 이상 등록해야 게시할 수 있습니다. 현재: " + imageCount + "개"
-			);
+				"이미지는 최소 " + minImageCount + "개 이상 등록해야 게시할 수 있습니다. 현재: " + imageCount + "개");
 		}
 	}
 

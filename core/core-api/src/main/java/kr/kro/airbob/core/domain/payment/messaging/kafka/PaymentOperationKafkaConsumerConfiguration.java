@@ -10,14 +10,11 @@ import kr.kro.airbob.core.support.messaging.kafka.IntegrationEventKafkaListenerC
 @Configuration(proxyBeanMethods = false)
 public class PaymentOperationKafkaConsumerConfiguration {
 
-	public static final String CONTAINER_FACTORY =
-		"paymentOperationKafkaListenerContainerFactory";
+	public static final String CONTAINER_FACTORY = "paymentOperationKafkaListenerContainerFactory";
 
 	@Bean(name = CONTAINER_FACTORY)
-	public ConcurrentKafkaListenerContainerFactory<Object, Object>
-		paymentOperationKafkaListenerContainerFactory(
-			IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder
-		) {
+	public ConcurrentKafkaListenerContainerFactory<Object, Object> paymentOperationKafkaListenerContainerFactory(
+		IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder) {
 		return factoryBuilder.build(PaymentOperationExecutionRequestedV1.TOPIC);
 	}
 }

@@ -8,8 +8,7 @@ public record GuestReservationDetail(
 	ReservationStatus status,
 	boolean paymentAllowed,
 	boolean canWriteReview,
-	Instant serverTime
-) {
+	Instant serverTime) {
 
 	public static GuestReservationDetail of(
 		GuestReservationDetailProjection detail, boolean canWriteReview, Instant serverTime) {

@@ -6,8 +6,7 @@ import lombok.Builder;
 public record GeocodeResult(
 	Double latitude,
 	Double longitude,
-	boolean success
-) {
+	boolean success) {
 	public static GeocodeResult success(double lat, double lng) {
 		return GeocodeResult.builder()
 			.latitude(lat)

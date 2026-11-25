@@ -3,8 +3,6 @@ package kr.kro.airbob.core.domain.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -20,16 +18,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.orm.jpa.EntityManagerHolder;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -38,6 +36,8 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
@@ -59,25 +59,37 @@ class MemberRoleManagementIntegrationTest {
 	private static final long TIMEOUT_SECONDS = 10;
 	private static final String EXISTING_SESSION_ID = "member-role-management-existing-session";
 
-	@Autowired private MemberAdminService memberAdminService;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private MemberHistoryRepository memberHistoryRepository;
-	@Autowired private SessionRedisRepository sessionRedisRepository;
-	@Autowired private AdminAuthInterceptor adminAuthInterceptor;
-	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private MemberAdminService memberAdminService;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private MemberHistoryRepository memberHistoryRepository;
+	@Autowired
+	private SessionRedisRepository sessionRedisRepository;
+	@Autowired
+	private AdminAuthInterceptor adminAuthInterceptor;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -122,8 +134,7 @@ class MemberRoleManagementIntegrationTest {
 					assertThat(history.getRole()).isEqualTo(MemberRole.ADMIN);
 					assertThat(history.getChangeReason()).isEqualTo("운영 관리자 지정");
 					assertThat(history.getHistoryCreatedBy()).isEqualTo(actor.getId());
-				}
-			);
+				});
 	}
 
 	@Test
@@ -235,8 +246,7 @@ class MemberRoleManagementIntegrationTest {
 		CountDownLatch ready,
 		CountDownLatch start,
 		Long actorId,
-		Long targetId
-	) {
+		Long targetId) {
 		try {
 			return new TransactionTemplate(transactionManager).execute(status -> {
 				try {
@@ -265,8 +275,7 @@ class MemberRoleManagementIntegrationTest {
 		Long targetId,
 		CountDownLatch bothActorsPreloaded,
 		CountDownLatch waitFor,
-		CountDownLatch signalAfterCompletion
-	) {
+		CountDownLatch signalAfterCompletion) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
 		TransactionSynchronizationManager.bindResource(
 			entityManagerFactory, new EntityManagerHolder(entityManager));

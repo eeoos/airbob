@@ -59,8 +59,7 @@ public class JdbcPaymentOperationHealthSnapshotRepository
 	@Transactional(readOnly = true)
 	public PaymentOperationHealthSnapshot readSnapshot(
 		Instant observedAt,
-		Duration staleQueuedAfter
-	) {
+		Duration staleQueuedAfter) {
 		Objects.requireNonNull(observedAt, "observedAt must not be null");
 		Objects.requireNonNull(staleQueuedAfter, "staleQueuedAfter must not be null");
 		if (staleQueuedAfter.isZero() || staleQueuedAfter.isNegative()) {
@@ -77,15 +76,13 @@ public class JdbcPaymentOperationHealthSnapshotRepository
 				optionalInstant(resultSet.getTimestamp("oldest_reconciliation_pending_at")),
 				resultSet.getLong("stale_queued_count"),
 				optionalInstant(resultSet.getTimestamp("oldest_stale_queued_at")),
-				resultSet.getLong("expired_executing_lease_count")
-			),
+				resultSet.getLong("expired_executing_lease_count")),
 			staleCutoff,
 			staleCutoff,
-			Timestamp.from(observedAt)
-		);
+			Timestamp.from(observedAt));
 
-		Map<PaymentOperationResolutionAction, Long> resolutionCounts =
-			new EnumMap<>(PaymentOperationResolutionAction.class);
+		Map<PaymentOperationResolutionAction, Long> resolutionCounts = new EnumMap<>(
+			PaymentOperationResolutionAction.class);
 		jdbcTemplate.query(RESOLUTION_COUNTS_SQL, resultSet -> {
 			PaymentOperationResolutionAction action = parseResolutionAction(
 				resultSet.getString("resolution_action"));
@@ -101,8 +98,7 @@ public class JdbcPaymentOperationHealthSnapshotRepository
 			backlogs.staleQueuedCount(),
 			backlogs.oldestStaleQueuedAt(),
 			backlogs.expiredExecutingLeaseCount(),
-			resolutionCounts
-		);
+			resolutionCounts);
 	}
 
 	private static PaymentOperationResolutionAction parseResolutionAction(String value) {
@@ -124,7 +120,6 @@ public class JdbcPaymentOperationHealthSnapshotRepository
 		Optional<Instant> oldestReconciliationPendingAt,
 		long staleQueuedCount,
 		Optional<Instant> oldestStaleQueuedAt,
-		long expiredExecutingLeaseCount
-	) {
+		long expiredExecutingLeaseCount) {
 	}
 }

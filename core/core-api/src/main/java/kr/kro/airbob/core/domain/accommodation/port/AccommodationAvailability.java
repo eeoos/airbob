@@ -7,12 +7,10 @@ import java.util.List;
 public record AccommodationAvailability(
 	LocalDate startInclusive,
 	LocalDate endExclusive,
-	List<DateRange> unavailableRanges
-) {
+	List<DateRange> unavailableRanges) {
 
 	public record DateRange(
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 	}
 }

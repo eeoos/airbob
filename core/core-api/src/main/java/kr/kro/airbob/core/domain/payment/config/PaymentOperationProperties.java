@@ -12,8 +12,7 @@ public record PaymentOperationProperties(
 	int batchSize,
 	int maxAttempts,
 	Duration retryInitialDelay,
-	Duration retryMaxDelay
-) {
+	Duration retryMaxDelay) {
 	public PaymentOperationProperties {
 		requirePositive(leaseDuration, "leaseDuration");
 		requirePositive(schedulerDelay, "schedulerDelay");

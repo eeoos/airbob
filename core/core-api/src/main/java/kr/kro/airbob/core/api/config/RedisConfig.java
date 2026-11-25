@@ -15,33 +15,33 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class RedisConfig {
 
-    @Value("${spring.data.redis.host}")
-    private String redisHost;
+	@Value("${spring.data.redis.host}")
+	private String redisHost;
 
-    @Value("${spring.data.redis.port}")
-    private int redisPort;
+	@Value("${spring.data.redis.port}")
+	private int redisPort;
 
-    @Bean
-    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
-        template.setConnectionFactory(factory);
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(new GenericJackson2JsonRedisSerializer());
-        return template;
-    }
+	@Bean
+	public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
+		RedisTemplate<String, Object> template = new RedisTemplate<>();
+		template.setConnectionFactory(factory);
+		template.setKeySerializer(new StringRedisSerializer());
+		template.setValueSerializer(new GenericJackson2JsonRedisSerializer());
+		return template;
+	}
 
-    @Bean
-    @Primary
-    public RedissonClient redissonClient() {
-        return Redisson.create(redissonConfig());
-    }
+	@Bean
+	@Primary
+	public RedissonClient redissonClient() {
+		return Redisson.create(redissonConfig());
+	}
 
-    Config redissonConfig() {
-        Config config = new Config();
-        config.setUseScriptCache(true);
-        String redisAddress = "redis://" + redisHost + ":" + redisPort;
-        config.useSingleServer()
-            .setAddress(redisAddress);
-        return config;
-    }
+	Config redissonConfig() {
+		Config config = new Config();
+		config.setUseScriptCache(true);
+		String redisAddress = "redis://" + redisHost + ":" + redisPort;
+		config.useSingleServer()
+			.setAddress(redisAddress);
+		return config;
+	}
 }

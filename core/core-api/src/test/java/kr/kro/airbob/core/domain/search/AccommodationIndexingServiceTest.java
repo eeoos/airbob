@@ -22,11 +22,12 @@ import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository
 @DisplayName("숙소 색인 서비스 테스트")
 class AccommodationIndexingServiceTest {
 
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
 
-	@Mock private AccommodationSearchRepository searchRepository;
-	@Mock private AccommodationSearchSnapshotReader snapshotReader;
+	@Mock
+	private AccommodationSearchRepository searchRepository;
+	@Mock
+	private AccommodationSearchSnapshotReader snapshotReader;
 
 	@Test
 	@DisplayName("DB 최신 스냅샷이 공개일 때 문서 전체를 덮어쓴다")
@@ -37,8 +38,8 @@ class AccommodationIndexingServiceTest {
 			.build();
 		given(snapshotReader.readPublished(ACCOMMODATION_UID))
 			.willReturn(Optional.of(document));
-		AccommodationIndexingService service =
-			new AccommodationIndexingService(new AccommodationDocumentWriter(searchRepository), snapshotReader);
+		AccommodationIndexingService service = new AccommodationIndexingService(
+			new AccommodationDocumentWriter(searchRepository), snapshotReader);
 
 		service.refreshAccommodationIndex(ACCOMMODATION_UID);
 
@@ -51,8 +52,8 @@ class AccommodationIndexingServiceTest {
 	void deletesWhenCurrentSnapshotIsNotSearchable() {
 		given(snapshotReader.readPublished(ACCOMMODATION_UID))
 			.willReturn(Optional.empty());
-		AccommodationIndexingService service =
-			new AccommodationIndexingService(new AccommodationDocumentWriter(searchRepository), snapshotReader);
+		AccommodationIndexingService service = new AccommodationIndexingService(
+			new AccommodationDocumentWriter(searchRepository), snapshotReader);
 
 		service.refreshAccommodationIndex(ACCOMMODATION_UID);
 
@@ -73,8 +74,8 @@ class AccommodationIndexingServiceTest {
 			assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
 			return document;
 		});
-		AccommodationIndexingService service =
-			new AccommodationIndexingService(new AccommodationDocumentWriter(searchRepository), snapshotReader);
+		AccommodationIndexingService service = new AccommodationIndexingService(
+			new AccommodationDocumentWriter(searchRepository), snapshotReader);
 
 		service.refreshAccommodationIndex(ACCOMMODATION_UID);
 

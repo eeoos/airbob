@@ -40,7 +40,8 @@ import kr.kro.airbob.core.support.context.UserInfo;
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationControllerTest {
 
-	@Mock private PaymentOperationQueryService queryService;
+	@Mock
+	private PaymentOperationQueryService queryService;
 
 	private MockMvc mockMvc;
 

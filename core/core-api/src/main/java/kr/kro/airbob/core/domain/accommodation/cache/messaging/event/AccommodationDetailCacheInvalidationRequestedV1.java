@@ -9,16 +9,14 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventDestination;
 
 public record AccommodationDetailCacheInvalidationRequestedV1(
 	Long accommodationId,
-	AccommodationDetailCacheInvalidationReason reason
-) implements IntegrationEvent {
+	AccommodationDetailCacheInvalidationReason reason) implements IntegrationEvent {
 
 	public static final String TOPIC = IntegrationEventDestination.Topic.ACCOMMODATION_CACHE;
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
 		IntegrationEventDestination.ACCOMMODATION_CACHE,
 		"ACCOMMODATION",
 		"ACCOMMODATION_DETAIL_CACHE_INVALIDATION_REQUESTED",
-		"1"
-	);
+		"1");
 
 	public AccommodationDetailCacheInvalidationRequestedV1 {
 		if (accommodationId == null || accommodationId <= 0) {

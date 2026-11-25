@@ -132,8 +132,7 @@ public class ReviewService {
 			reviewSlice.hasNext(),
 			ReviewItem::id,
 			ReviewItem::reviewedAt,
-			ReviewItem::rating
-		);
+			ReviewItem::rating);
 
 		return new ReviewPage(reviews, pageInfo);
 	}

@@ -78,7 +78,6 @@ class AccommodationDetailCacheValueJsonTest {
 				new AccommodationDetailSnapshot.Policy(4, 1, 0),
 				List.of(new AccommodationDetailSnapshot.Amenity("WIFI", 1)),
 				List.of(new StoredImage(3L, "https://image.test/3")),
-				new AccommodationDetailSnapshot.ReviewSummary(8, new BigDecimal("4.75"))
-			));
+				new AccommodationDetailSnapshot.ReviewSummary(8, new BigDecimal("4.75"))));
 	}
 }

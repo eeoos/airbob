@@ -12,8 +12,7 @@ public class OutboxCleanupScheduler {
 
 	public OutboxCleanupScheduler(
 		OutboxCleanupService service,
-		OutboxCleanupMetrics metrics
-	) {
+		OutboxCleanupMetrics metrics) {
 		this.service = service;
 		this.metrics = metrics;
 	}

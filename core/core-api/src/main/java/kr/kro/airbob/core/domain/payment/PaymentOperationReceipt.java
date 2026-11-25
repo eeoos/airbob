@@ -9,8 +9,7 @@ import java.util.UUID;
 public record PaymentOperationReceipt(
 	UUID operationUid,
 	PaymentOperationStatus status,
-	boolean completedSynchronously
-) {
+	boolean completedSynchronously) {
 
 	public static PaymentOperationReceipt accepted(PaymentOperation operation) {
 		return new PaymentOperationReceipt(operation.getOperationUid(), operation.getStatus(), false);

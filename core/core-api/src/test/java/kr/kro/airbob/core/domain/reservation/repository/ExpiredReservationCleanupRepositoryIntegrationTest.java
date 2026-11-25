@@ -70,8 +70,10 @@ class ExpiredReservationCleanupRepositoryIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private CleanupQueryTransaction cleanupQuery;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private CleanupQueryTransaction cleanupQuery;
 
 	private long oldestExpiredId;
 	private long middleExpiredId;
@@ -114,14 +116,12 @@ class ExpiredReservationCleanupRepositoryIntegrationTest {
 			CompletableFuture<List<Long>> first = CompletableFuture.supplyAsync(
 				() -> cleanupQuery.findIdsAndHold(
 					NOW, 1, firstBatchLocked, releaseFirstTransaction),
-				executor
-			);
+				executor);
 			assertThat(firstBatchLocked.await(5, TimeUnit.SECONDS)).isTrue();
 
 			List<Long> secondBatch = CompletableFuture.supplyAsync(
 				() -> cleanupQuery.findIds(NOW, 10),
-				executor
-			).get(2, TimeUnit.SECONDS);
+				executor).get(2, TimeUnit.SECONDS);
 
 			releaseFirstTransaction.countDown();
 			List<Long> firstBatch = first.get(5, TimeUnit.SECONDS);
@@ -160,8 +160,7 @@ class ExpiredReservationCleanupRepositoryIntegrationTest {
 		long memberId,
 		String status,
 		Instant expiresAt,
-		int sequence
-	) {
+		int sequence) {
 		LocalDate checkIn = LocalDate.of(2026, 9, 1).plusDays(sequence);
 		LocalDate checkOut = checkIn.plusDays(1);
 		UUID reservationUid = UUID.nameUUIDFromBytes(
@@ -226,8 +225,7 @@ class ExpiredReservationCleanupRepositoryIntegrationTest {
 			Instant cutoff,
 			int batchSize,
 			CountDownLatch locked,
-			CountDownLatch release
-		) {
+			CountDownLatch release) {
 			List<Long> ids = repository.findExpiredPendingBatchForCleanup(cutoff, batchSize).stream()
 				.map(reservation -> reservation.getId())
 				.toList();

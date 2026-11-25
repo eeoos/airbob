@@ -19,9 +19,9 @@ public class AccommodationInventoryReadiness implements HealthIndicator {
 	private final AtomicBoolean ready;
 
 	public AccommodationInventoryReadiness(
-		@Value("${reservation.inventory.startup.enabled:true}") boolean bootstrapRequired,
-		Environment environment
-	) {
+		@Value("${reservation.inventory.startup.enabled:true}")
+		boolean bootstrapRequired,
+		Environment environment) {
 		this.bootstrapRequired = bootstrapRequired;
 		boolean explicitIsolatedBypass = !bootstrapRequired
 			&& environment.acceptsProfiles(Profiles.of("test"));

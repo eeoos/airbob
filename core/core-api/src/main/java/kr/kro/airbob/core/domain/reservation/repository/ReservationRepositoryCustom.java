@@ -14,7 +14,6 @@ import kr.kro.airbob.core.domain.reservation.GuestReservationDetailProjection;
 import kr.kro.airbob.core.domain.reservation.GuestReservationListProjection;
 import kr.kro.airbob.core.domain.reservation.HostReservationDetailProjection;
 import kr.kro.airbob.core.domain.reservation.HostReservationListProjection;
-import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.core.domain.reservation.ReservationDateRange;
 import kr.kro.airbob.core.domain.reservation.ReservationFilterType;
 
@@ -28,8 +27,7 @@ public interface ReservationRepositoryCustom {
 	List<ReservationDateRange> findActiveReservationRangesByAccommodationId(
 		Long accommodationId,
 		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive
-	);
+		LocalDate windowEndExclusive);
 
 	Slice<GuestReservationListProjection> findMyReservationsByGuestIdWithCursor(
 		Long guestId,
@@ -37,8 +35,7 @@ public interface ReservationRepositoryCustom {
 		LocalDateTime lastCreatedAt,
 		ReservationFilterType filterType,
 		Instant now,
-		Pageable pageable
-	);
+		Pageable pageable);
 
 	Slice<HostReservationListProjection> findHostReservationsByHostIdWithCursor(
 		Long hostId,
@@ -46,8 +43,7 @@ public interface ReservationRepositoryCustom {
 		LocalDateTime lastCreatedAt,
 		ReservationFilterType filterType,
 		Instant now,
-		Pageable pageable
-	);
+		Pageable pageable);
 
 	Optional<GuestReservationDetailProjection> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
 

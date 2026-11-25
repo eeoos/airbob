@@ -43,8 +43,7 @@ public final class PaymentConfirmationFailureClassifier {
 		"INVALID_PASSWORD",
 		"FDS_ERROR",
 		"NOT_FOUND_PAYMENT",
-		"NOT_FOUND_PAYMENT_SESSION"
-	);
+		"NOT_FOUND_PAYMENT_SESSION");
 
 	public PaymentGatewayResult classify(String code, String ignoredProviderMessage) {
 		String normalizedCode = code == null || code.isBlank() ? UNKNOWN_ERROR : code;

@@ -31,7 +31,6 @@ import kr.kro.airbob.core.domain.reservation.QGuestReservationDetailProjection;
 import kr.kro.airbob.core.domain.reservation.QGuestReservationListProjection;
 import kr.kro.airbob.core.domain.reservation.QHostReservationDetailProjection;
 import kr.kro.airbob.core.domain.reservation.QReservationDateRange;
-import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.core.domain.reservation.ReservationDateRange;
 import kr.kro.airbob.core.domain.reservation.ReservationFilterType;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
@@ -41,8 +40,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 
-	private static final List<ReservationStatus> ACTIVE_RESERVATION_STATUSES =
-		List.of(CONFIRMED, CANCELLATION_PENDING, CANCELLATION_FAILED);
+	private static final List<ReservationStatus> ACTIVE_RESERVATION_STATUSES = List.of(CONFIRMED, CANCELLATION_PENDING,
+		CANCELLATION_FAILED);
 
 	private final JPAQueryFactory queryFactory;
 	private final EntityManager entityManager;
@@ -57,8 +56,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
 				reservation.checkOutAt.gt(now),
-				inventoryOccupyingReservationStatus(now)
-			)
+				inventoryOccupyingReservationStatus(now))
 			.fetchFirst();
 
 		return fetchFirst != null;
@@ -72,8 +70,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
 				reservation.guest.id.eq(memberId),
-				reviewableReservationStatus()
-			)
+				reviewableReservationStatus())
 			.fetchFirst();
 		return fetchFirst != null;
 	}
@@ -87,8 +84,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 				reservation.accommodation.id.eq(accommodationId),
 				reservation.guest.id.eq(memberId),
 				reviewableReservationStatus(),
-				reservation.checkOutAt.loe(now)
-			)
+				reservation.checkOutAt.loe(now))
 			.fetchFirst();
 		return fetchFirst != null;
 	}
@@ -97,34 +93,29 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	public List<ReservationDateRange> findActiveReservationRangesByAccommodationId(
 		Long accommodationId,
 		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive
-	) {
+		LocalDate windowEndExclusive) {
 		return findReservationRanges(
 			reservation.accommodation.id.eq(accommodationId),
 			activeReservationStatus(),
 			windowStartInclusive,
-			windowEndExclusive
-		);
+			windowEndExclusive);
 	}
 
 	private List<ReservationDateRange> findReservationRanges(
 		BooleanExpression accommodationCondition,
 		BooleanExpression statusCondition,
 		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive
-	) {
+		LocalDate windowEndExclusive) {
 		return queryFactory
 			.select(new QReservationDateRange(
 				reservation.checkInDate,
-				reservation.checkOutDate
-			))
+				reservation.checkOutDate))
 			.from(reservation)
 			.where(
 				accommodationCondition,
 				statusCondition,
 				reservation.checkInDate.lt(windowEndExclusive),
-				reservation.checkOutDate.gt(windowStartInclusive)
-			)
+				reservation.checkOutDate.gt(windowStartInclusive))
 			.fetch();
 	}
 
@@ -136,15 +127,13 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.select(new QGuestReservationListProjection(
 				reservation.id, reservation.reservationUid, reservation.checkInDate, reservation.checkOutDate,
 				reservation.timeZoneId, reservation.status, reservation.expiresAt, reservation.createdAt,
-				accommodation.id, accommodation.name, accommodation.thumbnailUrl
-			))
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl))
 			.from(reservation)
 			.leftJoin(reservation.accommodation, accommodation)
 			.where(
 				reservation.guest.id.eq(guestId),
 				buildGuestReservationFilter(filterType, now),
-				cursorCondition(lastId, lastCreatedAt)
-			)
+				cursorCondition(lastId, lastCreatedAt))
 			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
 			.limit(pageable.getPageSize() + 1)
 			.fetch();
@@ -168,7 +157,8 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Optional<GuestReservationDetailProjection> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId) {
+	public Optional<GuestReservationDetailProjection> findReservationDetailByUidAndGuestId(UUID reservationUid,
+		Long guestId) {
 
 		GuestReservationDetailProjection result = queryFactory
 			.select(new QGuestReservationDetailProjection(
@@ -179,8 +169,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 				address.country, address.state, address.city, address.district, address.street, address.detail,
 				address.postalCode, address.latitude, address.longitude,
 				member.id, member.nickname, member.thumbnailImageUrl,
-				payment.id, payment.method, payment.amount, payment.status, payment.approvedAt
-			))
+				payment.id, payment.method, payment.amount, payment.status, payment.approvedAt))
 			.from(reservation)
 			.leftJoin(reservation.accommodation, accommodation)
 			.leftJoin(accommodation.address, address)
@@ -188,8 +177,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.leftJoin(payment).on(payment.reservation.id.eq(reservation.id))
 			.where(
 				reservation.reservationUid.eq(reservationUid),
-				reservation.guest.id.eq(guestId)
-			)
+				reservation.guest.id.eq(guestId))
 			.fetchOne();
 
 		return Optional.ofNullable(result);
@@ -256,8 +244,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 
 	@Override
 	public Optional<HostReservationDetailProjection> findHostReservationDetailByUidAndHostId(
-		UUID reservationUid, Long hostId
-	) {
+		UUID reservationUid, Long hostId) {
 		HostReservationDetailProjection result = queryFactory
 			.select(new QHostReservationDetailProjection(
 				reservation.reservationUid, reservation.reservationCode, reservation.status, reservation.createdAt,
@@ -267,8 +254,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 				address.country, address.state, address.city, address.district, address.street, address.detail,
 				address.postalCode,
 				guestMember.id, guestMember.nickname, guestMember.thumbnailImageUrl,
-				payment.amount
-			))
+				payment.amount))
 			.from(reservation)
 			.innerJoin(reservation.accommodation, accommodation)
 			.innerJoin(reservation.guest, guestMember)
@@ -276,8 +262,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.leftJoin(payment).on(payment.reservation.id.eq(reservation.id))
 			.where(
 				reservation.reservationUid.eq(reservationUid),
-				accommodation.member.id.eq(hostId)
-			)
+				accommodation.member.id.eq(hostId))
 			.fetchOne();
 
 		return Optional.ofNullable(result);
@@ -302,8 +287,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 					.and(reservation.expiresAt.gt(now))
 					.or(reservation.status.eq(PAYMENT_PROCESSING))
 					.or(
-						activeReservationStatus().and(reservation.checkOutAt.gt(now))
-					);
+						activeReservationStatus().and(reservation.checkOutAt.gt(now)));
 			default:
 				return null;
 		}

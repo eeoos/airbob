@@ -105,7 +105,8 @@ class MessagingOrchestrationMigrationIntegrationTest {
 	}
 
 	private boolean indexExists(Connection connection, String table, String index) throws SQLException {
-		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false, false)) {
+		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false,
+			false)) {
 			while (indexes.next()) {
 				if (index.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
 					return true;
@@ -116,7 +117,8 @@ class MessagingOrchestrationMigrationIntegrationTest {
 	}
 
 	private boolean indexIsUnique(Connection connection, String table, String index) throws SQLException {
-		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false, false)) {
+		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false,
+			false)) {
 			while (indexes.next()) {
 				if (index.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
 					return !indexes.getBoolean("NON_UNIQUE");

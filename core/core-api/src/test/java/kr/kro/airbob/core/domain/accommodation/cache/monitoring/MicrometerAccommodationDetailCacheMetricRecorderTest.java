@@ -82,10 +82,9 @@ class MicrometerAccommodationDetailCacheMetricRecorderTest {
 	@Test
 	@DisplayName("Grafana 대시보드가 사용하는 Prometheus 이름과 무효화 source 태그를 노출한다")
 	void exportsDashboardMetricNamesAndEvictionSource() {
-		PrometheusMeterRegistry prometheusRegistry =
-			new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-		MicrometerAccommodationDetailCacheMetricRecorder prometheusRecorder =
-			new MicrometerAccommodationDetailCacheMetricRecorder(prometheusRegistry);
+		PrometheusMeterRegistry prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+		MicrometerAccommodationDetailCacheMetricRecorder prometheusRecorder = new MicrometerAccommodationDetailCacheMetricRecorder(
+			prometheusRegistry);
 
 		prometheusRecorder.recordRequest(AccommodationDetailCacheMetricRecorder.RequestResult.HIT);
 		prometheusRecorder.recordLock(

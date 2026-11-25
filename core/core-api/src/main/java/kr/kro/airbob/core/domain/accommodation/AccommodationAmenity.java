@@ -11,7 +11,6 @@ import jakarta.persistence.ManyToOne;
 import kr.kro.airbob.core.support.persistence.BaseEntity;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -37,12 +36,13 @@ public class AccommodationAmenity extends BaseEntity {
 	@Column(name = "amenity_code", length = 50)
 	private String amenityCode;
 
-	public static AccommodationAmenity createAccommodationAmenity(Accommodation accommodation, String amenityCode, int count) {
+	public static AccommodationAmenity createAccommodationAmenity(Accommodation accommodation, String amenityCode,
+		int count) {
 		return AccommodationAmenity.builder()
-				.accommodation(accommodation)
-				.amenityCode(amenityCode)
-				.count(count)
-				.build();
+			.accommodation(accommodation)
+			.amenityCode(amenityCode)
+			.count(count)
+			.build();
 	}
 
 }

@@ -38,7 +38,8 @@ class GlobalTemporalContractTest {
 			new BookingWindow(expected.localToday(), expected.bookingEnd()));
 		assertThat(seedPolicy.currentRange(expected.zone(), expected.decisionAt())).isEqualTo(
 			new AccommodationInventorySeedPolicy.SeedRange(expected.localToday(), expected.seedEnd()));
-		assertThat(provider.eligibleTimeZonesForStay(expected.checkIn(), expected.checkOut())).contains(expected.zone());
+		assertThat(provider.eligibleTimeZonesForStay(expected.checkIn(), expected.checkOut()))
+			.contains(expected.zone());
 		var price = ReservationStayPricePolicy.calculate(120_000, expected.checkIn(), expected.checkOut());
 		assertThat(price.nights()).isEqualTo(expected.nights());
 		assertThat(price.subtotal()).isEqualTo(120_000 * expected.nights());

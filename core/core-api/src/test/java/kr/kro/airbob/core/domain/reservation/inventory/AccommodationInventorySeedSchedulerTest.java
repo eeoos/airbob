@@ -21,7 +21,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 @DisplayName("AccommodationInventorySeedScheduler")
 class AccommodationInventorySeedSchedulerTest {
 
-	@Mock private ReservationInventorySeeder inventorySeeder;
+	@Mock
+	private ReservationInventorySeeder inventorySeeder;
 
 	@Test
 	@DisplayName("cursor를 이어가며 빈 batch 또는 partial batch에서 멈춘다")
@@ -30,8 +31,8 @@ class AccommodationInventorySeedSchedulerTest {
 			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 400L));
 		given(inventorySeeder.seedNextPublishedBatch(400L, 100))
 			.willReturn(new ReservationInventorySeeder.SeedBatch(27, 512L));
-		AccommodationInventorySeedScheduler scheduler =
-			new AccommodationInventorySeedScheduler(inventorySeeder, 100, 10);
+		AccommodationInventorySeedScheduler scheduler = new AccommodationInventorySeedScheduler(inventorySeeder, 100,
+			10);
 
 		scheduler.seedPublishedInventory();
 
@@ -49,8 +50,8 @@ class AccommodationInventorySeedSchedulerTest {
 			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 200L));
 		given(inventorySeeder.seedNextPublishedBatch(200L, 100))
 			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 300L));
-		AccommodationInventorySeedScheduler scheduler =
-			new AccommodationInventorySeedScheduler(inventorySeeder, 100, 3);
+		AccommodationInventorySeedScheduler scheduler = new AccommodationInventorySeedScheduler(inventorySeeder, 100,
+			3);
 
 		scheduler.seedPublishedInventory();
 
@@ -67,8 +68,8 @@ class AccommodationInventorySeedSchedulerTest {
 			.willReturn(new ReservationInventorySeeder.SeedBatch(100, 500L));
 		given(inventorySeeder.seedNextPublishedBatch(500L, 100))
 			.willReturn(new ReservationInventorySeeder.SeedBatch(0, 500L));
-		AccommodationInventorySeedScheduler scheduler =
-			new AccommodationInventorySeedScheduler(inventorySeeder, 100, 1);
+		AccommodationInventorySeedScheduler scheduler = new AccommodationInventorySeedScheduler(inventorySeeder, 100,
+			1);
 
 		scheduler.seedPublishedInventory();
 		scheduler.seedPublishedInventory();

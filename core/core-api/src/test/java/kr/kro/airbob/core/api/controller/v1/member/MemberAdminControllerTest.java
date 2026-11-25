@@ -62,10 +62,10 @@ class MemberAdminControllerTest {
 			.willReturn(MemberRole.ADMIN);
 
 		mockMvc.perform(patch("/api/v1/admin/members/10/role")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"role":"ADMIN","reason":"운영 관리자 지정"}
-					"""))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"role":"ADMIN","reason":"운영 관리자 지정"}
+				"""))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.member_id").value(10))
 			.andExpect(jsonPath("$.data.role").value("ADMIN"));
@@ -82,10 +82,10 @@ class MemberAdminControllerTest {
 			.willThrow(new AdminAccessDeniedException());
 
 		mockMvc.perform(patch("/api/v1/admin/members/10/role")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"role":"ADMIN","reason":"운영 관리자 지정"}
-					"""))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"role":"ADMIN","reason":"운영 관리자 지정"}
+				"""))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.error.code").value("M006"));
 	}
@@ -133,18 +133,18 @@ class MemberAdminControllerTest {
 			.willThrow(new MemberRoleChangeNotAllowedException());
 
 		mockMvc.perform(patch("/api/v1/admin/members/10/role")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"role":"MEMBER","reason":"관리자 권한 회수"}
-					"""))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"role":"MEMBER","reason":"관리자 권한 회수"}
+				"""))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.error.code").value("M007"));
 	}
 
 	private void assertInvalidRequest(String content) throws Exception {
 		mockMvc.perform(patch("/api/v1/admin/members/10/role")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(content))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(content))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -164,8 +164,7 @@ class MemberAdminControllerTest {
 			MethodParameter parameter,
 			ModelAndViewContainer mavContainer,
 			NativeWebRequest webRequest,
-			WebDataBinderFactory binderFactory
-		) {
+			WebDataBinderFactory binderFactory) {
 			return 1L;
 		}
 	}

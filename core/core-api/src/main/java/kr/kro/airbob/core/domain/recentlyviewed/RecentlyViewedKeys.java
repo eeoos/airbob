@@ -5,8 +5,7 @@ final class RecentlyViewedKeys {
 
 	private static final String PREFIX = "recently_viewed:";
 
-	private RecentlyViewedKeys() {
-	}
+	private RecentlyViewedKeys() {}
 
 	static String of(Long memberId) {
 		return PREFIX + memberId;

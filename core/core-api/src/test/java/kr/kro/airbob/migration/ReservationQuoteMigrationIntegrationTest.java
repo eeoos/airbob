@@ -74,8 +74,7 @@ class ReservationQuoteMigrationIntegrationTest {
 				"created_at",
 				"updated_at",
 				"created_by",
-				"updated_by"
-			);
+				"updated_by");
 			assertThat(requiredColumns(connection, TABLE)).containsExactlyInAnyOrder(
 				"id",
 				"quote_uid",
@@ -94,15 +93,13 @@ class ReservationQuoteMigrationIntegrationTest {
 				"quoted_at",
 				"expires_at",
 				"created_at",
-				"updated_at"
-			);
+				"updated_at");
 			assertThat(nullableColumns(connection, TABLE)).containsExactlyInAnyOrder(
 				"coupon_id",
 				"reservation_id",
 				"checked_out_at",
 				"created_by",
-				"updated_by"
-			);
+				"updated_by");
 			assertThat(columnDefinition(connection, TABLE, "quote_uid"))
 				.isEqualTo(new ColumnDefinition("BINARY", 16));
 			assertThat(columnDefinition(connection, TABLE, "order_name"))
@@ -118,8 +115,7 @@ class ReservationQuoteMigrationIntegrationTest {
 		try (Connection connection = connection()) {
 			assertThat(uniqueIndexes(connection, TABLE)).containsExactlyInAnyOrderEntriesOf(Map.of(
 				"uk_reservation_quote_uid", List.of("quote_uid"),
-				"uk_reservation_quote_reservation", List.of("reservation_id")
-			));
+				"uk_reservation_quote_reservation", List.of("reservation_id")));
 			assertThat(indexColumns(connection, TABLE, "idx_reservation_quote_member_created"))
 				.containsExactly("member_id", "created_at", "id");
 			assertThat(indexColumns(connection, TABLE, "idx_reservation_quote_cleanup"))
@@ -137,8 +133,7 @@ class ReservationQuoteMigrationIntegrationTest {
 				new ForeignKey("accommodation_id", "accommodation", "id"),
 				"fk_reservation_quote_coupon", new ForeignKey("coupon_id", "coupon", "id"),
 				"fk_reservation_quote_reservation",
-				new ForeignKey("reservation_id", "reservation", "id")
-			));
+				new ForeignKey("reservation_id", "reservation", "id")));
 
 			Map<String, String> checks = checkClauses(connection, TABLE);
 			assertThat(checks).containsOnlyKeys(
@@ -147,8 +142,7 @@ class ReservationQuoteMigrationIntegrationTest {
 				"chk_reservation_quote_expiry",
 				"chk_reservation_quote_stay_price",
 				"chk_reservation_quote_checkout",
-				"chk_reservation_quote_price"
-			);
+				"chk_reservation_quote_price");
 			assertThat(checks.get("chk_reservation_quote_dates"))
 				.contains("check_out_date>check_in_date");
 			assertThat(checks.get("chk_reservation_quote_guests"))
@@ -158,15 +152,13 @@ class ReservationQuoteMigrationIntegrationTest {
 			assertThat(checks.get("chk_reservation_quote_stay_price"))
 				.contains(
 					"nights=to_dayscheck_out_date-to_dayscheck_in_date",
-					"subtotal=nightly_price*nights"
-				);
+					"subtotal=nightly_price*nights");
 			assertThat(checks.get("chk_reservation_quote_checkout"))
 				.contains(
 					"reservation_idisnull",
 					"checked_out_atisnull",
 					"reservation_idisnotnull",
-					"checked_out_atisnotnull"
-				);
+					"checked_out_atisnotnull");
 			assertThat(checks.get("chk_reservation_quote_price"))
 				.contains(
 					"nightly_price>=0",
@@ -174,8 +166,7 @@ class ReservationQuoteMigrationIntegrationTest {
 					"subtotal>=0",
 					"discount_amount>=0",
 					"discount_amount<=subtotal",
-					"amount=subtotal-discount_amount"
-				);
+					"amount=subtotal-discount_amount");
 		}
 	}
 
@@ -195,8 +186,7 @@ class ReservationQuoteMigrationIntegrationTest {
 			while (result.next()) {
 				columns.add(new OrderedColumn(
 					result.getInt("ORDINAL_POSITION"),
-					result.getString("COLUMN_NAME").toLowerCase()
-				));
+					result.getString("COLUMN_NAME").toLowerCase()));
 			}
 		}
 		return columns.stream()
@@ -233,8 +223,7 @@ class ReservationQuoteMigrationIntegrationTest {
 			assertThat(columns.next()).isTrue();
 			return new ColumnDefinition(
 				columns.getString("TYPE_NAME").toUpperCase(),
-				columns.getInt("COLUMN_SIZE")
-			);
+				columns.getInt("COLUMN_SIZE"));
 		}
 	}
 
@@ -251,8 +240,7 @@ class ReservationQuoteMigrationIntegrationTest {
 				orderedIndexes.computeIfAbsent(name.toLowerCase(), ignored -> new ArrayList<>())
 					.add(new OrderedColumn(
 						result.getInt("ORDINAL_POSITION"),
-						column.toLowerCase()
-					));
+						column.toLowerCase()));
 			}
 		}
 		Map<String, List<String>> indexes = new LinkedHashMap<>();
@@ -271,8 +259,7 @@ class ReservationQuoteMigrationIntegrationTest {
 				if (index.equalsIgnoreCase(result.getString("INDEX_NAME"))) {
 					columns.add(new OrderedColumn(
 						result.getInt("ORDINAL_POSITION"),
-						result.getString("COLUMN_NAME").toLowerCase()
-					));
+						result.getString("COLUMN_NAME").toLowerCase()));
 				}
 			}
 		}
@@ -291,9 +278,7 @@ class ReservationQuoteMigrationIntegrationTest {
 					new ForeignKey(
 						result.getString("FKCOLUMN_NAME").toLowerCase(),
 						result.getString("PKTABLE_NAME").toLowerCase(),
-						result.getString("PKCOLUMN_NAME").toLowerCase()
-					)
-				);
+						result.getString("PKCOLUMN_NAME").toLowerCase()));
 			}
 		}
 		return keys;
@@ -318,8 +303,7 @@ class ReservationQuoteMigrationIntegrationTest {
 				while (result.next()) {
 					checks.put(
 						result.getString("constraint_name").toLowerCase(),
-						normalizeCheckClause(result.getString("check_clause"))
-					);
+						normalizeCheckClause(result.getString("check_clause")));
 				}
 			}
 		}

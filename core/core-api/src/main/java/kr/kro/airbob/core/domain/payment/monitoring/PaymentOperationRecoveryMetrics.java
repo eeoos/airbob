@@ -12,10 +12,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 @Component
 public class PaymentOperationRecoveryMetrics {
 
-	public static final String LAST_SUCCESS_EPOCH_SECONDS =
-		"airbob.payment.operation.recovery.scheduler.last.success.epoch.seconds";
-	public static final String FAILURE_COUNT =
-		"airbob.payment.operation.recovery.scheduler.failures";
+	public static final String LAST_SUCCESS_EPOCH_SECONDS = "airbob.payment.operation.recovery.scheduler.last.success.epoch.seconds";
+	public static final String FAILURE_COUNT = "airbob.payment.operation.recovery.scheduler.failures";
 
 	private final AtomicLong lastSuccessEpochSeconds = new AtomicLong();
 	private final Counter failures;

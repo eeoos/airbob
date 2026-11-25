@@ -7,6 +7,5 @@ public record PaymentConfirmation(
 	String paymentKey,
 	String orderId,
 	Integer amount,
-	UUID paymentAttemptId
-) {
+	UUID paymentAttemptId) {
 }

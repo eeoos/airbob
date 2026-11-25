@@ -46,8 +46,7 @@ public class MysqlReservationCheckoutRequestStore implements ReservationCheckout
 	public ReservationCheckoutRequestClaim lockOrCreate(
 		long memberId,
 		ReservationCheckoutIdentity identity,
-		Instant createdAt
-	) {
+		Instant createdAt) {
 		Timestamp timestamp = Timestamp.from(createdAt);
 		jdbcTemplate.update(
 			INSERT_OR_LOCK,
@@ -56,8 +55,7 @@ public class MysqlReservationCheckoutRequestStore implements ReservationCheckout
 			identity.keyHash(),
 			identity.requestFingerprint(),
 			timestamp,
-			timestamp
-		);
+			timestamp);
 		return jdbcTemplate.queryForObject(
 			LOCK,
 			(rs, rowNum) -> {
@@ -66,13 +64,11 @@ public class MysqlReservationCheckoutRequestStore implements ReservationCheckout
 				return new ReservationCheckoutRequestClaim(
 					rs.getLong("id"),
 					rs.getString("request_fingerprint"),
-					reservationIdWasNull ? null : reservationId
-				);
+					reservationIdWasNull ? null : reservationId);
 			},
 			memberId,
 			ENDPOINT,
-			identity.keyHash()
-		);
+			identity.keyHash());
 	}
 
 	@Override
@@ -84,8 +80,7 @@ public class MysqlReservationCheckoutRequestStore implements ReservationCheckout
 			reservationId,
 			timestamp,
 			timestamp,
-			checkoutRequestId
-		);
+			checkoutRequestId);
 		if (updated != 1) {
 			throw new ReservationStateChangeException();
 		}

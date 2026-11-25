@@ -21,20 +21,16 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 	"accommodation.indexing.kafka.backoff-ms=100",
 	"accommodation.indexing.kafka.auto-startup=false"
 })
-@EmbeddedKafka(
-	partitions = 1,
-	topics = {
-		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_TOPIC,
-		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_RETRY_TOPIC,
-		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_DLT_TOPIC
-	},
-	bootstrapServersProperty = "spring.kafka.bootstrap-servers",
-	brokerProperties = "auto.create.topics.enable=false"
-)
+@EmbeddedKafka(partitions = 1, topics = {
+	AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_TOPIC,
+	AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_RETRY_TOPIC,
+	AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_DLT_TOPIC
+}, bootstrapServersProperty = "spring.kafka.bootstrap-servers", brokerProperties = "auto.create.topics.enable=false")
 @DisplayName("숙소 색인 Kafka 재색인 중지 통합 테스트")
 class AccommodationSearchRefreshKafkaPausedIntegrationTest {
 
-	@Autowired private KafkaListenerEndpointRegistry registry;
+	@Autowired
+	private KafkaListenerEndpointRegistry registry;
 
 	@Test
 	@DisplayName("alias readiness가 false이면 main, retry, DLT listener가 모두 시작되지 않는다")

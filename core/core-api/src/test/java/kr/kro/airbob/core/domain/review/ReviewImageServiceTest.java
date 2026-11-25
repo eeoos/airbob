@@ -31,16 +31,20 @@ import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 @DisplayName("리뷰 이미지 서비스 단위 테스트")
 class ReviewImageServiceTest {
 
-	@Mock private ReviewRepository reviewRepository;
-	@Mock private ReviewImageRepository reviewImageRepository;
-	@Mock private S3ImageUploader s3ImageUploader;
+	@Mock
+	private ReviewRepository reviewRepository;
+	@Mock
+	private ReviewImageRepository reviewImageRepository;
+	@Mock
+	private S3ImageUploader s3ImageUploader;
 
 	private ReviewImageService reviewImageService;
 
 	@BeforeEach
 	void setUp() {
 		reviewImageService = new ReviewImageService(new ReviewReader(reviewRepository),
-			new ReviewImageReader(reviewImageRepository), new ReviewImageWriter(reviewImageRepository), s3ImageUploader);
+			new ReviewImageReader(reviewImageRepository), new ReviewImageWriter(reviewImageRepository),
+			s3ImageUploader);
 	}
 
 	@Test

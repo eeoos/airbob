@@ -27,8 +27,7 @@ public class MemberCouponRepositoryImpl implements MemberCouponRepositoryCustom 
 		Long memberId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
-		Pageable pageable
-	) {
+		Pageable pageable) {
 		List<MemberCouponProjection> content = queryFactory
 			.select(new QMemberCouponProjection(
 				memberCoupon.id, memberCoupon.createdAt,

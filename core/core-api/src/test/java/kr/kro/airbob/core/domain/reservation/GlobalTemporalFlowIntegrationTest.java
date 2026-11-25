@@ -108,8 +108,8 @@ class GlobalTemporalFlowIntegrationTest {
 		.withCommand("--log-bin-trust-function-creators=1", "--skip-log-bin");
 
 	@Container
-	private static final GenericContainer<?> REDIS =
-		new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(6379);
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+		.withExposedPorts(6379);
 
 	@DynamicPropertySource
 	static void properties(DynamicPropertyRegistry registry) {
@@ -123,28 +123,49 @@ class GlobalTemporalFlowIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private AdjustableClock clock;
-	@Autowired private ReservationCommandController commandController;
-	@Autowired private ReservationGuestController guestController;
-	@Autowired private ReservationHostController hostController;
-	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ReservationCheckoutService checkoutService;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationInventorySeeder inventorySeeder;
-	@Autowired private BookingWindowProvider bookingWindowProvider;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private AccommodationSearchSnapshotReader searchReader;
-	@Autowired private AccommodationSearchService searchService;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private TimeZoneResolver timeZoneResolver;
+	@Autowired
+	private AdjustableClock clock;
+	@Autowired
+	private ReservationCommandController commandController;
+	@Autowired
+	private ReservationGuestController guestController;
+	@Autowired
+	private ReservationHostController hostController;
+	@Autowired
+	private ReservationQuoteService quoteService;
+	@Autowired
+	private ReservationCheckoutService checkoutService;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationInventorySeeder inventorySeeder;
+	@Autowired
+	private BookingWindowProvider bookingWindowProvider;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AccommodationSearchSnapshotReader searchReader;
+	@Autowired
+	private AccommodationSearchService searchService;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private TimeZoneResolver timeZoneResolver;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private io.awspring.cloud.s3.S3Template s3Template;
 
 	private MockMvc mvc;
 	private Member host;
@@ -174,8 +195,7 @@ class GlobalTemporalFlowIntegrationTest {
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("kr.kro.airbob.core.domain.reservation.GlobalTemporalCases#stays")
 	void fixedFutureAndDstCasesSurviveQuoteCheckoutSqlReadAndReservationDetail(
-		GlobalTemporalCases.Stay expected
-	) throws Exception {
+		GlobalTemporalCases.Stay expected) throws Exception {
 		clock.set(expected.decisionAt());
 		Accommodation accommodation = fixture(expected, 120_000L);
 		assertSeedHorizon(accommodation, expected);
@@ -187,7 +207,8 @@ class GlobalTemporalFlowIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM accommodation_inventory_day WHERE state <> 'FREE'",
 			Long.class)).isZero();
 		String reservationUid = checkout(quoteUid, expected, "paid-" + expected.label(), "PAYMENT_PENDING");
-		Reservation persisted = reservationRepository.findByReservationUid(UUID.fromString(reservationUid)).orElseThrow();
+		Reservation persisted = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElseThrow();
 		assertThat(persisted.getCheckInAt()).isEqualTo(expected.checkInAt());
 		assertThat(persisted.getCheckOutAt()).isEqualTo(expected.checkOutAt());
 		assertThat(persisted.getTimeZoneId()).isEqualTo(expected.zone());
@@ -206,7 +227,8 @@ class GlobalTemporalFlowIntegrationTest {
 		Accommodation complimentary = fixture(expected, 0L);
 		String freeQuote = quote(complimentary, expected, 0L);
 		String freeReservationUid = checkout(freeQuote, expected, "free-" + expected.label(), "CONFIRMED");
-		Reservation confirmed = reservationRepository.findByReservationUid(UUID.fromString(freeReservationUid)).orElseThrow();
+		Reservation confirmed = reservationRepository.findByReservationUid(UUID.fromString(freeReservationUid))
+			.orElseThrow();
 		assertOwnedLocalNights(complimentary, confirmed.getId(), expected, "OCCUPIED");
 		AccommodationDocument document = searchReader.readPublished(complimentary.getAccommodationUid()).orElseThrow();
 		assertThat(document.timeZoneId()).isEqualTo(expected.zone());
@@ -223,11 +245,13 @@ class GlobalTemporalFlowIntegrationTest {
 		Accommodation checkInGap = fixture("America/New_York", LocalTime.of(2, 30), LocalTime.of(11, 0), 120_000);
 		Accommodation checkOutGap = fixture("America/New_York", LocalTime.of(15, 0), LocalTime.of(2, 30), 120_000);
 
-		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(checkInGap.getId(),
-			LocalDate.of(2026, 3, 8), LocalDate.of(2026, 3, 9), 2, null), guest.getId())))
+		assertThatThrownBy(
+			() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(checkInGap.getId(),
+				LocalDate.of(2026, 3, 8), LocalDate.of(2026, 3, 9), 2, null), guest.getId())))
 			.isInstanceOf(InvalidReservationLocalTimeException.class);
-		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(checkOutGap.getId(),
-			LocalDate.of(2026, 3, 7), LocalDate.of(2026, 3, 8), 2, null), guest.getId())))
+		assertThatThrownBy(
+			() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(checkOutGap.getId(),
+				LocalDate.of(2026, 3, 7), LocalDate.of(2026, 3, 8), 2, null), guest.getId())))
 			.isInstanceOf(InvalidReservationLocalTimeException.class);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM reservation_quote", Long.class)).isZero();
 		assertThat(reservationRepository.count()).isZero();
@@ -239,21 +263,25 @@ class GlobalTemporalFlowIntegrationTest {
 	void checkoutRevalidatesGapAfterQuoteAndRollsBackOwnershipAndIdempotencyClaim() {
 		clock.set(Instant.parse("2026-03-01T12:00:00Z"));
 		for (boolean checkInGap : List.of(true, false)) {
-			Accommodation accommodation = fixture("America/New_York", LocalTime.of(15, 0), LocalTime.of(11, 0), 120_000);
+			Accommodation accommodation = fixture("America/New_York", LocalTime.of(15, 0), LocalTime.of(11, 0),
+				120_000);
 			LocalDate checkIn = LocalDate.of(2026, 3, checkInGap ? 8 : 7);
 			LocalDate checkOut = LocalDate.of(2026, 3, checkInGap ? 9 : 8);
-			var quote = ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(accommodation.getId(), checkIn,
-				checkOut, 2, null), guest.getId()));
+			var quote = ReservationResponse.Quote
+				.from(quoteService.createQuote(new NewReservationQuote(accommodation.getId(), checkIn,
+					checkOut, 2, null), guest.getId()));
 			String timeColumn = checkInGap ? "check_in_time" : "check_out_time";
 			jdbc.update("UPDATE accommodation SET " + timeColumn + " = '02:30:00' WHERE id = ?", accommodation.getId());
 
 			assertThatThrownBy(() -> ReservationResponse.Ready.from(checkoutService.checkout(
-				new ReservationRequest.Checkout(quote.quoteUid(), null).toCheckout(), guest.getId(), "gap-changed-" + timeColumn)))
+				new ReservationRequest.Checkout(quote.quoteUid(), null).toCheckout(), guest.getId(),
+				"gap-changed-" + timeColumn)))
 				.isInstanceOf(InvalidReservationLocalTimeException.class);
 		}
 		assertThat(reservationRepository.count()).isZero();
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM reservation_checkout_request", Long.class)).isZero();
-		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM reservation_quote WHERE reservation_id IS NULL AND checked_out_at IS NULL",
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM reservation_quote WHERE reservation_id IS NULL AND checked_out_at IS NULL",
 			Long.class)).isEqualTo(2);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM accommodation_inventory_day WHERE state <> 'FREE'",
 			Long.class)).isZero();
@@ -267,10 +295,14 @@ class GlobalTemporalFlowIntegrationTest {
 		LocalDate checkIn = LocalDate.of(2026, 11, 11);
 		LocalDate checkOut = LocalDate.of(2026, 11, 12);
 
-		assertThat(ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(seoul.getId(), checkIn, checkOut,
-			2, null), guest.getId())).nights()).isOne();
-		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(newYork.getId(),
-			checkIn, checkOut, 2, null), guest.getId()))).isInstanceOf(ReservationOutsideBookingWindowException.class);
+		assertThat(ReservationResponse.Quote
+			.from(quoteService.createQuote(new NewReservationQuote(seoul.getId(), checkIn, checkOut,
+				2, null), guest.getId()))
+			.nights()).isOne();
+		assertThatThrownBy(
+			() -> ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(newYork.getId(),
+				checkIn, checkOut, 2, null), guest.getId())))
+			.isInstanceOf(ReservationOutsideBookingWindowException.class);
 		assertThat(bookingWindowProvider.eligibleTimeZonesForStay(checkIn, checkOut))
 			.contains("Asia/Seoul").doesNotContain("America/New_York");
 	}
@@ -293,7 +325,8 @@ class GlobalTemporalFlowIntegrationTest {
 		return new TransactionTemplate(transactionManager).execute(status -> {
 			Accommodation accommodation = accommodationRepository.save(Accommodation.builder()
 				.name("Temporal " + zone).basePrice(nightlyPrice).currency("KRW")
-				.address(Address.builder().country(location.country()).latitude(location.latitude()).longitude(location.longitude()).build())
+				.address(Address.builder().country(location.country()).latitude(location.latitude())
+					.longitude(location.longitude()).build())
 				.occupancyPolicy(OccupancyPolicy.builder().maxOccupancy(4).build()).member(host)
 				.checkInTime(checkIn).checkOutTime(checkOut).timeZoneId(zone)
 				.status(AccommodationStatus.PUBLISHED).build());
@@ -303,16 +336,20 @@ class GlobalTemporalFlowIntegrationTest {
 	}
 
 	private void assertSeedHorizon(Accommodation accommodation, GlobalTemporalCases.Stay expected) {
-		assertThat(jdbc.<LocalDate>queryForObject("SELECT MIN(stay_date) FROM accommodation_inventory_day WHERE accommodation_id = ?",
+		assertThat(jdbc.<LocalDate>queryForObject(
+			"SELECT MIN(stay_date) FROM accommodation_inventory_day WHERE accommodation_id = ?",
 			(rs, row) -> rs.getDate(1).toLocalDate(), accommodation.getId())).isEqualTo(expected.localToday());
-		assertThat(jdbc.<LocalDate>queryForObject("SELECT MAX(stay_date) FROM accommodation_inventory_day WHERE accommodation_id = ?",
-			(rs, row) -> rs.getDate(1).toLocalDate(), accommodation.getId())).isEqualTo(expected.seedEnd().minusDays(1));
+		assertThat(jdbc.<LocalDate>queryForObject(
+			"SELECT MAX(stay_date) FROM accommodation_inventory_day WHERE accommodation_id = ?",
+			(rs, row) -> rs.getDate(1).toLocalDate(), accommodation.getId()))
+			.isEqualTo(expected.seedEnd().minusDays(1));
 	}
 
-	private String quote(Accommodation accommodation, GlobalTemporalCases.Stay expected, long nightlyPrice) throws Exception {
+	private String quote(Accommodation accommodation, GlobalTemporalCases.Stay expected, long nightlyPrice)
+		throws Exception {
 		String response = mvc.perform(post("/api/v1/reservation-quotes").contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsBytes(new ReservationRequest.Quote(accommodation.getId(),
-					expected.checkIn(), expected.checkOut(), 2, null))))
+			.content(objectMapper.writeValueAsBytes(new ReservationRequest.Quote(accommodation.getId(),
+				expected.checkIn(), expected.checkOut(), 2, null))))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.data.inventory_held").value(false))
 			.andExpect(jsonPath("$.data.nights").value(expected.nights()))
 			.andExpect(jsonPath("$.data.subtotal").value(nightlyPrice * expected.nights()))
@@ -323,8 +360,8 @@ class GlobalTemporalFlowIntegrationTest {
 	private String checkout(String quoteUid, GlobalTemporalCases.Stay expected, String key, String expectedStatus)
 		throws Exception {
 		String response = mvc.perform(post("/api/v1/reservations").header("Idempotency-Key", key)
-				.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsBytes(
-					new ReservationRequest.Checkout(UUID.fromString(quoteUid), null))))
+			.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsBytes(
+				new ReservationRequest.Checkout(UUID.fromString(quoteUid), null))))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value(expectedStatus))
 			.andExpect(jsonPath("$.data.check_in").value(expected.checkIn().toString()))
 			.andExpect(jsonPath("$.data.check_out").value(expected.checkOut().toString()))
@@ -335,12 +372,12 @@ class GlobalTemporalFlowIntegrationTest {
 	private void assertOwnedLocalNights(Accommodation accommodation, long owner, GlobalTemporalCases.Stay expected,
 		String expectedState) {
 		List<LocalDate> dates = jdbc.query("SELECT stay_date FROM accommodation_inventory_day "
-				+ "WHERE accommodation_id = ? AND reservation_id = ? AND state = ? ORDER BY stay_date",
+			+ "WHERE accommodation_id = ? AND reservation_id = ? AND state = ? ORDER BY stay_date",
 			(rs, row) -> rs.getDate(1).toLocalDate(), accommodation.getId(), owner, expectedState);
 		assertThat(dates).hasSize(Math.toIntExact(expected.nights()))
 			.containsExactlyElementsOf(expected.checkIn().datesUntil(expected.checkOut()).toList());
 		assertThat(jdbc.queryForObject("SELECT state FROM accommodation_inventory_day "
-				+ "WHERE accommodation_id = ? AND stay_date = ?", String.class, accommodation.getId(), expected.checkOut()))
+			+ "WHERE accommodation_id = ? AND stay_date = ?", String.class, accommodation.getId(), expected.checkOut()))
 			.isEqualTo("FREE");
 	}
 
@@ -360,24 +397,27 @@ class GlobalTemporalFlowIntegrationTest {
 		UserContext.set(new UserInfo(guest.getId()));
 	}
 
-	private void assertSearchRequestUsesLocalDatesAndRealEligibility(GlobalTemporalCases.Stay expected) throws Exception {
+	private void assertSearchRequestUsesLocalDatesAndRealEligibility(GlobalTemporalCases.Stay expected)
+		throws Exception {
 		SearchResponse<AccommodationDocument> emptyResponse = SearchResponse.of(response -> response.took(1)
 			.timedOut(false).shards(shards -> shards.total(1).successful(1).failed(0))
 			.hits(hits -> hits.hits(List.of())));
-		given(elasticsearchClient.search(any(SearchRequest.class), eq(AccommodationDocument.class))).willReturn(emptyResponse);
-		AccommodationSearchRequest.AccommodationSearchRequestDto request =
-			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		given(elasticsearchClient.search(any(SearchRequest.class), eq(AccommodationDocument.class)))
+			.willReturn(emptyResponse);
+		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
 		request.setDestination("Temporal");
 		request.setCheckIn(expected.checkIn());
 		request.setCheckOut(expected.checkOut());
-		searchService.searchAccommodations(request.toCondition(new AccommodationSearchRequest.MapBoundsDto()), PageRequest.of(0, 18), null);
+		searchService.searchAccommodations(request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+			PageRequest.of(0, 18), null);
 		ArgumentCaptor<SearchRequest> captured = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(elasticsearchClient).search(captured.capture(), eq(AccommodationDocument.class));
 		Query query = captured.getValue().query();
 		assertThat(query.bool().filter()).anySatisfy(filter -> {
 			assertThat(filter.isTerms()).isTrue();
 			assertThat(filter.terms().field()).isEqualTo("timeZoneId");
-			assertThat(filter.terms().terms().value()).extracting(value -> value.stringValue()).contains(expected.zone());
+			assertThat(filter.terms().terms().value()).extracting(value -> value.stringValue())
+				.contains(expected.zone());
 		});
 		assertThat(query.bool().mustNot()).anySatisfy(excluded -> {
 			assertThat(excluded.isRange()).isTrue();
@@ -405,10 +445,25 @@ class GlobalTemporalFlowIntegrationTest {
 
 	static final class AdjustableClock extends Clock {
 		private final AtomicReference<Instant> instant = new AtomicReference<>(INITIAL_NOW);
-		void set(Instant value) { instant.set(value); }
-		@Override public ZoneId getZone() { return ZoneOffset.UTC; }
-		@Override public Clock withZone(ZoneId zone) { return Clock.fixed(instant(), zone); }
-		@Override public Instant instant() { return instant.get(); }
+
+		void set(Instant value) {
+			instant.set(value);
+		}
+
+		@Override
+		public ZoneId getZone() {
+			return ZoneOffset.UTC;
+		}
+
+		@Override
+		public Clock withZone(ZoneId zone) {
+			return Clock.fixed(instant(), zone);
+		}
+
+		@Override
+		public Instant instant() {
+			return instant.get();
+		}
 	}
 
 	private record FixtureLocation(String country, double latitude, double longitude) {

@@ -12,8 +12,7 @@ public class AccommodationDetailCacheKafkaRetryPublisherConfiguration {
 
 	@Bean
 	public KafkaTemplate<String, String> accommodationDetailCacheRetryKafkaTemplate(
-		SanitizingRetryKafkaTemplateFactory templateFactory
-	) {
+		SanitizingRetryKafkaTemplateFactory templateFactory) {
 		return templateFactory.create(
 			AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR,
 			AccommodationDetailCacheInvalidationRequestedV1.class,

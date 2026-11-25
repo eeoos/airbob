@@ -13,11 +13,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
-import kr.kro.airbob.core.domain.member.repository.MemberRepository;
-import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
-import kr.kro.airbob.core.support.persistence.history.ChangeType;
-import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +21,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
+import kr.kro.airbob.core.domain.member.repository.MemberRepository;
+import kr.kro.airbob.core.support.error.AdminAccessDeniedException;
+import kr.kro.airbob.core.support.persistence.history.ChangeType;
+import kr.kro.airbob.core.support.persistence.history.HistoryConstants;
 
 @ExtendWith(MockitoExtension.class)
 class MemberAdminServiceTest {
@@ -40,7 +42,8 @@ class MemberAdminServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new MemberAdminService(new MemberReader(memberRepository), new MemberWriter(memberRepository, memberHistoryRepository, FIXED_CLOCK));
+		service = new MemberAdminService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, memberHistoryRepository, FIXED_CLOCK));
 	}
 
 	@Test

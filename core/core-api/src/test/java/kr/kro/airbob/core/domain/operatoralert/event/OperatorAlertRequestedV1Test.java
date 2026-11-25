@@ -17,10 +17,8 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 @DisplayName("operator alert integration event contract")
 class OperatorAlertRequestedV1Test {
 
-	private static final UUID SUBJECT_UID =
-		UUID.fromString("7b70cd2f-6393-430e-9b60-907fbeab6891");
-	private static final UUID OCCURRENCE_UID =
-		UUID.fromString("58389514-570c-43b6-a445-75ecb82d962b");
+	private static final UUID SUBJECT_UID = UUID.fromString("7b70cd2f-6393-430e-9b60-907fbeab6891");
+	private static final UUID OCCURRENCE_UID = UUID.fromString("58389514-570c-43b6-a445-75ecb82d962b");
 
 	@Test
 	void containsOnlyAllowlistedIdentifiersAndUsesStableSubjectRouting() {
@@ -30,8 +28,7 @@ class OperatorAlertRequestedV1Test {
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
 			new OperatorAlertSourcePosition(
 				PaymentOperationExecutionRequestedV1.TOPIC, 2, 41L),
-			OCCURRENCE_UID
-		);
+			OCCURRENCE_UID);
 
 		assertThat(event.descriptor()).isEqualTo(OperatorAlertRequestedV1.DESCRIPTOR);
 		assertThat(event.aggregateId()).isEqualTo(event.alertUid().toString());
@@ -45,8 +42,7 @@ class OperatorAlertRequestedV1Test {
 		String encoded = codec.encode(EventEnvelope.of(
 			UUID.fromString("0e129431-0b47-46fd-af02-3874571cbb16"),
 			java.time.Instant.parse("2026-08-17T00:00:00Z"),
-			event
-		));
+			event));
 
 		assertThat(encoded)
 			.contains("\"alert_uid\"", "\"kind\"", "\"subject_uid\"",
@@ -122,7 +118,6 @@ class OperatorAlertRequestedV1Test {
 			SUBJECT_UID,
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
 			OperatorAlertSourcePosition.none(),
-			occurrenceUid
-		);
+			occurrenceUid);
 	}
 }

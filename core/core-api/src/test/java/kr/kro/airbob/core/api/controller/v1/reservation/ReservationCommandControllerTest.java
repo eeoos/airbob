@@ -25,8 +25,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
-import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Cancellation;
-import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Status;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.payment.PaymentCancellationCommandService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationReceipt;
@@ -42,10 +40,14 @@ class ReservationCommandControllerTest {
 
 	private static final long MEMBER_ID = 7L;
 
-	@Mock private ReservationCheckoutService checkoutService;
-	@Mock private ReservationQuoteService quoteService;
-	@Mock private ReservationHoldCommandService holdCommandService;
-	@Mock private PaymentCancellationCommandService cancellationCommandService;
+	@Mock
+	private ReservationCheckoutService checkoutService;
+	@Mock
+	private ReservationQuoteService quoteService;
+	@Mock
+	private ReservationHoldCommandService holdCommandService;
+	@Mock
+	private PaymentCancellationCommandService cancellationCommandService;
 
 	private MockMvc mockMvc;
 
@@ -77,16 +79,15 @@ class ReservationCommandControllerTest {
 		PaymentOperationReceipt cancellation = new PaymentOperationReceipt(
 			operationUid,
 			PaymentOperationStatus.QUEUED,
-			false
-		);
+			false);
 		given(cancellationCommandService.requestCancellation(reservationUid, request.toCancellation(), MEMBER_ID))
 			.willReturn(cancellation);
 
 		mockMvc.perform(post("/api/v1/reservations/{reservationUid}", reservationUid)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"cancel_reason":"게스트 요청","cancel_amount":null}
-					"""))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"cancel_reason":"게스트 요청","cancel_amount":null}
+				"""))
 			.andExpect(status().isAccepted())
 			.andExpect(header().string(HttpHeaders.LOCATION, statusUrl))
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -104,10 +105,10 @@ class ReservationCommandControllerTest {
 			.willReturn(PaymentOperationReceipt.completedWithoutOperation());
 
 		mockMvc.perform(post("/api/v1/reservations/{reservationUid}", reservationUid)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"cancel_reason":"0원 예약 취소","cancel_amount":null}
-					"""))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"cancel_reason":"0원 예약 취소","cancel_amount":null}
+				"""))
 			.andExpect(status().isAccepted())
 			.andExpect(header().doesNotExist(HttpHeaders.LOCATION))
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

@@ -8,8 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import jakarta.persistence.LockModeType;
 
+import jakarta.persistence.LockModeType;
 import kr.kro.airbob.core.domain.settlement.Settlement;
 import kr.kro.airbob.core.domain.settlement.SettlementStatus;
 import kr.kro.airbob.core.domain.settlement.repository.projection.HostMonthlyAggregate;
@@ -22,12 +22,17 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select s from Settlement s where s.id = :id")
-	Optional<Settlement> findByIdForUpdate(@Param("id") Long id);
+	Optional<Settlement> findByIdForUpdate(
+		@Param("id")
+		Long id);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select s from Settlement s where s.hostId = :hostId and s.settlementMonth = :month")
-	Optional<Settlement> findByHostIdAndSettlementMonthForUpdate(@Param("hostId") Long hostId,
-		@Param("month") LocalDate month);
+	Optional<Settlement> findByHostIdAndSettlementMonthForUpdate(
+		@Param("hostId")
+		Long hostId,
+		@Param("month")
+		LocalDate month);
 
 	List<Settlement> findByHostIdAndSettlementMonthBetweenOrderBySettlementMonthAsc(
 		Long hostId, LocalDate from, LocalDate to);
@@ -65,8 +70,11 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 		) t
 		GROUP BY t.host_id
 		""", nativeQuery = true)
-	List<HostMonthlyAggregate> aggregateByHostForMonth(@Param("monthStart") LocalDate monthStart,
-		@Param("monthEnd") LocalDate monthEnd);
+	List<HostMonthlyAggregate> aggregateByHostForMonth(
+		@Param("monthStart")
+		LocalDate monthStart,
+		@Param("monthEnd")
+		LocalDate monthEnd);
 
 	// 정산 상세: 특정 호스트의 한 달 매출을 숙소별로 분해
 	@Query(value = """
@@ -96,8 +104,13 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 		GROUP BY t.accommodation_id, t.accommodation_name
 		ORDER BY t.accommodation_id
 		""", nativeQuery = true)
-	List<SettlementLineItem> findLineItems(@Param("hostId") Long hostId,
-		@Param("monthStart") LocalDate monthStart, @Param("monthEnd") LocalDate monthEnd);
+	List<SettlementLineItem> findLineItems(
+		@Param("hostId")
+		Long hostId,
+		@Param("monthStart")
+		LocalDate monthStart,
+		@Param("monthEnd")
+		LocalDate monthEnd);
 
 	// 호스트 요약: status별 payout 합/건수. settlement은 (host, month) 사전집계 테이블이라
 	// 호스트당 행이 적고 host_id 인덱스를 타므로 on-the-fly 집계로 충분(별도 통계 테이블 불필요).
@@ -109,5 +122,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 		WHERE host_id = :hostId
 		GROUP BY status
 		""", nativeQuery = true)
-	List<SettlementStatusSum> aggregateByHostGroupedByStatus(@Param("hostId") Long hostId);
+	List<SettlementStatusSum> aggregateByHostGroupedByStatus(
+		@Param("hostId")
+		Long hostId);
 }

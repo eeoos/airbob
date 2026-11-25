@@ -6,8 +6,7 @@ import com.querydsl.core.annotations.QueryProjection;
 
 public record ReservationDateRange(
 	LocalDate checkIn,
-	LocalDate checkOut
-) {
+	LocalDate checkOut) {
 	@QueryProjection
 	public ReservationDateRange {
 	}

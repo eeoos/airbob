@@ -13,7 +13,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-
 import kr.kro.airbob.core.support.messaging.outbox.application.OutboxCleanupService;
 import kr.kro.airbob.core.support.messaging.outbox.infrastructure.scheduling.OutboxCleanupScheduler;
 
@@ -56,8 +55,7 @@ class OutboxCleanupConfigurationTest {
 		contextRunner
 			.withPropertyValues(
 				"messaging.outbox.cleanup.enabled=true",
-				"messaging.outbox.cleanup.retention=PT23H"
-			)
+				"messaging.outbox.cleanup.retention=PT23H")
 			.run(context -> assertThat(context).hasFailed());
 	}
 
@@ -67,8 +65,7 @@ class OutboxCleanupConfigurationTest {
 		contextRunner
 			.withPropertyValues(
 				"messaging.outbox.cleanup.enabled=true",
-				"messaging.outbox.cleanup.batch-size=10001"
-			)
+				"messaging.outbox.cleanup.batch-size=10001")
 			.run(context -> assertThat(context).hasFailed());
 	}
 
@@ -78,8 +75,7 @@ class OutboxCleanupConfigurationTest {
 		contextRunner
 			.withPropertyValues(
 				"messaging.outbox.cleanup.enabled=true",
-				"messaging.outbox.cleanup.fixed-delay=PT59S"
-			)
+				"messaging.outbox.cleanup.fixed-delay=PT59S")
 			.run(context -> assertThat(context).hasFailed());
 	}
 }

@@ -36,8 +36,8 @@ public class ReservationHistoryBatchWriter {
 
 	public ReservationHistoryBatchWriter(
 		JdbcTemplate jdbcTemplate,
-		@Value("${reservation.expiration.history-batch-size:100}") int batchSize
-	) {
+		@Value("${reservation.expiration.history-batch-size:100}")
+		int batchSize) {
 		if (batchSize < 1) {
 			throw new IllegalArgumentException("history batch size must be positive");
 		}
@@ -53,16 +53,14 @@ public class ReservationHistoryBatchWriter {
 			List<ReservationHistory> chunk = histories.subList(start, Math.min(start + batchSize, histories.size()));
 			int[] updateCounts = jdbcTemplate.batchUpdate(
 				INSERT_SQL,
-				batchSetter(chunk, historyCreatedAt)
-			);
+				batchSetter(chunk, historyCreatedAt));
 			validateBatchResult(updateCounts, chunk.size());
 		}
 	}
 
 	private BatchPreparedStatementSetter batchSetter(
 		List<ReservationHistory> histories,
-		Instant historyCreatedAt
-	) {
+		Instant historyCreatedAt) {
 		return new BatchPreparedStatementSetter() {
 			@Override
 			public void setValues(PreparedStatement statement, int index) throws SQLException {
@@ -79,8 +77,7 @@ public class ReservationHistoryBatchWriter {
 	private void bind(
 		PreparedStatement statement,
 		ReservationHistory history,
-		Instant historyCreatedAt
-	) throws SQLException {
+		Instant historyCreatedAt) throws SQLException {
 		statement.setLong(1, history.getReservationId());
 		statement.setString(2, history.getReservationUid());
 		statement.setString(3, history.getReservationCode());
@@ -107,7 +104,8 @@ public class ReservationHistoryBatchWriter {
 		statement.setString(24, history.getClientIp());
 	}
 
-	private void setNullableDate(PreparedStatement statement, int index, java.time.LocalDate value) throws SQLException {
+	private void setNullableDate(PreparedStatement statement, int index, java.time.LocalDate value)
+		throws SQLException {
 		if (value == null) {
 			statement.setNull(index, Types.DATE);
 		} else {

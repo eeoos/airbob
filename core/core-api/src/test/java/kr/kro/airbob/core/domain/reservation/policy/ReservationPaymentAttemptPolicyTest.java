@@ -1,6 +1,5 @@
 package kr.kro.airbob.core.domain.reservation.policy;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
@@ -14,8 +13,7 @@ import kr.kro.airbob.core.domain.reservation.ReservationPaymentAttemptTooLateExc
 @DisplayName("예약 결제 시도 정책 테스트")
 class ReservationPaymentAttemptPolicyTest {
 
-	private final ReservationPaymentAttemptPolicy policy =
-		new ReservationPaymentAttemptPolicy(Duration.ofSeconds(90));
+	private final ReservationPaymentAttemptPolicy policy = new ReservationPaymentAttemptPolicy(Duration.ofSeconds(90));
 	private final Instant expiresAt = Instant.parse("2026-08-25T03:15:00Z");
 
 	@Test

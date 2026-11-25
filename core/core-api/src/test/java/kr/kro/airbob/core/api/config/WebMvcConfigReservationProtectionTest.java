@@ -25,8 +25,7 @@ class WebMvcConfigReservationProtectionTest {
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
-			mock(QueryCountInterceptor.class)
-		);
+			mock(QueryCountInterceptor.class));
 
 		assertThat(config.sessionFilter().getUrlPatterns())
 			.contains("/api/v1/*")

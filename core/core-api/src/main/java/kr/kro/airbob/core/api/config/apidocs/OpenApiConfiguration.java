@@ -113,7 +113,8 @@ public class OpenApiConfiguration {
 					errors.add(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
 				}
 				if (MultipartFile.class.equals(parameter.getParameterType())
-					|| MultipartFile.class.equals(ResolvableType.forMethodParameter(parameter).getGeneric(0).resolve())) {
+					|| MultipartFile.class
+						.equals(ResolvableType.forMethodParameter(parameter).getGeneric(0).resolve())) {
 					RequestParam form = parameter.getParameterAnnotation(RequestParam.class);
 					errors.add(ErrorCode.INVALID_INPUT_VALUE);
 					errors.add(ErrorCode.UPLOAD_SIZE_EXCEEDED);
@@ -123,7 +124,8 @@ public class OpenApiConfiguration {
 					}
 					operation.setRequestBody(new RequestBody().required(true).content(new Content()
 						.addMediaType("multipart/form-data", new MediaType().schema(new ObjectSchema()
-							.required(List.of(name)).addProperty(name, new ArraySchema().items(new StringSchema().format("binary")))))));
+							.required(List.of(name))
+							.addProperty(name, new ArraySchema().items(new StringSchema().format("binary")))))));
 				}
 				CursorParam cursor = parameter.getParameterAnnotation(CursorParam.class);
 				if (cursor == null) {
@@ -157,7 +159,8 @@ public class OpenApiConfiguration {
 			api.getComponents().getSchemas().forEach(OpenApiConfiguration::documentSuccessEnvelope);
 			api.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
 				boolean anonymous = method.name().equals("POST") && PUBLIC_POSTS.contains(path)
-					|| method.name().equals("GET") && PUBLIC_GETS.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+					|| method.name().equals("GET")
+						&& PUBLIC_GETS.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
 				operation.setSecurity(anonymous ? List.of() : List.of(new SecurityRequirement().addList(SESSION_AUTH)));
 				if (!anonymous) {
 					addError(operation, ErrorCode.UNAUTHORIZED_ACCESS);
@@ -220,7 +223,8 @@ public class OpenApiConfiguration {
 		String status = Integer.toString(code.getStatus().value());
 		ApiResponse response = operation.getResponses().computeIfAbsent(status,
 			ignored -> new ApiResponse().description("오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다.")
-				.content(new Content().addMediaType("application/json", new MediaType().schema(new Schema<>().$ref(ERROR_SCHEMA)))));
+				.content(new Content().addMediaType("application/json",
+					new MediaType().schema(new Schema<>().$ref(ERROR_SCHEMA)))));
 		response.getContent().get("application/json").addExamples(code.getCode(), new Example()
 			.summary(code.getMessage())
 			.value(Map.of("success", false, "error", Map.of("code", code.getCode(), "status", code.getStatus().value(),

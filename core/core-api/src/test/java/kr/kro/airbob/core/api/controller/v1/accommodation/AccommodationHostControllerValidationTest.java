@@ -66,24 +66,42 @@ import kr.kro.airbob.core.support.context.UserInfo;
 @ExtendWith(MockitoExtension.class)
 class AccommodationHostControllerValidationTest {
 
-	@Mock AccommodationRepository accommodations;
-	@Mock AccommodationAmenityRepository amenities;
-	@Mock AccommodationImageRepository images;
-	@Mock AccommodationHistoryRepository history;
-	@Mock AddressRepository addresses;
-	@Mock OccupancyPolicyRepository policies;
-	@Mock ReservationReader reservations;
-	@Mock MemberReader members;
-	@Mock CommonCodeReader codes;
-	@Mock GeocodingGateway geocoding;
-	@Mock TimeZoneResolver timeZones;
-	@Mock AccommodationSearchRefreshPublisher search;
-	@Mock AccommodationDetailCacheInvalidationPublisher cache;
-	@Mock ReservationInventorySeeder inventory;
-	@Mock Clock clock;
-	@Mock S3ImageUploader uploader;
-	@Mock ApplicationEventPublisher events;
-	@Mock AccommodationQueryService queryService;
+	@Mock
+	AccommodationRepository accommodations;
+	@Mock
+	AccommodationAmenityRepository amenities;
+	@Mock
+	AccommodationImageRepository images;
+	@Mock
+	AccommodationHistoryRepository history;
+	@Mock
+	AddressRepository addresses;
+	@Mock
+	OccupancyPolicyRepository policies;
+	@Mock
+	ReservationReader reservations;
+	@Mock
+	MemberReader members;
+	@Mock
+	CommonCodeReader codes;
+	@Mock
+	GeocodingGateway geocoding;
+	@Mock
+	TimeZoneResolver timeZones;
+	@Mock
+	AccommodationSearchRefreshPublisher search;
+	@Mock
+	AccommodationDetailCacheInvalidationPublisher cache;
+	@Mock
+	ReservationInventorySeeder inventory;
+	@Mock
+	Clock clock;
+	@Mock
+	S3ImageUploader uploader;
+	@Mock
+	ApplicationEventPublisher events;
+	@Mock
+	AccommodationQueryService queryService;
 	AccommodationCommandService commandService;
 	AccommodationImageService imageService;
 
@@ -102,8 +120,10 @@ class AccommodationHostControllerValidationTest {
 		imageService = new AccommodationImageService(accommodationReader,
 			new AccommodationImageReader(images), new AccommodationImageWriter(images),
 			uploader, events, cache, search);
-		mapper = new ObjectMapper().findAndRegisterModules().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
-		mvc = MockMvcBuilders.standaloneSetup(new AccommodationHostController(commandService, imageService, queryService))
+		mapper = new ObjectMapper().findAndRegisterModules()
+			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+		mvc = MockMvcBuilders
+			.standaloneSetup(new AccommodationHostController(commandService, imageService, queryService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
@@ -120,8 +140,9 @@ class AccommodationHostControllerValidationTest {
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("invalidUpdates")
 	void invalidUpdateIsRejectedBeforeDatabaseOrGeocoding(String label, String body) throws Exception {
-		asMember(() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON).content(body))
-			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("C001")));
+		asMember(
+			() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("C001")));
 		verifyNoInteractions(accommodations, geocoding, addresses, amenities, history, cache, search);
 	}
 
@@ -138,8 +159,7 @@ class AccommodationHostControllerValidationTest {
 			Arguments.of("빈 통화", "{\"currency\":\"\"}"),
 			Arguments.of("음수 가격", "{\"base_price\":-1}"),
 			Arguments.of("불완전한 인원 정책", "{\"occupancy_policy_info\":{\"max_occupancy\":2}}"),
-			Arguments.of("누락된 주소 필수값", "{\"address_info\":{\"country\":\"대한민국\"}}")
-		);
+			Arguments.of("누락된 주소 필수값", "{\"address_info\":{\"country\":\"대한민국\"}}"));
 		Stream<Arguments> longAddresses = Stream.of("country", "state", "city", "district", "street", "detail")
 			.map(field -> {
 				var address = new ObjectMapper().createObjectNode().put("country", "대한민국")
@@ -153,7 +173,8 @@ class AccommodationHostControllerValidationTest {
 	@Test
 	void nullPatchFieldsPreserveValuesAndEmptyAmenityListClearsOnlyAmenities() throws Exception {
 		asMember(() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON)
-			.content("{\"name\":null,\"currency\":null,\"address_info\":null,\"occupancy_policy_info\":null,\"amenity_infos\":null}"))
+			.content(
+				"{\"name\":null,\"currency\":null,\"address_info\":null,\"occupancy_policy_info\":null,\"amenity_infos\":null}"))
 			.andExpect(status().isOk()));
 		assertThat(accommodation.getName()).isEqualTo("기존 숙소");
 		assertThat(accommodation.getCurrency()).isEqualTo("KRW");
@@ -169,11 +190,13 @@ class AccommodationHostControllerValidationTest {
 	void duplicatedAmenityCountsAreMergedAfterUppercasingAndZeroCountsAreOmitted() throws Exception {
 		when(codes.isValidCode("AMENITY_TYPE", "WIFI")).thenReturn(true);
 		asMember(() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON)
-			.content("{\"amenity_infos\":[{\"name\":\"wifi\",\"count\":1},{\"name\":\"WIFI\",\"count\":2},{\"name\":\"UNUSED\",\"count\":0}]}"))
+			.content(
+				"{\"amenity_infos\":[{\"name\":\"wifi\",\"count\":1},{\"name\":\"WIFI\",\"count\":2},{\"name\":\"UNUSED\",\"count\":0}]}"))
 			.andExpect(status().isOk()));
 		verify(amenities).saveAll(argThat(values -> {
 			var list = (List<kr.kro.airbob.core.domain.accommodation.AccommodationAmenity>)values;
-			return list.size() == 1 && list.getFirst().getCount() == 3 && list.getFirst().getAmenityCode().equals("WIFI");
+			return list.size() == 1 && list.getFirst().getCount() == 3
+				&& list.getFirst().getAmenityCode().equals("WIFI");
 		}));
 	}
 
@@ -181,7 +204,8 @@ class AccommodationHostControllerValidationTest {
 	void overflowingAmenityTotalDoesNotMutateAccommodationOrAmenities() throws Exception {
 		lenient().when(codes.isValidCode("AMENITY_TYPE", "WIFI")).thenReturn(true);
 		asMember(() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON)
-			.content("{\"name\":\"바뀌면 안 됨\",\"amenity_infos\":[{\"name\":\"wifi\",\"count\":2147483647},{\"name\":\"WIFI\",\"count\":1}]}"))
+			.content(
+				"{\"name\":\"바뀌면 안 됨\",\"amenity_infos\":[{\"name\":\"wifi\",\"count\":2147483647},{\"name\":\"WIFI\",\"count\":1}]}"))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("C001")));
 		assertThat(accommodation.getName()).isEqualTo("기존 숙소");
 		verifyNoInteractions(amenities, history, cache, search);

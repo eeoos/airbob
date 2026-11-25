@@ -5,7 +5,7 @@ import kr.kro.airbob.core.support.error.ErrorCode;
 
 public class AccommodationNotFoundException extends BaseException {
 
-    public AccommodationNotFoundException() {
-        super(ErrorCode.ACCOMMODATION_NOT_FOUND);
-    }
+	public AccommodationNotFoundException() {
+		super(ErrorCode.ACCOMMODATION_NOT_FOUND);
+	}
 }

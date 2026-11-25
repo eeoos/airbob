@@ -6,43 +6,30 @@ import static kr.kro.airbob.core.domain.accommodation.QAddress.*;
 import static kr.kro.airbob.core.domain.accommodation.QOccupancyPolicy.*;
 import static kr.kro.airbob.core.domain.member.QMember.*;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
-import org.springframework.data.domain.SliceImpl;
-import org.springframework.data.support.PageableExecutionUtils;
-
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
-import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationAmenity;
-import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class AccommodationAmenityRepositoryImpl implements AccommodationAmenityRepositoryCustom {
 
-    private final JPAQueryFactory jpaQueryFactory;
+	private final JPAQueryFactory jpaQueryFactory;
 
-    @Override
-    public List<AccommodationAmenity> findAllByAccommodationIdIn(Collection<Long> accommodationIds) {
-        if (accommodationIds == null || accommodationIds.isEmpty()) {
-            return Collections.emptyList();
-        }
+	@Override
+	public List<AccommodationAmenity> findAllByAccommodationIdIn(Collection<Long> accommodationIds) {
+		if (accommodationIds == null || accommodationIds.isEmpty()) {
+			return Collections.emptyList();
+		}
 
-        // amenity_code 를 직접 보관하므로 amenity 조인 불필요
-        return jpaQueryFactory
-            .selectFrom(accommodationAmenity)
-            .where(accommodationAmenity.accommodation.id.in(accommodationIds))
-            .fetch();
-    }
+		// amenity_code 를 직접 보관하므로 amenity 조인 불필요
+		return jpaQueryFactory
+			.selectFrom(accommodationAmenity)
+			.where(accommodationAmenity.accommodation.id.in(accommodationIds))
+			.fetch();
+	}
 }

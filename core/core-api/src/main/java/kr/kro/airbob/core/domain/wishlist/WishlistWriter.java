@@ -30,8 +30,8 @@ public class WishlistWriter {
 
 	/** Deletes the saved accommodations in one batch and marks the wishlist deleted. */
 	public void delete(Wishlist wishlist) {
-		List<WishlistAccommodation> wishlistAccommodations =
-			wishlistAccommodationRepository.findAllByWishlistId(wishlist.getId());
+		List<WishlistAccommodation> wishlistAccommodations = wishlistAccommodationRepository
+			.findAllByWishlistId(wishlist.getId());
 		wishlistAccommodationRepository.deleteAllInBatch(wishlistAccommodations);
 		wishlist.delete();
 	}

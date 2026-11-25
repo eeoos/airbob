@@ -31,7 +31,8 @@ class PaymentOperationQueryServiceTest {
 	private static final Instant CHECK_IN_AT = SERVER_TIME.plusSeconds(60 * 60);
 	private static final Clock CLOCK = Clock.fixed(SERVER_TIME, ZoneOffset.UTC);
 
-	@Mock private PaymentOperationRepository repository;
+	@Mock
+	private PaymentOperationRepository repository;
 
 	@Test
 	void ownerSeesPublicStatusAndNoPaymentKey() {
@@ -76,8 +77,7 @@ class PaymentOperationQueryServiceTest {
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CONFIRM,
 			"transient-internal-detail",
-			SERVER_TIME.plusSeconds(5).plusNanos(1)
-		);
+			SERVER_TIME.plusSeconds(5).plusNanos(1));
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
 		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
@@ -95,8 +95,7 @@ class PaymentOperationQueryServiceTest {
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CANCEL,
 			null,
-			SERVER_TIME
-		);
+			SERVER_TIME);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(due));
 
 		Detail atBoundary = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
@@ -105,8 +104,7 @@ class PaymentOperationQueryServiceTest {
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CANCEL,
 			null,
-			SERVER_TIME.minusNanos(1)
-		);
+			SERVER_TIME.minusNanos(1));
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(overdue));
 
 		Detail afterBoundary = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
@@ -123,8 +121,7 @@ class PaymentOperationQueryServiceTest {
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CONFIRM,
 			null,
-			SERVER_TIME.plusSeconds(31)
-		);
+			SERVER_TIME.plusSeconds(31));
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
 		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
@@ -170,39 +167,33 @@ class PaymentOperationQueryServiceTest {
 			PaymentOperationStatus.DECLINED,
 			PaymentOperationType.CONFIRM,
 			ReservationStatus.PAYMENT_PENDING,
-			CHECK_IN_AT
-		);
+			CHECK_IN_AT);
 		Detail confirmationAtCutoff = detailFor(
 			PaymentOperationStatus.DECLINED,
 			PaymentOperationType.CONFIRM,
 			ReservationStatus.EXPIRED,
-			SERVER_TIME
-		);
+			SERVER_TIME);
 		Detail confirmationLogicallyExpired = detailFor(
 			PaymentOperationStatus.DECLINED,
 			PaymentOperationType.CONFIRM,
 			ReservationStatus.PAYMENT_PENDING,
 			CHECK_IN_AT,
-			SERVER_TIME
-		);
+			SERVER_TIME);
 		Detail cancellationStillPending = detailFor(
 			PaymentOperationStatus.DECLINED,
 			PaymentOperationType.CANCEL,
 			ReservationStatus.CANCELLATION_PENDING,
-			CHECK_IN_AT
-		);
+			CHECK_IN_AT);
 		Detail cancellationAlreadyApplied = detailFor(
 			PaymentOperationStatus.DECLINED,
 			PaymentOperationType.CANCEL,
 			ReservationStatus.CANCELLED,
-			CHECK_IN_AT
-		);
+			CHECK_IN_AT);
 		Detail cancellationAtCutoff = detailFor(
 			PaymentOperationStatus.DECLINED,
 			PaymentOperationType.CANCEL,
 			ReservationStatus.CANCELLATION_FAILED,
-			SERVER_TIME
-		);
+			SERVER_TIME);
 
 		assertThat(confirmationStillPending.nextAction()).isEqualTo(NextAction.NONE);
 		assertThat(confirmationAtCutoff.nextAction()).isEqualTo(NextAction.NONE);
@@ -240,15 +231,13 @@ class PaymentOperationQueryServiceTest {
 		PaymentOperationStatus status,
 		PaymentOperationType operationType,
 		ReservationStatus reservationStatus,
-		Instant checkInAt
-	) {
+		Instant checkInAt) {
 		return detailFor(
 			status,
 			operationType,
 			reservationStatus,
 			checkInAt,
-			defaultReservationExpiry(reservationStatus)
-		);
+			defaultReservationExpiry(reservationStatus));
 	}
 
 	private Detail detailFor(
@@ -256,8 +245,7 @@ class PaymentOperationQueryServiceTest {
 		PaymentOperationType operationType,
 		ReservationStatus reservationStatus,
 		Instant checkInAt,
-		Instant expiresAt
-	) {
+		Instant expiresAt) {
 		PaymentOperationDetailRow operation = operation(
 			status,
 			operationType,
@@ -265,8 +253,7 @@ class PaymentOperationQueryServiceTest {
 			null,
 			reservationStatus,
 			checkInAt,
-			expiresAt
-		);
+			expiresAt);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 		return Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
 	}
@@ -279,8 +266,7 @@ class PaymentOperationQueryServiceTest {
 		PaymentOperationStatus status,
 		PaymentOperationType operationType,
 		String failureCode,
-		Instant nextAttemptAt
-	) {
+		Instant nextAttemptAt) {
 		return operation(
 			status,
 			operationType,
@@ -288,8 +274,7 @@ class PaymentOperationQueryServiceTest {
 			nextAttemptAt,
 			defaultReservationStatus(status, operationType),
 			CHECK_IN_AT,
-			SERVER_TIME
-		);
+			SERVER_TIME);
 	}
 
 	private PaymentOperationDetailRow operation(
@@ -299,20 +284,17 @@ class PaymentOperationQueryServiceTest {
 		Instant nextAttemptAt,
 		ReservationStatus reservationStatus,
 		Instant checkInAt,
-		Instant expiresAt
-	) {
+		Instant expiresAt) {
 		return new PaymentOperationDetailRow(
 			OPERATION_UID, OWNER_ID, operationType, status, failureCode,
 			LocalDateTime.ofInstant(Instant.parse("2026-08-14T01:02:03Z"), ZoneOffset.UTC),
 			nextAttemptAt, UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf"),
-			reservationStatus, checkInAt, expiresAt
-		);
+			reservationStatus, checkInAt, expiresAt);
 	}
 
 	private ReservationStatus defaultReservationStatus(
 		PaymentOperationStatus status,
-		PaymentOperationType operationType
-	) {
+		PaymentOperationType operationType) {
 		if (status == PaymentOperationStatus.DECLINED) {
 			return operationType == PaymentOperationType.CONFIRM
 				? ReservationStatus.EXPIRED

@@ -65,8 +65,7 @@ public class ReservationCheckoutService {
 		ReservationCheckoutRequestClaim claim = reservationWriter.claimCheckoutRequest(
 			memberId,
 			identity,
-			clock.instant()
-		);
+			clock.instant());
 		if (!claim.requestFingerprint().equals(identity.requestFingerprint())) {
 			throw new ReservationCheckoutIdempotencyConflictException();
 		}
@@ -85,15 +84,13 @@ public class ReservationCheckoutService {
 			quote.getCheckOutDate(),
 			quote.getGuestCount(),
 			quote.getCouponId(),
-			checkout.requestMessage()
-		);
+			checkout.requestMessage());
 		Reservation reservation = createPendingReservation(createRequest, CHECKOUT_REASON, guest);
 		Instant checkedOutAt = clock.instant();
 		ReservationStayPricePolicy.StayPrice currentPrice = ReservationStayPricePolicy.calculate(
 			reservation.getAccommodation().getBasePrice(),
 			reservation.getCheckInDate(),
-			reservation.getCheckOutDate()
-		);
+			reservation.getCheckOutDate());
 		if (!quote.matchesPricing(currentPrice, reservation.getDiscountAmount())
 			|| !quote.getCurrency().equals(reservation.getCurrency())) {
 			throw new ReservationQuoteStaleException();
@@ -112,8 +109,7 @@ public class ReservationCheckoutService {
 	private Reservation createPendingReservation(
 		ReservationCreateCommand request,
 		String reason,
-		Member guest
-	) {
+		Member guest) {
 		Accommodation accommodation = findBookingSnapshotNowait(request.accommodationId());
 		validateOccupancy(accommodation, request.guestCount());
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
@@ -130,13 +126,11 @@ public class ReservationCheckoutService {
 		if (!now.isBefore(checkInAt)) {
 			throw new ReservationCheckInClosedException();
 		}
-		ReservationInventoryManager.LockedRange lockedInventory =
-			inventoryManager.lockAvailableRangeNowait(
-				request.accommodationId(),
-				request.checkInDate(),
-				request.checkOutDate(),
-				now
-			);
+		ReservationInventoryManager.LockedRange lockedInventory = inventoryManager.lockAvailableRangeNowait(
+			request.accommodationId(),
+			request.checkInDate(),
+			request.checkOutDate(),
+			now);
 
 		String reservationCode = reservationWriter.newReservationCode();
 		ReservationStayPricePolicy.StayPrice stayPrice = ReservationStayPricePolicy.calculate(
@@ -149,8 +143,7 @@ public class ReservationCheckoutService {
 			now,
 			holdPolicy,
 			stayPrice,
-			accommodation.bookingCurrency()
-		);
+			accommodation.bookingCurrency());
 		reservationWriter.create(reservation);
 
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감

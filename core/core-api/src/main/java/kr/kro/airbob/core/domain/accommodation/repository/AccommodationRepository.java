@@ -3,43 +3,47 @@ package kr.kro.airbob.core.domain.accommodation.repository;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.InventorySeedTarget;
 import kr.kro.airbob.core.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.core.domain.accommodation.repository.querydsl.AccommodationRepositoryCustom;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.QueryHint;
 
 public interface AccommodationRepository extends JpaRepository<Accommodation, Long>, AccommodationRepositoryCustom {
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id")
-	Optional<Accommodation> findByIdForUpdate(@Param("id") Long id);
+	Optional<Accommodation> findByIdForUpdate(
+		@Param("id")
+		Long id);
 
 	@EntityGraph(attributePaths = "occupancyPolicy")
 	@Lock(LockModeType.PESSIMISTIC_READ)
 	@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id AND a.status = :status")
 	Optional<Accommodation> findBookingSnapshotForShare(
-		@Param("id") Long id,
-		@Param("status") AccommodationStatus status
-	);
+		@Param("id")
+		Long id,
+		@Param("status")
+		AccommodationStatus status);
 
 	Optional<Accommodation> findByIdAndStatus(Long id, AccommodationStatus status);
 
 	@EntityGraph(attributePaths = "occupancyPolicy")
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id AND a.status = :status")
 	Optional<Accommodation> findQuoteSnapshotByIdAndStatus(
-		@Param("id") Long id,
-		@Param("status") AccommodationStatus status
-	);
+		@Param("id")
+		Long id,
+		@Param("status")
+		AccommodationStatus status);
 
 	@Query("""
 		SELECT new kr.kro.airbob.core.domain.accommodation.repository.projection.AccommodationBookingProjection(a.timeZoneId)
@@ -47,9 +51,10 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 		WHERE a.id = :id AND a.status = :status
 		""")
 	Optional<AccommodationBookingProjection> findBookingProjectionByIdAndStatus(
-		@Param("id") Long id,
-		@Param("status") AccommodationStatus status
-	);
+		@Param("id")
+		Long id,
+		@Param("status")
+		AccommodationStatus status);
 
 	Optional<Accommodation> findByIdAndMemberIdAndStatus(Long id, Long memberId, AccommodationStatus status);
 
@@ -61,10 +66,11 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 		ORDER BY a.id
 		""")
 	List<InventorySeedTarget> findInventorySeedTargets(
-		@Param("status") AccommodationStatus status,
-		@Param("afterAccommodationId") long afterAccommodationId,
-		org.springframework.data.domain.Pageable pageable
-	);
+		@Param("status")
+		AccommodationStatus status,
+		@Param("afterAccommodationId")
+		long afterAccommodationId,
+		org.springframework.data.domain.Pageable pageable);
 
 	Optional<Accommodation> findByIdAndMemberId(Long accommodationId, Long memberId);
 
@@ -76,11 +82,14 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 			AND a.status <> :excludedStatus
 		""")
 	Optional<Accommodation> findByIdAndMemberIdAndStatusNotForUpdate(
-		@Param("accommodationId") Long accommodationId,
-		@Param("memberId") Long memberId,
-		@Param("excludedStatus") AccommodationStatus excludedStatus
-	);
+		@Param("accommodationId")
+		Long accommodationId,
+		@Param("memberId")
+		Long memberId,
+		@Param("excludedStatus")
+		AccommodationStatus excludedStatus);
 
-	Optional<Accommodation> findByIdAndMemberIdAndStatusNot(Long accommodationId, Long memberId, AccommodationStatus accommodationStatus);
+	Optional<Accommodation> findByIdAndMemberIdAndStatusNot(Long accommodationId, Long memberId,
+		AccommodationStatus accommodationStatus);
 
 }

@@ -131,8 +131,7 @@ public class Reservation extends BaseEntity {
 			request,
 			reservationCode,
 			now,
-			ReservationHoldPolicy.defaultPolicy()
-		);
+			ReservationHoldPolicy.defaultPolicy());
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
@@ -148,8 +147,7 @@ public class Reservation extends BaseEntity {
 			now,
 			holdPolicy,
 			stayPrice,
-			accommodation.bookingCurrency()
-		);
+			accommodation.bookingCurrency());
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
@@ -242,7 +240,8 @@ public class Reservation extends BaseEntity {
 		return isPaymentAllowedAt(this.status, this.totalPrice, this.expiresAt, now);
 	}
 
-	public static boolean isPaymentAllowedAt(ReservationStatus status, Long totalPrice, Instant expiresAt, Instant now) {
+	public static boolean isPaymentAllowedAt(ReservationStatus status, Long totalPrice, Instant expiresAt,
+		Instant now) {
 		return status == ReservationStatus.PAYMENT_PENDING
 			&& !Long.valueOf(0L).equals(totalPrice)
 			&& expiresAt.isAfter(now);

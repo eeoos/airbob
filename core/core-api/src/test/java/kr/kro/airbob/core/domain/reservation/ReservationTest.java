@@ -2,9 +2,9 @@ package kr.kro.airbob.core.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.Instant;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -75,7 +75,8 @@ class ReservationTest {
 			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			assertThat(reservation.getTotalPrice()).isEqualTo(300_000L);
@@ -90,7 +91,8 @@ class ReservationTest {
 			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			assertThat(reservation.getTotalPrice()).isEqualTo(100_000L);
@@ -105,7 +107,8 @@ class ReservationTest {
 			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			assertThat(reservation.getTotalPrice()).isEqualTo(3_000_000L);
@@ -447,8 +450,7 @@ class ReservationTest {
 				1L,
 				LocalDate.of(2026, 3, 8),
 				LocalDate.of(2026, 3, 9),
-				2
-			);
+				2);
 
 			assertThatThrownBy(() -> Reservation.createPendingReservation(
 				newYorkAccommodation, guest, request, "ABC123", NOW))
@@ -471,8 +473,7 @@ class ReservationTest {
 				1L,
 				LocalDate.of(2026, 11, 1),
 				LocalDate.of(2026, 11, 2),
-				2
-			);
+				2);
 
 			Reservation reservation = Reservation.createPendingReservation(
 				newYorkAccommodation, guest, request, "ABC123", NOW);
@@ -494,8 +495,7 @@ class ReservationTest {
 				1L,
 				LocalDate.of(2026, 3, 7),
 				LocalDate.of(2026, 3, 9),
-				2
-			);
+				2);
 			Instant now = Instant.parse("2026-01-01T00:00:00Z");
 
 			Reservation reservation = Reservation.createPendingReservation(
@@ -516,7 +516,8 @@ class ReservationTest {
 			ReservationCreateCommand request = createValidRequest();
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -531,7 +532,8 @@ class ReservationTest {
 			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			Instant expectedCheckIn = Instant.parse("2025-01-26T06:00:00Z");
@@ -547,7 +549,8 @@ class ReservationTest {
 			// given
 			ReservationCreateCommand request = createValidRequest();
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			assertThat(reservation.getExpiresAt()).isEqualTo(NOW.plusSeconds(15 * 60));
@@ -561,7 +564,8 @@ class ReservationTest {
 			String reservationCode = "XYZ789";
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, reservationCode, NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request,
+				reservationCode, NOW);
 
 			// then
 			assertThat(reservation.getReservationCode()).isEqualTo(reservationCode);
@@ -574,7 +578,8 @@ class ReservationTest {
 			ReservationCreateCommand request = createValidRequest();
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			assertThat(reservation.getCurrency()).isEqualTo("KRW");
@@ -589,7 +594,8 @@ class ReservationTest {
 				1L, LocalDate.of(2025, 1, 26), LocalDate.of(2025, 1, 28), guestCount);
 
 			// when
-			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123",
+				NOW);
 
 			// then
 			assertThat(reservation.getGuestCount()).isEqualTo(guestCount);
@@ -615,7 +621,6 @@ class ReservationTest {
 			1L,
 			LocalDate.of(2025, 1, 26),
 			LocalDate.of(2025, 1, 28),
-			2
-		);
+			2);
 	}
 }

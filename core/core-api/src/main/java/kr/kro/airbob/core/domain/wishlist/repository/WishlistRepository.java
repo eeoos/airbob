@@ -9,7 +9,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
-
 import kr.kro.airbob.core.domain.wishlist.Wishlist;
 import kr.kro.airbob.core.domain.wishlist.WishlistStatus;
 import kr.kro.airbob.core.domain.wishlist.repository.projection.WishlistDetailHeaderProjection;
@@ -24,7 +23,11 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Long>, Wishl
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select w from Wishlist w where w.id = :id and w.status = :status")
-	Optional<Wishlist> findByIdAndStatusForUpdate(@Param("id") Long id, @Param("status") WishlistStatus status);
+	Optional<Wishlist> findByIdAndStatusForUpdate(
+		@Param("id")
+		Long id,
+		@Param("status")
+		WishlistStatus status);
 
 	@Query("""
 		select new kr.kro.airbob.core.domain.wishlist.repository.projection.WishlistDetailHeaderProjection(
@@ -33,7 +36,10 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Long>, Wishl
 		where w.id = :id and w.status = :status
 		""")
 	Optional<WishlistDetailHeaderProjection> findDetailHeaderByIdAndStatus(
-		@Param("id") Long id, @Param("status") WishlistStatus status);
+		@Param("id")
+		Long id,
+		@Param("status")
+		WishlistStatus status);
 
 	// 반정규화 카운터 원자적 유지(증가/감소/대표 재선정)는 WishlistRepositoryCustom(QueryDSL)에서 제공.
 }

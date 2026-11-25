@@ -3,8 +3,8 @@ package kr.kro.airbob.core.domain.coupon;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -16,14 +16,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -183,16 +183,16 @@ class CouponUsageConcurrencyTest {
 		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 
 		try {
-			CompletableFuture<Void> checkout = CompletableFuture.runAsync(() ->
-				transaction.executeWithoutResult(status -> {
+			CompletableFuture<Void> checkout = CompletableFuture
+				.runAsync(() -> transaction.executeWithoutResult(status -> {
 					couponRepository.findByIdForShare(coupon.getId()).orElseThrow();
 					sharedLockAcquired.countDown();
 					await(releaseSharedLock);
 				}), executor);
 			assertThat(sharedLockAcquired.await(5, TimeUnit.SECONDS)).isTrue();
 
-			CompletableFuture<Void> adminUpdate = CompletableFuture.runAsync(() ->
-				transaction.executeWithoutResult(status -> {
+			CompletableFuture<Void> adminUpdate = CompletableFuture
+				.runAsync(() -> transaction.executeWithoutResult(status -> {
 					couponRepository.findByIdForUpdate(coupon.getId()).orElseThrow();
 					updateLockAcquired.countDown();
 				}), executor);

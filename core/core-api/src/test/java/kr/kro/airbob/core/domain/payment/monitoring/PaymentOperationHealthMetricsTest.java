@@ -34,9 +34,7 @@ class PaymentOperationHealthMetricsTest {
 			4,
 			Map.of(
 				PaymentOperationResolutionAction.RECONCILIATION_REQUESTED, 7L,
-				PaymentOperationResolutionAction.MARKED_NOT_PAID, 2L
-			)
-		);
+				PaymentOperationResolutionAction.MARKED_NOT_PAID, 2L));
 
 		metrics.recordSuccess(snapshot);
 

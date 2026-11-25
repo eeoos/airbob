@@ -46,8 +46,7 @@ public class AccommodationImageService {
 	public List<StoredImage> uploadImages(
 		Long accommodationId,
 		List<MultipartFile> images,
-		Long memberId
-	) {
+		Long memberId) {
 		Accommodation accommodation = accommodationReader.readOwned(accommodationId, memberId);
 
 		List<String> imageUrls = new ArrayList<>();
@@ -119,8 +118,7 @@ public class AccommodationImageService {
 
 	private void publishReindexEventIfNeeded(
 		Accommodation accommodation,
-		boolean thumbnailChanged
-	) {
+		boolean thumbnailChanged) {
 		if (thumbnailChanged && accommodation.getStatus() == AccommodationStatus.PUBLISHED) {
 			searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		}

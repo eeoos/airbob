@@ -25,9 +25,12 @@ import kr.kro.airbob.core.domain.payment.repository.PaymentOperationResolutionRe
 @SpringJUnitConfig(PaymentOperationManualResolutionRecorderTest.TestConfiguration.class)
 class PaymentOperationManualResolutionRecorderTest {
 
-	@Autowired private PaymentOperationManualResolutionRecorder recorder;
-	@Autowired private PaymentOperationResolutionRepository repository;
-	@Autowired private OperatorAlertOutboxPublisher alertPublisher;
+	@Autowired
+	private PaymentOperationManualResolutionRecorder recorder;
+	@Autowired
+	private PaymentOperationResolutionRepository repository;
+	@Autowired
+	private OperatorAlertOutboxPublisher alertPublisher;
 
 	@Test
 	void refusesToWriteAnyAuditOrAlertOutsideAnOwningTransaction() {
@@ -65,8 +68,7 @@ class PaymentOperationManualResolutionRecorderTest {
 		@Bean
 		PaymentOperationManualResolutionRecorder recorder(
 			PaymentOperationResolutionRepository repository,
-			OperatorAlertOutboxPublisher alertPublisher
-		) {
+			OperatorAlertOutboxPublisher alertPublisher) {
 			return new PaymentOperationManualResolutionRecorder(repository, alertPublisher);
 		}
 
@@ -84,15 +86,12 @@ class PaymentOperationManualResolutionRecorderTest {
 		}
 
 		@Override
-		protected void doBegin(Object transaction, TransactionDefinition definition) {
-		}
+		protected void doBegin(Object transaction, TransactionDefinition definition) {}
 
 		@Override
-		protected void doCommit(DefaultTransactionStatus status) {
-		}
+		protected void doCommit(DefaultTransactionStatus status) {}
 
 		@Override
-		protected void doRollback(DefaultTransactionStatus status) {
-		}
+		protected void doRollback(DefaultTransactionStatus status) {}
 	}
 }

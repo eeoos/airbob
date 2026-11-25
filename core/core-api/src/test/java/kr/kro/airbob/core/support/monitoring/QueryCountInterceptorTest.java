@@ -13,10 +13,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.servlet.AsyncHandlerInterceptor;
@@ -50,8 +50,7 @@ class QueryCountInterceptorTest {
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/accommodations/1");
 		request.setAttribute(
 			HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE,
-			"/api/v1/accommodations/{accommodationId}"
-		);
+			"/api/v1/accommodations/{accommodationId}");
 
 		boolean result = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
@@ -85,8 +84,7 @@ class QueryCountInterceptorTest {
 			new MockHttpServletRequest(),
 			new MockHttpServletResponse(),
 			new Object(),
-			null
-		);
+			null);
 
 		then(metricRecorder).should().record(snapshotCaptor.capture());
 		QueryCountSnapshot snapshot = snapshotCaptor.getValue();
@@ -101,14 +99,14 @@ class QueryCountInterceptorTest {
 	@DisplayName("메트릭 기록 중 예외가 발생해도 컨텍스트를 정리한다")
 	void afterCompletionClearsContextWhenMetricRecordingFails() {
 		QueryCountContextHolder.initContext(new QueryCountContext("GET", "/api/v1/accommodations"));
-		willThrow(new IllegalStateException("record failed")).given(metricRecorder).record(any(QueryCountSnapshot.class));
+		willThrow(new IllegalStateException("record failed")).given(metricRecorder)
+			.record(any(QueryCountSnapshot.class));
 
 		assertThatThrownBy(() -> interceptor.afterCompletion(
 			new MockHttpServletRequest(),
 			new MockHttpServletResponse(),
 			new Object(),
-			null
-		)).isInstanceOf(IllegalStateException.class);
+			null)).isInstanceOf(IllegalStateException.class);
 
 		assertThat(QueryCountContextHolder.getContext()).isNull();
 	}
@@ -124,8 +122,7 @@ class QueryCountInterceptorTest {
 		asyncInterceptor.afterConcurrentHandlingStarted(
 			new MockHttpServletRequest(),
 			new MockHttpServletResponse(),
-			new Object()
-		);
+			new Object());
 
 		assertThat(QueryCountContextHolder.getContext()).isNull();
 		then(metricRecorder).shouldHaveNoInteractions();

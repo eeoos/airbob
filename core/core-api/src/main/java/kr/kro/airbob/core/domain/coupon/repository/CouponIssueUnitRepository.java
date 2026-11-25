@@ -15,19 +15,33 @@ public interface CouponIssueUnitRepository extends JpaRepository<CouponIssueUnit
 		select id as unitKey, unit_no as unitNumber from coupon_issue_unit
 		where coupon_id = :couponId order by unit_no limit 1 for update skip locked
 		""", nativeQuery = true)
-	Optional<CouponIssueUnitProjection> lockAvailable(@Param("couponId") long couponId);
+	Optional<CouponIssueUnitProjection> lockAvailable(
+		@Param("couponId")
+		long couponId);
 
 	@Modifying
 	@Query(value = "delete from coupon_issue_unit where coupon_id = :couponId and id = :unitKey", nativeQuery = true)
-	int consume(@Param("couponId") long couponId, @Param("unitKey") long unitKey);
+	int consume(
+		@Param("couponId")
+		long couponId,
+		@Param("unitKey")
+		long unitKey);
 
 	@Query(value = "select unit_no from coupon_issue_unit where coupon_id = :couponId limit 1", nativeQuery = true)
-	Optional<Integer> findRemainingUnit(@Param("couponId") long couponId);
+	Optional<Integer> findRemainingUnit(
+		@Param("couponId")
+		long couponId);
 
 	@Query(value = "select count(*) from coupon_issue_unit where coupon_id = :couponId", nativeQuery = true)
-	long countUnits(@Param("couponId") long couponId);
+	long countUnits(
+		@Param("couponId")
+		long couponId);
 
 	@Modifying
 	@Query(value = "delete from coupon_issue_unit where coupon_id = :couponId and unit_no > :target", nativeQuery = true)
-	int removeAbove(@Param("couponId") long couponId, @Param("target") int target);
+	int removeAbove(
+		@Param("couponId")
+		long couponId,
+		@Param("target")
+		int target);
 }

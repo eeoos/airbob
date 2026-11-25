@@ -31,8 +31,7 @@ import kr.kro.airbob.core.domain.payment.PaymentOperationExecutionFenceUnavailab
 @Testcontainers
 class MysqlPaymentOperationExecutionFenceIntegrationTest {
 
-	private static final UUID OPERATION_UID =
-		UUID.fromString("93ccb18f-b0ea-4078-9a56-8df428328461");
+	private static final UUID OPERATION_UID = UUID.fromString("93ccb18f-b0ea-4078-9a56-8df428328461");
 
 	@Container
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
@@ -49,9 +48,8 @@ class MysqlPaymentOperationExecutionFenceIntegrationTest {
 	@Test
 	void localPermitTimesOutBeforeBorrowingAnotherSharedPoolConnection() throws Exception {
 		CountingDataSource countingDataSource = new CountingDataSource(dataSource());
-		MysqlPaymentOperationExecutionFence singlePermitFence =
-			new MysqlPaymentOperationExecutionFence(
-				countingDataSource, Duration.ofMillis(200), Duration.ofSeconds(2), 1);
+		MysqlPaymentOperationExecutionFence singlePermitFence = new MysqlPaymentOperationExecutionFence(
+			countingDataSource, Duration.ofMillis(200), Duration.ofSeconds(2), 1);
 		CountDownLatch firstAcquired = new CountDownLatch(1);
 		CountDownLatch releaseFirst = new CountDownLatch(1);
 		AtomicBoolean competingActionRan = new AtomicBoolean();
@@ -114,9 +112,8 @@ class MysqlPaymentOperationExecutionFenceIntegrationTest {
 
 	@Test
 	void actionFailureStillReleasesTheConnectionScopedLock() {
-		MysqlPaymentOperationExecutionFence singlePermitFence =
-			new MysqlPaymentOperationExecutionFence(
-				dataSource(), Duration.ofSeconds(1), Duration.ofSeconds(2), 1);
+		MysqlPaymentOperationExecutionFence singlePermitFence = new MysqlPaymentOperationExecutionFence(
+			dataSource(), Duration.ofSeconds(1), Duration.ofSeconds(2), 1);
 
 		assertThatThrownBy(() -> singlePermitFence.execute(OPERATION_UID, () -> {
 			throw new ExpectedActionFailure();
@@ -186,6 +183,5 @@ class MysqlPaymentOperationExecutionFenceIntegrationTest {
 		}
 	}
 
-	private static final class ExpectedActionFailure extends RuntimeException {
-	}
+	private static final class ExpectedActionFailure extends RuntimeException {}
 }

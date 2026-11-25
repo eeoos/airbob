@@ -13,6 +13,5 @@ public interface CouponRepositoryCustom {
 		LocalDateTime now,
 		Long lastId,
 		LocalDateTime lastIssueStartAt,
-		Pageable pageable
-	);
+		Pageable pageable);
 }

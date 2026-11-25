@@ -8,8 +8,7 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventDestination;
 public record OperatorAlertSourcePosition(
 	String topic,
 	Integer partition,
-	Long offset
-) {
+	Long offset) {
 
 	public OperatorAlertSourcePosition {
 		boolean empty = topic == null && partition == null && offset == null;
@@ -28,8 +27,7 @@ public record OperatorAlertSourcePosition(
 		EventDescriptor trustedSource,
 		String observedOriginalTopic,
 		int partition,
-		long offset
-	) {
+		long offset) {
 		Objects.requireNonNull(trustedSource, "trustedSource must not be null");
 		if (!trustedSource.destination().equals(observedOriginalTopic)) {
 			throw new IllegalArgumentException(

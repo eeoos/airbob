@@ -7,6 +7,5 @@ public record NewCommonCodeGroup(
 	String groupCode,
 	String groupName,
 	String description,
-	Boolean active
-) {
+	Boolean active) {
 }

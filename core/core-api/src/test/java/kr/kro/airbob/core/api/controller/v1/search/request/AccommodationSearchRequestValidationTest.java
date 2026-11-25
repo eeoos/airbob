@@ -60,8 +60,7 @@ class AccommodationSearchRequestValidationTest {
 	void allowsPastDatesForAccommodationLocalDateValidation() {
 		AccommodationSearchRequest.AccommodationSearchRequestDto request = requestWithDates(
 			LocalDate.of(2000, 1, 1),
-			LocalDate.of(2000, 1, 2)
-		);
+			LocalDate.of(2000, 1, 2));
 
 		assertThat(validator.validate(request)).isEmpty();
 	}
@@ -82,8 +81,7 @@ class AccommodationSearchRequestValidationTest {
 			Arguments.of(LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 12)),
 			Arguments.of(LocalDate.of(2026, 8, 13), LocalDate.of(2026, 8, 12)),
 			Arguments.of(LocalDate.of(2026, 8, 13), null),
-			Arguments.of(null, LocalDate.of(2026, 8, 14))
-		);
+			Arguments.of(null, LocalDate.of(2026, 8, 14)));
 	}
 
 	@Test
@@ -96,10 +94,8 @@ class AccommodationSearchRequestValidationTest {
 
 	private AccommodationSearchRequest.AccommodationSearchRequestDto requestWithDates(
 		LocalDate checkIn,
-		LocalDate checkOut
-	) {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request =
-			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		LocalDate checkOut) {
+		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
 		request.setCheckIn(checkIn);
 		request.setCheckOut(checkOut);
 		return request;

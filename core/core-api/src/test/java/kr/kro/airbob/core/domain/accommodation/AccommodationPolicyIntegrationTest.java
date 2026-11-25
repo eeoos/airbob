@@ -48,8 +48,10 @@ import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPubl
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationCommandService.class, MemberReader.class, ReservationReader.class,
-	AccommodationReader.class, AccommodationWriter.class, AccommodationValidator.class, AccommodationLocationResolver.class})
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationCommandService.class,
+	MemberReader.class, ReservationReader.class,
+	AccommodationReader.class, AccommodationWriter.class, AccommodationValidator.class,
+	AccommodationLocationResolver.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 정책 저장 후 호스트 조회 MySQL 계약")
@@ -69,17 +71,28 @@ class AccommodationPolicyIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private AccommodationCommandService commandService;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private OccupancyPolicyRepository policyRepository;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private PlatformTransactionManager transactionManager;
-	@MockitoBean private CommonCodeReader commonCodeReader;
-	@MockitoBean private GeocodingGateway geocodingService;
-	@MockitoBean private TimeZoneResolver timeZoneResolver;
-	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@MockitoBean private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@MockitoBean private ReservationInventorySeeder inventorySeeder;
+	@Autowired
+	private AccommodationCommandService commandService;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private OccupancyPolicyRepository policyRepository;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+	@MockitoBean
+	private CommonCodeReader commonCodeReader;
+	@MockitoBean
+	private GeocodingGateway geocodingService;
+	@MockitoBean
+	private TimeZoneResolver timeZoneResolver;
+	@MockitoBean
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@MockitoBean
+	private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	@MockitoBean
+	private ReservationInventorySeeder inventorySeeder;
 
 	@Test
 	@DisplayName("정책이 없는 초안에 기본값을 저장하고 다시 수정해도 같은 정책 행을 사용한다")
@@ -130,7 +143,8 @@ class AccommodationPolicyIntegrationTest {
 
 	private void updatePolicy(Fixture fixture, int max, int infant, int pet) {
 		commandService.updateAccommodation(fixture.id(), AccommodationRequest.Update.builder()
-			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(max, infant, pet)).build().toUpdate(), fixture.hostId());
+			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(max, infant, pet)).build().toUpdate(),
+			fixture.hostId());
 	}
 
 	private PolicyResponse.PolicyInfo readPolicy(Fixture fixture) {
@@ -155,5 +169,6 @@ class AccommodationPolicyIntegrationTest {
 		});
 	}
 
-	private record Fixture(long id, long hostId) { }
+	private record Fixture(long id, long hostId) {
+	}
 }

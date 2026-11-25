@@ -23,8 +23,7 @@ class PaymentOperationResolutionTest {
 				"RECONCILIATION_APPLIED",
 				"RECONCILIATION_DECLINED",
 				"RECONCILIATION_RETURNED_TO_REVIEW",
-				"MARKED_NOT_PAID"
-			);
+				"MARKED_NOT_PAID");
 	}
 
 	@Test
@@ -38,8 +37,7 @@ class PaymentOperationResolutionTest {
 			"provider-code=UNKNOWN",
 			PaymentOperationStatus.EXECUTING,
 			PaymentOperationStatus.MANUAL_REVIEW,
-			RECORDED_AT
-		);
+			RECORDED_AT);
 
 		assertThat(resolution.getPaymentOperation()).isSameAs(operation);
 		assertThat(resolution.getDispatchGeneration()).isEqualTo(7);
@@ -64,8 +62,7 @@ class PaymentOperationResolutionTest {
 			null,
 			PaymentOperationStatus.MANUAL_REVIEW,
 			PaymentOperationStatus.QUEUED,
-			RECORDED_AT
-		);
+			RECORDED_AT);
 
 		assertThat(resolution.getActorType()).isEqualTo(PaymentOperationResolutionActorType.ADMIN);
 		assertThat(resolution.getActorMemberId()).isEqualTo(42L);
@@ -83,8 +80,7 @@ class PaymentOperationResolutionTest {
 			null,
 			PaymentOperationStatus.MANUAL_REVIEW,
 			PaymentOperationStatus.DECLINED,
-			RECORDED_AT
-		)).isInstanceOf(IllegalArgumentException.class);
+			RECORDED_AT)).isInstanceOf(IllegalArgumentException.class);
 
 		assertThatThrownBy(() -> PaymentOperationResolution.recordSystem(
 			operation,
@@ -93,8 +89,7 @@ class PaymentOperationResolutionTest {
 			null,
 			PaymentOperationStatus.EXECUTING,
 			PaymentOperationStatus.MANUAL_REVIEW,
-			RECORDED_AT
-		)).isInstanceOf(IllegalArgumentException.class);
+			RECORDED_AT)).isInstanceOf(IllegalArgumentException.class);
 
 		assertThatThrownBy(() -> PaymentOperationResolution.recordSystem(
 			operation,
@@ -103,7 +98,6 @@ class PaymentOperationResolutionTest {
 			"x".repeat(513),
 			PaymentOperationStatus.EXECUTING,
 			PaymentOperationStatus.MANUAL_REVIEW,
-			RECORDED_AT
-		)).isInstanceOf(IllegalArgumentException.class);
+			RECORDED_AT)).isInstanceOf(IllegalArgumentException.class);
 	}
 }

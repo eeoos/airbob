@@ -29,23 +29,11 @@ public class PaymentOperationExecutionListener {
 	private final PaymentOperationExecutionService executionService;
 	private final PaymentOperationDltIncidentService dltIncidentService;
 
-	@RetryableTopic(
-		attempts = "${payment.operation.kafka.attempts:4}",
-		backoff = @Backoff(delayExpression = "${payment.operation.kafka.backoff-ms:30000}"),
-		kafkaTemplate = "paymentOperationRetryKafkaTemplate",
-		listenerContainerFactory = PaymentOperationKafkaConsumerConfiguration.CONTAINER_FACTORY,
-		retryTopicSuffix = ".RETRY",
-		dltTopicSuffix = ".DLT",
-		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
-		dltStrategy = DltStrategy.FAIL_ON_ERROR,
-		autoCreateTopics = "false"
-	)
-	@KafkaListener(
-		topics = PaymentOperationExecutionRequestedV1.TOPIC,
-		groupId = "${payment.operation.kafka.group:payment-operation-execution-group}",
-		containerFactory = PaymentOperationKafkaConsumerConfiguration.CONTAINER_FACTORY
-	)
-	public void handle(@Payload String message, Acknowledgment ack) {
+	@RetryableTopic(attempts = "${payment.operation.kafka.attempts:4}", backoff = @Backoff(delayExpression = "${payment.operation.kafka.backoff-ms:30000}"), kafkaTemplate = "paymentOperationRetryKafkaTemplate", listenerContainerFactory = PaymentOperationKafkaConsumerConfiguration.CONTAINER_FACTORY, retryTopicSuffix = ".RETRY", dltTopicSuffix = ".DLT", sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC, dltStrategy = DltStrategy.FAIL_ON_ERROR, autoCreateTopics = "false")
+	@KafkaListener(topics = PaymentOperationExecutionRequestedV1.TOPIC, groupId = "${payment.operation.kafka.group:payment-operation-execution-group}", containerFactory = PaymentOperationKafkaConsumerConfiguration.CONTAINER_FACTORY)
+	public void handle(
+		@Payload
+		String message, Acknowledgment ack) {
 		PaymentOperationExecutionRequestedV1 event = decode(message).payload();
 		executionService.execute(event.operationUid(), event.dispatchGeneration());
 		ack.acknowledge();
@@ -61,17 +49,15 @@ public class PaymentOperationExecutionListener {
 		return codec.decode(
 			message,
 			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
-			PaymentOperationExecutionRequestedV1.class
-		);
+			PaymentOperationExecutionRequestedV1.class);
 	}
 
 	private OperatorAlertSourcePosition sourcePosition(ConsumerRecord<String, String> record) {
 		String trustedTopic = PaymentOperationExecutionRequestedV1.DESCRIPTOR.destination();
 		String observedOriginalTopic = KafkaRetryHeaders.readStringHeader(
 			record.headers(), KafkaHeaders.ORIGINAL_TOPIC).orElse(null);
-		KafkaRetryHeaders.RecordCoordinates coordinates =
-			KafkaRetryHeaders.canonicalSourceCoordinates(
-				record, trustedTopic);
+		KafkaRetryHeaders.RecordCoordinates coordinates = KafkaRetryHeaders.canonicalSourceCoordinates(
+			record, trustedTopic);
 		return OperatorAlertSourcePosition.from(
 			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
 			observedOriginalTopic,

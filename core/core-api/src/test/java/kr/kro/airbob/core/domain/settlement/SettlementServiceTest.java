@@ -33,12 +33,18 @@ class SettlementServiceTest {
 
 	private static final Instant NOW = Instant.parse("2099-01-01T00:30:00Z");
 
-	@Mock private SettlementRepository settlementRepository;
-	@Mock private SettlementHistoryRepository settlementHistoryRepository;
-	@Mock private RedissonClient redissonClient;
-	@Mock private PlatformTransactionManager transactionManager;
-	@Mock private RLock lock;
-	@Mock private TransactionStatus transactionStatus;
+	@Mock
+	private SettlementRepository settlementRepository;
+	@Mock
+	private SettlementHistoryRepository settlementHistoryRepository;
+	@Mock
+	private RedissonClient redissonClient;
+	@Mock
+	private PlatformTransactionManager transactionManager;
+	@Mock
+	private RLock lock;
+	@Mock
+	private TransactionStatus transactionStatus;
 
 	private SettlementService settlementService;
 
@@ -52,8 +58,7 @@ class SettlementServiceTest {
 			historyWriter,
 			redissonClient,
 			transactionManager,
-			clock
-		);
+			clock);
 	}
 
 	@Test
@@ -64,8 +69,7 @@ class SettlementServiceTest {
 			LocalDate.of(2098, 12, 1),
 			100_000L,
 			0L,
-			new BigDecimal("0.03")
-		);
+			new BigDecimal("0.03"));
 		when(settlementRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
 
 		settlementService.markPaid(1L);
@@ -82,8 +86,7 @@ class SettlementServiceTest {
 			LocalDate.of(2099, 1, 1),
 			100_000L,
 			0L,
-			new BigDecimal("0.03")
-		);
+			new BigDecimal("0.03"));
 		when(settlementRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
 
 		assertThatThrownBy(() -> settlementService.markPaid(1L))

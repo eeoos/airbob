@@ -17,10 +17,9 @@ class JpaAuditingConfigTest {
 	void createsAuditTimeInUtcRegardlessOfClockZone() {
 		Clock seoulClock = Clock.fixed(
 			Instant.parse("2026-08-13T07:30:00Z"),
-			ZoneId.of("Asia/Seoul")
-		);
+			ZoneId.of("Asia/Seoul"));
 
-		LocalDateTime auditTime = (LocalDateTime) new JpaAuditingConfig()
+		LocalDateTime auditTime = (LocalDateTime)new JpaAuditingConfig()
 			.utcDateTimeProvider(seoulClock)
 			.getNow()
 			.orElseThrow();

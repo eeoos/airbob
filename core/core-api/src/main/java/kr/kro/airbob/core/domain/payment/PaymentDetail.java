@@ -14,8 +14,7 @@ public record PaymentDetail(
 	PaymentStatus status,
 	LocalDateTime createdAt,
 	Instant approvedAt,
-	List<Cancellation> cancellations
-) {
+	List<Cancellation> cancellations) {
 
 	public PaymentDetail {
 		cancellations = List.copyOf(cancellations);
@@ -31,23 +30,20 @@ public record PaymentDetail(
 			payment.getStatus(),
 			payment.getCreatedAt(),
 			payment.getApprovedAt(),
-			cancelTransactions.stream().map(Cancellation::from).toList()
-		);
+			cancelTransactions.stream().map(Cancellation::from).toList());
 	}
 
 	/** 취소 원장 한 건. 과거 원장에는 값이 없을 수 있다. */
 	public record Cancellation(
 		Long cancelAmount,
 		String cancelReason,
-		Instant canceledAt
-	) {
+		Instant canceledAt) {
 
 		public static Cancellation from(PaymentTransaction transaction) {
 			return new Cancellation(
 				transaction.getCancelAmount(),
 				transaction.getCancelReason(),
-				transaction.getCanceledAt()
-			);
+				transaction.getCanceledAt());
 		}
 	}
 }

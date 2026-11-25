@@ -8,6 +8,5 @@ import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 public record WishlistAccommodationPage(
 	String wishlistName,
 	List<WishlistAccommodationItem> accommodations,
-	CursorResponse.PageInfo pageInfo
-) {
+	CursorResponse.PageInfo pageInfo) {
 }

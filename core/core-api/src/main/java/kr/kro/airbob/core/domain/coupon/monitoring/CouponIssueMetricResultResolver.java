@@ -12,7 +12,8 @@ import lombok.NoArgsConstructor;
 public final class CouponIssueMetricResultResolver {
 
 	public static CouponIssueMetricRecorder.IssueResult issueResult(RuntimeException exception) {
-		if (exception instanceof CouponIssueContendedException) return CouponIssueMetricRecorder.IssueResult.CONTENDED;
+		if (exception instanceof CouponIssueContendedException)
+			return CouponIssueMetricRecorder.IssueResult.CONTENDED;
 		if (exception instanceof CouponSoldOutException) {
 			return CouponIssueMetricRecorder.IssueResult.SOLD_OUT;
 		}

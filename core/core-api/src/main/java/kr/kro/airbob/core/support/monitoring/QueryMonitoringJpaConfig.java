@@ -11,9 +11,7 @@ public class QueryMonitoringJpaConfig {
 
 	@Bean
 	HibernatePropertiesCustomizer queryCountStatementInspectorCustomizer(
-		SqlQueryStatementInspector sqlQueryStatementInspector
-	) {
-		return hibernateProperties ->
-			hibernateProperties.put(STATEMENT_INSPECTOR_PROPERTY, sqlQueryStatementInspector);
+		SqlQueryStatementInspector sqlQueryStatementInspector) {
+		return hibernateProperties -> hibernateProperties.put(STATEMENT_INSPECTOR_PROPERTY, sqlQueryStatementInspector);
 	}
 }

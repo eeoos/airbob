@@ -46,8 +46,7 @@ public class PaymentCancellationCommandService {
 		CouponUsageManager couponUsageManager,
 		AccommodationSearchRefreshRequester searchRefreshPublisher,
 		OutboxWriter outboxWriter,
-		Clock clock
-	) {
+		Clock clock) {
 		this.reservationReader = reservationReader;
 		this.inventoryManager = inventoryManager;
 		this.paymentReader = paymentReader;
@@ -64,8 +63,7 @@ public class PaymentCancellationCommandService {
 	public PaymentOperationReceipt requestCancellation(
 		String reservationUidValue,
 		PaymentCancellation request,
-		Long memberId
-	) {
+		Long memberId) {
 		UUID reservationUid = parseReservationUid(reservationUidValue);
 		Reservation reservation = reservationReader.readByUidForUpdate(reservationUid);
 		if (!reservation.belongsToGuest(memberId)) {
@@ -97,20 +95,17 @@ public class PaymentCancellationCommandService {
 			payment.getPaymentKey(),
 			payment.getBalanceAmount(),
 			request.cancelReason(),
-			now
-		);
+			now);
 		operationWriter.create(operation);
 		reservationHistoryWriter.recordSystem(
 			reservation,
 			ChangeType.STATUS_CHANGE,
 			"결제 취소 처리 시작: " + request.cancelReason(),
-			HISTORY_SOURCE
-		);
+			HISTORY_SOURCE);
 		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
 			operation.getOperationUid(),
 			reservationUid,
-			operation.getDispatchGeneration()
-		));
+			operation.getDispatchGeneration()));
 		return PaymentOperationReceipt.accepted(operation);
 	}
 
@@ -122,8 +117,7 @@ public class PaymentCancellationCommandService {
 
 	private PaymentOperationReceipt cancelComplimentary(
 		Reservation reservation,
-		PaymentCancellation request
-	) {
+		PaymentCancellation request) {
 		if (request.cancelAmount() != null) {
 			throw new InvalidInputException("0원 예약에는 환불 금액을 지정할 수 없습니다.");
 		}
@@ -134,8 +128,7 @@ public class PaymentCancellationCommandService {
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
-			reservation.getId()
-		);
+			reservation.getId());
 		couponUsageManager.restore(reservation.getId());
 		reservationHistoryWriter.recordSystem(
 			reservation, ChangeType.CANCEL, request.cancelReason(), "RESERVATION");
@@ -147,8 +140,7 @@ public class PaymentCancellationCommandService {
 	private PaymentOperationReceipt replayIfCancellationAlreadyInProgress(
 		Reservation reservation,
 		Optional<PaymentOperation> latest,
-		PaymentCancellation request
-	) {
+		PaymentCancellation request) {
 		if (reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING) {
 			PaymentOperation operation = latest
 				.filter(this::isActiveCancellation)

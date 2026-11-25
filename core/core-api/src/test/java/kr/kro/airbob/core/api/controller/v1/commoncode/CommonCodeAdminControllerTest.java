@@ -71,8 +71,8 @@ class CommonCodeAdminControllerTest {
 			new CommonCodeGroupDetail("PAYMENT_METHOD", "결제 수단", null, true));
 
 		mockMvc.perform(post("/api/v1/admin/common-code-groups")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(request)))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(objectMapper.writeValueAsString(request)))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.group_code").value("PAYMENT_METHOD"))
@@ -89,8 +89,8 @@ class CommonCodeAdminControllerTest {
 			new CommonCodeGroupDetail("PAYMENT_METHOD", "새 이름", "기존 설명", false));
 
 		mockMvc.perform(patch("/api/v1/admin/common-code-groups/payment_method")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(request)))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(objectMapper.writeValueAsString(request)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.group_code").value("PAYMENT_METHOD"))
 			.andExpect(jsonPath("$.data.group_name").value("새 이름"))
@@ -103,8 +103,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("필수 그룹 생성 값이 없으면 C001 400을 반환한다")
 	void rejectMissingCreateValues() throws Exception {
 		mockMvc.perform(post("/api/v1/admin/common-code-groups")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -115,8 +115,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("허용되지 않는 그룹 코드 형식은 C001 400을 반환한다")
 	void rejectMalformedGroupCode() throws Exception {
 		mockMvc.perform(post("/api/v1/admin/common-code-groups")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"group_code\":\"PAYMENT-METHOD\",\"group_name\":\"결제 수단\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"group_code\":\"PAYMENT-METHOD\",\"group_name\":\"결제 수단\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -127,8 +127,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("유니코드 공백으로만 된 그룹 이름 생성은 C001 400을 반환한다")
 	void rejectUnicodeBlankCreateGroupName() throws Exception {
 		mockMvc.perform(post("/api/v1/admin/common-code-groups")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"group_code\":\"PAYMENT_METHOD\",\"group_name\":\"\\u3000\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"group_code\":\"PAYMENT_METHOD\",\"group_name\":\"\\u3000\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -139,8 +139,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("공백으로만 된 그룹 이름 수정은 C001 400을 반환한다")
 	void rejectBlankUpdateName() throws Exception {
 		mockMvc.perform(patch("/api/v1/admin/common-code-groups/PAYMENT_METHOD")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"group_name\":\"   \"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"group_name\":\"   \"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -151,8 +151,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("유니코드 공백으로만 된 그룹 이름 수정은 C001 400을 반환한다")
 	void rejectUnicodeBlankUpdateGroupName() throws Exception {
 		mockMvc.perform(patch("/api/v1/admin/common-code-groups/PAYMENT_METHOD")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"group_name\":\"\\u3000\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"group_name\":\"\\u3000\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -164,11 +164,12 @@ class CommonCodeAdminControllerTest {
 	void rejectDuplicateGroup() throws Exception {
 		CommonCodeGroupRequest.Create request = new CommonCodeGroupRequest.Create(
 			"AMENITY_TYPE", "중복 그룹", null, true);
-		given(adminService.createGroup(request.toNewCommonCodeGroup())).willThrow(new CommonCodeGroupDuplicateException());
+		given(adminService.createGroup(request.toNewCommonCodeGroup()))
+			.willThrow(new CommonCodeGroupDuplicateException());
 
 		mockMvc.perform(post("/api/v1/admin/common-code-groups")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(request)))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(objectMapper.writeValueAsString(request)))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.error.code").value("CC004"));
 	}
@@ -181,8 +182,8 @@ class CommonCodeAdminControllerTest {
 			.willThrow(new CommonCodeGroupNotFoundException());
 
 		mockMvc.perform(patch("/api/v1/admin/common-code-groups/MISSING_GROUP")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(request)))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(objectMapper.writeValueAsString(request)))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.error.code").value("CC001"));
 	}
@@ -196,8 +197,8 @@ class CommonCodeAdminControllerTest {
 			new CommonCodeDetail("WIFI", "무선 인터넷", null, 0, true));
 
 		mockMvc.perform(post("/api/v1/admin/common-codes/amenity_type")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"code\":\"　wifi　\",\"name\":\"무선 인터넷\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"code\":\"　wifi　\",\"name\":\"무선 인터넷\"}"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.data.code").value("WIFI"));
 
@@ -208,8 +209,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("허용되지 않는 공통 코드 형식은 C001 400을 반환한다")
 	void rejectMalformedCode() throws Exception {
 		mockMvc.perform(post("/api/v1/admin/common-codes/AMENITY_TYPE")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"code\":\"WI-FI\",\"name\":\"무선 인터넷\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"code\":\"WI-FI\",\"name\":\"무선 인터넷\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -220,8 +221,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("공백으로만 된 공통 코드 이름 생성은 C001 400을 반환한다")
 	void rejectBlankCommonCodeCreateName() throws Exception {
 		mockMvc.perform(post("/api/v1/admin/common-codes/AMENITY_TYPE")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"code\":\"WIFI\",\"name\":\"　\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"code\":\"WIFI\",\"name\":\"　\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -235,13 +236,12 @@ class CommonCodeAdminControllerTest {
 			"{\"code\":\"%s\",\"name\":\"이름\"}".formatted("A".repeat(51)),
 			"{\"code\":\"VALID_CODE\",\"name\":\"%s\"}".formatted("이".repeat(101)),
 			"{\"code\":\"VALID_CODE\",\"name\":\"이름\",\"description\":\"%s\"}"
-				.formatted("설".repeat(256))
-		);
+				.formatted("설".repeat(256)));
 
 		for (String invalidRequest : invalidRequests) {
 			mockMvc.perform(post("/api/v1/admin/common-codes/AMENITY_TYPE")
-					.contentType(MediaType.APPLICATION_JSON)
-					.content(invalidRequest))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(invalidRequest))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.code").value("C001"));
 		}
@@ -253,8 +253,8 @@ class CommonCodeAdminControllerTest {
 	@DisplayName("공백으로만 된 공통 코드 이름 수정은 C001 400을 반환한다")
 	void rejectBlankCommonCodeUpdateName() throws Exception {
 		mockMvc.perform(patch("/api/v1/admin/common-codes/AMENITY_TYPE/WIFI")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\":\"　\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"name\":\"　\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 
@@ -266,13 +266,12 @@ class CommonCodeAdminControllerTest {
 	void rejectOversizedUpdateFields() throws Exception {
 		List<String> invalidRequests = List.of(
 			"{\"name\":\"%s\"}".formatted("이".repeat(101)),
-			"{\"description\":\"%s\"}".formatted("설".repeat(256))
-		);
+			"{\"description\":\"%s\"}".formatted("설".repeat(256)));
 
 		for (String invalidRequest : invalidRequests) {
 			mockMvc.perform(patch("/api/v1/admin/common-codes/AMENITY_TYPE/WIFI")
-					.contentType(MediaType.APPLICATION_JSON)
-					.content(invalidRequest))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(invalidRequest))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.code").value("C001"));
 		}

@@ -86,16 +86,26 @@ class CouponCampaignReadIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private CouponQueryService service;
-	@Autowired private CouponRepository couponRepository;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private CursorDecoder cursorDecoder;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@MockitoSpyBean private CouponTimeProvider timeProvider;
-	@MockitoBean private kr.kro.airbob.core.domain.coupon.repository.CouponIssueUnitStore units;
+	@Autowired
+	private CouponQueryService service;
+	@Autowired
+	private CouponRepository couponRepository;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private CursorDecoder cursorDecoder;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@MockitoSpyBean
+	private CouponTimeProvider timeProvider;
+	@MockitoBean
+	private kr.kro.airbob.core.domain.coupon.repository.CouponIssueUnitStore units;
 
 	@BeforeEach
 	void setUp() {
@@ -141,10 +151,11 @@ class CouponCampaignReadIntegrationTest {
 		setDatabaseNow(NOW.plusNanos(offsetMillis * 1_000_000));
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(CouponResponse.CouponInfos.from(service.findCouponCampaigns(firstPage(20))).infos()).singleElement().satisfies(info -> {
-			assertThat(info.totalQuantity()).isEqualTo(totalQuantity);
-			assertThat(info.issuanceStatus()).isEqualTo(expected);
-		});
+		assertThat(CouponResponse.CouponInfos.from(service.findCouponCampaigns(firstPage(20))).infos()).singleElement()
+			.satisfies(info -> {
+				assertThat(info.totalQuantity()).isEqualTo(totalQuantity);
+				assertThat(info.issuanceStatus()).isEqualTo(expected);
+			});
 
 		assertRead(statistics);
 	}
@@ -210,10 +221,14 @@ class CouponCampaignReadIntegrationTest {
 			""");
 		statistics = prepareMeasurement();
 
-		assertThat(CouponResponse.CouponInfos.from(service.findCouponCampaigns(firstPage(20))).infos()).containsExactly(new CouponResponse.CouponInfo(
-			10L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE, 15, null, 15000,
-			NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusHours(1).toInstant(java.time.ZoneOffset.UTC), NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusMonths(1).toInstant(java.time.ZoneOffset.UTC),
-			1, CouponIssuanceStatus.SOLD_OUT));
+		assertThat(CouponResponse.CouponInfos.from(service.findCouponCampaigns(firstPage(20))).infos())
+			.containsExactly(new CouponResponse.CouponInfo(
+				10L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE, 15, null, 15000,
+				NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC),
+				NOW.plusHours(1).toInstant(java.time.ZoneOffset.UTC),
+				NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC),
+				NOW.plusMonths(1).toInstant(java.time.ZoneOffset.UTC),
+				1, CouponIssuanceStatus.SOLD_OUT));
 		assertRead(statistics);
 	}
 
@@ -262,7 +277,8 @@ class CouponCampaignReadIntegrationTest {
 		assertThat(first.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(12L, 11L);
 		assertThat(first.pageInfo().hasNext()).isTrue();
 		assertThat(first.pageInfo().currentSize()).isEqualTo(2);
-		CouponCampaignCursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CouponCampaignCursorData.class);
+		CouponCampaignCursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(),
+			CouponCampaignCursorData.class);
 		assertThat(cursor).isEqualTo(new CouponCampaignCursorData(11L, issueStart));
 		assertRead(statistics);
 
@@ -283,7 +299,8 @@ class CouponCampaignReadIntegrationTest {
 		Statistics statistics = prepareMeasurement();
 		var first = CouponResponse.CouponInfos.from(service.findCouponCampaigns(firstPage(2)));
 		assertThat(first.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(12L, 11L);
-		CouponCampaignCursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CouponCampaignCursorData.class);
+		CouponCampaignCursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(),
+			CouponCampaignCursorData.class);
 		assertRead(statistics);
 
 		insertCoupon(13, "새 캠페인", NOW.plusSeconds(1), NOW.plusDays(1), 10, 0);
@@ -341,9 +358,12 @@ class CouponCampaignReadIntegrationTest {
 		for (int i = 0; i < count; i++) {
 			jdbc.update("DELETE FROM coupon_issue_unit WHERE coupon_id = ? AND unit_no = ?", couponId, i + 1);
 			long memberId = couponId * 1000 + i + 1;
-			jdbc.update("INSERT INTO member (id,email,nickname,role,status,created_at,updated_at) VALUES (?,?,'member','MEMBER','ACTIVE',?,?)",
+			jdbc.update(
+				"INSERT INTO member (id,email,nickname,role,status,created_at,updated_at) VALUES (?,?,'member','MEMBER','ACTIVE',?,?)",
 				memberId, "issued-" + memberId + "@test.com", NOW, NOW);
-			jdbc.update("INSERT INTO member_coupon (coupon_id,member_id,used,created_at,updated_at) VALUES (?,?,false,?,?)", couponId, memberId, NOW, NOW);
+			jdbc.update(
+				"INSERT INTO member_coupon (coupon_id,member_id,used,created_at,updated_at) VALUES (?,?,false,?,?)",
+				couponId, memberId, NOW, NOW);
 		}
 	}
 

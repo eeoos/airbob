@@ -32,9 +32,10 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 		Long wishlistId,
 		WishlistAccommodationRequest.Create request,
 		Long memberId) {
-		Long wishlistAccommodationId =
-			wishlistService.createWishlistAccommodation(wishlistId, request.accommodationId(), memberId);
-		return ResponseEntity.ok(ApiResponse.success(new WishlistAccommodationResponse.Create(wishlistAccommodationId)));
+		Long wishlistAccommodationId = wishlistService.createWishlistAccommodation(wishlistId,
+			request.accommodationId(), memberId);
+		return ResponseEntity
+			.ok(ApiResponse.success(new WishlistAccommodationResponse.Create(wishlistAccommodationId)));
 	}
 
 	@Override
@@ -42,8 +43,7 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 		Long wishlistAccommodationId,
 		WishlistAccommodationRequest.Update request,
 		Long memberId) {
-		Long updatedId =
-			wishlistService.updateWishlistAccommodation(wishlistAccommodationId, request.memo(), memberId);
+		Long updatedId = wishlistService.updateWishlistAccommodation(wishlistAccommodationId, request.memo(), memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(new WishlistAccommodationResponse.Update(updatedId)));
 	}
@@ -61,10 +61,10 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> findWishlistAccommodations(
 		CursorRequest.CursorPageRequest request,
 		Long wishlistId,
-		Long memberId
-	) {
+		Long memberId) {
 		WishlistAccommodationPage page = wishlistService.findWishlistAccommodations(wishlistId, request, memberId);
 
-		return ResponseEntity.ok(ApiResponse.success(WishlistAccommodationResponse.WishlistAccommodationInfos.from(page)));
+		return ResponseEntity
+			.ok(ApiResponse.success(WishlistAccommodationResponse.WishlistAccommodationInfos.from(page)));
 	}
 }

@@ -42,8 +42,7 @@ public record GuestReservationDetailProjection(
 	PaymentMethod paymentMethod,
 	Long paymentAmount,
 	PaymentStatus paymentStatus,
-	Instant paymentApprovedAt
-) {
+	Instant paymentApprovedAt) {
 	@QueryProjection
 	public GuestReservationDetailProjection {
 	}

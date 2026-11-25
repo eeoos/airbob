@@ -14,8 +14,7 @@ public record PaymentOperationDetail(
 	PaymentOperationDetailRow operation,
 	NextAction nextAction,
 	Long retryAfterSeconds,
-	Instant serverTime
-) {
+	Instant serverTime) {
 
 	private static final long MIN_POLL_INTERVAL_SECONDS = 2L;
 	private static final long MAX_POLL_INTERVAL_SECONDS = 30L;
@@ -35,8 +34,7 @@ public record PaymentOperationDetail(
 			operation,
 			nextAction(operation, serverTime),
 			retryAfterSeconds(operation, serverTime),
-			serverTime
-		);
+			serverTime);
 	}
 
 	private static NextAction nextAction(PaymentOperationDetailRow operation, Instant serverTime) {
@@ -50,8 +48,7 @@ public record PaymentOperationDetail(
 
 	private static NextAction declinedNextAction(
 		PaymentOperationDetailRow operation,
-		Instant serverTime
-	) {
+		Instant serverTime) {
 		boolean beforeCheckIn = operation.checkInAt() != null
 			&& serverTime.isBefore(operation.checkInAt());
 		if (operation.operationType() == PaymentOperationType.CONFIRM) {

@@ -20,6 +20,7 @@ import kr.kro.airbob.core.support.cursor.resolver.AbstractCursorParamArgumentRes
 import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 @Configuration
 @Slf4j
 @RequiredArgsConstructor
@@ -30,6 +31,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 	private final SessionAuthFilter sessionAuthFilter;
 	private final AdminAuthInterceptor adminAuthInterceptor;
 	private final QueryCountInterceptor queryCountInterceptor;
+
 	@Override
 	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
 		resolvers.addAll(cursorParamArgumentResolvers);
@@ -51,8 +53,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 				"/css/**",
 				"/js/**",
 				"/images/**",
-				"/webjars/**"
-			);
+				"/webjars/**");
 
 		registry.addInterceptor(adminAuthInterceptor)
 			.addPathPatterns("/api/v1/admin/**");
@@ -78,10 +79,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
 		// 허용할 도메인 명시
 		config.setAllowedOriginPatterns(List.of(
-			"http://localhost:3000",          // 로컬 개발용
-			"https://www.airbob.cloud",       // 운영 메인
-			"https://airbob.cloud",           // 운영 루트
-			"https://*.vercel.app"            // Vercel preview deployments
+			"http://localhost:3000", // 로컬 개발용
+			"https://www.airbob.cloud", // 운영 메인
+			"https://airbob.cloud", // 운영 루트
+			"https://*.vercel.app" // Vercel preview deployments
 		));
 
 		// 허용할 HTTP 메서드

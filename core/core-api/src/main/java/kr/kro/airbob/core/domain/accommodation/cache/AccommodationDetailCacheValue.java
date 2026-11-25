@@ -8,8 +8,7 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationDetailSnapshot;
  */
 public record AccommodationDetailCacheValue(
 	Status status,
-	AccommodationDetailSnapshot snapshot
-) {
+	AccommodationDetailSnapshot snapshot) {
 	public static AccommodationDetailCacheValue found(AccommodationDetailSnapshot snapshot) {
 		return new AccommodationDetailCacheValue(Status.FOUND, snapshot);
 	}

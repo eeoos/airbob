@@ -66,7 +66,8 @@ import kr.kro.airbob.core.support.error.BaseException;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, ReviewService.class, MemberReader.class, ReviewImageService.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, ReviewService.class, MemberReader.class,
+	ReviewImageService.class,
 	AccommodationReader.class, AccommodationReviewSummaryWriter.class, ReservationReader.class,
 	ReviewReader.class, ReviewWriter.class, ReviewImageReader.class, ReviewImageWriter.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class})
@@ -91,20 +92,29 @@ class ReviewApiIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired ReviewService service;
-	@Autowired ReviewImageService imageService;
-	@Autowired JdbcTemplate jdbc;
-	@Autowired CursorDecoder decoder;
-	@MockitoBean Clock clock;
-	@MockitoBean S3ImageUploader uploader;
-	@MockitoBean AccommodationSearchRefreshPublisher searchRefresh;
-	@MockitoBean AccommodationDetailCacheInvalidationPublisher cacheInvalidation;
+	@Autowired
+	ReviewService service;
+	@Autowired
+	ReviewImageService imageService;
+	@Autowired
+	JdbcTemplate jdbc;
+	@Autowired
+	CursorDecoder decoder;
+	@MockitoBean
+	Clock clock;
+	@MockitoBean
+	S3ImageUploader uploader;
+	@MockitoBean
+	AccommodationSearchRefreshPublisher searchRefresh;
+	@MockitoBean
+	AccommodationDetailCacheInvalidationPublisher cacheInvalidation;
 
 	@BeforeEach
 	void fixture() {
 		when(clock.instant()).thenReturn(NOW);
 		when(clock.getZone()).thenReturn(ZoneOffset.UTC);
-		for (String table : List.of("review_image", "review", "accommodation_review_summary", "reservation", "accommodation", "member")) {
+		for (String table : List.of("review_image", "review", "accommodation_review_summary", "reservation",
+			"accommodation", "member")) {
 			jdbc.update("DELETE FROM " + table);
 		}
 		jdbc.update("""
@@ -135,7 +145,8 @@ class ReviewApiIntegrationTest {
 		assertThat(jdbc.queryForMap("SELECT rating, content FROM review WHERE id = ?", id))
 			.containsEntry("rating", 3).containsEntry("content", "수정 본문");
 		service.updateReviewContent(id, "가".repeat(1024), 5, 10L);
-		assertThat(jdbc.queryForObject("SELECT CHAR_LENGTH(content) FROM review WHERE id = ?", Integer.class, id)).isEqualTo(1024);
+		assertThat(jdbc.queryForObject("SELECT CHAR_LENGTH(content) FROM review WHERE id = ?", Integer.class, id))
+			.isEqualTo(1024);
 		assertSummaryMatchesPublishedRows();
 		service.deleteReview(id, 10L);
 		assertThatThrownBy(() -> service.deleteReview(id, 10L)).isInstanceOf(ReviewNotFoundException.class);
@@ -161,9 +172,11 @@ class ReviewApiIntegrationTest {
 
 	@Test
 	void futureCheckoutAndAnotherGuestDoNotGrantCreationRights() {
-		jdbc.update("UPDATE reservation SET check_out_at = ?", LocalDateTime.ofInstant(NOW.plusNanos(1000), ZoneOffset.UTC));
+		jdbc.update("UPDATE reservation SET check_out_at = ?",
+			LocalDateTime.ofInstant(NOW.plusNanos(1000), ZoneOffset.UTC));
 		assertThatThrownBy(this::create).isInstanceOf(ReviewCreationForbiddenException.class);
-		jdbc.update("UPDATE reservation SET check_out_at = ?, guest_id = 20", LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
+		jdbc.update("UPDATE reservation SET check_out_at = ?, guest_id = 20",
+			LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
 		assertThatThrownBy(this::create).isInstanceOf(ReviewCreationForbiddenException.class);
 	}
 
@@ -188,7 +201,8 @@ class ReviewApiIntegrationTest {
 		insertReview(204, 20, 1, "PUBLISHED", CREATED_AT.plusSeconds(1));
 		insertReview(205, 10, 4, "HIDDEN", CREATED_AT.plusSeconds(2));
 		insertReview(206, 20, 2, "DELETE", CREATED_AT.plusSeconds(2));
-		jdbc.update("INSERT INTO review_image (id, review_id, image_url, updated_at) VALUES (301, 203, 'https://example.invalid/review.png', NOW(6))");
+		jdbc.update(
+			"INSERT INTO review_image (id, review_id, image_url, updated_at) VALUES (301, 203, 'https://example.invalid/review.png', NOW(6))");
 		List<Long> all = new ArrayList<>();
 		var request = CursorRequest.ReviewCursorPageRequest.builder().size(2).build();
 		for (int page = 0; page < 2; page++) {
@@ -196,18 +210,22 @@ class ReviewApiIntegrationTest {
 			assertThat(result.pageInfo().currentSize()).isEqualTo(2);
 			all.addAll(result.reviews().stream().map(ReviewResponse.ReviewInfo::id).toList());
 			for (var review : result.reviews()) {
-				assertThat(review.reviewedAt()).isEqualTo(review.id() == 204 ? CREATED_AT.plusSeconds(1).toInstant(ZoneOffset.UTC) : CREATED_AT.toInstant(ZoneOffset.UTC));
+				assertThat(review.reviewedAt()).isEqualTo(review.id() == 204
+					? CREATED_AT.plusSeconds(1).toInstant(ZoneOffset.UTC) : CREATED_AT.toInstant(ZoneOffset.UTC));
 				if (review.id() == 203) {
 					assertThat(review.images()).hasSize(1);
 					assertThat(review.images().getFirst().id()).isEqualTo(301);
 					assertThat(review.reviewer().nickname()).isNull();
-				} else assertThat(review.images()).isEmpty();
+				} else
+					assertThat(review.images()).isEmpty();
 			}
 			assertThat(result.pageInfo().hasNext()).isEqualTo(page == 0);
 			if (page == 0) {
 				var cursor = decoder.decode(result.pageInfo().nextCursor(), ReviewCursorData.class);
-				request = new CursorRequest.ReviewCursorPageRequest(2, cursor.id(), cursor.lastCreatedAt(), cursor.lastRating());
-			} else assertThat(result.pageInfo().nextCursor()).isNull();
+				request = new CursorRequest.ReviewCursorPageRequest(2, cursor.id(), cursor.lastCreatedAt(),
+					cursor.lastRating());
+			} else
+				assertThat(result.pageInfo().nextCursor()).isNull();
 		}
 		assertThat(all).containsExactlyElementsOf(switch (sort) {
 			case LATEST -> List.of(204L, 203L, 202L, 201L);
@@ -239,10 +257,14 @@ class ReviewApiIntegrationTest {
 
 	@Test
 	void concurrentCreationFromOneMemberProducesOnePublishedReview() throws Exception {
-		var outcomes = concurrently(java.util.Collections.nCopies(8, () -> { create(); return "created"; }));
+		var outcomes = concurrently(java.util.Collections.nCopies(8, () -> {
+			create();
+			return "created";
+		}));
 		assertThat(outcomes).containsOnly("created", "V004");
 		assertThat(outcomes.stream().filter("created"::equals)).hasSize(1);
-		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review WHERE status = 'PUBLISHED'", Long.class)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review WHERE status = 'PUBLISHED'", Long.class))
+			.isEqualTo(1);
 		assertSummaryMatchesPublishedRows();
 	}
 
@@ -262,7 +284,10 @@ class ReviewApiIntegrationTest {
 		long id = create();
 		jdbc.update("UPDATE reservation SET guest_id = 20");
 		service.createReview(101L, 5, "다른 회원 리뷰", 20L);
-		var outcomes = concurrently(java.util.Collections.nCopies(4, () -> { service.deleteReview(id, 10L); return "deleted"; }));
+		var outcomes = concurrently(java.util.Collections.nCopies(4, () -> {
+			service.deleteReview(id, 10L);
+			return "deleted";
+		}));
 		assertThat(outcomes).containsOnly("deleted", "V001");
 		assertThat(outcomes.stream().filter("deleted"::equals)).hasSize(1);
 		assertSummaryMatchesPublishedRows();
@@ -274,9 +299,14 @@ class ReviewApiIntegrationTest {
 		jdbc.update("UPDATE reservation SET guest_id = 20");
 		service.createReview(101L, 4, "남는 리뷰", 20L);
 		assertThat(concurrently(List.of(
-			() -> { service.updateReviewContent(id, "마지막 수정", 1, 10L); return "updated"; },
-			() -> { service.deleteReview(id, 10L); return "deleted"; }
-		))).allMatch(outcome -> List.of("updated", "deleted", "V005").contains(outcome));
+			() -> {
+				service.updateReviewContent(id, "마지막 수정", 1, 10L);
+				return "updated";
+			},
+			() -> {
+				service.deleteReview(id, 10L);
+				return "deleted";
+			}))).allMatch(outcome -> List.of("updated", "deleted", "V005").contains(outcome));
 		assertThat(jdbc.queryForObject("SELECT status FROM review WHERE id = ?", String.class, id)).isEqualTo("DELETE");
 		assertSummaryMatchesPublishedRows();
 	}
@@ -286,9 +316,11 @@ class ReviewApiIntegrationTest {
 	void imageMutationsUseOwnershipAndAssociationRatherThanReviewStatus(String status) throws Exception {
 		long id = create();
 		jdbc.update("UPDATE review SET status = ? WHERE id = ?", status, id);
-		var file = new org.springframework.mock.web.MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
+		var file = new org.springframework.mock.web.MockMultipartFile("images", "review.png", "image/png",
+			new byte[] {1});
 		when(uploader.upload(file, "reviews/" + id)).thenReturn("https://example.invalid/review.png");
-		assertThatThrownBy(() -> imageService.uploadReviewImages(id, List.of(file), 20L)).isInstanceOf(ReviewNotFoundException.class);
+		assertThatThrownBy(() -> imageService.uploadReviewImages(id, List.of(file), 20L))
+			.isInstanceOf(ReviewNotFoundException.class);
 		var uploaded = imageService.uploadReviewImages(id, List.of(file), 10L);
 		long imageId = uploaded.getFirst().id();
 		assertThat(uploaded.getFirst().imageUrl()).isEqualTo("https://example.invalid/review.png");
@@ -309,14 +341,19 @@ class ReviewApiIntegrationTest {
 			CountDownLatch start = new CountDownLatch(1);
 			var futures = actions.stream().map(action -> pool.submit(() -> {
 				ready.countDown();
-				if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("start timeout");
-				try { return action.call(); }
-				catch (BaseException e) { return e.getErrorCode().getCode(); }
+				if (!start.await(10, TimeUnit.SECONDS))
+					throw new IllegalStateException("start timeout");
+				try {
+					return action.call();
+				} catch (BaseException e) {
+					return e.getErrorCode().getCode();
+				}
 			})).toList();
 			assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
 			start.countDown();
 			List<String> result = new ArrayList<>();
-			for (var future : futures) result.add(future.get(20, TimeUnit.SECONDS));
+			for (var future : futures)
+				result.add(future.get(20, TimeUnit.SECONDS));
 			return result;
 		}
 	}
@@ -326,7 +363,8 @@ class ReviewApiIntegrationTest {
 	}
 
 	private void insertReview(long id, long memberId, int rating, String status, LocalDateTime createdAt) {
-		jdbc.update("INSERT INTO review (id, accommodation_id, member_id, rating, content, status, created_at, updated_at) VALUES (?, 101, ?, ?, '리뷰', ?, ?, ?)",
+		jdbc.update(
+			"INSERT INTO review (id, accommodation_id, member_id, rating, content, status, created_at, updated_at) VALUES (?, 101, ?, ?, '리뷰', ?, ?, ?)",
 			id, memberId, rating, status, createdAt, createdAt);
 	}
 
@@ -337,10 +375,12 @@ class ReviewApiIntegrationTest {
 			return;
 		}
 		long sum = jdbc.queryForObject("SELECT SUM(rating) FROM review WHERE status = 'PUBLISHED'", Long.class);
-		var summary = jdbc.queryForMap("SELECT total_review_count, rating_sum, average_rating FROM accommodation_review_summary WHERE accommodation_id = 101");
+		var summary = jdbc.queryForMap(
+			"SELECT total_review_count, rating_sum, average_rating FROM accommodation_review_summary WHERE accommodation_id = 101");
 		assertThat(((Number)summary.get("total_review_count")).longValue()).isEqualTo(count);
 		assertThat(((Number)summary.get("rating_sum")).longValue()).isEqualTo(sum);
 		assertThat((BigDecimal)summary.get("average_rating"))
-			.isEqualByComparingTo(BigDecimal.valueOf(sum).divide(BigDecimal.valueOf(count), 2, java.math.RoundingMode.HALF_UP));
+			.isEqualByComparingTo(
+				BigDecimal.valueOf(sum).divide(BigDecimal.valueOf(count), 2, java.math.RoundingMode.HALF_UP));
 	}
 }

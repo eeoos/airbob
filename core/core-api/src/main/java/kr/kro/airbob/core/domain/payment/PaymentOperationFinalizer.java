@@ -48,8 +48,7 @@ public class PaymentOperationFinalizer {
 		ReservationInventoryManager inventoryManager,
 		AccommodationSearchRefreshRequester searchRefreshPublisher,
 		PaymentOperationManualResolutionRecorder resolutionRecorder,
-		Clock clock
-	) {
+		Clock clock) {
 		this.operationRepository = operationRepository;
 		this.reservationReader = reservationReader;
 		this.paymentRepository = paymentRepository;
@@ -186,8 +185,7 @@ public class PaymentOperationFinalizer {
 
 	private boolean isCurrentManualReconciliation(
 		PaymentOperation operation,
-		PaymentExecution execution
-	) {
+		PaymentExecution execution) {
 		return execution.manualReconciliation() && operation.isManualReconciliationPending();
 	}
 
@@ -197,8 +195,7 @@ public class PaymentOperationFinalizer {
 		PaymentOperationResolutionAction action,
 		String reason,
 		PaymentOperationStatus resultStatus,
-		Instant recordedAt
-	) {
+		Instant recordedAt) {
 		if (!manualReconciliation) {
 			return;
 		}
@@ -215,8 +212,7 @@ public class PaymentOperationFinalizer {
 		PaymentOperation operation,
 		Reservation reservation,
 		String normalizedCode,
-		String message
-	) {
+		String message) {
 		if (!paymentTransactionRepository.existsByPaymentOperationId(operation.getId())) {
 			paymentTransactionRepository.save(
 				PaymentTransaction.fail(operation, reservation, normalizedCode, message));
@@ -239,8 +235,7 @@ public class PaymentOperationFinalizer {
 		PaymentOperation operation,
 		Reservation reservation,
 		String normalizedCode,
-		String message
-	) {
+		String message) {
 		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
 			.orElseThrow(PaymentNotFoundException::new);
 		validateActivePaymentForCancellation(operation, reservation, payment);
@@ -273,17 +268,16 @@ public class PaymentOperationFinalizer {
 	private void validateExecutionCorrelation(
 		PaymentExecution execution,
 		PaymentOperation operation,
-		Reservation reservation
-	) {
+		Reservation reservation) {
 		boolean operationModeMatches = switch (operation.getOperationType()) {
 			case CONFIRM -> execution.mode() == PaymentExecutionMode.CONFIRM
 				|| execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM;
 			case CANCEL -> execution.mode() == PaymentExecutionMode.CANCEL
 				|| execution.mode() == PaymentExecutionMode.INQUIRE_CANCEL;
 		};
-		boolean manualReconciliationMatches =
-			execution.manualReconciliation() == operation.isManualReconciliationPending()
-				&& (!execution.manualReconciliation() || execution.mode().isInquiry());
+		boolean manualReconciliationMatches = execution.manualReconciliation() == operation
+			.isManualReconciliationPending()
+			&& (!execution.manualReconciliation() || execution.mode().isInquiry());
 		boolean matches = operationModeMatches
 			&& manualReconciliationMatches
 			&& Objects.equals(execution.operationUid(), operation.getOperationUid())
@@ -303,8 +297,7 @@ public class PaymentOperationFinalizer {
 		CancelledPayment cancelled,
 		PaymentOperation operation,
 		Reservation reservation,
-		Payment payment
-	) {
+		Payment payment) {
 		validateActivePaymentForCancellation(operation, reservation, payment);
 		boolean matches = cancelled != null
 			&& operation.getOperationType() == PaymentOperationType.CANCEL
@@ -329,8 +322,7 @@ public class PaymentOperationFinalizer {
 	private void validateActivePaymentForCancellation(
 		PaymentOperation operation,
 		Reservation reservation,
-		Payment payment
-	) {
+		Payment payment) {
 		boolean matches = operation.getOperationType() == PaymentOperationType.CANCEL
 			&& reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING
 			&& Objects.equals(payment.getReservation().getId(), reservation.getId())
@@ -350,8 +342,7 @@ public class PaymentOperationFinalizer {
 	private void validateApprovalCorrelation(
 		ConfirmedPayment confirmed,
 		PaymentOperation operation,
-		Reservation reservation
-	) {
+		Reservation reservation) {
 		boolean matches = confirmed != null
 			&& Objects.equals(confirmed.paymentKey(), operation.getPaymentKey())
 			&& Objects.equals(confirmed.orderId(), reservation.getReservationUid().toString())
@@ -369,8 +360,7 @@ public class PaymentOperationFinalizer {
 	private void validateExistingPayment(
 		Payment payment,
 		ConfirmedPayment confirmed,
-		Reservation reservation
-	) {
+		Reservation reservation) {
 		boolean matches = Objects.equals(payment.getReservation().getId(), reservation.getId())
 			&& Objects.equals(payment.getPaymentKey(), confirmed.paymentKey())
 			&& Objects.equals(payment.getOrderId(), confirmed.orderId())

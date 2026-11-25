@@ -21,7 +21,7 @@ import kr.kro.airbob.core.domain.review.ReviewStatus;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
+public class ReviewRepositoryImpl implements ReviewRepositoryCustom {
 
 	private final JPAQueryFactory jpaQueryFactory;
 
@@ -38,15 +38,13 @@ public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
 				review.createdAt,
 				member.id,
 				member.nickname,
-				member.thumbnailImageUrl
-			))
+				member.thumbnailImageUrl))
 			.from(review)
 			.join(review.author, member)
 			.where(
 				review.accommodation.id.eq(accommodationId),
 				review.status.eq(status),
-				getCursorCondition(lastId, lastCreatedAt, lastRating, sortType)
-			)
+				getCursorCondition(lastId, lastCreatedAt, lastRating, sortType))
 			.orderBy(getOrderSpecifiers(sortType))
 			.limit(pageable.getPageSize() + 1)
 			.fetch();
@@ -109,8 +107,7 @@ public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
 			sameRatingCondition = sameRatingCondition.and(
 				review.createdAt.lt(lastCreatedAt)
 					.or(review.createdAt.eq(lastCreatedAt)
-						.and(review.id.lt(lastId)))
-			);
+						.and(review.id.lt(lastId))));
 		} else {
 			sameRatingCondition = sameRatingCondition.and(review.id.lt(lastId));
 		}

@@ -13,10 +13,11 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 class AwsKafkaDebeziumBundleConfigurationTest {
 
@@ -304,8 +305,7 @@ class AwsKafkaDebeziumBundleConfigurationTest {
 	private String readUnchecked(Path path) {
 		try {
 			return Files.readString(path);
-		}
-		catch (IOException exception) {
+		} catch (IOException exception) {
 			throw new IllegalStateException(exception);
 		}
 	}

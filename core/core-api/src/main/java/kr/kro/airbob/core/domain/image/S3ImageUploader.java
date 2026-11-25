@@ -30,7 +30,8 @@ public class S3ImageUploader {
 	private String cloudfrontDomain;
 
 	public S3ImageUploader(S3StorageClient s3StorageClient,
-		@Value("${cloud.aws.s3.write-enabled:true}") boolean writeEnabled) {
+		@Value("${cloud.aws.s3.write-enabled:true}")
+		boolean writeEnabled) {
 		this.s3StorageClient = s3StorageClient;
 		this.writeEnabled = writeEnabled;
 	}

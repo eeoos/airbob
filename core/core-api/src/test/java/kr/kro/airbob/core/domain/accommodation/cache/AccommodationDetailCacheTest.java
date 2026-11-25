@@ -3,12 +3,12 @@ package kr.kro.airbob.core.domain.accommodation.cache;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -54,11 +54,16 @@ class AccommodationDetailCacheTest {
 	private static final String LOAD_PERMIT_KEY = "airbob:cache:accommodation-detail:load-permit:{1}";
 	private static final String LOCK_KEY = "airbob:lock:accommodation-detail:{1}";
 
-	@Mock private AccommodationDetailRedisClient redisClient;
-	@Mock private RedissonClient redissonClient;
-	@Mock private RLock lock;
-	@Mock private AccommodationDetailCacheMetricRecorder metricRecorder;
-	@Mock private AccommodationDetailCacheJitter jitter;
+	@Mock
+	private AccommodationDetailRedisClient redisClient;
+	@Mock
+	private RedissonClient redissonClient;
+	@Mock
+	private RLock lock;
+	@Mock
+	private AccommodationDetailCacheMetricRecorder metricRecorder;
+	@Mock
+	private AccommodationDetailCacheJitter jitter;
 
 	private ObjectMapper objectMapper;
 	private AccommodationDetailCache cache;
@@ -84,8 +89,7 @@ class AccommodationDetailCacheTest {
 				Duration.ofSeconds(5),
 				Duration.ofSeconds(30),
 				Duration.ofSeconds(1),
-				Duration.ofSeconds(1))
-		);
+				Duration.ofSeconds(1)));
 	}
 
 	@Test
@@ -108,8 +112,7 @@ class AccommodationDetailCacheTest {
 				Duration.ofSeconds(5),
 				Duration.ofSeconds(30),
 				Duration.ofSeconds(1),
-				Duration.ofSeconds(1))
-		);
+				Duration.ofSeconds(1)));
 
 		AccommodationDetailSnapshot actual = disabledCache.getOrLoad(1L, () -> expected);
 
@@ -136,8 +139,7 @@ class AccommodationDetailCacheTest {
 				Duration.ofSeconds(5),
 				Duration.ofSeconds(30),
 				Duration.ofSeconds(1),
-				Duration.ofSeconds(1))
-		);
+				Duration.ofSeconds(1)));
 
 		disabledCache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 		disabledCache.evictOrThrow(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
@@ -385,8 +387,7 @@ class AccommodationDetailCacheTest {
 			any(RedisScript.class),
 			eq(List.of(LOAD_PERMIT_KEY)),
 			any(String.class),
-			any(String.class)
-		)).thenReturn(null);
+			any(String.class))).thenReturn(null);
 		doAnswer(invocation -> {
 			lockReleased.set(true);
 			return null;
@@ -625,8 +626,8 @@ class AccommodationDetailCacheTest {
 				}), executor);
 			assertThat(oldLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
-			CompletableFuture<Void> eviction = CompletableFuture.runAsync(() ->
-				cache.evictOrThrow(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION), executor);
+			CompletableFuture<Void> eviction = CompletableFuture.runAsync(
+				() -> cache.evictOrThrow(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION), executor);
 			assertThat(invalidationStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
 			CompletableFuture<AccommodationDetailSnapshot> freshLoad = CompletableFuture.supplyAsync(
@@ -837,8 +838,7 @@ class AccommodationDetailCacheTest {
 				localLoadWait,
 				Duration.ofSeconds(30),
 				Duration.ofSeconds(1),
-				Duration.ofSeconds(1))
-		);
+				Duration.ofSeconds(1)));
 	}
 
 	private void await(CountDownLatch latch) {
@@ -858,7 +858,7 @@ class AccommodationDetailCacheTest {
 			Thread thread = threadReference.get();
 			if (thread != null
 				&& (thread.getState() == Thread.State.WAITING
-				|| thread.getState() == Thread.State.TIMED_WAITING)) {
+					|| thread.getState() == Thread.State.TIMED_WAITING)) {
 				return;
 			}
 			try {

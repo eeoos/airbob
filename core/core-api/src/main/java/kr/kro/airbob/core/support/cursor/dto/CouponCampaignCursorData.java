@@ -4,8 +4,7 @@ import java.time.LocalDateTime;
 
 public record CouponCampaignCursorData(
 	Long id,
-	LocalDateTime lastIssueStartAt
-) implements CursorPayload {
+	LocalDateTime lastIssueStartAt) implements CursorPayload {
 
 	@Override
 	public void validate() {

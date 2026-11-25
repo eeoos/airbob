@@ -108,11 +108,16 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PaymentOperationManualReviewCommandService service;
-	@Autowired private PaymentOperationFinalizer finalizer;
-	@Autowired private HoldingManualCommandTransaction holdingCommandTransaction;
-	@Autowired private ControllableAlertOutboxAppender alertAppender;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PaymentOperationManualReviewCommandService service;
+	@Autowired
+	private PaymentOperationFinalizer finalizer;
+	@Autowired
+	private HoldingManualCommandTransaction holdingCommandTransaction;
+	@Autowired
+	private ControllableAlertOutboxAppender alertAppender;
 
 	private long adminMemberId;
 	private long reservationId;
@@ -293,7 +298,8 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 		try {
 			CompletableFuture<PaymentOperationManualReviewResult> first = CompletableFuture.supplyAsync(
 				() -> holdingCommandTransaction.requestAndHold(
-					OPERATION_UID, adminMemberId, 0L, firstRequested, releaseFirst), executor);
+					OPERATION_UID, adminMemberId, 0L, firstRequested, releaseFirst),
+				executor);
 			assertThat(firstRequested.await(5, TimeUnit.SECONDS)).isTrue();
 
 			CompletableFuture<PaymentOperationManualReviewResult> second = CompletableFuture.supplyAsync(() -> {
@@ -493,15 +499,13 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 		@Bean
 		@Primary
 		ControllableAlertOutboxAppender controllableAlertOutboxAppender(
-			MysqlOperatorAlertOutboxAppender delegate
-		) {
+			MysqlOperatorAlertOutboxAppender delegate) {
 			return new ControllableAlertOutboxAppender(delegate);
 		}
 
 		@Bean
 		HoldingManualCommandTransaction holdingManualCommandTransaction(
-			PaymentOperationManualReviewCommandService service
-		) {
+			PaymentOperationManualReviewCommandService service) {
 			return new HoldingManualCommandTransaction(service);
 		}
 	}
@@ -540,8 +544,7 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 			Long actorMemberId,
 			long expectedVersion,
 			CountDownLatch requested,
-			CountDownLatch release
-		) {
+			CountDownLatch release) {
 			PaymentOperationManualReviewResult result = service.requestReconciliation(
 				operationUid, actorMemberId, expectedVersion);
 			requested.countDown();

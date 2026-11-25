@@ -55,34 +55,43 @@ class PaymentOperationManualReviewCommandServiceTest {
 	private static final LocalDate CHECK_IN = LocalDate.of(2026, 8, 18);
 	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 19);
 
-	@Mock private PaymentOperationRepository operationRepository;
-	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private PaymentRepository paymentRepository;
-	@Mock private PaymentTransactionRepository transactionRepository;
-	@Mock private CouponUsageManager couponUsageManager;
-	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Mock private OutboxWriter outboxWriter;
-	@Mock private PaymentOperationManualResolutionRecorder resolutionRecorder;
+	@Mock
+	private PaymentOperationRepository operationRepository;
+	@Mock
+	private ReservationRepository reservationRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private PaymentRepository paymentRepository;
+	@Mock
+	private PaymentTransactionRepository transactionRepository;
+	@Mock
+	private CouponUsageManager couponUsageManager;
+	@Mock
+	private ReservationHistoryRepository historyRepository;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Mock
+	private OutboxWriter outboxWriter;
+	@Mock
+	private PaymentOperationManualResolutionRecorder resolutionRecorder;
 
 	private PaymentOperationManualReviewCommandService service;
 
 	@BeforeEach
 	void setUp() {
-		PaymentOperationManualReviewProcessor manualReviewProcessor =
-			new PaymentOperationManualReviewProcessor(
-				operationRepository,
-				new ReservationReader(reservationRepository),
-				inventoryManager,
-				paymentRepository,
-				transactionRepository,
-				couponUsageManager,
-				new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
-				searchRefreshPublisher,
-				outboxWriter,
-				resolutionRecorder,
-				Clock.fixed(NOW, ZoneOffset.UTC));
+		PaymentOperationManualReviewProcessor manualReviewProcessor = new PaymentOperationManualReviewProcessor(
+			operationRepository,
+			new ReservationReader(reservationRepository),
+			inventoryManager,
+			paymentRepository,
+			transactionRepository,
+			couponUsageManager,
+			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
+			searchRefreshPublisher,
+			outboxWriter,
+			resolutionRecorder,
+			Clock.fixed(NOW, ZoneOffset.UTC));
 		service = new PaymentOperationManualReviewCommandService(
 			manualReviewProcessor, new ImmediatePaymentOperationExecutionFence());
 	}

@@ -21,7 +21,8 @@ public class CouponIssueUnitStore {
 	private final EntityManager entityManager;
 	private final JdbcTemplate jdbcTemplate;
 
-	public record Unit(long key, int number) { }
+	public record Unit(long key, int number) {
+	}
 
 	public void clearPersistenceContext() {
 		// OSIV may retain an old Coupon even across transactions. This is the only direct JPA operation.
@@ -40,7 +41,8 @@ public class CouponIssueUnitStore {
 
 	public void consume(long couponId, Unit unit) {
 		int changed = surrogateUnits.consume(couponId, unit.key());
-		if (changed != 1) throw new IllegalStateException("확보한 쿠폰 재고를 소비하지 못했습니다.");
+		if (changed != 1)
+			throw new IllegalStateException("확보한 쿠폰 재고를 소비하지 못했습니다.");
 	}
 
 	public boolean hasRemaining(long couponId) {
@@ -62,8 +64,10 @@ public class CouponIssueUnitStore {
 				arguments.add(from + offset);
 			}
 			String values = String.join(",", java.util.Collections.nCopies(size, "(?, ?)"));
-			int changed = jdbcTemplate.update("insert into coupon_issue_unit (coupon_id, unit_no) values " + values, arguments.toArray());
-			if (changed != size) throw new IllegalStateException("쿠폰 재고 준비 건수가 일치하지 않습니다.");
+			int changed = jdbcTemplate.update("insert into coupon_issue_unit (coupon_id, unit_no) values " + values,
+				arguments.toArray());
+			if (changed != size)
+				throw new IllegalStateException("쿠폰 재고 준비 건수가 일치하지 않습니다.");
 		}
 	}
 

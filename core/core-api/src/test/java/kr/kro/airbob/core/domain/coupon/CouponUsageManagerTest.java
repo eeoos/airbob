@@ -29,13 +29,19 @@ class CouponUsageManagerTest {
 	private static final long RESERVATION_ID = 17L;
 	private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 25, 15, 0);
 
-	@Mock private MemberCouponRepository memberCouponRepository;
-	@Mock private CouponRepository couponRepository;
-	@Mock private CouponTimeProvider timeProvider;
-	@Mock private MemberCoupon memberCoupon;
-	@Mock private Coupon coupon;
+	@Mock
+	private MemberCouponRepository memberCouponRepository;
+	@Mock
+	private CouponRepository couponRepository;
+	@Mock
+	private CouponTimeProvider timeProvider;
+	@Mock
+	private MemberCoupon memberCoupon;
+	@Mock
+	private Coupon coupon;
 
-	@InjectMocks private CouponUsageManager couponUsageManager;
+	@InjectMocks
+	private CouponUsageManager couponUsageManager;
 
 	@Test
 	@DisplayName("checkout은 쿠폰 정책 공유 락을 잡은 뒤 할인 계산과 조건부 사용을 수행한다")

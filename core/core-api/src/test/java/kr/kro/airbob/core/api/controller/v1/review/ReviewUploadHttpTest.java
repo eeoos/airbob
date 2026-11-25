@@ -4,16 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import java.net.URI;
-import java.net.Socket;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.net.Socket;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,8 +54,7 @@ import kr.kro.airbob.core.domain.image.StoredImage;
 import kr.kro.airbob.core.domain.review.ReviewImageService;
 import kr.kro.airbob.core.domain.review.ReviewService;
 
-@SpringBootTest(classes = ReviewUploadHttpTest.Application.class,
-	webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(classes = ReviewUploadHttpTest.Application.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ReviewUploadHttpTest {
@@ -65,11 +64,16 @@ class ReviewUploadHttpTest {
 	private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
 		.version(HttpClient.Version.HTTP_1_1).build();
 
-	@LocalServerPort int port;
-	@Autowired ObjectMapper mapper;
-	@MockitoBean ReviewService reviewService;
-	@MockitoBean ReviewImageService reviewImageService;
-	@MockitoBean RedisTemplate<String, Object> redis;
+	@LocalServerPort
+	int port;
+	@Autowired
+	ObjectMapper mapper;
+	@MockitoBean
+	ReviewService reviewService;
+	@MockitoBean
+	ReviewImageService reviewImageService;
+	@MockitoBean
+	RedisTemplate<String, Object> redis;
 
 	@BeforeEach
 	void session() {
@@ -121,10 +125,11 @@ class ReviewUploadHttpTest {
 				+ "Content-Length: " + (20 * MIB + 1) + "\r\nExpect: 100-continue\r\n\r\n";
 			socket.getOutputStream().write(headers.getBytes(StandardCharsets.US_ASCII));
 			socket.getOutputStream().flush();
-			BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+			BufferedReader reader = new BufferedReader(
+				new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 			String status = reader.readLine();
 			if (status != null && status.startsWith("HTTP/1.1 100")) {
-				while (!reader.readLine().isEmpty()) { }
+				while (!reader.readLine().isEmpty()) {}
 				status = reader.readLine();
 			}
 			assertThat(status).startsWith("HTTP/1.1 413");
@@ -148,7 +153,8 @@ class ReviewUploadHttpTest {
 			parts.add(BodyPublishers.ofString("\r\n"));
 		}
 		parts.add(BodyPublishers.ofString("--" + BOUNDARY + "--\r\n"));
-		HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/reviews/101/images"))
+		HttpRequest request = HttpRequest
+			.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/reviews/101/images"))
 			.timeout(Duration.ofSeconds(15)).expectContinue(true)
 			.header("Cookie", "SESSION_ID=upload-contract-session")
 			.header("Content-Type", "multipart/form-data; boundary=" + BOUNDARY)
@@ -157,11 +163,13 @@ class ReviewUploadHttpTest {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class, ServletWebServerFactoryAutoConfiguration.class,
+	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class,
+		ServletWebServerFactoryAutoConfiguration.class,
 		DispatcherServletAutoConfiguration.class, WebMvcAutoConfiguration.class, MultipartAutoConfiguration.class,
 		JacksonAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class})
 	@Import({ReviewController.class, GlobalExceptionHandler.class, SessionAuthFilter.class,
-		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class, CurrentMemberIdArgumentResolver.class})
+		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class,
+		CurrentMemberIdArgumentResolver.class})
 	static class Application {
 		@Bean
 		WebMvcConfigurer memberIdResolver(CurrentMemberIdArgumentResolver resolver) {

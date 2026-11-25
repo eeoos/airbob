@@ -21,8 +21,7 @@ public record ReservationReady(
 	Instant holdExpiresAt,
 	Instant serverTime,
 	String customerEmail,
-	String customerName
-) {
+	String customerName) {
 
 	public static ReservationReady of(Reservation reservation, Instant serverTime) {
 		long discountAmount = reservation.getDiscountAmount() == null

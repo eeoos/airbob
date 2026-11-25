@@ -14,8 +14,7 @@ public enum ReservationStatus {
 
 	private static final Set<ReservationStatus> REVIEWABLE_STATUSES = Set.of(
 		CONFIRMED,
-		CANCELLATION_FAILED
-	);
+		CANCELLATION_FAILED);
 
 	public boolean isReviewableReservation() {
 		return REVIEWABLE_STATUSES.contains(this);

@@ -4,6 +4,5 @@ import java.time.LocalDate;
 
 public record ReservationIndexingWindow(
 	LocalDate startInclusive,
-	LocalDate endExclusive
-) {
+	LocalDate endExclusive) {
 }

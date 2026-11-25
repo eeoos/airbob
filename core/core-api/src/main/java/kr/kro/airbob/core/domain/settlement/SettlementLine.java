@@ -9,6 +9,5 @@ public record SettlementLine(
 	String accommodationName,
 	Long grossAmount,
 	Long refundAmount,
-	Long netAmount
-) {
+	Long netAmount) {
 }

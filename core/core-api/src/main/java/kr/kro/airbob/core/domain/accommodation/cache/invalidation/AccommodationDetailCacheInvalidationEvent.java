@@ -7,6 +7,5 @@ import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCacheInv
  */
 public record AccommodationDetailCacheInvalidationEvent(
 	Long accommodationId,
-	AccommodationDetailCacheInvalidationReason reason
-) {
+	AccommodationDetailCacheInvalidationReason reason) {
 }

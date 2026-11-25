@@ -21,8 +21,7 @@ public class AccommodationSearchService {
 	public AccommodationSearchPage searchAccommodations(
 		AccommodationSearchCondition condition,
 		Pageable pageable,
-		Long memberId
-	) {
+		Long memberId) {
 		AccommodationSearchCondition search = condition.withDefaultOccupancy();
 
 		// 색인의 maxGuests는 32비트 정수이므로 이보다 큰 합계는 수용 가능한 숙소가 없다.
@@ -62,7 +61,8 @@ public class AccommodationSearchService {
 	}
 
 	private Set<Long> getWishlist(List<Long> ids, Long memberId) {
-		if (memberId == null) return Set.of();
+		if (memberId == null)
+			return Set.of();
 		return wishlistReader.findWishlistedAccommodationIds(memberId, ids);
 	}
 }

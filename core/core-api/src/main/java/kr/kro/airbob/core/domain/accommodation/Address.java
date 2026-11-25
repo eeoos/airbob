@@ -64,13 +64,13 @@ public class Address extends BaseEntity {
 
 	public static String buildAddressStringForGeocoding(NewAddress info) {
 		return Stream.of(
-				info.country(),
-				info.state(),
-				info.city(),
-				info.district(),
-				info.street()
-				// info.postalCode()
-			)
+			info.country(),
+			info.state(),
+			info.city(),
+			info.district(),
+			info.street()
+		// info.postalCode()
+		)
 			.filter(Objects::nonNull)
 			.filter(s -> !s.isBlank())
 			.map(String::trim)

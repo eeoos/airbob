@@ -46,8 +46,8 @@ public class SettlementGenerator {
 		long gross = nz(aggregate.getGrossAmount());
 		long refund = nz(aggregate.getRefundAmount());
 
-		Optional<Settlement> existing =
-			settlementRepository.findByHostIdAndSettlementMonthForUpdate(aggregate.getHostId(), monthStart);
+		Optional<Settlement> existing = settlementRepository
+			.findByHostIdAndSettlementMonthForUpdate(aggregate.getHostId(), monthStart);
 
 		if (existing.isPresent()) {
 			Settlement settlement = existing.get();

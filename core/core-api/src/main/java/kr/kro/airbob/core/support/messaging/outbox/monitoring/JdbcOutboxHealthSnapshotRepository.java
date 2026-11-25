@@ -32,8 +32,7 @@ public class JdbcOutboxHealthSnapshotRepository implements OutboxHealthSnapshotR
 			return new OutboxHealthSnapshot(
 				observedAt,
 				resultSet.getLong("retained_row_count"),
-				Optional.ofNullable(oldest).map(Timestamp::toInstant)
-			);
+				Optional.ofNullable(oldest).map(Timestamp::toInstant));
 		});
 	}
 }

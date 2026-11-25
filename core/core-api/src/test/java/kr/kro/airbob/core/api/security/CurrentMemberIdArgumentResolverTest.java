@@ -17,8 +17,7 @@ import kr.kro.airbob.core.support.error.ErrorCode;
 @DisplayName("현재 회원 ID argument resolver 테스트")
 class CurrentMemberIdArgumentResolverTest {
 
-	private final CurrentMemberIdArgumentResolver resolver =
-		new CurrentMemberIdArgumentResolver();
+	private final CurrentMemberIdArgumentResolver resolver = new CurrentMemberIdArgumentResolver();
 
 	@AfterEach
 	void clearUserContext() {
@@ -69,15 +68,18 @@ class CurrentMemberIdArgumentResolverTest {
 
 	private static class HandlerFixture {
 		@SuppressWarnings("unused")
-		void required(@CurrentMemberId Long memberId) {
-		}
+		void required(
+			@CurrentMemberId
+			Long memberId) {}
 
 		@SuppressWarnings("unused")
-		void optional(@CurrentMemberId(required = false) Long memberId) {
-		}
+		void optional(
+			@CurrentMemberId(required = false)
+			Long memberId) {}
 
 		@SuppressWarnings("unused")
-		void invalidType(@CurrentMemberId String memberId) {
-		}
+		void invalidType(
+			@CurrentMemberId
+			String memberId) {}
 	}
 }

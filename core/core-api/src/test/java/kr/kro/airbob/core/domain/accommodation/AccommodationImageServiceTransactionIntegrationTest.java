@@ -46,13 +46,20 @@ class AccommodationImageServiceTransactionIntegrationTest {
 	private static final Long MEMBER_ID = 2L;
 	private static final String IMAGE_URL = "https://cdn.example.com/image.jpg";
 
-	@Autowired private AccommodationImageService accommodationImageService;
-	@Autowired private AccommodationImageRepository accommodationImageRepository;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private S3ImageUploader s3ImageUploader;
-	@Autowired private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@Autowired private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Autowired private PlatformTransactionManager transactionManager;
+	@Autowired
+	private AccommodationImageService accommodationImageService;
+	@Autowired
+	private AccommodationImageRepository accommodationImageRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private S3ImageUploader s3ImageUploader;
+	@Autowired
+	private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	@Autowired
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
 
 	@BeforeEach
 	void resetMocks() {
@@ -61,8 +68,7 @@ class AccommodationImageServiceTransactionIntegrationTest {
 			accommodationRepository,
 			s3ImageUploader,
 			cacheInvalidationPublisher,
-			searchRefreshPublisher
-		);
+			searchRefreshPublisher);
 		assertThat(AopUtils.isAopProxy(accommodationImageService)).isTrue();
 	}
 
@@ -102,8 +108,7 @@ class AccommodationImageServiceTransactionIntegrationTest {
 	void cleansUpUploadedImageWhenServiceTransactionRollsBack() throws IOException {
 		Accommodation accommodation = accommodation();
 		MockMultipartFile imageFile = new MockMultipartFile(
-			"images", "image.jpg", "image/jpeg", new byte[] {1}
-		);
+			"images", "image.jpg", "image/jpeg", new byte[] {1});
 		AccommodationImage savedImage = image(accommodation);
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			ACCOMMODATION_ID, MEMBER_ID, AccommodationStatus.DELETED))
@@ -212,12 +217,10 @@ class AccommodationImageServiceTransactionIntegrationTest {
 		}
 
 		@Override
-		protected void doCommit(DefaultTransactionStatus status) {
-		}
+		protected void doCommit(DefaultTransactionStatus status) {}
 
 		@Override
-		protected void doRollback(DefaultTransactionStatus status) {
-		}
+		protected void doRollback(DefaultTransactionStatus status) {}
 
 		@Override
 		protected void doCleanupAfterCompletion(Object transaction) {

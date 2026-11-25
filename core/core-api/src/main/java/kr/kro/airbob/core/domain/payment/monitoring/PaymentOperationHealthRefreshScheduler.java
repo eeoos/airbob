@@ -21,8 +21,7 @@ public class PaymentOperationHealthRefreshScheduler {
 		PaymentOperationHealthMetrics metrics,
 		Clock clock,
 		@Value("${payment.operation.monitoring.stale-queued-after:30s}")
-		Duration staleQueuedAfter
-	) {
+		Duration staleQueuedAfter) {
 		if (staleQueuedAfter == null || staleQueuedAfter.isZero() || staleQueuedAfter.isNegative()) {
 			throw new IllegalArgumentException("staleQueuedAfter must be positive");
 		}

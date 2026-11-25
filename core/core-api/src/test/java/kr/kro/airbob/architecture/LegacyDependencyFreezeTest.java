@@ -36,9 +36,7 @@ import com.tngtech.archunit.library.freeze.FreezingArchRule;
  * Violation messages name classes and domains only, so unrelated edits (for example a new constructor
  * parameter) do not re-key recorded violations.
  */
-@AnalyzeClasses(
-	packages = ArchitectureSlices.ROOT_PACKAGE,
-	importOptions = ImportOption.DoNotIncludeTests.class,
+@AnalyzeClasses(packages = ArchitectureSlices.ROOT_PACKAGE, importOptions = ImportOption.DoNotIncludeTests.class,
 	// Release the imported classes after this class; the default keeps them for the whole test JVM.
 	cacheMode = CacheMode.PER_CLASS)
 class LegacyDependencyFreezeTest {
@@ -77,8 +75,8 @@ class LegacyDependencyFreezeTest {
 	}
 
 	private static DescribedPredicate<JavaClass> persistenceModels() {
-		return DescribedPredicate.describe("are entities or embeddables", javaClass ->
-			javaClass.isAnnotatedWith("jakarta.persistence.Entity")
+		return DescribedPredicate.describe("are entities or embeddables",
+			javaClass -> javaClass.isAnnotatedWith("jakarta.persistence.Entity")
 				|| javaClass.isAnnotatedWith("jakarta.persistence.Embeddable")
 				|| javaClass.isAnnotatedWith("jakarta.persistence.MappedSuperclass"));
 	}
@@ -143,8 +141,8 @@ class LegacyDependencyFreezeTest {
 			}
 
 			List<DomainEdge> edges = new ArrayList<>();
-			graph.forEach((from, targets) -> targets.forEach(to ->
-				edges.add(new DomainEdge(from, to, reaches(graph, to, from)))));
+			graph.forEach((from, targets) -> targets
+				.forEach(to -> edges.add(new DomainEdge(from, to, reaches(graph, to, from)))));
 			return edges;
 		}
 

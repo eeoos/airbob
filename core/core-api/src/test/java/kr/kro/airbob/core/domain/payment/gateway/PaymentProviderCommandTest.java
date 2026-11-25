@@ -27,7 +27,6 @@ class PaymentProviderCommandTest {
 			UUID.randomUUID().toString(),
 			100_000L,
 			"airbob-cancel-" + operationUid,
-			cancellationReason
-		);
+			cancellationReason);
 	}
 }

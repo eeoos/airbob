@@ -35,8 +35,8 @@ public class RecentlyViewedController implements RecentlyViewedApi {
 	@Override
 	public ResponseEntity<ApiResponse<RecentlyViewedResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewed(
 		Long memberId) {
-		RecentlyViewedResponse.RecentlyViewedAccommodationInfos response =
-			RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(recentlyViewedService.getRecentlyViewed(memberId));
+		RecentlyViewedResponse.RecentlyViewedAccommodationInfos response = RecentlyViewedResponse.RecentlyViewedAccommodationInfos
+			.from(recentlyViewedService.getRecentlyViewed(memberId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 
 	}

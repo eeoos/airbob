@@ -91,14 +91,12 @@ public class AccommodationDocumentBuilder {
 			.readActiveRanges(
 				accommodationId,
 				window.startInclusive(),
-				window.endExclusive()
-			)
+				window.endExclusive())
 			.stream()
 			.map(dateRange -> AccommodationDocument.DateRange.builder()
 				.gte(dateRange.checkIn()) // Check-in (gte)
 				.lt(dateRange.checkOut()) // Check-out (lt)
-				.build()
-			)
+				.build())
 			.toList();
 	}
 

@@ -10,8 +10,7 @@ import kr.kro.airbob.core.support.error.InvalidInputException;
 
 public record ReservationCheckoutIdentity(
 	String keyHash,
-	String requestFingerprint
-) {
+	String requestFingerprint) {
 	private static final int MIN_KEY_LENGTH = 8;
 	private static final int MAX_KEY_LENGTH = 128;
 	private static final String SAFE_KEY_PATTERN = "[A-Za-z0-9._:-]+";
@@ -36,8 +35,7 @@ public record ReservationCheckoutIdentity(
 	private static ReservationCheckoutIdentity create(String rawKey, String canonicalRequest) {
 		return new ReservationCheckoutIdentity(
 			sha256(rawKey),
-			sha256(canonicalRequest)
-		);
+			sha256(canonicalRequest));
 	}
 
 	private static String canonicalCheckoutRequest(ReservationCheckout request) {

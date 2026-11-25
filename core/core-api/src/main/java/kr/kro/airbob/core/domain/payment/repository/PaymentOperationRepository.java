@@ -29,18 +29,21 @@ public interface PaymentOperationRepository extends JpaRepository<PaymentOperati
 		join po.reservation r
 		where po.operationUid = :operationUid
 		""")
-	Optional<PaymentOperationDetailRow> findDetailByOperationUid(@Param("operationUid") UUID operationUid);
+	Optional<PaymentOperationDetailRow> findDetailByOperationUid(
+		@Param("operationUid")
+		UUID operationUid);
 
 	Optional<PaymentOperation> findByDeduplicationKey(String deduplicationKey);
 
 	Optional<PaymentOperation> findFirstByReservationIdAndOperationTypeOrderByIdDesc(
 		Long reservationId,
-		PaymentOperationType operationType
-	);
+		PaymentOperationType operationType);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select po from PaymentOperation po where po.operationUid = :operationUid")
-	Optional<PaymentOperation> findByOperationUidWithLock(@Param("operationUid") UUID operationUid);
+	Optional<PaymentOperation> findByOperationUidWithLock(
+		@Param("operationUid")
+		UUID operationUid);
 
 	@Query(value = """
 		select * from payment_operation
@@ -51,6 +54,8 @@ public interface PaymentOperationRepository extends JpaRepository<PaymentOperati
 		for update skip locked
 		""", nativeQuery = true)
 	List<PaymentOperation> findRecoverableForUpdate(
-		@Param("now") Instant now,
-		@Param("batchSize") int batchSize);
+		@Param("now")
+		Instant now,
+		@Param("batchSize")
+		int batchSize);
 }

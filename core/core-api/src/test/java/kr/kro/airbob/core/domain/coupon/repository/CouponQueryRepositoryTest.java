@@ -107,8 +107,8 @@ class CouponQueryRepositoryTest {
 		insertMemberCoupon(memberId, sameTimeLatestCouponId, latestTime);
 		insertMemberCoupon(anotherMemberId, otherCouponId, NOW);
 
-		List<MemberCouponProjection> result =
-			memberCouponRepository.findByMemberIdWithCursor(memberId, null, null, PageRequest.of(0, 20)).getContent();
+		List<MemberCouponProjection> result = memberCouponRepository
+			.findByMemberIdWithCursor(memberId, null, null, PageRequest.of(0, 20)).getContent();
 
 		assertThat(result)
 			.extracting(MemberCouponProjection::couponId)
@@ -119,16 +119,14 @@ class CouponQueryRepositoryTest {
 		String name,
 		boolean active,
 		LocalDateTime issueStartAt,
-		LocalDateTime issueEndAt
-	) {
+		LocalDateTime issueEndAt) {
 		return insertCoupon(name, active, issueStartAt, issueEndAt, NOW);
 	}
 
 	private long insertUnpreparedCoupon(
 		String name,
 		LocalDateTime issueStartAt,
-		LocalDateTime issueEndAt
-	) {
+		LocalDateTime issueEndAt) {
 		return insertCoupon(name, true, issueStartAt, issueEndAt, null);
 	}
 
@@ -137,8 +135,7 @@ class CouponQueryRepositoryTest {
 		boolean active,
 		LocalDateTime issueStartAt,
 		LocalDateTime issueEndAt,
-		LocalDateTime stockPreparedAt
-	) {
+		LocalDateTime stockPreparedAt) {
 		jdbc.update("""
 			INSERT INTO coupon (
 			  name, discount_type, discount_value,

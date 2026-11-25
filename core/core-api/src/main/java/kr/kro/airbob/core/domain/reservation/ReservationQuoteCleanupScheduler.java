@@ -17,8 +17,8 @@ public class ReservationQuoteCleanupScheduler {
 
 	public ReservationQuoteCleanupScheduler(
 		ReservationQuoteCleanupService cleanupService,
-		@Value("${reservation.quote.max-cleanup-batches-per-run:10}") int maxBatchesPerRun
-	) {
+		@Value("${reservation.quote.max-cleanup-batches-per-run:10}")
+		int maxBatchesPerRun) {
 		if (maxBatchesPerRun < 1) {
 			throw new IllegalArgumentException("quote max cleanup batches must be positive");
 		}
@@ -26,10 +26,7 @@ public class ReservationQuoteCleanupScheduler {
 		this.maxBatchesPerRun = maxBatchesPerRun;
 	}
 
-	@Scheduled(
-		fixedDelayString = "${reservation.quote.cleanup-interval:10m}",
-		scheduler = RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER
-	)
+	@Scheduled(fixedDelayString = "${reservation.quote.cleanup-interval:10m}", scheduler = RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER)
 	public void cleanupExpiredQuotes() {
 		int totalDeleted = 0;
 		for (int batch = 0; batch < maxBatchesPerRun; batch++) {

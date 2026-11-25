@@ -20,8 +20,7 @@ class IntegrationEventCodecTest {
 		"PAYMENT_OPERATION.events",
 		"PAYMENT_OPERATION",
 		"PAYMENT_EXECUTION_REQUESTED",
-		"1"
-	);
+		"1");
 	private static final UUID EVENT_ID = UUID.fromString("710470d6-8bb8-4fd4-8249-5f2f52a1afcc");
 	private static final UUID OPERATION_UID = UUID.fromString("7e19fa7d-a8dc-4096-8c75-e84f43e5b639");
 	private static final UUID RESERVATION_UID = UUID.fromString("ac3921de-5f64-4d73-829d-a49c32321950");
@@ -120,8 +119,7 @@ class IntegrationEventCodecTest {
 	private record PaymentExecutionRequested(
 		UUID operationUid,
 		UUID reservationUid,
-		long dispatchGeneration
-	) implements IntegrationEvent {
+		long dispatchGeneration) implements IntegrationEvent {
 
 		@Override
 		public EventDescriptor descriptor() {

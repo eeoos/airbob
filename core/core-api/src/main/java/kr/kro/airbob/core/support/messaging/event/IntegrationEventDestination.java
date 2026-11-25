@@ -35,7 +35,6 @@ public enum IntegrationEventDestination {
 		public static final String ACCOMMODATION_CACHE = "ACCOMMODATION_CACHE.events";
 		public static final String OPERATOR_ALERT = "OPERATOR_ALERT.events";
 
-		private Topic() {
-		}
+		private Topic() {}
 	}
 }

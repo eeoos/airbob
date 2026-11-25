@@ -12,8 +12,7 @@ public record AccommodationDetailRedisProperties(
 	int port,
 	int database,
 	String username,
-	String password
-) {
+	String password) {
 	public AccommodationDetailRedisProperties {
 		Assert.hasText(host, "accommodation.detail-cache.redis.host must not be blank");
 		Assert.isTrue(port > 0 && port <= 65_535,

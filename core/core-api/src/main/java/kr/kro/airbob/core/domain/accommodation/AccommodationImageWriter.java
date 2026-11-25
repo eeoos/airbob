@@ -35,8 +35,8 @@ public class AccommodationImageWriter {
 
 	/** 남은 이미지 중 ID가 가장 작은 것을 썸네일로 맞춘다(없으면 null). 썸네일이 바뀌었으면 true. */
 	public boolean refreshThumbnail(Accommodation accommodation) {
-		List<AccommodationImage> remainingImages =
-			accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodation.getId());
+		List<AccommodationImage> remainingImages = accommodationImageRepository
+			.findByAccommodationIdOrderByIdAsc(accommodation.getId());
 		String newThumbnailUrl = remainingImages.isEmpty() ? null : remainingImages.getFirst().getImageUrl();
 
 		if (!Objects.equals(accommodation.getThumbnailUrl(), newThumbnailUrl)) {

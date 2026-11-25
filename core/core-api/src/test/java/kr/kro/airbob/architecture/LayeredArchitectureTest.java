@@ -21,9 +21,7 @@ import com.tngtech.archunit.lang.ArchRule;
  * → Data access (repositories). See docs/architecture/code-structure.md.
  * Every rule must match at least one class, so a package rename cannot silently empty a rule.
  */
-@AnalyzeClasses(
-	packages = ArchitectureSlices.ROOT_PACKAGE,
-	importOptions = ImportOption.DoNotIncludeTests.class,
+@AnalyzeClasses(packages = ArchitectureSlices.ROOT_PACKAGE, importOptions = ImportOption.DoNotIncludeTests.class,
 	// Release the imported classes after this class; the default keeps them for the whole test JVM.
 	cacheMode = CacheMode.PER_CLASS)
 class LayeredArchitectureTest {

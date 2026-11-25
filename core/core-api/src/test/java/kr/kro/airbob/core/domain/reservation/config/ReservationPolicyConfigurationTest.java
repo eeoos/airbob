@@ -10,8 +10,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Reservation 정책 설정 테스트")
 class ReservationPolicyConfigurationTest {
 
-	private final ReservationPolicyConfiguration configuration =
-		new ReservationPolicyConfiguration();
+	private final ReservationPolicyConfiguration configuration = new ReservationPolicyConfiguration();
 
 	@Test
 	@DisplayName("결제 시도 최소 잔여 시간은 예약 보유 시간보다 짧아야 한다")

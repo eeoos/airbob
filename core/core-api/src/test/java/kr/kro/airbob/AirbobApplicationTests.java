@@ -11,7 +11,6 @@ import org.springframework.test.context.ActiveProfiles;
 class AirbobApplicationTests {
 
 	@Test
-	void contextLoads() {
-	}
+	void contextLoads() {}
 
 }

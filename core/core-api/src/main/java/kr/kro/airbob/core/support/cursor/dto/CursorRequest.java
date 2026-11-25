@@ -13,9 +13,8 @@ public class CursorRequest {
 	public record CursorPageRequest(
 		Integer size,
 		Long lastId,
-		LocalDateTime lastCreatedAt
-	) {
-		public CursorPageRequest{
+		LocalDateTime lastCreatedAt) {
+		public CursorPageRequest {
 			if (size == null) {
 				size = 20; // 기본값
 			}
@@ -26,8 +25,7 @@ public class CursorRequest {
 	public record CouponCampaignCursorPageRequest(
 		Integer size,
 		Long lastId,
-		LocalDateTime lastIssueStartAt
-	) {
+		LocalDateTime lastIssueStartAt) {
 		public CouponCampaignCursorPageRequest {
 			if (size == null) {
 				size = 20;
@@ -40,7 +38,6 @@ public class CursorRequest {
 		Integer size,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
-		Integer lastRating
-	) {
+		Integer lastRating) {
 	}
 }

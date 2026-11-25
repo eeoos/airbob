@@ -32,8 +32,8 @@ public class ExpiredReservationCleanupService {
 		CouponUsageManager couponUsageManager,
 		ReservationInventoryManager inventoryManager,
 		Clock clock,
-		@Value("${reservation.expiration.cleanup-batch-size:100}") int cleanupBatchSize
-	) {
+		@Value("${reservation.expiration.cleanup-batch-size:100}")
+		int cleanupBatchSize) {
 		if (cleanupBatchSize < 1) {
 			throw new IllegalArgumentException("cleanup batch size must be positive");
 		}
@@ -45,16 +45,12 @@ public class ExpiredReservationCleanupService {
 		this.cleanupBatchSize = cleanupBatchSize;
 	}
 
-	@Transactional(
-		isolation = Isolation.READ_COMMITTED,
-		timeoutString = "${reservation.expiration.transaction-timeout-seconds:10}"
-	)
+	@Transactional(isolation = Isolation.READ_COMMITTED, timeoutString = "${reservation.expiration.transaction-timeout-seconds:10}")
 	public int cleanupExpiredPendingReservations() {
 		Instant cutoff = clock.instant();
 		List<Reservation> expired = reservationReader.readExpiredPendingBatchForCleanup(
 			cutoff,
-			cleanupBatchSize
-		);
+			cleanupBatchSize);
 		if (expired.isEmpty()) {
 			return 0;
 		}
@@ -65,15 +61,13 @@ public class ExpiredReservationCleanupService {
 					reservation.getAccommodation().getId(),
 					reservation.getCheckInDate(),
 					reservation.getCheckOutDate(),
-					reservation.getId()
-				);
+					reservation.getId());
 				reservation.expire();
 				return ReservationHistory.ofSystem(
 					reservation,
 					ChangeType.STATUS_CHANGE,
 					REASON,
-					SOURCE_SYSTEM
-				);
+					SOURCE_SYSTEM);
 			})
 			.toList();
 

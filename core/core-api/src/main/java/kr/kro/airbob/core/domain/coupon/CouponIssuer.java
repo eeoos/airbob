@@ -31,7 +31,8 @@ public class CouponIssuer {
 		units.clearPersistenceContext();
 		Coupon coupon = coupons.findByIdForShareNowait(couponId).orElseThrow(CouponNotFoundException::new);
 		validate(coupon);
-		if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId)) throw new CouponAlreadyIssuedException();
+		if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId))
+			throw new CouponAlreadyIssuedException();
 		var unit = units.lockAvailable(couponId).orElseThrow(NoAvailableUnitException::new);
 		units.consume(couponId, unit);
 		memberCoupons.saveAndFlush(MemberCoupon.issue(members.readReference(memberId), coupon));
@@ -43,10 +44,12 @@ public class CouponIssuer {
 	 */
 	public void classifyFailedAttempt(Long couponId, Long memberId) {
 		units.clearPersistenceContext();
-		if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId)) throw new CouponAlreadyIssuedException();
+		if (memberCoupons.existsByMemberIdAndCouponId(memberId, couponId))
+			throw new CouponAlreadyIssuedException();
 		Coupon coupon = coupons.findById(couponId).orElseThrow(CouponNotFoundException::new);
 		validate(coupon);
-		if (!units.hasRemaining(couponId)) throw new CouponSoldOutException();
+		if (!units.hasRemaining(couponId))
+			throw new CouponSoldOutException();
 	}
 
 	private void validate(Coupon coupon) {
@@ -54,9 +57,10 @@ public class CouponIssuer {
 			|| !Boolean.TRUE.equals(coupon.getIsActive()) || !coupon.isIssueOpen(units.databaseNow())) {
 			throw new CouponNotIssuableException();
 		}
-		if (!coupon.isStockPrepared()) throw new CouponStockNotPreparedException();
+		if (!coupon.isStockPrepared())
+			throw new CouponStockNotPreparedException();
 	}
 
 	/** SKIP LOCKED로 잡을 재고가 없다. 매진인지 경합인지는 {@link #classifyFailedAttempt}가 가린다. */
-	static final class NoAvailableUnitException extends RuntimeException { }
+	static final class NoAvailableUnitException extends RuntimeException {}
 }

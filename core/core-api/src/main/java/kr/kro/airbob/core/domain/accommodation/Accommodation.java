@@ -26,7 +26,6 @@ import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.support.persistence.BaseEntity;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -125,11 +124,11 @@ public class Accommodation extends BaseEntity {
 		}
 
 		if (patch.checkInTime() != null) {
-			this.checkInTime =patch.checkInTime();
+			this.checkInTime = patch.checkInTime();
 		}
 
 		if (patch.checkOutTime() != null) {
-			this.checkOutTime =patch.checkOutTime();
+			this.checkOutTime = patch.checkOutTime();
 		}
 	}
 

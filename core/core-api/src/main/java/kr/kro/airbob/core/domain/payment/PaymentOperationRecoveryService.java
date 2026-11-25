@@ -22,8 +22,7 @@ public class PaymentOperationRecoveryService {
 		PaymentOperationReader operationReader,
 		OutboxWriter outboxWriter,
 		PaymentOperationProperties properties,
-		Clock clock
-	) {
+		Clock clock) {
 		this.operationReader = operationReader;
 		this.outboxWriter = outboxWriter;
 		this.properties = properties;
@@ -43,8 +42,7 @@ public class PaymentOperationRecoveryService {
 			outboxWriter.append(new PaymentOperationExecutionRequestedV1(
 				operation.getOperationUid(),
 				operation.getReservation().getReservationUid(),
-				operation.getDispatchGeneration()
-		));
+				operation.getDispatchGeneration()));
 			enqueued++;
 		}
 

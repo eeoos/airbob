@@ -19,7 +19,6 @@ class DevMetricsConfigurationTest {
 	void devProfileEnablesHttpServerRequestHistogram() {
 		contextRunner.run(context -> assertThat(context.getEnvironment().getProperty(
 			"management.metrics.distribution.percentiles-histogram.http.server.requests",
-			Boolean.class
-		)).isTrue());
+			Boolean.class)).isTrue());
 	}
 }

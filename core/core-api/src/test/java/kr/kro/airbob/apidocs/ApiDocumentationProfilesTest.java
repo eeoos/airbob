@@ -18,22 +18,27 @@ class ApiDocumentationProfilesTest {
 				.withPropertyValues("spring.profiles.active=" + profiles)
 				.run(context -> {
 					assertThat(context).hasNotFailed();
-					assertThat(context.getEnvironment().getProperty("springdoc.api-docs.enabled", Boolean.class)).as(profiles).isFalse();
-					assertThat(context.getEnvironment().getProperty("springdoc.swagger-ui.enabled", Boolean.class)).as(profiles).isFalse();
+					assertThat(context.getEnvironment().getProperty("springdoc.api-docs.enabled", Boolean.class))
+						.as(profiles).isFalse();
+					assertThat(context.getEnvironment().getProperty("springdoc.swagger-ui.enabled", Boolean.class))
+						.as(profiles).isFalse();
 				});
 		}
 	}
 
 	@Test
 	void developmentAndDeploymentProfilesEnableDocumentation() {
-		for (String profiles : new String[] {"dev", "aws", "oci", "dev,aws", "aws,dev", "dev,oci", "oci,dev", "aws,oci"}) {
+		for (String profiles : new String[] {"dev", "aws", "oci", "dev,aws", "aws,dev", "dev,oci", "oci,dev",
+			"aws,oci"}) {
 			new ApplicationContextRunner()
 				.withInitializer(new ConfigDataApplicationContextInitializer())
 				.withPropertyValues("spring.profiles.active=" + profiles)
 				.run(context -> {
 					assertThat(context).hasNotFailed();
-					assertThat(context.getEnvironment().getProperty("springdoc.api-docs.enabled", Boolean.class)).as(profiles).isTrue();
-					assertThat(context.getEnvironment().getProperty("springdoc.swagger-ui.enabled", Boolean.class)).as(profiles).isTrue();
+					assertThat(context.getEnvironment().getProperty("springdoc.api-docs.enabled", Boolean.class))
+						.as(profiles).isTrue();
+					assertThat(context.getEnvironment().getProperty("springdoc.swagger-ui.enabled", Boolean.class))
+						.as(profiles).isTrue();
 				});
 		}
 	}

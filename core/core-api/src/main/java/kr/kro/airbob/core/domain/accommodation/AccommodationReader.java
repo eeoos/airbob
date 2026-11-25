@@ -31,15 +31,13 @@ public class AccommodationReader {
 	/** 호스트의 삭제되지 않은 숙소를 쓰기 잠금으로 읽는다. 없거나 다른 호스트의 숙소면 AccommodationNotFoundException. */
 	public Accommodation readOwnedForUpdate(Long accommodationId, Long hostId) {
 		return accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
-			accommodationId, hostId, AccommodationStatus.DELETED
-		).orElseThrow(AccommodationNotFoundException::new);
+			accommodationId, hostId, AccommodationStatus.DELETED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	/** 호스트의 삭제되지 않은 숙소. 잠그지 않는다. 없거나 다른 호스트의 숙소면 AccommodationNotFoundException. */
 	public Accommodation readOwned(Long accommodationId, Long hostId) {
 		return accommodationRepository.findByIdAndMemberIdAndStatusNot(
-			accommodationId, hostId, AccommodationStatus.DELETED
-		).orElseThrow(AccommodationNotFoundException::new);
+			accommodationId, hostId, AccommodationStatus.DELETED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	/** 게시 숙소의 시간대. 게시 숙소가 아니면 AccommodationNotFoundException. */
@@ -58,8 +56,7 @@ public class AccommodationReader {
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
 			status,
-			PageRequest.of(0, cursorRequest.size())
-		);
+			PageRequest.of(0, cursorRequest.size()));
 	}
 
 	/** 호스트의 숙소 상세. 없거나 다른 호스트의 숙소면 AccommodationNotFoundException. */

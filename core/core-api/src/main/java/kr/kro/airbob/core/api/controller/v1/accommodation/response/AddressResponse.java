@@ -17,10 +17,10 @@ public class AddressResponse {
 		@Schema(nullable = true) String district,
 		@Schema(nullable = true) String street,
 		@Schema(nullable = true) String detail,
-		@Schema(nullable = true) String postalCode
-	) {
+		@Schema(nullable = true) String postalCode) {
 		public static AddressInfo from(Address address) {
-			if(address == null) return AddressInfo.builder().build();
+			if (address == null)
+				return AddressInfo.builder().build();
 			return AddressInfo.builder()
 				.country(address.getCountry())
 				.state(address.getState())
@@ -39,10 +39,10 @@ public class AddressResponse {
 		@Schema(nullable = true) String country,
 		@Schema(nullable = true) String state,
 		@Schema(nullable = true) String city,
-		@Schema(nullable = true) String district
-	) {
+		@Schema(nullable = true) String district) {
 		public static AddressSummaryInfo from(Address address) {
-			if(address == null) return AddressSummaryInfo.builder().build();
+			if (address == null)
+				return AddressSummaryInfo.builder().build();
 			return AddressSummaryInfo.builder()
 				.country(address.getCountry())
 				.state(address.getState())
@@ -56,10 +56,10 @@ public class AddressResponse {
 	@Schema(name = "AddressResponseCoordinate")
 	public record Coordinate(
 		@Schema(nullable = true) Double latitude,
-		@Schema(nullable = true) Double longitude
-	) {
+		@Schema(nullable = true) Double longitude) {
 		public static Coordinate from(Address address) {
-			if(address == null) return Coordinate.builder().build();
+			if (address == null)
+				return Coordinate.builder().build();
 			return Coordinate.builder()
 				.latitude(address.getLatitude())
 				.longitude(address.getLongitude())

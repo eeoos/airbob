@@ -19,9 +19,9 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.luben.zstd.ZstdInputStream;
-
 import net.iakovlev.timeshape.TimeZoneEngine;
+
+import com.github.luben.zstd.ZstdInputStream;
 
 /** Rejects a JVM that would silently omit TimeShape regions or use obsolete booking rules. */
 public final class TimeZoneRuntimeCompatibility {
@@ -34,8 +34,7 @@ public final class TimeZoneRuntimeCompatibility {
 	private static final Instant DECISION_AT = Instant.parse("2026-11-15T07:30:00Z");
 	private static final LocalDate EXPECTED_LOCAL_TODAY = LocalDate.of(2026, 11, 15);
 
-	private TimeZoneRuntimeCompatibility() {
-	}
+	private TimeZoneRuntimeCompatibility() {}
 
 	static TimeZoneEngine initializeCompatibleEngine() {
 		Snapshot snapshot = verifyRuntimeRules();
@@ -45,7 +44,7 @@ public final class TimeZoneRuntimeCompatibility {
 		requireBoundaryCoverage(boundaryZoneIds, engine.getKnownZoneIds().stream()
 			.map(ZoneId::getId).collect(Collectors.toSet()), "TimeShape index");
 		log.info("Time-zone compatibility verified: javaRuntimeVersion={}, javaVendor={}, tzdbVersion={}, "
-				+ "boundaryZoneCount={}, vancouverCheckInAt={}, vancouverLocalToday={}, coyhaiqueSupported=true",
+			+ "boundaryZoneCount={}, vancouverCheckInAt={}, vancouverLocalToday={}, coyhaiqueSupported=true",
 			snapshot.javaRuntimeVersion(), snapshot.javaVendor(), snapshot.tzdbVersion(),
 			boundaryZoneIds.size(), snapshot.vancouverCheckInAt(), snapshot.vancouverLocalToday());
 		return engine;

@@ -5,9 +5,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -60,7 +60,8 @@ class AccommodationDocumentBuilderTest {
 	void setUp() {
 		documentBuilder = new AccommodationDocumentBuilder(new AccommodationReader(accommodationRepository),
 			new AccommodationAmenityReader(amenityRepository),
-			new ReservationReader(reservationRepository), new AccommodationReviewSummaryReader(reviewSummaryRepository), bookingWindowProvider);
+			new ReservationReader(reservationRepository), new AccommodationReviewSummaryReader(reviewSummaryRepository),
+			bookingWindowProvider);
 	}
 
 	@Test
@@ -75,8 +76,7 @@ class AccommodationDocumentBuilderTest {
 		when(accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid))
 			.thenReturn(Optional.of(unpublished));
 
-		AccommodationDocument document =
-			documentBuilder.buildAccommodationDocument(accommodationUid);
+		AccommodationDocument document = documentBuilder.buildAccommodationDocument(accommodationUid);
 
 		assertThat(document.id()).isEqualTo(accommodationUid.toString());
 		assertThat(document.status()).isEqualTo(AccommodationStatus.UNPUBLISHED.name());
@@ -121,17 +121,16 @@ class AccommodationDocumentBuilderTest {
 				.petOccupancy(0)
 				.build())
 			.build();
-			List<ReservationDateRange> projectedRanges = List.of(
-				new ReservationDateRange(
-					LocalDate.of(2026, 8, 12),
-					LocalDate.of(2026, 8, 15)),
-				new ReservationDateRange(
-					LocalDate.of(2026, 8, 12),
-					LocalDate.of(2026, 8, 15)),
-				new ReservationDateRange(
-					LocalDate.of(2026, 8, 10),
-					LocalDate.of(2026, 8, 13))
-			);
+		List<ReservationDateRange> projectedRanges = List.of(
+			new ReservationDateRange(
+				LocalDate.of(2026, 8, 12),
+				LocalDate.of(2026, 8, 15)),
+			new ReservationDateRange(
+				LocalDate.of(2026, 8, 12),
+				LocalDate.of(2026, 8, 15)),
+			new ReservationDateRange(
+				LocalDate.of(2026, 8, 10),
+				LocalDate.of(2026, 8, 13)));
 		when(accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid))
 			.thenReturn(Optional.of(accommodation));
 		when(bookingWindowProvider.currentIndexingWindow()).thenReturn(window);
@@ -140,8 +139,7 @@ class AccommodationDocumentBuilderTest {
 				accommodation.getId(), window.startInclusive(), window.endExclusive()))
 			.thenReturn(projectedRanges);
 
-		AccommodationDocument document =
-			documentBuilder.buildAccommodationDocument(accommodationUid);
+		AccommodationDocument document = documentBuilder.buildAccommodationDocument(accommodationUid);
 
 		assertThat(document.reservationRanges()).containsExactly(
 			new AccommodationDocument.DateRange(
@@ -149,8 +147,7 @@ class AccommodationDocumentBuilderTest {
 			new AccommodationDocument.DateRange(
 				LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 15)),
 			new AccommodationDocument.DateRange(
-				LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 13))
-		);
+				LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 13)));
 		assertThat(document.createdAt()).isEqualTo(Instant.parse("2026-08-01T09:00:00Z"));
 		assertThat(document.timeZoneId()).isEqualTo("Asia/Seoul");
 		verify(reservationRepository)

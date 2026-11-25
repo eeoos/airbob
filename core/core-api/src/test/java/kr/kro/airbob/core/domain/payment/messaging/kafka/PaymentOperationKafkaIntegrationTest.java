@@ -51,7 +51,6 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.read.ListAppender;
-
 import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.core.domain.payment.PaymentOperationDltIncidentService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationExecutionService;
@@ -75,16 +74,11 @@ import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFa
 	"payment.operation.kafka.attempts=2",
 	"payment.operation.kafka.backoff-ms=500"
 })
-@EmbeddedKafka(
-	partitions = 1,
-	topics = {
-		PaymentOperationKafkaIntegrationTest.OPERATION_TOPIC,
-		PaymentOperationKafkaIntegrationTest.OPERATION_RETRY_TOPIC,
-		PaymentOperationKafkaIntegrationTest.OPERATION_DLT_TOPIC
-	},
-	bootstrapServersProperty = "spring.kafka.bootstrap-servers",
-	brokerProperties = "auto.create.topics.enable=false"
-)
+@EmbeddedKafka(partitions = 1, topics = {
+	PaymentOperationKafkaIntegrationTest.OPERATION_TOPIC,
+	PaymentOperationKafkaIntegrationTest.OPERATION_RETRY_TOPIC,
+	PaymentOperationKafkaIntegrationTest.OPERATION_DLT_TOPIC
+}, bootstrapServersProperty = "spring.kafka.bootstrap-servers", brokerProperties = "auto.create.topics.enable=false")
 @DisplayName("payment-operation Kafka 격리 통합 테스트")
 class PaymentOperationKafkaIntegrationTest {
 
@@ -104,16 +98,14 @@ class PaymentOperationKafkaIntegrationTest {
 	private static final long SPOOFED_ORIGINAL_TIMESTAMP = 1L;
 	private static final long ATTACKER_BACKOFF_DELAY_MS = 30_000L;
 	private static final long PROMPT_DELIVERY_TIMEOUT_MS = 2_000L;
-	private static final String SANITIZED_POISON =
-		SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
+	private static final String SANITIZED_POISON = SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
 	private static final List<String> SAFE_RETRY_DLT_HEADERS = List.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
 		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
 		RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
 		KafkaHeaders.ORIGINAL_TOPIC,
 		KafkaHeaders.ORIGINAL_PARTITION,
-		KafkaHeaders.ORIGINAL_OFFSET
-	);
+		KafkaHeaders.ORIGINAL_OFFSET);
 	private final EmbeddedKafkaBroker broker;
 	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final PaymentOperationExecutionService executor;
@@ -131,8 +123,7 @@ class PaymentOperationKafkaIntegrationTest {
 		KafkaTemplate<String, String> kafkaTemplate,
 		PaymentOperationExecutionService executor,
 		PaymentOperationDltIncidentService dltIncidentService,
-		IntegrationEventCodec codec
-	) {
+		IntegrationEventCodec codec) {
 		this.broker = broker;
 		this.kafkaTemplate = kafkaTemplate;
 		this.executor = executor;
@@ -321,8 +312,7 @@ class PaymentOperationKafkaIntegrationTest {
 			EVENT_UID,
 			Instant.parse("2026-08-14T00:00:00Z"),
 			new PaymentOperationExecutionRequestedV1(
-				OPERATION_UID, RESERVATION_UID, DISPATCH_GENERATION)
-		));
+				OPERATION_UID, RESERVATION_UID, DISPATCH_GENERATION)));
 	}
 
 	private List<String> headerNames(ConsumerRecord<String, String> record) {
@@ -333,8 +323,7 @@ class PaymentOperationKafkaIntegrationTest {
 
 	private void addSpoofedReservedHeaders(
 		ProducerRecord<String, String> record,
-		long attackerBackoffTimestamp
-	) {
+		long attackerBackoffTimestamp) {
 		for (String headerName : SAFE_RETRY_DLT_HEADERS) {
 			record.headers().add(
 				headerName, RESERVED_HEADER_SECRET.getBytes(StandardCharsets.UTF_8));
@@ -358,10 +347,10 @@ class PaymentOperationKafkaIntegrationTest {
 	private void assertRecordDoesNotContainSecret(ConsumerRecord<String, String> record) {
 		assertThat(String.valueOf(record.key())).doesNotContain(RAW_SECRET);
 		assertThat(record.value()).doesNotContain(RAW_SECRET);
-		assertThat(headerNames(record)).noneMatch(name ->
-			name.contains(RAW_SECRET) || name.contains(RESERVED_HEADER_SECRET));
-		assertThat(headerValues(record)).noneMatch(value ->
-			value.contains(RAW_SECRET) || value.contains(RESERVED_HEADER_SECRET));
+		assertThat(headerNames(record))
+			.noneMatch(name -> name.contains(RAW_SECRET) || name.contains(RESERVED_HEADER_SECRET));
+		assertThat(headerValues(record))
+			.noneMatch(value -> value.contains(RAW_SECRET) || value.contains(RESERVED_HEADER_SECRET));
 	}
 
 	private String readStringHeader(ConsumerRecord<String, String> record, String name) {
@@ -401,8 +390,7 @@ class PaymentOperationKafkaIntegrationTest {
 
 	private List<String> headerValues(ConsumerRecord<String, String> record) {
 		List<String> values = new ArrayList<>();
-		record.headers().forEach(header ->
-			values.add(new String(header.value(), StandardCharsets.UTF_8)));
+		record.headers().forEach(header -> values.add(new String(header.value(), StandardCharsets.UTF_8)));
 		return values;
 	}
 

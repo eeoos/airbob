@@ -20,7 +20,8 @@ public class GoogleGeocodingAdapter implements GeocodingGateway {
 	private final boolean enabled;
 
 	public GoogleGeocodingAdapter(GoogleGeocodingClient googleGeocodingClient,
-		@Value("${google.api.enabled:true}") boolean enabled) {
+		@Value("${google.api.enabled:true}")
+		boolean enabled) {
 		this.googleGeocodingClient = googleGeocodingClient;
 		this.enabled = enabled;
 	}
@@ -53,8 +54,7 @@ public class GoogleGeocodingAdapter implements GeocodingGateway {
 
 		return GeocodeResult.success(
 			location.lat(),
-			location.lng()
-		);
+			location.lng());
 	}
 
 }

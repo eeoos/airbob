@@ -5,8 +5,7 @@ import java.time.LocalDateTime;
 public record ReviewCursorData(
 	Long id,
 	LocalDateTime lastCreatedAt,
-	Integer lastRating
-) implements CursorPayload {
+	Integer lastRating) implements CursorPayload {
 
 	@Override
 	public void validate() {

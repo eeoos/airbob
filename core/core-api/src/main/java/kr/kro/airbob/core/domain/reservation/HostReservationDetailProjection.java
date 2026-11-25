@@ -29,8 +29,7 @@ public record HostReservationDetailProjection(
 	Long guestId,
 	String guestNickname,
 	String guestThumbnailImageUrl,
-	Long paymentAmount
-) {
+	Long paymentAmount) {
 	@QueryProjection
 	public HostReservationDetailProjection {
 	}

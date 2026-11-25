@@ -60,8 +60,7 @@ public class PaymentOperationCommandService {
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
 			reservation.getId(),
-			now
-		);
+			now);
 		PaymentOperation operation = PaymentOperation.createConfirmation(
 			reservation, memberId, request.paymentKey(), request.amount(), now);
 		operationWriter.create(operation);
@@ -70,8 +69,7 @@ public class PaymentOperationCommandService {
 		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
 			operation.getOperationUid(),
 			reservationUid,
-			operation.getDispatchGeneration()
-		));
+			operation.getDispatchGeneration()));
 		return PaymentOperationReceipt.accepted(operation);
 	}
 

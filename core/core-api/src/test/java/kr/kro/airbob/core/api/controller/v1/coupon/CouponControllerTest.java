@@ -11,8 +11,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDateTime;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +23,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
@@ -71,7 +72,8 @@ class CouponControllerTest {
 		mockMvc = MockMvcBuilders.standaloneSetup(
 			new CouponController(couponQueryService, issueService))
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver(),
-				new CursorParamArgumentResolver(cursorDecoder), new CouponCampaignCursorParamArgumentResolver(cursorDecoder))
+				new CursorParamArgumentResolver(cursorDecoder),
+				new CouponCampaignCursorParamArgumentResolver(cursorDecoder))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.build();
@@ -112,8 +114,9 @@ class CouponControllerTest {
 			true);
 		var request = new CursorRequest.CouponCampaignCursorPageRequest(20, null, null);
 		when(couponQueryService.findCouponCampaigns(request))
-			.thenReturn(new CouponCampaignPage(List.of(new CouponCampaignPage.Item(campaign, CouponIssuanceStatus.UPCOMING)),
-				new CursorResponse.PageInfo(false, null, 1)));
+			.thenReturn(
+				new CouponCampaignPage(List.of(new CouponCampaignPage.Item(campaign, CouponIssuanceStatus.UPCOMING)),
+					new CursorResponse.PageInfo(false, null, 1)));
 
 		mockMvc.perform(get("/api/v1/coupons"))
 			.andExpect(status().isOk())
@@ -173,7 +176,7 @@ class CouponControllerTest {
 			.thenReturn(new CouponCampaignPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 
 		mockMvc.perform(get("/api/v1/coupons").param("size", "5")
-				.param("cursor", cursorEncoder.encode(new CouponCampaignCursorData(17L, issueStartAt))))
+			.param("cursor", cursorEncoder.encode(new CouponCampaignCursorData(17L, issueStartAt))))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.infos").isEmpty())
 			.andExpect(jsonPath("$.data.page_info.current_size").value(0));
@@ -190,7 +193,7 @@ class CouponControllerTest {
 			.thenReturn(new MemberCouponPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 
 		mockMvc.perform(get("/api/v1/members/me/coupons").param("size", "50")
-				.param("cursor", cursorEncoder.encode(new CursorData(201L, createdAt))))
+			.param("cursor", cursorEncoder.encode(new CursorData(201L, createdAt))))
 			.andExpect(status().isOk());
 
 		verify(couponQueryService).findMyCoupons(10L, request);
@@ -212,10 +215,10 @@ class CouponControllerTest {
 	void rejectsCrossEndpointCursors() throws Exception {
 		LocalDateTime boundary = LocalDateTime.of(2026, 10, 17, 1, 0);
 		mockMvc.perform(get("/api/v1/coupons")
-				.param("cursor", cursorEncoder.encode(new CursorData(1L, boundary))))
+			.param("cursor", cursorEncoder.encode(new CursorData(1L, boundary))))
 			.andExpect(status().isBadRequest());
 		mockMvc.perform(get("/api/v1/members/me/coupons")
-				.param("cursor", cursorEncoder.encode(new CouponCampaignCursorData(1L, boundary))))
+			.param("cursor", cursorEncoder.encode(new CouponCampaignCursorData(1L, boundary))))
 			.andExpect(status().isBadRequest());
 		verifyNoInteractions(couponQueryService, issueService);
 	}
@@ -227,7 +230,8 @@ class CouponControllerTest {
 			.andExpect(status().isNotFound());
 		mockMvc.perform(post("/api/v1/coupons/1/issue/lock"))
 			.andExpect(status().isNotFound());
-		for (String retired : List.of("db", "skip-surrogate-rr", "skip-surrogate-rc", "skip-composite-rr", "skip-composite-rc")) {
+		for (String retired : List.of("db", "skip-surrogate-rr", "skip-surrogate-rc", "skip-composite-rr",
+			"skip-composite-rc")) {
 			mockMvc.perform(post("/api/v2/coupons/1/issue/" + retired)).andExpect(status().isNotFound());
 		}
 	}

@@ -13,8 +13,8 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -51,21 +51,36 @@ import kr.kro.airbob.core.support.error.BaseException;
 class AccommodationCommandServiceTest {
 	private static final Instant NOW = Instant.parse("2030-01-01T00:00:00Z");
 
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationReader reservationReader;
-	@Mock private AccommodationAmenityRepository accommodationAmenityRepository;
-	@Mock private AccommodationHistoryRepository accommodationHistoryRepository;
-	@Mock private AccommodationImageRepository accommodationImageRepository;
-	@Mock private AddressRepository addressRepository;
-	@Mock private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Mock private CommonCodeReader commonCodeReader;
-	@Mock private GeocodingGateway geocodingService;
-	@Mock private TimeZoneResolver timeZoneResolver;
-	@Mock private MemberReader memberReader;
-	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@Mock private ReservationInventorySeeder inventorySeeder;
-	@Mock private Clock clock;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private ReservationReader reservationReader;
+	@Mock
+	private AccommodationAmenityRepository accommodationAmenityRepository;
+	@Mock
+	private AccommodationHistoryRepository accommodationHistoryRepository;
+	@Mock
+	private AccommodationImageRepository accommodationImageRepository;
+	@Mock
+	private AddressRepository addressRepository;
+	@Mock
+	private OccupancyPolicyRepository occupancyPolicyRepository;
+	@Mock
+	private CommonCodeReader commonCodeReader;
+	@Mock
+	private GeocodingGateway geocodingService;
+	@Mock
+	private TimeZoneResolver timeZoneResolver;
+	@Mock
+	private MemberReader memberReader;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Mock
+	private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	@Mock
+	private ReservationInventorySeeder inventorySeeder;
+	@Mock
+	private Clock clock;
 
 	private AccommodationCommandService accommodationCommandService;
 
@@ -361,8 +376,8 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
-			.isInstanceOfSatisfying(BaseException.class, exception ->
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
+			.isInstanceOfSatisfying(BaseException.class,
+				exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
@@ -386,8 +401,8 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
-			.isInstanceOfSatisfying(BaseException.class, exception ->
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
+			.isInstanceOfSatisfying(BaseException.class,
+				exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("C001"));
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
@@ -404,8 +419,8 @@ class AccommodationCommandServiceTest {
 			.thenReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
-			.isInstanceOfSatisfying(BaseException.class, exception ->
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009"));
+			.isInstanceOfSatisfying(BaseException.class,
+				exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("A009"));
 
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
 		verifyNoInteractions(searchRefreshPublisher);
@@ -417,12 +432,10 @@ class AccommodationCommandServiceTest {
 		Accommodation accommodation = mock(Accommodation.class);
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.addressInfo(new AddressRequest.AddressInfo(
-				"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"
-			))
+				"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"))
 			.amenityInfos(List.of(
 				new AmenityRequest.AmenityInfo("wifi", 1),
-				new AmenityRequest.AmenityInfo("not_a_real_amenity", 1)
-			))
+				new AmenityRequest.AmenityInfo("not_a_real_amenity", 1)))
 			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(4, 1, 0))
 			.build();
 
@@ -748,8 +761,7 @@ class AccommodationCommandServiceTest {
 
 	private AddressRequest.AddressInfo seoulAddressInfo() {
 		return new AddressRequest.AddressInfo(
-			"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"
-		);
+			"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110");
 	}
 
 	private Accommodation publishableAccommodation() {
@@ -764,8 +776,7 @@ class AccommodationCommandServiceTest {
 	private Accommodation publishableAccommodation(
 		String timeZoneId,
 		LocalTime checkInTime,
-		LocalTime checkOutTime
-	) {
+		LocalTime checkOutTime) {
 		return Accommodation.builder()
 			.id(1L)
 			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))

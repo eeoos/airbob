@@ -89,18 +89,30 @@ public class Coupon extends BaseEntity {
 	}
 
 	public void update(CouponPatch dto) {
-		if (dto.name() != null) this.name = dto.name();
-		if (dto.description() != null) this.description = dto.description();
-		if (dto.discountType() != null) this.discountType = dto.discountType();
-		if (dto.discountValue() != null) this.discountValue = dto.discountValue();
-		if (dto.minPaymentPrice() != null) this.minPaymentPrice = dto.minPaymentPrice();
-		if (dto.maxDiscountAmount() != null) this.maxDiscountAmount = dto.maxDiscountAmount();
-		if (dto.issueStartAt() != null) this.issueStartAt = CouponTime.toUtc(dto.issueStartAt());
-		if (dto.issueEndAt() != null) this.issueEndAt = CouponTime.toUtc(dto.issueEndAt());
-		if (dto.usableFrom() != null) this.usableFrom = CouponTime.toUtc(dto.usableFrom());
-		if (dto.usableUntil() != null) this.usableUntil = CouponTime.toUtc(dto.usableUntil());
-		if (dto.isActive() != null) this.isActive = dto.isActive();
-		if (dto.totalQuantity() != null) this.totalQuantity = dto.totalQuantity();
+		if (dto.name() != null)
+			this.name = dto.name();
+		if (dto.description() != null)
+			this.description = dto.description();
+		if (dto.discountType() != null)
+			this.discountType = dto.discountType();
+		if (dto.discountValue() != null)
+			this.discountValue = dto.discountValue();
+		if (dto.minPaymentPrice() != null)
+			this.minPaymentPrice = dto.minPaymentPrice();
+		if (dto.maxDiscountAmount() != null)
+			this.maxDiscountAmount = dto.maxDiscountAmount();
+		if (dto.issueStartAt() != null)
+			this.issueStartAt = CouponTime.toUtc(dto.issueStartAt());
+		if (dto.issueEndAt() != null)
+			this.issueEndAt = CouponTime.toUtc(dto.issueEndAt());
+		if (dto.usableFrom() != null)
+			this.usableFrom = CouponTime.toUtc(dto.usableFrom());
+		if (dto.usableUntil() != null)
+			this.usableUntil = CouponTime.toUtc(dto.usableUntil());
+		if (dto.isActive() != null)
+			this.isActive = dto.isActive();
+		if (dto.totalQuantity() != null)
+			this.totalQuantity = dto.totalQuantity();
 	}
 
 	public void deactivate() {

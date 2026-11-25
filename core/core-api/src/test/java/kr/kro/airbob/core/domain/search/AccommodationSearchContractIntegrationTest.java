@@ -77,18 +77,21 @@ class AccommodationSearchContractIntegrationTest {
 
 	@AfterAll
 	static void disconnect() throws Exception {
-		if (transport != null) transport.close();
+		if (transport != null)
+			transport.close();
 	}
 
 	@BeforeEach
 	void fixture() throws Exception {
-		client.deleteByQuery(request -> request.index("accommodations").query(query -> query.matchAll(all -> all)).refresh(true));
+		client.deleteByQuery(
+			request -> request.index("accommodations").query(query -> query.matchAll(all -> all)).refresh(true));
 		wishlists = mock(SearchWishlistReader.class);
 		service = new AccommodationSearchService(new AccommodationDocumentReader(client), wishlists,
 			new BookingWindowProvider(Clock.fixed(Instant.parse("2027-01-10T03:00:00Z"), ZoneOffset.UTC)));
 		index(List.of(
 			card(1, "서울", 100_000, 2, 1, 0, 37.5, 127.0, "PUBLISHED", "APT", List.of("WIFI"),
-				List.of(AccommodationDocument.DateRange.builder().gte(LocalDate.parse("2027-01-11")).lt(LocalDate.parse("2027-01-13")).build())),
+				List.of(AccommodationDocument.DateRange.builder().gte(LocalDate.parse("2027-01-11"))
+					.lt(LocalDate.parse("2027-01-13")).build())),
 			card(2, "서울", 200_000, 4, 2, 1, 37.6, 127.1, "PUBLISHED", "HOUSE", List.of("PARKING"), List.of()),
 			card(3, "부산", 150_000, 6, 0, 2, 35.1, 129.0, "PUBLISHED", "HOUSE", List.of(), List.of()),
 			card(4, "서울", 100_000, 4, 2, 1, 37.5, 127.0, "DRAFT", "APT", List.of(), List.of()),
@@ -203,11 +206,14 @@ class AccommodationSearchContractIntegrationTest {
 		verifyNoInteractions(wishlists);
 		when(wishlists.findWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
 		var authenticated = search(request("서울"), new MapBoundsDto(), 0, 7L);
-		assertThat(authenticated.staySearchResultListing()).allSatisfy(card -> assertThat(card.isInWishlist()).isEqualTo(card.id() == 2));
+		assertThat(authenticated.staySearchResultListing())
+			.allSatisfy(card -> assertThat(card.isInWishlist()).isEqualTo(card.id() == 2));
 	}
 
-	private AccommodationSearchInfos search(AccommodationSearchRequestDto request, MapBoundsDto bounds, int page, Long memberId) {
-		return AccommodationSearchInfos.from(service.searchAccommodations(request.toCondition(bounds), PageRequest.of(page, 18), memberId));
+	private AccommodationSearchInfos search(AccommodationSearchRequestDto request, MapBoundsDto bounds, int page,
+		Long memberId) {
+		return AccommodationSearchInfos
+			.from(service.searchAccommodations(request.toCondition(bounds), PageRequest.of(page, 18), memberId));
 	}
 
 	private void assertIds(AccommodationSearchInfos response, Long... ids) {
@@ -233,15 +239,18 @@ class AccommodationSearchContractIntegrationTest {
 		double latitude, double longitude, String status, String type, List<String> amenities,
 		List<AccommodationDocument.DateRange> ranges) {
 		return AccommodationDocument.builder().id("search-test-" + id).accommodationId(id).name(city + " 숙소 " + id)
-			.city(city).country("대한민국").basePrice(price).currency("KRW").type(type).status(status).timeZoneId("Asia/Seoul")
+			.city(city).country("대한민국").basePrice(price).currency("KRW").type(type).status(status)
+			.timeZoneId("Asia/Seoul")
 			.location(AccommodationDocument.Location.builder().lat(latitude).lon(longitude).build())
-			.maxGuests(guests).maxInfants(infants).maxPets(pets).amenityTypes(amenities).reservationRanges(ranges).build();
+			.maxGuests(guests).maxInfants(infants).maxPets(pets).amenityTypes(amenities).reservationRanges(ranges)
+			.build();
 	}
 
 	private void index(List<AccommodationDocument> documents) throws Exception {
 		var bulk = new BulkRequest.Builder().refresh(Refresh.True);
-		for (var document : documents) bulk.operations(operation -> operation.index(index ->
-			index.index("accommodations").id(document.id()).document(document)));
+		for (var document : documents)
+			bulk.operations(operation -> operation
+				.index(index -> index.index("accommodations").id(document.id()).document(document)));
 		assertThat(client.bulk(bulk.build()).errors()).isFalse();
 	}
 }

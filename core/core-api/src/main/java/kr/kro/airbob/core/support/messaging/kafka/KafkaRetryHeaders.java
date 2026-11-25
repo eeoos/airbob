@@ -24,8 +24,7 @@ public final class KafkaRetryHeaders {
 		RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
 		KafkaHeaders.ORIGINAL_TOPIC,
 		KafkaHeaders.ORIGINAL_PARTITION,
-		KafkaHeaders.ORIGINAL_OFFSET
-	);
+		KafkaHeaders.ORIGINAL_OFFSET);
 	private static final List<String> RESERVED_HEADERS = List.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
 		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
@@ -56,11 +55,9 @@ public final class KafkaRetryHeaders {
 		KafkaHeaders.DLT_ORIGINAL_CONSUMER_GROUP,
 		KafkaHeaders.DLT_ORIGINAL_TIMESTAMP,
 		KafkaHeaders.DLT_ORIGINAL_TIMESTAMP_TYPE,
-		KafkaHeaders.DELIVERY_ATTEMPT
-	);
+		KafkaHeaders.DELIVERY_ATTEMPT);
 
-	private KafkaRetryHeaders() {
-	}
+	private KafkaRetryHeaders() {}
 
 	public static void stripFrameworkOwned(Headers headers) {
 		RESERVED_HEADERS.forEach(headers::remove);
@@ -88,8 +85,7 @@ public final class KafkaRetryHeaders {
 
 	public static RecordCoordinates canonicalSourceCoordinates(
 		ConsumerRecord<?, ?> record,
-		String canonicalTopic
-	) {
+		String canonicalTopic) {
 		boolean canonicalSource = readStringHeader(record.headers(), KafkaHeaders.ORIGINAL_TOPIC)
 			.filter(canonicalTopic::equals)
 			.isPresent();
@@ -108,8 +104,7 @@ public final class KafkaRetryHeaders {
 	public static Headers copyValidatedFrameworkOwned(
 		Headers source,
 		String destinationTopic,
-		Integer destinationPartition
-	) {
+		Integer destinationPartition) {
 		Headers sanitized = new RecordHeaders();
 		for (String name : RETRY_HEADERS) {
 			Header candidate = source.lastHeader(name);
@@ -125,8 +120,7 @@ public final class KafkaRetryHeaders {
 		String name,
 		byte[] value,
 		String destinationTopic,
-		Integer destinationPartition
-	) {
+		Integer destinationPartition) {
 		if (value == null) {
 			return false;
 		}

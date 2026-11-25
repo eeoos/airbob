@@ -47,15 +47,12 @@ import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 
 @Testcontainers
-@SpringBootTest(
-	classes = QueryCountMvcJpaPrometheusIntegrationTest.TestApplication.class,
-	properties = {
-		"spring.flyway.enabled=false",
-		"spring.jpa.hibernate.ddl-auto=create",
-		"spring.jpa.open-in-view=false",
-		"spring.cloud.aws.s3.enabled=false"
-	}
-)
+@SpringBootTest(classes = QueryCountMvcJpaPrometheusIntegrationTest.TestApplication.class, properties = {
+	"spring.flyway.enabled=false",
+	"spring.jpa.hibernate.ddl-auto=create",
+	"spring.jpa.open-in-view=false",
+	"spring.cloud.aws.s3.enabled=false"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -123,8 +120,7 @@ class QueryCountMvcJpaPrometheusIntegrationTest {
 		statementInspectorCustomizer.customize(hibernateProperties);
 		assertThat(hibernateProperties).containsEntry(
 			QueryMonitoringJpaConfig.STATEMENT_INSPECTOR_PROPERTY,
-			sqlQueryStatementInspector
-		);
+			sqlQueryStatementInspector);
 
 		mockMvc.perform(get("/monitoring-test/members/{memberId}", memberId))
 			.andExpect(status().isOk())
@@ -137,15 +133,13 @@ class QueryCountMvcJpaPrometheusIntegrationTest {
 			.filter(line -> line.contains("path=\"" + ROUTE_TEMPLATE + "\""))
 			.filter(line -> line.contains("http_method=\"GET\""))
 			.filter(line -> line.contains("query_type=\"SELECT\""))
-			.toList()
-		).isNotEmpty();
+			.toList()).isNotEmpty();
 		assertThat(scrape.lines()
 			.filter(line -> line.startsWith("app_query_per_request_queries_sum"))
 			.filter(line -> line.contains("path=\"" + ROUTE_TEMPLATE + "\""))
 			.filter(line -> line.contains("http_method=\"GET\""))
 			.filter(line -> line.contains("query_type=\"SELECT\""))
-			.toList()
-		).singleElement().satisfies(line -> assertThat(line).endsWith(" 1.0"));
+			.toList()).singleElement().satisfies(line -> assertThat(line).endsWith(" 1.0"));
 		assertThat(scrape).doesNotContain("path=\"/monitoring-test/members/" + memberId + "\"");
 	}
 
@@ -179,7 +173,9 @@ class QueryCountMvcJpaPrometheusIntegrationTest {
 		}
 
 		@GetMapping(ROUTE_TEMPLATE)
-		String findMemberNickname(@PathVariable Long memberId) {
+		String findMemberNickname(
+			@PathVariable
+			Long memberId) {
 			return memberRepository.findById(memberId)
 				.map(Member::getNickname)
 				.orElseThrow();

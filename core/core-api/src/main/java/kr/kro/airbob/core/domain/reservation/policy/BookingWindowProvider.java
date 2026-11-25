@@ -49,7 +49,6 @@ public class BookingWindowProvider {
 		BookingWindow latestLocalBookingWindow = BookingWindow.startingOn(utcToday.plusDays(1));
 		return new ReservationIndexingWindow(
 			utcToday.minusDays(1),
-			latestLocalBookingWindow.endExclusive()
-		);
+			latestLocalBookingWindow.endExclusive());
 	}
 }

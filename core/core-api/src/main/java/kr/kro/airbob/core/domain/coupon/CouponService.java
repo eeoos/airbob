@@ -19,7 +19,8 @@ public class CouponService {
 	public Long createCoupon(NewCoupon dto) {
 		var coupon = Coupon.of(dto);
 		coupon.validateConfiguration();
-		if (!couponReader.databaseNow().isBefore(coupon.getIssueStartAt())) throw new CouponInvalidConfigurationException();
+		if (!couponReader.databaseNow().isBefore(coupon.getIssueStartAt()))
+			throw new CouponInvalidConfigurationException();
 		return couponWriter.create(coupon);
 	}
 
@@ -27,14 +28,16 @@ public class CouponService {
 	public void updateCoupon(CouponPatch dto, Long couponId) {
 		var coupon = couponReader.readForUpdate(couponId);
 		var now = couponReader.databaseNow();
-		if (coupon.changesPreparedIssuanceConfiguration(dto)) requireBeforeStart(coupon, now);
+		if (coupon.changesPreparedIssuanceConfiguration(dto))
+			requireBeforeStart(coupon, now);
 		Integer previous = coupon.getTotalQuantity();
 		coupon.update(dto);
 		coupon.validateConfiguration();
 		if (dto.issueStartAt() != null && !now.isBefore(coupon.getIssueStartAt())) {
 			throw new CouponInvalidConfigurationException();
 		}
-		if (!Objects.equals(previous, coupon.getTotalQuantity())) adjustPreparedUnits(coupon, previous);
+		if (!Objects.equals(previous, coupon.getTotalQuantity()))
+			adjustPreparedUnits(coupon, previous);
 	}
 
 	@Transactional
@@ -44,14 +47,16 @@ public class CouponService {
 		requireBeforeStart(coupon, couponReader.databaseNow());
 		Integer previous = coupon.getTotalQuantity();
 		coupon.changeTotalQuantity(quantity);
-		if (!Objects.equals(previous, quantity)) adjustPreparedUnits(coupon, previous);
+		if (!Objects.equals(previous, quantity))
+			adjustPreparedUnits(coupon, previous);
 	}
 
 	@Transactional
 	public void deleteCoupon(Long couponId) {
 		var coupon = couponReader.readForUpdate(couponId);
 		requireBeforeStart(coupon, couponReader.databaseNow());
-		if (coupon.isStockPrepared()) couponWriter.removeUnitsAbove(couponId, 0);
+		if (coupon.isStockPrepared())
+			couponWriter.removeUnitsAbove(couponId, 0);
 		// Only an unstarted, never-issued campaign may be discarded.
 		couponWriter.delete(coupon);
 	}
@@ -64,7 +69,8 @@ public class CouponService {
 	}
 
 	private void adjustPreparedUnits(Coupon coupon, Integer previous) {
-		if (!coupon.isStockPrepared()) return;
+		if (!coupon.isStockPrepared())
+			return;
 		Coupon.validateQuantity(previous);
 		int target = coupon.getTotalQuantity();
 		if (target > previous) {

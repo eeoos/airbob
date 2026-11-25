@@ -13,12 +13,9 @@ import io.micrometer.core.instrument.MeterRegistry;
 public class OutboxHealthMetrics {
 
 	public static final String RETAINED_ROW_COUNT = "airbob.messaging.outbox.retained.rows";
-	public static final String OLDEST_AGE_SECONDS =
-		"airbob.messaging.outbox.oldest.retained.age.seconds";
-	public static final String LAST_SUCCESS_EPOCH_SECONDS =
-		"airbob.messaging.outbox.health.refresh.last.success.epoch.seconds";
-	public static final String FAILURE_COUNT =
-		"airbob.messaging.outbox.health.refresh.failures";
+	public static final String OLDEST_AGE_SECONDS = "airbob.messaging.outbox.oldest.retained.age.seconds";
+	public static final String LAST_SUCCESS_EPOCH_SECONDS = "airbob.messaging.outbox.health.refresh.last.success.epoch.seconds";
+	public static final String FAILURE_COUNT = "airbob.messaging.outbox.health.refresh.failures";
 
 	private final AtomicLong retainedRowCount = new AtomicLong();
 	private final AtomicLong oldestAgeSeconds = new AtomicLong();

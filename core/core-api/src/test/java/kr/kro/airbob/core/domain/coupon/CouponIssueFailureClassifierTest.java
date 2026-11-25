@@ -6,6 +6,7 @@ import java.sql.SQLException;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
+
 import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
 
 class CouponIssueFailureClassifierTest {
@@ -14,7 +15,8 @@ class CouponIssueFailureClassifierTest {
 		assertThat(CouponIssueFailureClassifier.duplicateMemberCoupon(
 			violation(1062, "member_coupon.uk_member_coupon"))).isTrue();
 		assertThat(CouponIssueFailureClassifier.duplicateMemberCoupon(violation(1062, "uk_member_coupon"))).isTrue();
-		assertThat(CouponIssueFailureClassifier.duplicateMemberCoupon(violation(1062, "some_other_unique_key"))).isFalse();
+		assertThat(CouponIssueFailureClassifier.duplicateMemberCoupon(violation(1062, "some_other_unique_key")))
+			.isFalse();
 		assertThat(CouponIssueFailureClassifier.duplicateMemberCoupon(violation(1452, "member_fk"))).isFalse();
 	}
 
@@ -29,7 +31,11 @@ class CouponIssueFailureClassifierTest {
 	}
 
 	private RuntimeException violation(int code, String constraint) {
-		return new RuntimeException(new ConstraintViolationException("constraint", new SQLException("", "23000", code), constraint));
+		return new RuntimeException(
+			new ConstraintViolationException("constraint", new SQLException("", "23000", code), constraint));
 	}
-	private RuntimeException sql(int code) { return new RuntimeException(new SQLException("", "40001", code)); }
+
+	private RuntimeException sql(int code) {
+		return new RuntimeException(new SQLException("", "40001", code));
+	}
 }

@@ -17,9 +17,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
@@ -35,10 +35,14 @@ import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 @DisplayName("숙소 상세 캐시 무효화 트랜잭션 이벤트 테스트")
 class AccommodationDetailCacheInvalidationListenerTest {
 
-	@Autowired private AccommodationDetailCacheInvalidationPublisher publisher;
-	@Autowired private AccommodationDetailCache cache;
-	@Autowired private OutboxWriter outboxWriter;
-	@Autowired private PlatformTransactionManager transactionManager;
+	@Autowired
+	private AccommodationDetailCacheInvalidationPublisher publisher;
+	@Autowired
+	private AccommodationDetailCache cache;
+	@Autowired
+	private OutboxWriter outboxWriter;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
 
 	@BeforeEach
 	void resetCacheMock() {
@@ -127,12 +131,10 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		}
 
 		@Override
-		protected void doCommit(DefaultTransactionStatus status) {
-		}
+		protected void doCommit(DefaultTransactionStatus status) {}
 
 		@Override
-		protected void doRollback(DefaultTransactionStatus status) {
-		}
+		protected void doRollback(DefaultTransactionStatus status) {}
 
 		@Override
 		protected void doCleanupAfterCompletion(Object transaction) {

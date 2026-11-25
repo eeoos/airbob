@@ -44,8 +44,7 @@ public class FailSafeAccommodationDetailCacheMetricRecorder
 	public void recordEviction(
 		EvictionSource source,
 		AccommodationDetailCacheInvalidationReason reason,
-		OperationResult result
-	) {
+		OperationResult result) {
 		record("eviction", () -> delegate.recordEviction(source, reason, result));
 	}
 

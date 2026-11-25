@@ -24,8 +24,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class KafkaConnectRegistrationScriptTest {
 
-	private static final Path SCRIPT =
-		Path.of("docker/debezium/register-connector.sh").toAbsolutePath();
+	private static final Path SCRIPT = Path.of("docker/debezium/register-connector.sh").toAbsolutePath();
 
 	@TempDir
 	Path tempDir;
@@ -58,8 +57,7 @@ class KafkaConnectRegistrationScriptTest {
 	void configuresRegistrationAndStatusRequestBudgets() throws Exception {
 		Execution execution = execute("running", Map.of(
 			"CONNECTOR_HTTP_CONNECT_TIMEOUT_SECONDS", "3",
-			"CONNECTOR_HTTP_MAX_TIME_SECONDS", "7"
-		));
+			"CONNECTOR_HTTP_MAX_TIME_SECONDS", "7"));
 
 		assertThat(execution.completed()).isTrue();
 		assertThat(execution.exitCode()).withFailMessage(execution.output()).isZero();
@@ -87,8 +85,7 @@ class KafkaConnectRegistrationScriptTest {
 	void timesOutHungConnectRequests(String scenario) throws Exception {
 		Execution execution = execute(scenario, Map.of(
 			"CONNECTOR_HTTP_CONNECT_TIMEOUT_SECONDS", "1",
-			"CONNECTOR_HTTP_MAX_TIME_SECONDS", "1"
-		));
+			"CONNECTOR_HTTP_MAX_TIME_SECONDS", "1"));
 
 		assertThat(execution.completed()).isTrue();
 		assertThat(execution.exitCode()).isNotZero();
@@ -102,8 +99,7 @@ class KafkaConnectRegistrationScriptTest {
 			Arguments.of("CONNECTOR_HTTP_CONNECT_TIMEOUT_SECONDS", "0"),
 			Arguments.of("CONNECTOR_HTTP_CONNECT_TIMEOUT_SECONDS", "1.5"),
 			Arguments.of("CONNECTOR_HTTP_MAX_TIME_SECONDS", "-1"),
-			Arguments.of("CONNECTOR_HTTP_MAX_TIME_SECONDS", "seconds")
-		);
+			Arguments.of("CONNECTOR_HTTP_MAX_TIME_SECONDS", "seconds"));
 	}
 
 	private Execution execute(String scenario, Map<String, String> environmentOverrides) throws Exception {
@@ -137,8 +133,7 @@ class KafkaConnectRegistrationScriptTest {
 			completed,
 			completed ? process.exitValue() : -1,
 			output,
-			Duration.ofNanos(System.nanoTime() - startedAtNanos)
-		);
+			Duration.ofNanos(System.nanoTime() - startedAtNanos));
 	}
 
 	private Path executable(String name, String contents) throws IOException {

@@ -37,8 +37,9 @@ final class LocalReadSqlTraceListener extends SimpleJdbcEventListener {
 
 		try {
 			String sql = sqlWithValues(information).stripTrailing();
-			String route = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)
-				instanceof String pattern ? pattern : "/api/**";
+			String route = request
+				.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE) instanceof String pattern ? pattern
+					: "/api/**";
 			String millis = String.format(Locale.ROOT, "%.3f", elapsedNanos / 1_000_000.0);
 			log.info("SQL_TRACE GET {} | JDBC execute {} ms\n{}{}", route, millis, sql,
 				sql.endsWith(";") ? "" : ";");

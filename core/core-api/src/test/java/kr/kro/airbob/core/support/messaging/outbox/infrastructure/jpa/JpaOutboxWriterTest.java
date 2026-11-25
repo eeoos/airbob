@@ -17,8 +17,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import kr.kro.airbob.core.support.messaging.event.EventDescriptor;
@@ -46,8 +46,7 @@ class JpaOutboxWriterTest {
 				.addModule(new JavaTimeModule())
 				.propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
 				.build()),
-			Clock.fixed(NOW, ZoneOffset.UTC)
-		);
+			Clock.fixed(NOW, ZoneOffset.UTC));
 		TestEvent event = new TestEvent(AGGREGATE_UID, PARTITION_UID, 7L);
 
 		writer.append(event);
@@ -89,8 +88,7 @@ class JpaOutboxWriterTest {
 				.addModule(new JavaTimeModule())
 				.propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
 				.build()),
-			Clock.fixed(nanosecondClock, ZoneOffset.UTC)
-		);
+			Clock.fixed(nanosecondClock, ZoneOffset.UTC));
 
 		writer.append(new TestEvent(AGGREGATE_UID, PARTITION_UID, 8L));
 

@@ -47,12 +47,12 @@ public class ErrorResponse {
 		FieldError fieldError = new FieldError(field, "N/A", reason);
 		return new ErrorResponse(code, fieldError);
 	}
+
 	@Schema(name = "ErrorResponseFieldError")
 	public record FieldError(
 		String field,
 		String value,
-		String reason
-	) {
+		String reason) {
 		private static final String REDACTED_VALUE = "[REDACTED]";
 		private static final List<String> SENSITIVE_FIELD_MARKERS = List.of(
 			"evidencereference",
@@ -63,8 +63,7 @@ public class ErrorResponse {
 			"credential",
 			"authorization",
 			"privatekey",
-			"apikey"
-		);
+			"apikey");
 
 		private static List<FieldError> of(final BindingResult bindingResult) {
 			final List<org.springframework.validation.FieldError> fieldErrors = bindingResult.getFieldErrors();

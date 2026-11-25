@@ -15,11 +15,8 @@ public class ImageResponse {
 	@Builder
 	@Schema(name = "ImageResponseImageInfo")
 	public record ImageInfo(
-		@Schema(description = "이미지 ID. 이미지 삭제 경로의 imageId로 사용합니다.", example = "301")
-		Long id,
-		@Schema(description = "이미지 조회 주소", example = "https://example.invalid/accommodation-301.png")
-		String imageUrl
-	){
+		@Schema(description = "이미지 ID. 이미지 삭제 경로의 imageId로 사용합니다.", example = "301") Long id,
+		@Schema(description = "이미지 조회 주소", example = "https://example.invalid/accommodation-301.png") String imageUrl) {
 		public static ImageInfo from(Image image) {
 			return ImageInfo.builder()
 				.id(image.getId())
@@ -35,9 +32,7 @@ public class ImageResponse {
 	@Builder
 	@Schema(name = "ImageResponseImageUploadResult")
 	public record ImageUploadResult(
-		@Schema(description = "이번 요청으로 추가된 이미지 목록")
-		List<ImageInfo> uploadedImages
-	) {
+		@Schema(description = "이번 요청으로 추가된 이미지 목록") List<ImageInfo> uploadedImages) {
 		public static ImageUploadResult from(List<ImageInfo> imageInfos) {
 			return ImageUploadResult.builder()
 				.uploadedImages(imageInfos)

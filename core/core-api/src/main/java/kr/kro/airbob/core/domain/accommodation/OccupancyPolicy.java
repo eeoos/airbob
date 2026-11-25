@@ -7,7 +7,6 @@ import jakarta.persistence.Id;
 import kr.kro.airbob.core.support.persistence.BaseEntity;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -28,10 +27,10 @@ public class OccupancyPolicy extends BaseEntity {
 
 	public static OccupancyPolicy createOccupancyPolicy(NewOccupancyPolicy occupancyPolicyInfo) {
 		return OccupancyPolicy.builder()
-				.maxOccupancy(occupancyPolicyInfo.maxOccupancy())
-				.infantOccupancy(occupancyPolicyInfo.infantOccupancy())
-				.petOccupancy(occupancyPolicyInfo.petOccupancy())
-				.build();
+			.maxOccupancy(occupancyPolicyInfo.maxOccupancy())
+			.infantOccupancy(occupancyPolicyInfo.infantOccupancy())
+			.petOccupancy(occupancyPolicyInfo.petOccupancy())
+			.build();
 	}
 
 	public void update(NewOccupancyPolicy policy) {

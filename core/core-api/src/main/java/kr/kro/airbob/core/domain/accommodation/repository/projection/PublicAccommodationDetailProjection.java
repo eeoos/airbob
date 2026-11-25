@@ -28,8 +28,7 @@ public record PublicAccommodationDetailProjection(
 	Integer infantOccupancy,
 	Integer petOccupancy,
 	Integer totalReviewCount,
-	BigDecimal averageRating
-) {
+	BigDecimal averageRating) {
 	@QueryProjection
 	public PublicAccommodationDetailProjection {
 	}

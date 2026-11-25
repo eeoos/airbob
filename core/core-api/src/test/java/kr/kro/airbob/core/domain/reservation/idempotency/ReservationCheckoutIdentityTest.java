@@ -18,8 +18,7 @@ class ReservationCheckoutIdentityTest {
 	private static final String IDEMPOTENCY_KEY = "checkout-key_2026.08:25";
 	private static final ReservationCheckout BASE_REQUEST = new ReservationCheckout(
 		UUID.fromString("fa1e54c6-201c-4d09-98b8-68eedfa921ae"),
-		"조용한 방을 부탁드립니다."
-	);
+		"조용한 방을 부탁드립니다.");
 
 	@ParameterizedTest
 	@NullSource
@@ -79,16 +78,13 @@ class ReservationCheckoutIdentityTest {
 	void fingerprintIncludesQuoteUidAndCheckoutMessage() {
 		ReservationCheckout checkout = new ReservationCheckout(
 			UUID.fromString("fa1e54c6-201c-4d09-98b8-68eedfa921ae"),
-			"늦은 체크인 예정입니다"
-		);
+			"늦은 체크인 예정입니다");
 		ReservationCheckout changedQuote = new ReservationCheckout(
 			UUID.fromString("50a258ac-f741-47bc-a5eb-af7475f4336b"),
-			checkout.requestMessage()
-		);
+			checkout.requestMessage());
 		ReservationCheckout changedMessage = new ReservationCheckout(
 			checkout.quoteUid(),
-			"조용한 방을 부탁드립니다"
-		);
+			"조용한 방을 부탁드립니다");
 
 		String fingerprint = fingerprint(checkout);
 

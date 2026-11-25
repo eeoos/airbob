@@ -87,7 +87,8 @@ class GrafanaDashboardConfigurationTest {
 
 	private JsonNode panel(JsonNode dashboard, String title) {
 		for (JsonNode panel : dashboard.path("panels")) {
-			if (title.equals(panel.path("title").asText())) return panel;
+			if (title.equals(panel.path("title").asText()))
+				return panel;
 		}
 		throw new AssertionError("Missing dashboard panel: " + title);
 	}
@@ -165,8 +166,7 @@ class GrafanaDashboardConfigurationTest {
 				"DB load p50 / p95 / p99",
 				"Eviction attempts by source",
 				"DB load outcome RPS",
-				"Redis operation failure ratio"
-			);
+				"Redis operation failure ratio");
 
 		assertThat(dashboard.path("links").findValuesAsText("url"))
 			.contains(

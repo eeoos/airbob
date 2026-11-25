@@ -30,8 +30,7 @@ class ReservationQuoteTest {
 			LocalDate.of(2026, 9, 10),
 			LocalDate.of(2026, 9, 13),
 			2,
-			COUPON_ID
-		);
+			COUPON_ID);
 		stayPrice = new ReservationStayPricePolicy.StayPrice(120_000L, 3L, 360_000L);
 		quote = ReservationQuote.create(
 			MEMBER_ID,
@@ -40,8 +39,7 @@ class ReservationQuoteTest {
 			"KRW",
 			stayPrice,
 			30_000L,
-			QUOTED_AT
-		);
+			QUOTED_AT);
 	}
 
 	@Test
@@ -71,8 +69,7 @@ class ReservationQuoteTest {
 		assertThat(quote.matchesPricing(stayPrice, 30_000L)).isTrue();
 		assertThat(quote.matchesPricing(
 			new ReservationStayPricePolicy.StayPrice(180_000L, 2L, 360_000L),
-			30_000L
-		)).isFalse();
+			30_000L)).isFalse();
 		assertThat(quote.matchesPricing(stayPrice, 29_999L)).isFalse();
 	}
 

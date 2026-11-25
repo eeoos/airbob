@@ -4,6 +4,5 @@ package kr.kro.airbob.core.domain.commoncode;
 public record CommonCodeGroupPatch(
 	String groupName,
 	String description,
-	Boolean active
-) {
+	Boolean active) {
 }

@@ -17,8 +17,7 @@ public record MemberCouponProjection(
 	LocalDateTime usableFrom,
 	LocalDateTime usableUntil,
 	boolean used,
-	Boolean active
-) {
+	Boolean active) {
 	@QueryProjection
 	public MemberCouponProjection {
 	}

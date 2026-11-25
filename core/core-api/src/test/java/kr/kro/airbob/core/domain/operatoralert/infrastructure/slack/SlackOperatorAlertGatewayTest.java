@@ -42,8 +42,7 @@ class SlackOperatorAlertGatewayTest {
 				org.hamcrest.Matchers.containsString("PAYMENT_OPERATION_QUARANTINED"),
 				org.hamcrest.Matchers.containsString("MESSAGE_PROCESSING_FAILED"),
 				org.hamcrest.Matchers.containsString("PAYMENT_OPERATION.events"),
-				org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(SECRET))
-			)))
+				org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(SECRET)))))
 			.andRespond(withSuccess());
 
 		gateway.deliver(event());
@@ -118,8 +117,7 @@ class SlackOperatorAlertGatewayTest {
 
 	@Test
 	void configurationUsesExplicitConnectAndReadTimeouts() {
-		OperatorAlertSlackConfiguration configuration =
-			new OperatorAlertSlackConfiguration(enabledProperties());
+		OperatorAlertSlackConfiguration configuration = new OperatorAlertSlackConfiguration(enabledProperties());
 
 		SlackWebhookClient slackWebhookClient = configuration.operatorAlertSlackWebhookClient();
 		RestClient client = (RestClient)org.springframework.test.util.ReflectionTestUtils
@@ -128,8 +126,8 @@ class SlackOperatorAlertGatewayTest {
 			.getField(client, "clientRequestFactory");
 		assertThat(requestFactory)
 			.isInstanceOf(org.springframework.http.client.JdkClientHttpRequestFactory.class);
-		java.net.http.HttpClient httpClient = (java.net.http.HttpClient)
-			org.springframework.test.util.ReflectionTestUtils.getField(requestFactory, "httpClient");
+		java.net.http.HttpClient httpClient = (java.net.http.HttpClient)org.springframework.test.util.ReflectionTestUtils
+			.getField(requestFactory, "httpClient");
 		Duration readTimeout = (Duration)org.springframework.test.util.ReflectionTestUtils
 			.getField(requestFactory, "readTimeout");
 		assertThat(httpClient.connectTimeout()).contains(Duration.ofMillis(750));
@@ -142,8 +140,7 @@ class SlackOperatorAlertGatewayTest {
 			UUID.fromString("768bb2d9-318c-42eb-a126-f930c2da3c44"),
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
 			new OperatorAlertSourcePosition("PAYMENT_OPERATION.events", 0, 19L),
-			UUID.fromString("81b49546-cee2-4995-bf4a-ff2cf154fdcf")
-		);
+			UUID.fromString("81b49546-cee2-4995-bf4a-ff2cf154fdcf"));
 	}
 
 	private OperatorAlertSlackProperties enabledProperties() {

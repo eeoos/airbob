@@ -42,7 +42,8 @@ public class WishlistReader implements AccommodationWishlistReader, SearchWishli
 
 	/** Locks the parent wishlist and then the saved accommodation, in that order. */
 	public WishlistAccommodation readOwnedAccommodationForUpdate(Long wishlistAccommodationId, Long memberId) {
-		Long wishlistId = wishlistAccommodationRepository.findWishlistIdByIdAndMemberId(wishlistAccommodationId, memberId)
+		Long wishlistId = wishlistAccommodationRepository
+			.findWishlistIdByIdAndMemberId(wishlistAccommodationId, memberId)
 			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
 		wishlistRepository.findByIdAndStatusForUpdate(wishlistId, WishlistStatus.ACTIVE)
 			.filter(wishlist -> wishlist.getMember().getId().equals(memberId))
@@ -54,9 +55,9 @@ public class WishlistReader implements AccommodationWishlistReader, SearchWishli
 
 	/** The name of the member's active wishlist, after an ownership check without a lock. */
 	public String readOwnedName(Long wishlistId, Long memberId) {
-		WishlistDetailHeaderProjection header =
-			wishlistRepository.findDetailHeaderByIdAndStatus(wishlistId, WishlistStatus.ACTIVE)
-				.orElseThrow(WishlistNotFoundException::new);
+		WishlistDetailHeaderProjection header = wishlistRepository
+			.findDetailHeaderByIdAndStatus(wishlistId, WishlistStatus.ACTIVE)
+			.orElseThrow(WishlistNotFoundException::new);
 		if (!header.memberId().equals(memberId)) {
 			throw new WishlistAccessDeniedException();
 		}

@@ -100,8 +100,7 @@ public class ReservationQuote extends BaseEntity {
 		String currency,
 		ReservationStayPricePolicy.StayPrice stayPrice,
 		long discountAmount,
-		Instant quotedAt
-	) {
+		Instant quotedAt) {
 		long amount = Math.subtractExact(stayPrice.subtotal(), discountAmount);
 		if (discountAmount < 0 || amount < 0) {
 			throw new IllegalArgumentException("견적 할인액은 숙박 소계를 벗어날 수 없습니다.");
@@ -128,8 +127,7 @@ public class ReservationQuote extends BaseEntity {
 
 	public boolean matchesPricing(
 		ReservationStayPricePolicy.StayPrice stayPrice,
-		long currentDiscountAmount
-	) {
+		long currentDiscountAmount) {
 		return stayPrice != null
 			&& Objects.equals(nightlyPrice, stayPrice.nightlyPrice())
 			&& Objects.equals(nights, stayPrice.nights())

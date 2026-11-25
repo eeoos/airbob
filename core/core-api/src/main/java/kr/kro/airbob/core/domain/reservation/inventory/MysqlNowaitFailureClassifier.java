@@ -6,8 +6,7 @@ public final class MysqlNowaitFailureClassifier {
 	private static final int MYSQL_NOWAIT_ERROR = 3572;
 	private static final String MYSQL_GENERAL_ERROR_STATE = "HY000";
 
-	private MysqlNowaitFailureClassifier() {
-	}
+	private MysqlNowaitFailureClassifier() {}
 
 	public static boolean isNowait(Throwable failure) {
 		Throwable current = failure;

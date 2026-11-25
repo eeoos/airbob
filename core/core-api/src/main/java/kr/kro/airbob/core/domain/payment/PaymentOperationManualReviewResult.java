@@ -5,8 +5,7 @@ import java.util.UUID;
 public record PaymentOperationManualReviewResult(
 	UUID operationUid,
 	PaymentOperationStatus status,
-	long version
-) {
+	long version) {
 	public static PaymentOperationManualReviewResult from(PaymentOperation operation) {
 		return new PaymentOperationManualReviewResult(
 			operation.getOperationUid(), operation.getStatus(), operation.getVersion());

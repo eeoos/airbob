@@ -35,21 +35,18 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	private static final String SAFE_NOT_FOUND_MESSAGE = "결제 정보를 찾을 수 없습니다.";
 	private static final String SAFE_TERMINAL_MESSAGE = "결제가 완료되지 않았습니다.";
 	private static final String SAFE_CANCELLATION_DECLINED_MESSAGE = "결제 취소가 거절되었습니다.";
-	private static final String SAFE_CANCELLATION_REVIEW_MESSAGE =
-		"결제 취소 상태를 운영자가 확인해야 합니다.";
+	private static final String SAFE_CANCELLATION_REVIEW_MESSAGE = "결제 취소 상태를 운영자가 확인해야 합니다.";
 	private static final int TRANSACTION_KEY_MAX_LENGTH = 64;
 	private static final Set<String> CANCELLATION_INQUIRY_REQUIRED_CODES = Set.of(
 		IDEMPOTENT_REQUEST_PROCESSING,
 		"ALREADY_CANCELED_PAYMENT",
 		"ALREADY_REFUND_PAYMENT",
 		"ALREADY_REFUNDING_PAYMENT",
-		"NOT_MATCHES_REFUNDABLE_AMOUNT"
-	);
+		"NOT_MATCHES_REFUNDABLE_AMOUNT");
 	private static final Set<String> CANCELLATION_RETRYABLE_CODES = Set.of(
 		"PROVIDER_ERROR",
 		"FORBIDDEN_CONSECUTIVE_REQUEST",
-		"NOT_AVAILABLE_BANK"
-	);
+		"NOT_AVAILABLE_BANK");
 	private static final Set<String> CANCELLATION_TERMINAL_DECLINE_CODES = Set.of(
 		"INVALID_REFUND_ACCOUNT_INFO",
 		"EXCEED_CANCEL_AMOUNT_DISCOUNT_AMOUNT",
@@ -65,8 +62,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		"NOT_CANCELABLE_PAYMENT",
 		"EXCEED_MAX_REFUND_DUE",
 		"NOT_ALLOWED_PARTIAL_REFUND_WAITING_DEPOSIT",
-		"NOT_ALLOWED_PARTIAL_REFUND"
-	);
+		"NOT_ALLOWED_PARTIAL_REFUND");
 
 	private final TossPaymentsClient tossPaymentsClient;
 	private final PaymentConfirmationFailureClassifier confirmationFailureClassifier;
@@ -75,8 +71,8 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	public TossPaymentsAdapter(
 		TossPaymentsClient tossPaymentsClient,
 		PaymentConfirmationFailureClassifier confirmationFailureClassifier,
-		@Value("${payment.toss.enabled:true}") boolean enabled
-	) {
+		@Value("${payment.toss.enabled:true}")
+		boolean enabled) {
 		this.tossPaymentsClient = tossPaymentsClient;
 		this.confirmationFailureClassifier = confirmationFailureClassifier;
 		this.enabled = enabled;
@@ -91,8 +87,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 				command.paymentKey(),
 				command.orderId(),
 				command.amount(),
-				command.providerIdempotencyKey()
-			);
+				command.providerIdempotencyKey());
 
 			return approvedOrUnknown(command, response);
 		} catch (TossPaymentsApiException exception) {
@@ -137,8 +132,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 
 	private PaymentGatewayResult approvedOrUnknown(
 		PaymentProviderCommand command,
-		TossPaymentResponse response
-	) {
+		TossPaymentResponse response) {
 		if (!isCorrelated(command, response) || knownStatus(response) != PaymentStatus.DONE) {
 			return outcomeUnknown("PAYMENT_RESPONSE_MISMATCH");
 		}
@@ -176,8 +170,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 			PaymentMethod.fromDescription(response.getMethod()),
 			status,
 			response.getApprovedAt().toInstant(),
-			normalize(response.getVirtualAccount())
-		);
+			normalize(response.getVirtualAccount()));
 	}
 
 	private ConfirmedPayment.VirtualAccountDetails normalize(TossPaymentResponse.VirtualAccount virtualAccount) {
@@ -189,8 +182,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 			virtualAccount.getBankCode(),
 			virtualAccount.getAccountNumber(),
 			virtualAccount.getCustomerName(),
-			dueDate
-		);
+			dueDate);
 	}
 
 	private PaymentStatus knownStatus(TossPaymentResponse response) {
@@ -236,8 +228,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 				command.paymentKey(),
 				command.cancellationReason(),
 				command.amount(),
-				command.providerIdempotencyKey()
-			);
+				command.providerIdempotencyKey());
 			return cancelledOrReview(command, response, false);
 		} catch (TossPaymentsApiException exception) {
 			return classifyCancellationFailure(exception);
@@ -283,8 +274,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	private PaymentGatewayResult cancelledOrReview(
 		PaymentProviderCommand command,
 		TossPaymentResponse response,
-		boolean inquiry
-	) {
+		boolean inquiry) {
 		if (!isCorrelated(command, response)
 			|| response.getBalanceAmount() == null
 			|| knownStatus(response) == null) {
@@ -307,8 +297,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 				command.amount(),
 				cancellation.getCancelReason(),
 				cancellation.getTransactionKey(),
-				cancellation.getCanceledAt().toInstant()
-			));
+				cancellation.getCanceledAt().toInstant()));
 		}
 
 		if (inquiry
@@ -323,8 +312,7 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	private TossPaymentResponse.Cancel fullCancellationEvidence(
 		TossPaymentResponse response,
 		long expectedAmount,
-		String expectedReason
-	) {
+		String expectedReason) {
 		if (response.getCancels() == null || response.getCancels().size() != 1) {
 			return null;
 		}

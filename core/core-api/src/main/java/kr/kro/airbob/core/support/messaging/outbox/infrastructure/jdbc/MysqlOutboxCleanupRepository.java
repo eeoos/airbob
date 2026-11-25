@@ -32,7 +32,6 @@ public class MysqlOutboxCleanupRepository implements OutboxCleanupRepository {
 		return jdbcTemplate.update(
 			DELETE_OLDEST_BATCH_SQL,
 			Timestamp.from(cutoffExclusive),
-			batchSize
-		);
+			batchSize);
 	}
 }

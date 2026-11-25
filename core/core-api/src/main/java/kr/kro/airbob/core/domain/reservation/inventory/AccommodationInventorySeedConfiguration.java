@@ -12,8 +12,8 @@ public class AccommodationInventorySeedConfiguration {
 	@Bean
 	AccommodationInventorySeedPolicy accommodationInventorySeedPolicy(
 		BookingWindowProvider bookingWindowProvider,
-		@Value("${reservation.inventory.seed.safety-buffer-days:7}") int safetyBufferDays
-	) {
+		@Value("${reservation.inventory.seed.safety-buffer-days:7}")
+		int safetyBufferDays) {
 		return new AccommodationInventorySeedPolicy(bookingWindowProvider, safetyBufferDays);
 	}
 }

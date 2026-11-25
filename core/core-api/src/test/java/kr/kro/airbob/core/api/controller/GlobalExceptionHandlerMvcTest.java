@@ -35,8 +35,7 @@ import kr.kro.airbob.core.support.response.ApiResponse;
 @ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerMvcTest {
 
-	private static final String SENSITIVE_PROVIDER_DETAIL =
-		"provider_response=secret-payment-key-and-raw-body";
+	private static final String SENSITIVE_PROVIDER_DETAIL = "provider_response=secret-payment-key-and-raw-body";
 	private static final String HARMLESS_REJECTED_VALUE = "ordinary-visible-value";
 
 	private MockMvc mockMvc;
@@ -50,8 +49,7 @@ class GlobalExceptionHandlerMvcTest {
 
 	@Test
 	void mapsPaymentOperationInvariantViolationsToGenericInternalServerError(
-		CapturedOutput output
-	) throws Exception {
+		CapturedOutput output) throws Exception {
 		mockMvc.perform(get("/test/errors/payment-invariant"))
 			.andExpect(status().isInternalServerError())
 			.andExpect(jsonPath("$.success").value(false))
@@ -91,8 +89,7 @@ class GlobalExceptionHandlerMvcTest {
 
 	@Test
 	void mapsInventoryContentionToRetryableBusyWithoutLeakingDatabaseCause(
-		CapturedOutput output
-	) throws Exception {
+		CapturedOutput output) throws Exception {
 		mockMvc.perform(get("/test/errors/reservation-inventory-busy"))
 			.andExpect(status().isServiceUnavailable())
 			.andExpect(header().string("Retry-After", "1"))
@@ -107,13 +104,12 @@ class GlobalExceptionHandlerMvcTest {
 
 	@Test
 	void preservesUsefulMetadataForOrdinaryValidationWithoutLoggingRejectedValue(
-		CapturedOutput output
-	) throws Exception {
+		CapturedOutput output) throws Exception {
 		mockMvc.perform(post("/test/errors/validation/ordinary")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"displayName":"%s"}
-					""".formatted(HARMLESS_REJECTED_VALUE)))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"displayName":"%s"}
+				""".formatted(HARMLESS_REJECTED_VALUE)))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.errors[0].field").value("displayName"))
 			.andExpect(jsonPath("$.error.errors[0].value").value(HARMLESS_REJECTED_VALUE))
@@ -174,12 +170,13 @@ class GlobalExceptionHandlerMvcTest {
 		}
 
 		@PostMapping("/test/errors/validation/ordinary")
-		void ordinaryValidation(@Valid @RequestBody HarmlessValidationRequest request) {
-		}
+		void ordinaryValidation(
+			@Valid
+			@RequestBody
+			HarmlessValidationRequest request) {}
 	}
 
 	private record HarmlessValidationRequest(
-		@Size(min = 32) String displayName
-	) {
+		@Size(min = 32) String displayName) {
 	}
 }

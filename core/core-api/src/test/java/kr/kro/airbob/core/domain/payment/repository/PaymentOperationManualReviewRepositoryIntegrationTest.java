@@ -64,10 +64,14 @@ class PaymentOperationManualReviewRepositoryIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PaymentOperationRepository paymentOperationRepository;
-	@Autowired private PaymentOperationResolutionRepository resolutionRepository;
-	@Autowired private PaymentOperationManualReviewQueryRepository manualReviewQueryRepository;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PaymentOperationRepository paymentOperationRepository;
+	@Autowired
+	private PaymentOperationResolutionRepository resolutionRepository;
+	@Autowired
+	private PaymentOperationManualReviewQueryRepository manualReviewQueryRepository;
 
 	private long memberId;
 	private long reservationId;
@@ -118,8 +122,7 @@ class PaymentOperationManualReviewRepositoryIntegrationTest {
 			"case=system",
 			PaymentOperationStatus.EXECUTING,
 			PaymentOperationStatus.MANUAL_REVIEW,
-			REVIEWED_AT
-		));
+			REVIEWED_AT));
 		resolutionRepository.saveAndFlush(PaymentOperationResolution.recordAdmin(
 			operation,
 			memberId,
@@ -128,15 +131,13 @@ class PaymentOperationManualReviewRepositoryIntegrationTest {
 			"case=admin",
 			PaymentOperationStatus.MANUAL_REVIEW,
 			PaymentOperationStatus.QUEUED,
-			REVIEWED_AT.plusSeconds(1)
-		));
+			REVIEWED_AT.plusSeconds(1)));
 
 		assertThat(resolutionRepository.findAll())
 			.extracting(PaymentOperationResolution::getActorType)
 			.containsExactlyInAnyOrder(
 				PaymentOperationResolutionActorType.SYSTEM,
-				PaymentOperationResolutionActorType.ADMIN
-			);
+				PaymentOperationResolutionActorType.ADMIN);
 	}
 
 	@Test
@@ -168,8 +169,7 @@ class PaymentOperationManualReviewRepositoryIntegrationTest {
 				"manualReviewCount",
 				"reviewRequiredAt",
 				"version",
-				"notPaidResolutionEligible"
-			);
+				"notPaidResolutionEligible");
 	}
 
 	@Test
@@ -206,7 +206,6 @@ class PaymentOperationManualReviewRepositoryIntegrationTest {
 			"payment-key-" + suffix,
 			"provider-key-" + operationUid,
 			"CONFIRM:" + operationUid,
-			reviewRequiredAt
-		);
+			reviewRequiredAt);
 	}
 }

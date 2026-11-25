@@ -7,8 +7,7 @@ import java.util.Optional;
 public record OutboxHealthSnapshot(
 	Instant observedAt,
 	long retainedRowCount,
-	Optional<Instant> oldestOccurredAt
-) {
+	Optional<Instant> oldestOccurredAt) {
 	public OutboxHealthSnapshot {
 		Objects.requireNonNull(observedAt, "observedAt must not be null");
 		Objects.requireNonNull(oldestOccurredAt, "oldestOccurredAt must not be null");

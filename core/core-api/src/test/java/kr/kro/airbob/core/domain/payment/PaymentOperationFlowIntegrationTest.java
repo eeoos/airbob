@@ -6,9 +6,9 @@ import static kr.kro.airbob.core.domain.payment.PaymentOperationStatus.EXECUTING
 import static kr.kro.airbob.core.domain.payment.PaymentOperationStatus.MANUAL_REVIEW;
 import static kr.kro.airbob.core.domain.payment.PaymentOperationStatus.QUEUED;
 import static kr.kro.airbob.core.domain.payment.PaymentOperationStatus.WAITING_RETRY;
-import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CONFIRMED;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CANCELLATION_PENDING;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CANCELLED;
+import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CONFIRMED;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.PAYMENT_PENDING;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.PAYMENT_PROCESSING;
@@ -144,12 +144,9 @@ import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMess
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PaymentOperationFlowIntegrationTest {
 
-	private static final UUID RESERVATION_UID =
-		UUID.fromString("3aa4adf4-a748-46a8-90ec-a24c75591bcb");
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("79709a85-260d-44bb-9877-4c43825c30a7");
-	private static final UUID PAYMENT_ATTEMPT_ID =
-		UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
+	private static final UUID RESERVATION_UID = UUID.fromString("3aa4adf4-a748-46a8-90ec-a24c75591bcb");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("79709a85-260d-44bb-9877-4c43825c30a7");
+	private static final UUID PAYMENT_ATTEMPT_ID = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 	private static final String PAYMENT_KEY = "task-ten-provider-payment-key";
 	private static final long AMOUNT = 90_000L;
 	private static final Instant NOW = Instant.parse("2026-08-14T00:00:00Z");
@@ -160,8 +157,7 @@ class PaymentOperationFlowIntegrationTest {
 		Duration.ofSeconds(10),
 		Duration.ofSeconds(20),
 		Duration.ofSeconds(40),
-		Duration.ofSeconds(80)
-	);
+		Duration.ofSeconds(80));
 
 	@Container
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
@@ -178,24 +174,42 @@ class PaymentOperationFlowIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private AdjustableClock clock;
-	@Autowired private ScriptedPaymentGateway gateway;
-	@Autowired private PaymentOperationCommandService commandService;
-	@Autowired private PaymentCancellationCommandService cancellationCommandService;
-	@Autowired private PaymentOperationExecutionService executor;
-	@Autowired private PaymentOperationLeaseManager leaseManager;
-	@Autowired private PaymentOperationQueryService queryService;
-	@Autowired private PaymentOperationManualReviewCommandService manualReviewCommandService;
-	@Autowired private PaymentOperationRecoveryService recoveryService;
-	@Autowired private PaymentOperationRepository operationRepository;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private PaymentRepository paymentRepository;
-	@Autowired private PaymentTransactionRepository transactionRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
-	@Autowired private IntegrationEventCodec eventCodec;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private AdjustableClock clock;
+	@Autowired
+	private ScriptedPaymentGateway gateway;
+	@Autowired
+	private PaymentOperationCommandService commandService;
+	@Autowired
+	private PaymentCancellationCommandService cancellationCommandService;
+	@Autowired
+	private PaymentOperationExecutionService executor;
+	@Autowired
+	private PaymentOperationLeaseManager leaseManager;
+	@Autowired
+	private PaymentOperationQueryService queryService;
+	@Autowired
+	private PaymentOperationManualReviewCommandService manualReviewCommandService;
+	@Autowired
+	private PaymentOperationRecoveryService recoveryService;
+	@Autowired
+	private PaymentOperationRepository operationRepository;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private PaymentRepository paymentRepository;
+	@Autowired
+	private PaymentTransactionRepository transactionRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private IntegrationEventCodec eventCodec;
 
 	private MockMvc mockMvc;
 	private PaymentOperationExecutionListener listener;
@@ -400,8 +414,7 @@ class PaymentOperationFlowIntegrationTest {
 		var accepted = PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
 			RESERVATION_UID.toString(),
 			new PaymentCancellation("사용자 요청", AMOUNT),
-			ownerId
-		));
+			ownerId));
 		UUID operationUid = accepted.operationId();
 		acceptedStatusUrls.put(operationUid, accepted.statusUrl());
 		assertDurableState(operationUid, QUEUED, CANCELLATION_PENDING, 1, 0, List.of());
@@ -432,8 +445,7 @@ class PaymentOperationFlowIntegrationTest {
 		var accepted = PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
 			RESERVATION_UID.toString(),
 			new PaymentCancellation("사용자 요청", null),
-			ownerId
-		));
+			ownerId));
 		UUID operationUid = accepted.operationId();
 		acceptedStatusUrls.put(operationUid, accepted.statusUrl());
 		gateway.enqueueCancel(cancelled());
@@ -499,13 +511,11 @@ class PaymentOperationFlowIntegrationTest {
 		assertThat(jdbc.queryForObject(
 			"SELECT reservation_id FROM member_coupon WHERE id = ?",
 			Long.class,
-			memberCouponId
-		)).isEqualTo(reservationId);
+			memberCouponId)).isEqualTo(reservationId);
 		assertThat(jdbc.queryForObject(
 			"SELECT used_at FROM member_coupon WHERE id = ?",
 			java.time.LocalDateTime.class,
-			memberCouponId
-		)).isNull();
+			memberCouponId)).isNull();
 		assertOperationPrivacy(operationUid, "FAILED");
 	}
 
@@ -709,17 +719,16 @@ class PaymentOperationFlowIntegrationTest {
 	private MvcResult accept(
 		long memberId,
 		UUID paymentAttemptId,
-		org.springframework.test.web.servlet.ResultMatcher expectedStatus
-	) throws Exception {
+		org.springframework.test.web.servlet.ResultMatcher expectedStatus) throws Exception {
 		UserContext.set(new UserInfo(memberId));
 		try {
 			return mockMvc.perform(post("/api/v1/payments/confirm")
-					.contentType(MediaType.APPLICATION_JSON)
-					.content(objectMapper.writeValueAsString(new PaymentRequest.Confirm(
-						PAYMENT_KEY,
-						RESERVATION_UID.toString(),
-						Math.toIntExact(AMOUNT),
-						paymentAttemptId))))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(new PaymentRequest.Confirm(
+					PAYMENT_KEY,
+					RESERVATION_UID.toString(),
+					Math.toIntExact(AMOUNT),
+					paymentAttemptId))))
 				.andExpect(expectedStatus)
 				.andReturn();
 		} finally {
@@ -730,8 +739,7 @@ class PaymentOperationFlowIntegrationTest {
 	private MvcResult readOperation(
 		UUID operationUid,
 		long memberId,
-		org.springframework.test.web.servlet.ResultMatcher expectedStatus
-	) throws Exception {
+		org.springframework.test.web.servlet.ResultMatcher expectedStatus) throws Exception {
 		String statusUrl = acceptedStatusUrls.get(operationUid);
 		assertThat(statusUrl)
 			.as("polling must use the status_url returned by the acceptance response")
@@ -765,7 +773,7 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	private void deliver(String message) {
-		listener.handle(message, () -> { });
+		listener.handle(message, () -> {});
 	}
 
 	private String latestExecutionPayload() {
@@ -788,8 +796,7 @@ class PaymentOperationFlowIntegrationTest {
 		ReservationStatus reservationStatus,
 		long paymentCount,
 		long ledgerCount,
-		List<String> terminalOutboxTypes
-	) {
+		List<String> terminalOutboxTypes) {
 		PaymentOperation operation = operationRepository.findByOperationUid(operationUid).orElseThrow();
 		assertThat(operationRepository.count()).isOne();
 		assertThat(operation.getStatus()).isEqualTo(operationStatus);
@@ -865,8 +872,7 @@ class PaymentOperationFlowIntegrationTest {
 			RESERVATION_UID.toString(),
 			AMOUNT,
 			(cancellation ? "airbob-cancel-" : "airbob-confirm-") + operationUid,
-			cancellation ? "사용자 요청" : null
-		);
+			cancellation ? "사용자 요청" : null);
 	}
 
 	private void assertForbiddenResponseHasNoDataOrDetails(MvcResult result) throws Exception {
@@ -916,8 +922,7 @@ class PaymentOperationFlowIntegrationTest {
 			historyRepository.count(),
 			paymentRepository.count(),
 			transactionRepository.count(),
-			outboxRepository.count()
-		);
+			outboxRepository.count());
 	}
 
 	private PaymentGatewayResult approved() {
@@ -929,8 +934,7 @@ class PaymentOperationFlowIntegrationTest {
 			PaymentMethod.CARD,
 			PaymentStatus.DONE,
 			clock.instant(),
-			null
-		);
+			null);
 		return new PaymentGatewayResult.Approved(confirmed);
 	}
 
@@ -944,8 +948,7 @@ class PaymentOperationFlowIntegrationTest {
 			AMOUNT,
 			"사용자 요청",
 			"cancel-transaction-key",
-			clock.instant().plusSeconds(1)
-		));
+			clock.instant().plusSeconds(1)));
 	}
 
 	private void preparePaidConfirmedReservation() {
@@ -970,8 +973,7 @@ class PaymentOperationFlowIntegrationTest {
 			AMOUNT,
 			java.sql.Timestamp.from(NOW),
 			reservationId,
-			AMOUNT
-		);
+			AMOUNT);
 	}
 
 	private boolean isCouponUsed() {
@@ -983,8 +985,7 @@ class PaymentOperationFlowIntegrationTest {
 		java.sql.Timestamp consumedAt = jdbc.queryForObject(
 			"SELECT payment_attempt_consumed_at FROM reservation WHERE id = ?",
 			java.sql.Timestamp.class,
-			reservationId
-		);
+			reservationId);
 		return consumedAt == null ? null : consumedAt.toInstant();
 	}
 
@@ -1104,8 +1105,7 @@ class PaymentOperationFlowIntegrationTest {
 		long reservationHistoryCount,
 		long paymentCount,
 		long ledgerCount,
-		long outboxCount
-	) {
+		long outboxCount) {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
@@ -1130,8 +1130,7 @@ class PaymentOperationFlowIntegrationTest {
 				100,
 				MAX_ATTEMPTS,
 				RETRY_DELAY,
-				RETRY_MAX_DELAY
-			);
+				RETRY_MAX_DELAY);
 		}
 
 		@Bean

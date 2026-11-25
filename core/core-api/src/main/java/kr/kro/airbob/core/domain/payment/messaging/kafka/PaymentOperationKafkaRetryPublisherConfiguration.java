@@ -12,8 +12,7 @@ public class PaymentOperationKafkaRetryPublisherConfiguration {
 
 	@Bean
 	public KafkaTemplate<String, String> paymentOperationRetryKafkaTemplate(
-		SanitizingRetryKafkaTemplateFactory templateFactory
-	) {
+		SanitizingRetryKafkaTemplateFactory templateFactory) {
 		return templateFactory.create(
 			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
 			PaymentOperationExecutionRequestedV1.class,

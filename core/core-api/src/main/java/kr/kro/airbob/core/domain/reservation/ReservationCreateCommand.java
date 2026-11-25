@@ -8,15 +8,13 @@ public record ReservationCreateCommand(
 	LocalDate checkOutDate,
 	Integer guestCount,
 	Long couponId,
-	String requestMessage
-) {
+	String requestMessage) {
 
 	public ReservationCreateCommand(
 		Long accommodationId,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
-		Integer guestCount
-	) {
+		Integer guestCount) {
 		this(accommodationId, checkInDate, checkOutDate, guestCount, null, null);
 	}
 
@@ -25,8 +23,7 @@ public record ReservationCreateCommand(
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
 		Integer guestCount,
-		Long couponId
-	) {
+		Long couponId) {
 		this(accommodationId, checkInDate, checkOutDate, guestCount, couponId, null);
 	}
 }

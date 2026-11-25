@@ -24,7 +24,8 @@ class AccommodationInventoryRetentionSchedulerTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@Mock private ReservationInventoryManager inventoryManager;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
 
 	@Test
 	@DisplayName("deletes bounded FREE-only batches using a stable cutoff for one run")
@@ -71,7 +72,6 @@ class AccommodationInventoryRetentionSchedulerTest {
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			30,
 			1000,
-			maxBatches
-		);
+			maxBatches);
 	}
 }

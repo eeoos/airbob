@@ -63,8 +63,7 @@ public class OutboxMessage extends BaseEntity {
 		String eventVersion,
 		String payload,
 		Instant occurredAt,
-		String deduplicationKey
-	) {
+		String deduplicationKey) {
 		this.eventId = eventId;
 		this.destination = destination;
 		this.partitionKey = partitionKey;
@@ -87,8 +86,7 @@ public class OutboxMessage extends BaseEntity {
 		String eventVersion,
 		String payload,
 		Instant occurredAt,
-		String deduplicationKey
-	) {
+		String deduplicationKey) {
 		return new OutboxMessage(
 			eventId,
 			destination,
@@ -99,7 +97,6 @@ public class OutboxMessage extends BaseEntity {
 			eventVersion,
 			payload,
 			occurredAt,
-			deduplicationKey
-		);
+			deduplicationKey);
 	}
 }

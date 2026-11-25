@@ -30,8 +30,7 @@ public class ReservationAvailabilityReader implements AccommodationAvailabilityR
 				accommodationId,
 				bookingWindow.startInclusive(),
 				bookingWindow.endExclusive(),
-				queriedAt
-			)
+				queriedAt)
 			.stream()
 			.map(range -> new AccommodationAvailability.DateRange(range.startInclusive(), range.endExclusive()))
 			.toList();

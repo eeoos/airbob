@@ -94,9 +94,8 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		.withCommand("--log-bin-trust-function-creators=1");
 
 	@Container
-	private static final GenericContainer<?> REDIS =
-		new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
-			.withExposedPorts(6379);
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -110,25 +109,43 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private ReservationCheckoutService checkoutService;
-	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private AddressRepository addressRepository;
-	@Autowired private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Autowired private CouponRepository couponRepository;
-	@Autowired private MemberCouponRepository memberCouponRepository;
-	@Autowired private JdbcTemplate jdbcTemplate;
-	@Autowired private PlatformTransactionManager transactionManager;
+	@Autowired
+	private ReservationCheckoutService checkoutService;
+	@Autowired
+	private ReservationQuoteService quoteService;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AddressRepository addressRepository;
+	@Autowired
+	private OccupancyPolicyRepository occupancyPolicyRepository;
+	@Autowired
+	private CouponRepository couponRepository;
+	@Autowired
+	private MemberCouponRepository memberCouponRepository;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private io.awspring.cloud.s3.S3Template s3Template;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
 
 	private TransactionTemplate transactionTemplate;
 	private Accommodation accommodation;
@@ -193,14 +210,13 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		CountDownLatch firstPrepared = new CountDownLatch(1);
 		CountDownLatch allowFirstCommit = new CountDownLatch(1);
 
-		Future<ReservationResponse.Ready> first = executor.submit(() ->
-			transactionTemplate.execute(status -> {
-				ReservationResponse.Ready ready = checkout(
-					request(STAY_START, firstEnd), guests.get(0), "disjoint-a");
-				firstPrepared.countDown();
-				await(allowFirstCommit);
-				return ready;
-			}));
+		Future<ReservationResponse.Ready> first = executor.submit(() -> transactionTemplate.execute(status -> {
+			ReservationResponse.Ready ready = checkout(
+				request(STAY_START, firstEnd), guests.get(0), "disjoint-a");
+			firstPrepared.countDown();
+			await(allowFirstCommit);
+			return ready;
+		}));
 
 		assertThat(firstPrepared.await(10, TimeUnit.SECONDS)).isTrue();
 		Future<ReservationResponse.Ready> second = executor.submit(() -> checkout(
@@ -336,17 +352,16 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		String firstKey,
 		ReservationCreateCommand secondRequest,
 		Member secondGuest,
-		String secondKey
-	) throws Exception {
+		String secondKey) throws Exception {
 		ReservationRequest.Checkout firstCheckout = checkoutRequest(firstRequest, firstGuest);
 		ReservationRequest.Checkout secondCheckout = checkoutRequest(secondRequest, secondGuest);
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
-		Future<CheckoutAttempt> first = executor.submit(() ->
-			attemptAfterBarrier(firstCheckout, firstGuest, firstKey, ready, start));
-		Future<CheckoutAttempt> second = executor.submit(() ->
-			attemptAfterBarrier(secondCheckout, secondGuest, secondKey, ready, start));
+		Future<CheckoutAttempt> first = executor
+			.submit(() -> attemptAfterBarrier(firstCheckout, firstGuest, firstKey, ready, start));
+		Future<CheckoutAttempt> second = executor
+			.submit(() -> attemptAfterBarrier(secondCheckout, secondGuest, secondKey, ready, start));
 
 		assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
 		start.countDown();
@@ -363,8 +378,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		Member guest,
 		String key,
 		CountDownLatch ready,
-		CountDownLatch start
-	) {
+		CountDownLatch start) {
 		ready.countDown();
 		await(start);
 		try {
@@ -378,23 +392,21 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	private ReservationResponse.Ready checkout(
 		ReservationCreateCommand request,
 		Member guest,
-		String key
-	) {
+		String key) {
 		return ReservationResponse.Ready.from(checkoutService.checkout(
 			checkoutRequest(request, guest).toCheckout(), guest.getId(), key));
 	}
 
 	private ReservationRequest.Checkout checkoutRequest(
 		ReservationCreateCommand request,
-		Member guest
-	) {
-		ReservationResponse.Quote quote = ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(
-			request.accommodationId(),
-			request.checkInDate(),
-			request.checkOutDate(),
-			request.guestCount(),
-			request.couponId()
-		), guest.getId()));
+		Member guest) {
+		ReservationResponse.Quote quote = ReservationResponse.Quote
+			.from(quoteService.createQuote(new NewReservationQuote(
+				request.accommodationId(),
+				request.checkInDate(),
+				request.checkOutDate(),
+				request.guestCount(),
+				request.couponId()), guest.getId()));
 		return new ReservationRequest.Checkout(quote.quoteUid(), request.requestMessage());
 	}
 
@@ -444,8 +456,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	private long inventoryCount(
 		String condition,
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 		return jdbcTemplate.queryForObject("""
 			SELECT COUNT(*)
 			FROM accommodation_inventory_day
@@ -492,8 +503,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 			memberRepository.save(Member.builder()
 				.email("inventory-guest-a@test.com").nickname("inventory-guest-a").build()),
 			memberRepository.save(Member.builder()
-				.email("inventory-guest-b@test.com").nickname("inventory-guest-b").build())
-		);
+				.email("inventory-guest-b@test.com").nickname("inventory-guest-b").build()));
 		accommodation = accommodationRepository.save(Accommodation.builder()
 			.name("Inventory concurrency accommodation")
 			.basePrice(100_000L)

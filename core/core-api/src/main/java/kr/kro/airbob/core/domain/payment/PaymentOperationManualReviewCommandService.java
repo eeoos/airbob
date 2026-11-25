@@ -13,8 +13,7 @@ public class PaymentOperationManualReviewCommandService {
 
 	public PaymentOperationManualReviewCommandService(
 		PaymentOperationManualReviewProcessor manualReviewProcessor,
-		PaymentOperationExecutionFence executionFence
-	) {
+		PaymentOperationExecutionFence executionFence) {
 		this.manualReviewProcessor = manualReviewProcessor;
 		this.executionFence = executionFence;
 	}
@@ -22,8 +21,7 @@ public class PaymentOperationManualReviewCommandService {
 	public PaymentOperationManualReviewResult requestReconciliation(
 		UUID operationUid,
 		Long actorMemberId,
-		long expectedVersion
-	) {
+		long expectedVersion) {
 		// This command only queues an inquiry. The executor acquires the same fence before
 		// claiming that inquiry, so it cannot produce not-paid evidence beside an older command.
 		return manualReviewProcessor.requestReconciliation(
@@ -35,8 +33,7 @@ public class PaymentOperationManualReviewCommandService {
 		Long actorMemberId,
 		long expectedVersion,
 		PaymentOperationResolutionReason reasonCode,
-		String evidenceReference
-	) {
+		String evidenceReference) {
 		return executionFence.execute(operationUid, () -> manualReviewProcessor.markNotPaid(
 			operationUid,
 			actorMemberId,

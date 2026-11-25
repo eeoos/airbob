@@ -51,12 +51,12 @@ public class AccommodationDetailCache {
 
 	public AccommodationDetailCache(
 		AccommodationDetailRedisClient redisClient,
-		@Qualifier("accommodationDetailRedissonClient") RedissonClient redissonClient,
+		@Qualifier("accommodationDetailRedissonClient")
+		RedissonClient redissonClient,
 		ObjectMapper objectMapper,
 		AccommodationDetailCacheMetricRecorder metricRecorder,
 		AccommodationDetailCacheJitter jitter,
-		AccommodationDetailCacheProperties properties
-	) {
+		AccommodationDetailCacheProperties properties) {
 		this.redisStore = new AccommodationDetailRedisStore(
 			redisClient, objectMapper, metricRecorder, jitter, properties);
 		this.localLoadCoordinator = new AccommodationDetailLocalLoadCoordinator(
@@ -68,8 +68,7 @@ public class AccommodationDetailCache {
 
 	public AccommodationDetailSnapshot getOrLoad(
 		Long accommodationId,
-		Supplier<AccommodationDetailSnapshot> loader
-	) {
+		Supplier<AccommodationDetailSnapshot> loader) {
 		if (!properties.enabled()) {
 			return localLoadCoordinator.loadDirect(() -> timedLoad(loader));
 		}
@@ -86,8 +85,7 @@ public class AccommodationDetailCache {
 			case CacheLookup.Failure<AccommodationDetailSnapshot>() -> {
 				return loadWithoutCache(accommodationId, loader);
 			}
-			case CacheLookup.Miss<AccommodationDetailSnapshot>() -> {
-			}
+			case CacheLookup.Miss<AccommodationDetailSnapshot>() -> {}
 		}
 
 		// Redis miss라면 이미 진행 중인 fallback DB 조회에 합류해 추가 락과 조회를 피함
@@ -102,8 +100,7 @@ public class AccommodationDetailCache {
 		RLock lock = null;
 		boolean acquired = false;
 		long waitStartedAt = System.nanoTime();
-		AccommodationDetailCacheMetricRecorder.LockResult lockResult =
-			AccommodationDetailCacheMetricRecorder.LockResult.ERROR;
+		AccommodationDetailCacheMetricRecorder.LockResult lockResult = AccommodationDetailCacheMetricRecorder.LockResult.ERROR;
 		try {
 			lock = redissonClient.getLock(lockKey(accommodationId));
 			acquired = lock.tryLock(properties.lockWait().toMillis(), TimeUnit.MILLISECONDS);
@@ -130,10 +127,8 @@ public class AccommodationDetailCache {
 					case CacheLookup.NegativeHit<AccommodationDetailSnapshot>() -> {
 						return resolveNegativeHit();
 					}
-					case CacheLookup.Failure<AccommodationDetailSnapshot>() -> {
-					}
-					case CacheLookup.Miss<AccommodationDetailSnapshot>() -> {
-					}
+					case CacheLookup.Failure<AccommodationDetailSnapshot>() -> {}
+					case CacheLookup.Miss<AccommodationDetailSnapshot>() -> {}
 				}
 			}
 			return loadWithoutCache(accommodationId, loader);
@@ -171,8 +166,7 @@ public class AccommodationDetailCache {
 
 	public void evict(
 		Long accommodationId,
-		AccommodationDetailCacheInvalidationReason reason
-	) {
+		AccommodationDetailCacheInvalidationReason reason) {
 		if (!properties.enabled()) {
 			return;
 		}
@@ -191,8 +185,7 @@ public class AccommodationDetailCache {
 	 */
 	public void evictOrThrow(
 		Long accommodationId,
-		AccommodationDetailCacheInvalidationReason reason
-	) {
+		AccommodationDetailCacheInvalidationReason reason) {
 		if (!properties.enabled()) {
 			return;
 		}
@@ -203,8 +196,7 @@ public class AccommodationDetailCache {
 	private void evictInternal(
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason,
-		AccommodationDetailCacheMetricRecorder.EvictionSource source
-	) {
+		AccommodationDetailCacheMetricRecorder.EvictionSource source) {
 		// Redis 삭제가 지연돼도 새 요청이 변경 전 fallback 조회에 합류하지 않게 먼저 분리
 		localLoadCoordinator.detachCurrent(accommodationId);
 		try {
@@ -220,8 +212,7 @@ public class AccommodationDetailCache {
 	private AccommodationDetailSnapshot loadAndCache(
 		Long accommodationId,
 		String loadPermit,
-		Supplier<AccommodationDetailSnapshot> loader
-	) {
+		Supplier<AccommodationDetailSnapshot> loader) {
 		try {
 			AccommodationDetailSnapshot snapshot = timedLoad(loader);
 			redisStore.writeFound(accommodationId, loadPermit, snapshot);
@@ -239,14 +230,12 @@ public class AccommodationDetailCache {
 
 	private AccommodationDetailSnapshot loadWithoutCache(
 		Long accommodationId,
-		Supplier<AccommodationDetailSnapshot> loader
-	) {
+		Supplier<AccommodationDetailSnapshot> loader) {
 		// 분산 락을 얻지 못한 경로에서는 stale write를 피하기 위해 캐시에 저장하지 않음
 		// 대신 같은 JVM에서 진행 중인 우회 DB 조회만 Future로 공유
 		return localLoadCoordinator.loadOrJoin(
 			accommodationId,
-			() -> timedLoad(loader)
-		);
+			() -> timedLoad(loader));
 	}
 
 	private AccommodationDetailSnapshot timedLoad(Supplier<AccommodationDetailSnapshot> loader) {
@@ -267,8 +256,7 @@ public class AccommodationDetailCache {
 
 	private AccommodationDetailSnapshot resolvePositiveHit(
 		AccommodationDetailSnapshot snapshot,
-		AccommodationDetailCacheMetricRecorder.RequestResult positiveResult
-	) {
+		AccommodationDetailCacheMetricRecorder.RequestResult positiveResult) {
 		metricRecorder.recordRequest(positiveResult);
 		return snapshot;
 	}

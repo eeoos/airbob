@@ -28,8 +28,7 @@ public class PaymentOperationLeaseManager {
 		PaymentRetryBackoff backoff,
 		Clock clock,
 		OperatorAlertOutboxPublisher alertPublisher,
-		PaymentOperationManualResolutionRecorder resolutionRecorder
-	) {
+		PaymentOperationManualResolutionRecorder resolutionRecorder) {
 		this.repository = repository;
 		this.properties = properties;
 		this.backoff = backoff;
@@ -62,8 +61,7 @@ public class PaymentOperationLeaseManager {
 	public void scheduleRetry(
 		PaymentExecution execution,
 		String code,
-		String message
-	) {
+		String message) {
 		PaymentOperation operation = lock(execution.operationUid());
 		Instant now = clock.instant();
 		if (operation.getAttemptCount() >= properties.maxAttempts()) {
@@ -86,8 +84,7 @@ public class PaymentOperationLeaseManager {
 	public void markOutcomeUnknown(
 		PaymentExecution execution,
 		String code,
-		String message
-	) {
+		String message) {
 		PaymentOperation operation = lock(execution.operationUid());
 		Instant now = clock.instant();
 		if (operation.getAttemptCount() >= properties.maxAttempts()) {
@@ -110,8 +107,7 @@ public class PaymentOperationLeaseManager {
 	public void markManualReview(
 		PaymentExecution execution,
 		String code,
-		String message
-	) {
+		String message) {
 		PaymentOperation operation = lock(execution.operationUid());
 		Instant now = clock.instant();
 		boolean manualReconciliation = isCurrentManualReconciliation(operation, execution);
@@ -133,8 +129,7 @@ public class PaymentOperationLeaseManager {
 		PaymentExecution execution,
 		String code,
 		String message,
-		boolean notPaidEligible
-	) {
+		boolean notPaidEligible) {
 		if (!execution.manualReconciliation()
 			|| !execution.mode().isInquiry()
 			|| (notPaidEligible && execution.mode() != PaymentExecutionMode.INQUIRE_CONFIRM)) {
@@ -168,8 +163,7 @@ public class PaymentOperationLeaseManager {
 		boolean transitioned,
 		boolean manualReconciliation,
 		Instant now,
-		String reason
-	) {
+		String reason) {
 		if (transitioned) {
 			appendReviewTransition(
 				operation,
@@ -185,8 +179,7 @@ public class PaymentOperationLeaseManager {
 		boolean manualReconciliation,
 		PaymentOperationStatus previousStatus,
 		Instant now,
-		String reason
-	) {
+		String reason) {
 		if (manualReconciliation) {
 			resolutionRecorder.recordSystem(
 				operation,
@@ -202,8 +195,7 @@ public class PaymentOperationLeaseManager {
 
 	private boolean isCurrentManualReconciliation(
 		PaymentOperation operation,
-		PaymentExecution execution
-	) {
+		PaymentExecution execution) {
 		return execution.manualReconciliation() && operation.isManualReconciliationPending();
 	}
 

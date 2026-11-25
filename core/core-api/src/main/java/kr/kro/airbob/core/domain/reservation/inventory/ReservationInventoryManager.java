@@ -38,8 +38,7 @@ public class ReservationInventoryManager {
 		validateCoverage(
 			range,
 			repository.findSnapshot(accommodationId, startInclusive, endExclusive),
-			false
-		);
+			false);
 	}
 
 	@Transactional(readOnly = true)
@@ -47,8 +46,7 @@ public class ReservationInventoryManager {
 		Long accommodationId,
 		LocalDate startInclusive,
 		LocalDate endExclusive,
-		Instant decisionAt
-	) {
+		Instant decisionAt) {
 		Range range = requireRange(accommodationId, startInclusive, endExclusive);
 		Instant checkedAt = normalize(decisionAt, "decisionAt");
 		List<AccommodationInventoryDay> days = repository.findSnapshot(
@@ -62,8 +60,7 @@ public class ReservationInventoryManager {
 		Long accommodationId,
 		LocalDate startInclusive,
 		LocalDate endExclusive,
-		Instant decisionAt
-	) {
+		Instant decisionAt) {
 		Range range = requireRange(accommodationId, startInclusive, endExclusive);
 		Instant checkedAt = normalize(decisionAt, "decisionAt");
 		List<AccommodationInventoryDay> days = repository.findSnapshot(
@@ -95,8 +92,7 @@ public class ReservationInventoryManager {
 		Long accommodationId,
 		LocalDate startInclusive,
 		LocalDate endExclusive,
-		Instant decisionAt
-	) {
+		Instant decisionAt) {
 		Range range = requireRange(accommodationId, startInclusive, endExclusive);
 		Instant checkedAt = normalize(decisionAt, "decisionAt");
 		List<AccommodationInventoryDay> days = repository.lockRangeNowait(
@@ -112,8 +108,7 @@ public class ReservationInventoryManager {
 	public void claimLockedForPending(
 		LockedRange lockedRange,
 		Long reservationId,
-		Instant holdExpiresAt
-	) {
+		Instant holdExpiresAt) {
 		LockedRange locked = Objects.requireNonNull(lockedRange, "lockedRange must not be null");
 		Long owner = requirePositive(reservationId, "reservationId");
 		Instant expiresAt = normalize(holdExpiresAt, "holdExpiresAt");
@@ -129,8 +124,7 @@ public class ReservationInventoryManager {
 			Objects.requireNonNull(lockedRange, "lockedRange must not be null"),
 			requirePositive(reservationId, "reservationId"),
 			AccommodationInventoryState.OCCUPIED,
-			null
-		);
+			null);
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -139,8 +133,7 @@ public class ReservationInventoryManager {
 		LocalDate startInclusive,
 		LocalDate endExclusive,
 		Long reservationId,
-		Instant decisionAt
-	) {
+		Instant decisionAt) {
 		Range range = requireRange(accommodationId, startInclusive, endExclusive);
 		Long owner = requirePositive(reservationId, "reservationId");
 		Instant checkedAt = normalize(decisionAt, "decisionAt");
@@ -158,8 +151,7 @@ public class ReservationInventoryManager {
 			endExclusive,
 			owner,
 			AccommodationInventoryState.HOLD,
-			AccommodationInventoryState.OCCUPIED
-		);
+			AccommodationInventoryState.OCCUPIED);
 		validateUpdatedCount(range, updated, "HOLD to OCCUPIED transition");
 	}
 
@@ -168,8 +160,7 @@ public class ReservationInventoryManager {
 		Long accommodationId,
 		LocalDate startInclusive,
 		LocalDate endExclusive,
-		Long reservationId
-	) {
+		Long reservationId) {
 		Range range = requireRange(accommodationId, startInclusive, endExclusive);
 		Long owner = requirePositive(reservationId, "reservationId");
 		List<AccommodationInventoryDay> days = repository.lockRange(
@@ -183,8 +174,7 @@ public class ReservationInventoryManager {
 		Long accommodationId,
 		LocalDate startInclusive,
 		LocalDate endExclusive,
-		Long reservationId
-	) {
+		Long reservationId) {
 		Range range = requireRange(accommodationId, startInclusive, endExclusive);
 		Long owner = requirePositive(reservationId, "reservationId");
 		List<AccommodationInventoryDay> days = repository.lockRange(
@@ -196,8 +186,7 @@ public class ReservationInventoryManager {
 			startInclusive,
 			endExclusive,
 			owner,
-			AccommodationInventoryState.OCCUPIED
-		);
+			AccommodationInventoryState.OCCUPIED);
 		validateUpdatedCount(range, updated, "inventory release");
 	}
 
@@ -206,8 +195,7 @@ public class ReservationInventoryManager {
 		Long accommodationId,
 		LocalDate startInclusive,
 		LocalDate endExclusive,
-		Long reservationId
-	) {
+		Long reservationId) {
 		Range range = requireRange(accommodationId, startInclusive, endExclusive);
 		Long owner = requirePositive(reservationId, "reservationId");
 		List<AccommodationInventoryDay> days = repository.lockRange(
@@ -224,8 +212,7 @@ public class ReservationInventoryManager {
 			startInclusive,
 			endExclusive,
 			owner,
-			AccommodationInventoryState.HOLD
-		);
+			AccommodationInventoryState.HOLD);
 		if (released != stillOwned) {
 			throw new ReservationInventoryInvariantViolationException(
 				"takeover-safe HOLD release updated " + released + " of " + stillOwned
@@ -238,8 +225,7 @@ public class ReservationInventoryManager {
 		LockedRange locked,
 		Long reservationId,
 		AccommodationInventoryState targetState,
-		Instant holdExpiresAt
-	) {
+		Instant holdExpiresAt) {
 		Range range = locked.range();
 		int updated = repository.claimAvailableRange(
 			range.accommodationId(),
@@ -248,16 +234,14 @@ public class ReservationInventoryManager {
 			locked.decisionAt(),
 			reservationId,
 			targetState,
-			holdExpiresAt
-		);
+			holdExpiresAt);
 		validateUpdatedCount(range, updated, "inventory claim");
 	}
 
 	private void validateCoverage(
 		Range range,
 		List<AccommodationInventoryDay> days,
-		boolean invariantOnFailure
-	) {
+		boolean invariantOnFailure) {
 		List<AccommodationInventoryDay> snapshot = List.copyOf(days);
 		boolean exact = snapshot.size() == range.nightCount();
 		for (int index = 0; exact && index < snapshot.size(); index++) {
@@ -277,8 +261,7 @@ public class ReservationInventoryManager {
 
 	private List<LocalDate> findMissingDays(
 		Range range,
-		List<AccommodationInventoryDay> existingDays
-	) {
+		List<AccommodationInventoryDay> existingDays) {
 		boolean[] present = new boolean[range.nightCount()];
 		for (AccommodationInventoryDay day : existingDays) {
 			if (!Objects.equals(day.accommodationId(), range.accommodationId())
@@ -308,8 +291,7 @@ public class ReservationInventoryManager {
 	private void validateExactOwner(
 		List<AccommodationInventoryDay> days,
 		Long reservationId,
-		AccommodationInventoryState expectedState
-	) {
+		AccommodationInventoryState expectedState) {
 		if (days.stream().anyMatch(day -> day.state() != expectedState
 			|| !day.isOwnedBy(reservationId))) {
 			throw new ReservationInventoryInvariantViolationException(
@@ -327,8 +309,7 @@ public class ReservationInventoryManager {
 	private Range requireRange(
 		Long accommodationId,
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 		Long id = requirePositive(accommodationId, "accommodationId");
 		Objects.requireNonNull(startInclusive, "startInclusive must not be null");
 		Objects.requireNonNull(endExclusive, "endExclusive must not be null");
@@ -383,14 +364,12 @@ public class ReservationInventoryManager {
 		Long accommodationId,
 		LocalDate startInclusive,
 		LocalDate endExclusive,
-		int nightCount
-	) {
+		int nightCount) {
 	}
 
 	public record UnavailableRange(
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 		public UnavailableRange {
 			Objects.requireNonNull(startInclusive, "startInclusive must not be null");
 			Objects.requireNonNull(endExclusive, "endExclusive must not be null");

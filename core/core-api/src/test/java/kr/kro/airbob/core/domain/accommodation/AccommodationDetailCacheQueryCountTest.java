@@ -11,7 +11,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -32,7 +31,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.core.api.config.ClockConfig;
@@ -105,20 +103,33 @@ class AccommodationDetailCacheQueryCountTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private AccommodationQueryService queryService;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private AccommodationReviewSummaryRepository reviewSummaryRepository;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private AccommodationQueryService queryService;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AccommodationReviewSummaryRepository reviewSummaryRepository;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
 
-	@MockitoBean private CommonCodeReader commonCodeReader;
-	@MockitoBean private CursorPageInfoCreator cursorPageInfoCreator;
-	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@MockitoBean private GeocodingGateway geocodingService;
-	@MockitoBean private S3ImageUploader s3ImageUploader;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
-	@MockitoBean private ReservationInventoryManager inventoryManager;
+	@MockitoBean
+	private CommonCodeReader commonCodeReader;
+	@MockitoBean
+	private CursorPageInfoCreator cursorPageInfoCreator;
+	@MockitoBean
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@MockitoBean
+	private GeocodingGateway geocodingService;
+	@MockitoBean
+	private S3ImageUploader s3ImageUploader;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private ReservationInventoryManager inventoryManager;
 
 	private Accommodation accommodation;
 	private Member host;
@@ -147,7 +158,8 @@ class AccommodationDetailCacheQueryCountTest {
 			.averageRating(new BigDecimal("4.50"))
 			.build());
 		entityManager.persist(AccommodationAmenity.createAccommodationAmenity(accommodation, "WIFI", 1));
-		entityManager.persist(AccommodationImage.builder().accommodation(accommodation).imageUrl("/cache-image.jpg").build());
+		entityManager
+			.persist(AccommodationImage.builder().accommodation(accommodation).imageUrl("/cache-image.jpg").build());
 	}
 
 	@Test
@@ -155,7 +167,8 @@ class AccommodationDetailCacheQueryCountTest {
 	void anonymousColdMissThenWarmHit() {
 		Statistics cold = prepareMeasurement();
 
-		AccommodationResponse.DetailInfo first = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null));
+		AccommodationResponse.DetailInfo first = AccommodationResponse.DetailInfo
+			.from(queryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(first.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(3);
@@ -164,7 +177,8 @@ class AccommodationDetailCacheQueryCountTest {
 		assertThat(first.amenities()).hasSize(1);
 
 		Statistics warm = prepareMeasurement();
-		AccommodationResponse.DetailInfo second = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null));
+		AccommodationResponse.DetailInfo second = AccommodationResponse.DetailInfo
+			.from(queryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(second).isEqualTo(first);
 		assertThat(warm.getPrepareStatementCount()).isZero();
@@ -180,8 +194,8 @@ class AccommodationDetailCacheQueryCountTest {
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
 
 		Statistics warm = prepareMeasurement();
-		AccommodationResponse.DetailInfo second =
-			AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+		AccommodationResponse.DetailInfo second = AccommodationResponse.DetailInfo
+			.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(second.isInWishlist()).isFalse();
 		assertThat(warm.getPrepareStatementCount()).isEqualTo(1);
@@ -189,32 +203,37 @@ class AccommodationDetailCacheQueryCountTest {
 
 	@Test
 	void cachedSnapshotDoesNotShareWishlistStateAcrossViewers() {
-		Member other = memberRepository.save(Member.builder().email("other-cache@test.invalid").nickname("other").build());
+		Member other = memberRepository
+			.save(Member.builder().email("other-cache@test.invalid").nickname("other").build());
 		Wishlist wishlist = Wishlist.builder().member(host).name("개인 저장 목록").build();
 		entityManager.persist(wishlist);
 		entityManager.persist(WishlistAccommodation.builder().wishlist(wishlist).accommodation(accommodation).build());
 		Statistics cold = prepareMeasurement();
 
-		var ownerView = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+		var ownerView = AccommodationResponse.DetailInfo
+			.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
 		assertThat(ownerView.isInWishlist()).isTrue();
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
 		assertThat(cold.getEntityLoadCount()).isZero();
 
 		Statistics otherWarm = prepareMeasurement();
-		var otherView = AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), other.getId()));
+		var otherView = AccommodationResponse.DetailInfo
+			.from(queryService.findAccommodation(accommodation.getId(), other.getId()));
 		assertThat(otherView.isInWishlist()).isFalse();
 		assertThat(otherView.images()).isEqualTo(ownerView.images());
 		assertThat(otherView.amenities()).isEqualTo(ownerView.amenities());
 		assertThat(otherWarm.getPrepareStatementCount()).isEqualTo(1);
 
 		Statistics anonymousWarm = prepareMeasurement();
-		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null)).isInWishlist()).isFalse();
+		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null))
+			.isInWishlist()).isFalse();
 		assertThat(anonymousWarm.getPrepareStatementCount()).isZero();
 
 		entityManager.createQuery("delete WishlistAccommodation wa where wa.wishlist.id = :wishlistId")
 			.setParameter("wishlistId", wishlist.getId()).executeUpdate();
 		Statistics afterRemoval = prepareMeasurement();
-		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId())).isInWishlist()).isFalse();
+		assertThat(AccommodationResponse.DetailInfo
+			.from(queryService.findAccommodation(accommodation.getId(), host.getId())).isInWishlist()).isFalse();
 		assertThat(afterRemoval.getPrepareStatementCount()).isEqualTo(1);
 	}
 

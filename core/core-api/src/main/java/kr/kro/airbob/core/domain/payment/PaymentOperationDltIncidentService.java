@@ -28,8 +28,7 @@ public class PaymentOperationDltIncidentService {
 		PaymentOperationReader operationReader,
 		OutboxWriter outboxWriter,
 		OperatorAlertOutboxPublisher alertPublisher,
-		Clock clock
-	) {
+		Clock clock) {
 		this.codec = codec;
 		this.operationReader = operationReader;
 		this.outboxWriter = outboxWriter;
@@ -46,8 +45,7 @@ public class PaymentOperationDltIncidentService {
 		decoded.ifPresent(this::redispatchQueuedGeneration);
 		alertPublisher.append(OperatorAlertRequest.paymentOperationQuarantined(
 			decoded.map(PaymentOperationExecutionRequestedV1::operationUid).orElse(null),
-			sourcePosition
-		));
+			sourcePosition));
 	}
 
 	private Optional<PaymentOperationExecutionRequestedV1> decode(String message) {
@@ -55,8 +53,7 @@ public class PaymentOperationDltIncidentService {
 			return Optional.of(codec.decode(
 				message,
 				PaymentOperationExecutionRequestedV1.DESCRIPTOR,
-				PaymentOperationExecutionRequestedV1.class
-			).payload());
+				PaymentOperationExecutionRequestedV1.class).payload());
 		} catch (InvalidIntegrationEventException poison) {
 			return Optional.empty();
 		}
@@ -82,7 +79,6 @@ public class PaymentOperationDltIncidentService {
 		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
 			operation.getOperationUid(),
 			operation.getReservation().getReservationUid(),
-			operation.getDispatchGeneration()
-		));
+			operation.getDispatchGeneration()));
 	}
 }

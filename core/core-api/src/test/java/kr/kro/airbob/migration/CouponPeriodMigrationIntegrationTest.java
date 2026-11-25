@@ -58,7 +58,8 @@ class CouponPeriodMigrationIntegrationTest {
 			statement.setLong(1, couponId);
 			try (ResultSet result = statement.executeQuery()) {
 				assertThat(result.next()).isTrue();
-				assertThat(result.getTimestamp("issue_start_at").toLocalDateTime()).isEqualTo(LEGACY_START.minusHours(9));
+				assertThat(result.getTimestamp("issue_start_at").toLocalDateTime())
+					.isEqualTo(LEGACY_START.minusHours(9));
 				assertThat(result.getTimestamp("issue_end_at").toLocalDateTime()).isEqualTo(LEGACY_END.minusHours(9));
 				assertThat(result.getTimestamp("usable_from").toLocalDateTime()).isEqualTo(LEGACY_START.minusHours(9));
 				assertThat(result.getTimestamp("usable_until").toLocalDateTime()).isEqualTo(LEGACY_END.minusHours(9));

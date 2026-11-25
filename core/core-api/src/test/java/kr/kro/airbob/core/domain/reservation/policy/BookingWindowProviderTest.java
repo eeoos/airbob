@@ -35,8 +35,7 @@ class BookingWindowProviderTest {
 
 		var eligibleTimeZones = provider.eligibleTimeZonesForStay(
 			LocalDate.of(2026, 11, 11),
-			LocalDate.of(2026, 11, 12)
-		);
+			LocalDate.of(2026, 11, 12));
 
 		assertThat(eligibleTimeZones)
 			.contains("Asia/Seoul")
@@ -83,7 +82,6 @@ class BookingWindowProviderTest {
 
 		assertThat(window).isEqualTo(new ReservationIndexingWindow(
 			LocalDate.of(2026, 8, 30),
-			LocalDate.of(2026, 12, 1)
-		));
+			LocalDate.of(2026, 12, 1)));
 	}
 }

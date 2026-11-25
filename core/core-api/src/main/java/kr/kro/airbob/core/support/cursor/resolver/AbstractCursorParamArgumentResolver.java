@@ -30,10 +30,8 @@ public abstract class AbstractCursorParamArgumentResolver<C extends CursorPayloa
 		MethodParameter parameter,
 		ModelAndViewContainer mavContainer,
 		NativeWebRequest webRequest,
-		WebDataBinderFactory binderFactory
-	) {
-		CursorParam annotation =
-			parameter.getParameterAnnotation(CursorParam.class);
+		WebDataBinderFactory binderFactory) {
+		CursorParam annotation = parameter.getParameterAnnotation(CursorParam.class);
 
 		int size = parseSize(webRequest, annotation);
 		C cursorData = parseCursorData(webRequest, annotation);
@@ -43,23 +41,18 @@ public abstract class AbstractCursorParamArgumentResolver<C extends CursorPayloa
 
 	private C parseCursorData(
 		NativeWebRequest webRequest,
-		CursorParam annotation
-	) {
-		String cursorParam =
-			webRequest.getParameter(annotation.cursorParam());
+		CursorParam annotation) {
+		String cursorParam = webRequest.getParameter(annotation.cursorParam());
 
 		return cursorDecoder.decode(
 			cursorParam,
-			getCursorDataType()
-		);
+			getCursorDataType());
 	}
 
 	private int parseSize(
 		NativeWebRequest webRequest,
-		CursorParam annotation
-	) {
-		String sizeParam =
-			webRequest.getParameter(annotation.sizeParam());
+		CursorParam annotation) {
+		String sizeParam = webRequest.getParameter(annotation.sizeParam());
 
 		int size;
 		try {

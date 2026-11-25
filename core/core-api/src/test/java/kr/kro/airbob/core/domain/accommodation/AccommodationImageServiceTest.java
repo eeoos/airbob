@@ -35,20 +35,28 @@ import kr.kro.airbob.core.support.error.InvalidInputException;
 @DisplayName("숙소 이미지 서비스 단위 테스트")
 class AccommodationImageServiceTest {
 
-	@Mock private AccommodationImageRepository accommodationImageRepository;
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private S3ImageUploader s3ImageUploader;
-	@Mock private ApplicationEventPublisher applicationEventPublisher;
-	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Captor private ArgumentCaptor<List<AccommodationImage>> imagesCaptor;
+	@Mock
+	private AccommodationImageRepository accommodationImageRepository;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private S3ImageUploader s3ImageUploader;
+	@Mock
+	private ApplicationEventPublisher applicationEventPublisher;
+	@Mock
+	private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Captor
+	private ArgumentCaptor<List<AccommodationImage>> imagesCaptor;
 
 	private AccommodationImageService accommodationImageService;
 
 	@BeforeEach
 	void setUp() {
 		accommodationImageService = new AccommodationImageService(new AccommodationReader(accommodationRepository),
-			new AccommodationImageReader(accommodationImageRepository), new AccommodationImageWriter(accommodationImageRepository),
+			new AccommodationImageReader(accommodationImageRepository),
+			new AccommodationImageWriter(accommodationImageRepository),
 			s3ImageUploader, applicationEventPublisher, cacheInvalidationPublisher, searchRefreshPublisher);
 	}
 
@@ -57,11 +65,9 @@ class AccommodationImageServiceTest {
 	void uploadImagesPersistsUrlsAndSetsFirstSavedImageAsThumbnail() throws IOException {
 		Accommodation accommodation = accommodation(1L, null);
 		MockMultipartFile firstFile = new MockMultipartFile(
-			"images", "first.jpg", "image/jpeg", new byte[] {1}
-		);
+			"images", "first.jpg", "image/jpeg", new byte[] {1});
 		MockMultipartFile secondFile = new MockMultipartFile(
-			"images", "second.png", "image/png", new byte[] {2}
-		);
+			"images", "second.png", "image/png", new byte[] {2});
 		AccommodationImage savedFirst = image(10L, accommodation, "https://cdn.example.com/first.jpg");
 		AccommodationImage savedSecond = image(11L, accommodation, "https://cdn.example.com/second.png");
 
@@ -78,8 +84,7 @@ class AccommodationImageServiceTest {
 			.thenReturn(List.of(savedFirst, savedSecond));
 
 		List<StoredImage> response = accommodationImageService.uploadImages(
-			1L, List.of(firstFile, secondFile), 2L
-		);
+			1L, List.of(firstFile, secondFile), 2L);
 
 		verify(accommodationImageRepository).saveAll(imagesCaptor.capture());
 		assertThat(imagesCaptor.getValue())
@@ -90,8 +95,7 @@ class AccommodationImageServiceTest {
 			.containsOnly(accommodation);
 		assertThat(response).containsExactly(
 			new StoredImage(10L, savedFirst.getImageUrl()),
-			new StoredImage(11L, savedSecond.getImageUrl())
-		);
+			new StoredImage(11L, savedSecond.getImageUrl()));
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(savedFirst.getImageUrl());
 		verify(applicationEventPublisher).publishEvent(new ImageUploaded(savedFirst.getImageUrl()));
 		verify(applicationEventPublisher).publishEvent(new ImageUploaded(savedSecond.getImageUrl()));
@@ -104,11 +108,9 @@ class AccommodationImageServiceTest {
 	void registersRollbackCleanupBeforeLaterUploadFails() throws IOException {
 		Accommodation accommodation = accommodation(1L, null);
 		MockMultipartFile firstFile = new MockMultipartFile(
-			"images", "first.jpg", "image/jpeg", new byte[] {1}
-		);
+			"images", "first.jpg", "image/jpeg", new byte[] {1});
 		MockMultipartFile secondFile = new MockMultipartFile(
-			"images", "second.jpg", "image/jpeg", new byte[] {2}
-		);
+			"images", "second.jpg", "image/jpeg", new byte[] {2});
 		String firstImageUrl = "https://cdn.example.com/first.jpg";
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			1L, 2L, AccommodationStatus.DELETED))
@@ -132,8 +134,7 @@ class AccommodationImageServiceTest {
 	void deleteCurrentThumbnailSelectsNextImage() {
 		Accommodation accommodation = accommodation(1L, "https://cdn.example.com/first.jpg");
 		AccommodationImage currentThumbnail = image(
-			10L, accommodation, "https://cdn.example.com/first.jpg"
-		);
+			10L, accommodation, "https://cdn.example.com/first.jpg");
 		AccommodationImage nextImage = image(11L, accommodation, "https://cdn.example.com/second.jpg");
 
 		givenOwnedAccommodationAndImage(accommodation, currentThumbnail);
@@ -156,8 +157,7 @@ class AccommodationImageServiceTest {
 	void deleteLastThumbnailClearsThumbnail() {
 		Accommodation accommodation = accommodation(1L, "https://cdn.example.com/only.jpg");
 		AccommodationImage currentThumbnail = image(
-			10L, accommodation, "https://cdn.example.com/only.jpg"
-		);
+			10L, accommodation, "https://cdn.example.com/only.jpg");
 
 		givenOwnedAccommodationAndImage(accommodation, currentThumbnail);
 		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
@@ -218,8 +218,7 @@ class AccommodationImageServiceTest {
 			1L,
 			accommodationUid,
 			AccommodationStatus.PUBLISHED,
-			"https://cdn.example.com/first.jpg"
-		);
+			"https://cdn.example.com/first.jpg");
 		AccommodationImage current = image(
 			10L, accommodation, "https://cdn.example.com/first.jpg");
 		AccommodationImage next = image(
@@ -258,8 +257,7 @@ class AccommodationImageServiceTest {
 
 	private void givenOwnedAccommodationAndImage(
 		Accommodation accommodation,
-		AccommodationImage image
-	) {
+		AccommodationImage image) {
 		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			accommodation.getId(), 2L, AccommodationStatus.DELETED))
 			.thenReturn(Optional.of(accommodation));
@@ -274,8 +272,7 @@ class AccommodationImageServiceTest {
 		Long id,
 		UUID accommodationUid,
 		AccommodationStatus status,
-		String thumbnailUrl
-	) {
+		String thumbnailUrl) {
 		return Accommodation.builder()
 			.id(id)
 			.accommodationUid(accommodationUid)

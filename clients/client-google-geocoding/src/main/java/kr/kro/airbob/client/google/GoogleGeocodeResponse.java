@@ -12,18 +12,15 @@ public class GoogleGeocodeResponse {
 	private List<Result> results;
 
 	public record Result(
-		Geometry geometry
-		) {
+		Geometry geometry) {
 	}
 
 	public record Geometry(
 		Location location,
-		Viewport viewport
-	){
+		Viewport viewport) {
 		public record Viewport(
 			Location northeast,
-			Location southwest
-		) {
+			Location southwest) {
 		}
 
 		@Builder
@@ -31,6 +28,7 @@ public class GoogleGeocodeResponse {
 			Double lat,
 			Double lng
 
-		){}
+		) {
+		}
 	}
 }

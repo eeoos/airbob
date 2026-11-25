@@ -16,27 +16,27 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AuthController implements AuthApi {
 
-    private final AuthService authService;
-    private final MemberService memberService;
+	private final AuthService authService;
+	private final MemberService memberService;
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> login(Login request, HttpServletResponse response) {
-        String sessionId = authService.login(request.getEmail(), request.getPassword());
+	@Override
+	public ResponseEntity<ApiResponse<Void>> login(Login request, HttpServletResponse response) {
+		String sessionId = authService.login(request.getEmail(), request.getPassword());
 
-        response.addCookie(SessionCookie.create(sessionId));
+		response.addCookie(SessionCookie.create(sessionId));
 
-        return ResponseEntity.ok(ApiResponse.success());
-    }
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> logout(String sessionId) {
-        authService.logout(sessionId);
-        return ResponseEntity.ok(ApiResponse.success());
-    }
+	@Override
+	public ResponseEntity<ApiResponse<Void>> logout(String sessionId) {
+		authService.logout(sessionId);
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<MemberResponse.MeInfo>> getMyInfo(Long memberId) {
-        MemberResponse.MeInfo response = MemberResponse.MeInfo.from(memberService.getMemberInfo(memberId));
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
+	@Override
+	public ResponseEntity<ApiResponse<MemberResponse.MeInfo>> getMyInfo(Long memberId) {
+		MemberResponse.MeInfo response = MemberResponse.MeInfo.from(memberService.getMemberInfo(memberId));
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
 }

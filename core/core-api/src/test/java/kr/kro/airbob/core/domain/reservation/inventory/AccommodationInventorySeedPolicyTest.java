@@ -23,11 +23,9 @@ class AccommodationInventorySeedPolicyTest {
 	void addsSafetyBufferToTheLocalBookingWindow() {
 		BookingWindowProvider windowProvider = new BookingWindowProvider(
 			Clock.fixed(NOW, ZoneOffset.UTC));
-		AccommodationInventorySeedPolicy policy =
-			new AccommodationInventorySeedPolicy(windowProvider, 2);
+		AccommodationInventorySeedPolicy policy = new AccommodationInventorySeedPolicy(windowProvider, 2);
 
-		AccommodationInventorySeedPolicy.SeedRange range =
-			policy.currentRange("Asia/Seoul", NOW);
+		AccommodationInventorySeedPolicy.SeedRange range = policy.currentRange("Asia/Seoul", NOW);
 
 		assertThat(range.startInclusive()).isEqualTo(LocalDate.of(2026, 8, 26));
 		assertThat(range.endExclusive()).isEqualTo(LocalDate.of(2026, 11, 28));

@@ -25,8 +25,7 @@ public class SanitizingRetryKafkaTemplateFactory {
 
 	public SanitizingRetryKafkaTemplateFactory(
 		ProducerFactory<String, String> producerFactory,
-		IntegrationEventCodec codec
-	) {
+		IntegrationEventCodec codec) {
 		this.producerFactory = producerFactory;
 		this.codec = codec;
 	}
@@ -34,8 +33,7 @@ public class SanitizingRetryKafkaTemplateFactory {
 	public <T extends IntegrationEvent> KafkaTemplate<String, String> create(
 		EventDescriptor descriptor,
 		Class<T> eventType,
-		Function<T, String> keyExtractor
-	) {
+		Function<T, String> keyExtractor) {
 		KafkaTemplate<String, String> template = new KafkaTemplate<>(producerFactory);
 		template.setProducerInterceptor(new SanitizingInterceptor<>(
 			codec,
@@ -57,8 +55,7 @@ public class SanitizingRetryKafkaTemplateFactory {
 			IntegrationEventCodec codec,
 			EventDescriptor descriptor,
 			Class<T> eventType,
-			Function<T, String> keyExtractor
-		) {
+			Function<T, String> keyExtractor) {
 			this.codec = codec;
 			this.descriptor = descriptor;
 			this.eventType = eventType;
@@ -93,16 +90,13 @@ public class SanitizingRetryKafkaTemplateFactory {
 		}
 
 		@Override
-		public void onAcknowledgement(RecordMetadata metadata, Exception exception) {
-		}
+		public void onAcknowledgement(RecordMetadata metadata, Exception exception) {}
 
 		@Override
-		public void close() {
-		}
+		public void close() {}
 
 		@Override
-		public void configure(Map<String, ?> configs) {
-		}
+		public void configure(Map<String, ?> configs) {}
 	}
 
 	private record SanitizedPayload(String key, String value) {

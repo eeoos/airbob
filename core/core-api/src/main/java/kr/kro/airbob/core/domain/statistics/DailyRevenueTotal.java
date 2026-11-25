@@ -12,6 +12,5 @@ public record DailyRevenueTotal(
 	long refundAmount,
 	long netAmount,
 	long paymentCount,
-	long refundCount
-) {
+	long refundCount) {
 }

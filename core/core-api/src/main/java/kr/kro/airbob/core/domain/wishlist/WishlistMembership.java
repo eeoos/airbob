@@ -8,6 +8,5 @@ package kr.kro.airbob.core.domain.wishlist;
 public record WishlistMembership(
 	boolean inAnyWishlist,
 	Boolean targetWishlistContains,
-	boolean targetWishlistFound
-) {
+	boolean targetWishlistFound) {
 }

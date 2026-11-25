@@ -26,14 +26,15 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import jakarta.persistence.EntityManager;
 import kr.kro.airbob.core.api.config.ClockConfig;
 import kr.kro.airbob.core.api.config.JpaAuditingConfig;
 import kr.kro.airbob.core.api.config.QueryDslConfig;
@@ -55,7 +56,6 @@ import kr.kro.airbob.core.domain.reservation.Reservation;
 import kr.kro.airbob.core.domain.reservation.ReservationDateRange;
 import kr.kro.airbob.core.domain.reservation.ReservationFilterType;
 import kr.kro.airbob.core.domain.reservation.ReservationStatus;
-import jakarta.persistence.EntityManager;
 
 @DataJpaTest
 @Testcontainers
@@ -63,42 +63,42 @@ import jakarta.persistence.EntityManager;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
 	ClockConfig.class,
-    JpaAuditingConfig.class,
-    QueryDslConfig.class,
-    ReservationRepositoryQueryTest.SqlCaptureConfig.class
+	JpaAuditingConfig.class,
+	QueryDslConfig.class,
+	ReservationRepositoryQueryTest.SqlCaptureConfig.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("예약 QueryDSL 저장소 테스트")
 class ReservationRepositoryQueryTest {
 
-    @Container
-    private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
-        .withDatabaseName("airbobdb_reservation_query");
+	@Container
+	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
+		.withDatabaseName("airbobdb_reservation_query");
 
-    @DynamicPropertySource
-    static void setProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
-        registry.add("spring.datasource.username", MYSQL::getUsername);
-        registry.add("spring.datasource.password", MYSQL::getPassword);
-        registry.add("spring.flyway.url", MYSQL::getJdbcUrl);
-        registry.add("spring.flyway.user", MYSQL::getUsername);
-        registry.add("spring.flyway.password", MYSQL::getPassword);
-    }
+	@DynamicPropertySource
+	static void setProperties(DynamicPropertyRegistry registry) {
+		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+		registry.add("spring.datasource.username", MYSQL::getUsername);
+		registry.add("spring.datasource.password", MYSQL::getPassword);
+		registry.add("spring.flyway.url", MYSQL::getJdbcUrl);
+		registry.add("spring.flyway.user", MYSQL::getUsername);
+		registry.add("spring.flyway.password", MYSQL::getPassword);
+	}
 
-    @Autowired
-    private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationRepository reservationRepository;
 
-    @Autowired
-    private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
 
-    @Autowired
-    private MemberRepository memberRepository;
+	@Autowired
+	private MemberRepository memberRepository;
 
 	@Autowired
 	private PaymentRepository paymentRepository;
 
-    @Autowired
-    private CapturingStatementInspector sqlInspector;
+	@Autowired
+	private CapturingStatementInspector sqlInspector;
 
 	@Autowired
 	private EntityManager entityManager;
@@ -133,13 +133,15 @@ class ReservationRepositoryQueryTest {
 		entityManager.createQuery("update Reservation r set r.createdAt = :createdAt where r.accommodation.id = :id")
 			.setParameter("createdAt", sameCreatedAt).setParameter("id", accommodation.getId()).executeUpdate();
 		entityManager.createQuery("update Reservation r set r.createdAt = :createdAt where r.id = :id")
-			.setParameter("createdAt", sameCreatedAt.minusSeconds(1)).setParameter("id", oldest.getId()).executeUpdate();
+			.setParameter("createdAt", sameCreatedAt.minusSeconds(1)).setParameter("id", oldest.getId())
+			.executeUpdate();
 		entityManager.clear();
 		sqlInspector.clear();
 
 		var firstPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, filter, now, PageRequest.of(0, 2));
-		var firstDtos = firstPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(reservation, now)));
+		var firstDtos = firstPage.map(reservation -> ReservationResponse.GuestReservationInfo
+			.from(GuestReservationPage.Item.of(reservation, now)));
 		assertThat(firstDtos).extracting(ReservationResponse.GuestReservationInfo::reservationId)
 			.containsExactly(lastTie.getId(), middleTie.getId());
 		assertThat(firstDtos.getContent()).allSatisfy(dto -> {
@@ -157,7 +159,8 @@ class ReservationRepositoryQueryTest {
 		sqlInspector.clear();
 		var lastPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), cursor.id(), cursor.createdAt(), filter, now, PageRequest.of(0, 2));
-		var lastDtos = lastPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(GuestReservationPage.Item.of(reservation, now)));
+		var lastDtos = lastPage.map(reservation -> ReservationResponse.GuestReservationInfo
+			.from(GuestReservationPage.Item.of(reservation, now)));
 		assertThat(lastDtos).extracting(ReservationResponse.GuestReservationInfo::reservationId)
 			.containsExactly(firstTie.getId(), oldest.getId());
 		assertThat(lastDtos.getContent().getLast().accommodation().name()).isEqualTo("without-address");
@@ -189,25 +192,23 @@ class ReservationRepositoryQueryTest {
 		Reservation reservation = saveReservation(
 			accommodation, guest, ReservationStatus.CONFIRMED,
 			LocalDate.of(2030, 2, 1), LocalDate.of(2030, 2, 3),
-			Instant.parse("2030-02-01T06:00:00Z"), now, now.minusSeconds(1)
-		);
+			Instant.parse("2030-02-01T06:00:00Z"), now, now.minusSeconds(1));
 		reservationRepository.flush();
 
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
-			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)
-		).getContent()).extracting(GuestReservationListProjection::id).containsExactly(reservation.getId());
+			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)).getContent())
+			.extracting(GuestReservationListProjection::id).containsExactly(reservation.getId());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
-			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)
-		).getContent()).isEmpty();
+			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)).getContent())
+			.isEmpty();
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
-			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)
-		).getContent()).extracting(HostReservationListProjection::id).containsExactly(reservation.getId());
+			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)).getContent())
+			.extracting(HostReservationListProjection::id).containsExactly(reservation.getId());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
-			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)
-		).getContent()).isEmpty();
+			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)).getContent())
+			.isEmpty();
 		assertThat(reservationRepository.existsPastCompletedReservationByGuest(
-			accommodation.getId(), guest.getId(), now
-		)).isTrue();
+			accommodation.getId(), guest.getId(), now)).isTrue();
 	}
 
 	@Test
@@ -264,8 +265,7 @@ class ReservationRepositoryQueryTest {
 		for (ReservationStatus status : List.of(
 			ReservationStatus.CONFIRMED,
 			ReservationStatus.CANCELLATION_PENDING,
-			ReservationStatus.CANCELLATION_FAILED
-		)) {
+			ReservationStatus.CANCELLATION_FAILED)) {
 			pastActive.add(saveReservation(
 				accommodation, guest, status,
 				LocalDate.of(2030, 2, 1), LocalDate.of(2030, 2, 3),
@@ -297,29 +297,29 @@ class ReservationRepositoryQueryTest {
 		guestUpcoming.add(processing);
 
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
-			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)
-		).getContent()).extracting(GuestReservationListProjection::id)
+			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)).getContent())
+			.extracting(GuestReservationListProjection::id)
 			.containsExactlyInAnyOrderElementsOf(pastActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
-			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)
-		).getContent()).extracting(GuestReservationListProjection::id)
+			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)).getContent())
+			.extracting(GuestReservationListProjection::id)
 			.containsExactlyInAnyOrderElementsOf(guestUpcoming.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
-			guest.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)
-		).getContent()).extracting(GuestReservationListProjection::id)
+			guest.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)).getContent())
+			.extracting(GuestReservationListProjection::id)
 			.containsExactlyInAnyOrder(cancelled.getId(), expired.getId(), expiredPending.getId());
 
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
-			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)
-		).getContent()).extracting(HostReservationListProjection::id)
+			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)).getContent())
+			.extracting(HostReservationListProjection::id)
 			.containsExactlyInAnyOrderElementsOf(pastActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
-			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)
-		).getContent()).extracting(HostReservationListProjection::id)
+			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)).getContent())
+			.extracting(HostReservationListProjection::id)
 			.containsExactlyInAnyOrderElementsOf(upcomingActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
-			host.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)
-		).getContent()).extracting(HostReservationListProjection::id)
+			host.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)).getContent())
+			.extracting(HostReservationListProjection::id)
 			.containsExactlyInAnyOrder(cancelled.getId(), expired.getId());
 	}
 
@@ -385,8 +385,7 @@ class ReservationRepositoryQueryTest {
 			member,
 			ReservationStatus.PAYMENT_PENDING,
 			LocalDate.of(2030, 2, 1),
-			LocalDate.of(2030, 2, 2)
-		);
+			LocalDate.of(2030, 2, 2));
 		reservationRepository.flush();
 		sqlInspector.clear();
 
@@ -427,8 +426,7 @@ class ReservationRepositoryQueryTest {
 			ReservationStatus.PAYMENT_PROCESSING,
 			ReservationStatus.CONFIRMED,
 			ReservationStatus.CANCELLATION_PENDING,
-			ReservationStatus.CANCELLATION_FAILED
-		)) {
+			ReservationStatus.CANCELLATION_FAILED)) {
 			Accommodation accommodation = saveAccommodation(member, "future-active-" + status);
 			saveReservation(
 				accommodation, member, status,
@@ -513,101 +511,99 @@ class ReservationRepositoryQueryTest {
 		assertThat(sqlInspector.singleSelect()).contains(" for update");
 	}
 
-    @Test
-    @DisplayName("ID 조회는 지정 기간과 겹치는 확정 예약만 날짜 구간으로 반환한다")
-    void idQueryReturnsConfirmedReservationRangesOverlappingWindow() {
-        Member member = memberRepository.save(Member.builder()
-            .email("reservation-window-query@test.com")
-            .nickname("reservation-window-query")
-            .build());
-        Accommodation target = saveAccommodation(member, "window-target");
-        Accommodation other = saveAccommodation(member, "window-other");
-        LocalDate windowStart = LocalDate.of(2030, 1, 1);
-        LocalDate windowEndExclusive = LocalDate.of(2030, 4, 1);
+	@Test
+	@DisplayName("ID 조회는 지정 기간과 겹치는 확정 예약만 날짜 구간으로 반환한다")
+	void idQueryReturnsConfirmedReservationRangesOverlappingWindow() {
+		Member member = memberRepository.save(Member.builder()
+			.email("reservation-window-query@test.com")
+			.nickname("reservation-window-query")
+			.build());
+		Accommodation target = saveAccommodation(member, "window-target");
+		Accommodation other = saveAccommodation(member, "window-other");
+		LocalDate windowStart = LocalDate.of(2030, 1, 1);
+		LocalDate windowEndExclusive = LocalDate.of(2030, 4, 1);
 
 		ReservationDateRange overlapsStart = new ReservationDateRange(
-            windowStart.minusDays(2), windowStart.plusDays(1));
-        ReservationDateRange inside = new ReservationDateRange(
-            windowStart.plusDays(10), windowStart.plusDays(12));
-        ReservationDateRange overlapsEnd = new ReservationDateRange(
-            windowEndExclusive.minusDays(1), windowEndExclusive.plusDays(2));
+			windowStart.minusDays(2), windowStart.plusDays(1));
+		ReservationDateRange inside = new ReservationDateRange(
+			windowStart.plusDays(10), windowStart.plusDays(12));
+		ReservationDateRange overlapsEnd = new ReservationDateRange(
+			windowEndExclusive.minusDays(1), windowEndExclusive.plusDays(2));
 
-        saveReservation(target, member, ReservationStatus.CONFIRMED,
-            overlapsStart.checkIn(), overlapsStart.checkOut());
-        saveReservation(target, member, ReservationStatus.CONFIRMED,
-            windowStart.minusDays(2), windowStart);
+		saveReservation(target, member, ReservationStatus.CONFIRMED,
+			overlapsStart.checkIn(), overlapsStart.checkOut());
+		saveReservation(target, member, ReservationStatus.CONFIRMED,
+			windowStart.minusDays(2), windowStart);
 		saveReservation(target, member, ReservationStatus.CONFIRMED,
 			inside.checkIn(), inside.checkOut());
 		saveReservation(target, member, ReservationStatus.CANCELLATION_PENDING,
 			inside.checkIn().plusDays(20), inside.checkOut().plusDays(20));
 		saveReservation(target, member, ReservationStatus.CANCELLATION_FAILED,
 			inside.checkIn().plusDays(30), inside.checkOut().plusDays(30));
-        saveReservation(target, member, ReservationStatus.CONFIRMED,
-            overlapsEnd.checkIn(), overlapsEnd.checkOut());
-        saveReservation(target, member, ReservationStatus.CONFIRMED,
-            windowEndExclusive, windowEndExclusive.plusDays(2));
+		saveReservation(target, member, ReservationStatus.CONFIRMED,
+			overlapsEnd.checkIn(), overlapsEnd.checkOut());
+		saveReservation(target, member, ReservationStatus.CONFIRMED,
+			windowEndExclusive, windowEndExclusive.plusDays(2));
 		saveReservation(target, member, ReservationStatus.PAYMENT_PENDING,
 			inside.checkIn(), inside.checkOut());
 		saveReservation(target, member, ReservationStatus.CANCELLED,
 			inside.checkIn(), inside.checkOut());
 		saveReservation(target, member, ReservationStatus.EXPIRED,
 			inside.checkIn(), inside.checkOut());
-        saveReservation(other, member, ReservationStatus.CONFIRMED,
-            inside.checkIn(), inside.checkOut());
-        reservationRepository.flush();
+		saveReservation(other, member, ReservationStatus.CONFIRMED,
+			inside.checkIn(), inside.checkOut());
+		reservationRepository.flush();
 
-        sqlInspector.clear();
-        List<ReservationDateRange> result = reservationRepository
+		sqlInspector.clear();
+		List<ReservationDateRange> result = reservationRepository
 			.findActiveReservationRangesByAccommodationId(
-                target.getId(), windowStart, windowEndExclusive);
-        String sql = sqlInspector.singleSelect();
+				target.getId(), windowStart, windowEndExclusive);
+		String sql = sqlInspector.singleSelect();
 
 		assertThat(result).containsExactlyInAnyOrder(
 			overlapsStart,
 			inside,
 			overlapsEnd,
 			new ReservationDateRange(inside.checkIn().plusDays(20), inside.checkOut().plusDays(20)),
-			new ReservationDateRange(inside.checkIn().plusDays(30), inside.checkOut().plusDays(30))
-		);
-        assertDateRangeProjection(sql);
-        assertThat(sql)
-            .contains(".accommodation_id=?")
+			new ReservationDateRange(inside.checkIn().plusDays(30), inside.checkOut().plusDays(30)));
+		assertDateRangeProjection(sql);
+		assertThat(sql)
+			.contains(".accommodation_id=?")
 			.contains(".check_in_date<?")
 			.contains(".check_out_date>?")
 			.doesNotContain(" join accommodation ")
 			.doesNotContain(" order by ");
-    }
+	}
 
-    private void assertDateRangeProjection(String sql) {
-        int fromIndex = sql.indexOf(" from ");
-        assertThat(fromIndex).isPositive();
+	private void assertDateRangeProjection(String sql) {
+		int fromIndex = sql.indexOf(" from ");
+		assertThat(fromIndex).isPositive();
 
-        List<String> selectedColumns = List.of(
-            sql.substring("select ".length(), fromIndex).split(","));
+		List<String> selectedColumns = List.of(
+			sql.substring("select ".length(), fromIndex).split(","));
 
-        assertThat(selectedColumns).hasSize(2);
+		assertThat(selectedColumns).hasSize(2);
 		assertThat(selectedColumns.get(0)).contains(".check_in_date");
 		assertThat(selectedColumns.get(1)).contains(".check_out_date");
-    }
+	}
 
-    private Accommodation saveAccommodation(Member member, String name) {
-        return accommodationRepository.save(Accommodation.builder()
-            .member(member)
-            .name(name)
-            .checkInTime(LocalTime.of(15, 0))
-            .checkOutTime(LocalTime.of(11, 0))
+	private Accommodation saveAccommodation(Member member, String name) {
+		return accommodationRepository.save(Accommodation.builder()
+			.member(member)
+			.name(name)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
 			.timeZoneId("UTC")
-            .status(AccommodationStatus.PUBLISHED)
-            .build());
-    }
+			.status(AccommodationStatus.PUBLISHED)
+			.build());
+	}
 
-    private Reservation saveReservation(
-        Accommodation accommodation,
-        Member guest,
-        ReservationStatus status,
+	private Reservation saveReservation(
+		Accommodation accommodation,
+		Member guest,
+		ReservationStatus status,
 		LocalDate checkIn,
-		LocalDate checkOut
-    ) {
+		LocalDate checkOut) {
 		return saveReservation(
 			accommodation,
 			guest,
@@ -616,8 +612,7 @@ class ReservationRepositoryQueryTest {
 			checkOut,
 			checkIn.atTime(15, 0).toInstant(ZoneOffset.UTC),
 			checkOut.atTime(11, 0).toInstant(ZoneOffset.UTC),
-			Instant.parse("2029-01-01T00:15:00Z")
-		);
+			Instant.parse("2029-01-01T00:15:00Z"));
 	}
 
 	private Reservation saveReservation(
@@ -628,67 +623,65 @@ class ReservationRepositoryQueryTest {
 		LocalDate checkOut,
 		Instant checkInAt,
 		Instant checkOutAt,
-		Instant expiresAt
-	) {
-        return reservationRepository.save(Reservation.builder()
-            .accommodation(accommodation)
-            .guest(guest)
+		Instant expiresAt) {
+		return reservationRepository.save(Reservation.builder()
+			.accommodation(accommodation)
+			.guest(guest)
 			.checkInDate(checkIn)
 			.checkOutDate(checkOut)
 			.checkInAt(checkInAt)
 			.checkOutAt(checkOutAt)
 			.timeZoneId("UTC")
-            .guestCount(1)
-            .totalPrice(100_000L)
-            .currency("KRW")
-            .status(status)
+			.guestCount(1)
+			.totalPrice(100_000L)
+			.currency("KRW")
+			.status(status)
 			.expiresAt(expiresAt)
-            .build());
-    }
+			.build());
+	}
 
-    @TestConfiguration(proxyBeanMethods = false)
-    static class SqlCaptureConfig {
+	@TestConfiguration(proxyBeanMethods = false)
+	static class SqlCaptureConfig {
 
-        @Bean
-        CapturingStatementInspector capturingStatementInspector() {
-            return new CapturingStatementInspector();
-        }
+		@Bean
+		CapturingStatementInspector capturingStatementInspector() {
+			return new CapturingStatementInspector();
+		}
 
-        @Bean
-        HibernatePropertiesCustomizer testStatementInspectorCustomizer(
-            CapturingStatementInspector inspector
-        ) {
-            return (Map<String, Object> properties) -> properties.put(
-                "hibernate.session_factory.statement_inspector", inspector);
-        }
-    }
+		@Bean
+		HibernatePropertiesCustomizer testStatementInspectorCustomizer(
+			CapturingStatementInspector inspector) {
+			return (Map<String, Object> properties) -> properties.put(
+				"hibernate.session_factory.statement_inspector", inspector);
+		}
+	}
 
-    static class CapturingStatementInspector implements StatementInspector {
+	static class CapturingStatementInspector implements StatementInspector {
 
-        private final List<String> statements = new ArrayList<>();
+		private final List<String> statements = new ArrayList<>();
 
-        @Override
-        public String inspect(String sql) {
-            statements.add(normalize(sql));
-            return sql;
-        }
+		@Override
+		public String inspect(String sql) {
+			statements.add(normalize(sql));
+			return sql;
+		}
 
-        void clear() {
-            statements.clear();
-        }
+		void clear() {
+			statements.clear();
+		}
 
-        String singleSelect() {
-            List<String> selects = statements.stream()
-                .filter(sql -> sql.startsWith("select "))
-                .toList();
-            assertThat(selects).hasSize(1);
-            return selects.getFirst();
-        }
+		String singleSelect() {
+			List<String> selects = statements.stream()
+				.filter(sql -> sql.startsWith("select "))
+				.toList();
+			assertThat(selects).hasSize(1);
+			return selects.getFirst();
+		}
 
-        private String normalize(String sql) {
-            return sql.replaceAll("\\s+", " ")
-                .toLowerCase(Locale.ROOT)
-                .trim();
-        }
-    }
+		private String normalize(String sql) {
+			return sql.replaceAll("\\s+", " ")
+				.toLowerCase(Locale.ROOT)
+				.trim();
+		}
+	}
 }

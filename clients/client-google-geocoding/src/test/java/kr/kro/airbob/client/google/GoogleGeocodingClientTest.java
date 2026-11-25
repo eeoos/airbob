@@ -25,8 +25,8 @@ class GoogleGeocodingClientTest {
 	@Test
 	void geocodeSendsTheEncodedAddressWithKeyAndKoreanLanguage() {
 		server.expect(requestTo(
-				"https://maps.googleapis.com/maps/api/geocode/json"
-					+ "?address=%EC%84%9C%EC%9A%B8%20%EC%A4%91%EA%B5%AC&key=test-key&language=ko"))
+			"https://maps.googleapis.com/maps/api/geocode/json"
+				+ "?address=%EC%84%9C%EC%9A%B8%20%EC%A4%91%EA%B5%AC&key=test-key&language=ko"))
 			.andExpect(method(HttpMethod.GET))
 			.andRespond(withSuccess("""
 				{"status":"OK","results":[{
@@ -48,7 +48,7 @@ class GoogleGeocodingClientTest {
 	@Test
 	void nonOkStatusIsReturnedForTheCallerToInterpret() {
 		server.expect(requestTo(
-				"https://maps.googleapis.com/maps/api/geocode/json?address=nowhere&key=test-key&language=ko"))
+			"https://maps.googleapis.com/maps/api/geocode/json?address=nowhere&key=test-key&language=ko"))
 			.andRespond(withSuccess("{\"status\":\"ZERO_RESULTS\",\"results\":[]}", MediaType.APPLICATION_JSON));
 
 		GoogleGeocodeResponse response = client.geocode("nowhere");
@@ -61,7 +61,7 @@ class GoogleGeocodingClientTest {
 	@Test
 	void serverErrorSurfacesAsRestClientException() {
 		server.expect(requestTo(
-				"https://maps.googleapis.com/maps/api/geocode/json?address=seoul&key=test-key&language=ko"))
+			"https://maps.googleapis.com/maps/api/geocode/json?address=seoul&key=test-key&language=ko"))
 			.andRespond(withServerError());
 
 		assertThatThrownBy(() -> client.geocode("seoul")).isInstanceOf(RestClientException.class);

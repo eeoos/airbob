@@ -15,16 +15,14 @@ public record OperatorAlertRequestedV1(
 	String sourceTopic,
 	Integer sourcePartition,
 	Long sourceOffset,
-	OperatorAlertSummaryCode summaryCode
-) implements IntegrationEvent {
+	OperatorAlertSummaryCode summaryCode) implements IntegrationEvent {
 	public static final String TOPIC = IntegrationEventDestination.Topic.OPERATOR_ALERT;
 
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
 		IntegrationEventDestination.OPERATOR_ALERT,
 		"OPERATOR_ALERT",
 		"OPERATOR_ALERT_REQUESTED",
-		"1"
-	);
+		"1");
 
 	public OperatorAlertRequestedV1 {
 		Objects.requireNonNull(alertUid, "alertUid must not be null");
@@ -39,8 +37,7 @@ public record OperatorAlertRequestedV1(
 		UUID subjectUid,
 		OperatorAlertSummaryCode summaryCode,
 		OperatorAlertSourcePosition source,
-		UUID occurrenceUid
-	) {
+		UUID occurrenceUid) {
 		Objects.requireNonNull(kind, "kind must not be null");
 		Objects.requireNonNull(subjectUid, "subjectUid must not be null");
 		Objects.requireNonNull(summaryCode, "summaryCode must not be null");
@@ -56,8 +53,7 @@ public record OperatorAlertRequestedV1(
 			source.topic(),
 			source.partition(),
 			source.offset(),
-			summaryCode
-		);
+			summaryCode);
 	}
 
 	@Override

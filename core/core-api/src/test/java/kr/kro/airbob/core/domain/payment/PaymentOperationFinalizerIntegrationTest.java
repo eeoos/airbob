@@ -3,10 +3,10 @@ package kr.kro.airbob.core.domain.payment;
 import static kr.kro.airbob.core.domain.payment.PaymentOperationStatus.APPLIED;
 import static kr.kro.airbob.core.domain.payment.PaymentOperationStatus.DECLINED;
 import static kr.kro.airbob.core.domain.payment.PaymentOperationStatus.EXECUTING;
-import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CONFIRMED;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CANCELLATION_FAILED;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CANCELLATION_PENDING;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CANCELLED;
+import static kr.kro.airbob.core.domain.reservation.ReservationStatus.CONFIRMED;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.core.domain.reservation.ReservationStatus.PAYMENT_PROCESSING;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -118,17 +118,28 @@ class PaymentOperationFinalizerIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PaymentOperationFinalizer finalizer;
-	@Autowired private PaymentOperationRepository operationRepository;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private PaymentRepository paymentRepository;
-	@Autowired private PaymentTransactionRepository transactionRepository;
-	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
-	@Autowired private HoldingFinalizerTransaction holdingFinalizerTransaction;
-	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@MockitoBean private PaymentOperationManualResolutionRecorder resolutionRecorder;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PaymentOperationFinalizer finalizer;
+	@Autowired
+	private PaymentOperationRepository operationRepository;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private PaymentRepository paymentRepository;
+	@Autowired
+	private PaymentTransactionRepository transactionRepository;
+	@Autowired
+	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private HoldingFinalizerTransaction holdingFinalizerTransaction;
+	@MockitoBean
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@MockitoBean
+	private PaymentOperationManualResolutionRecorder resolutionRecorder;
 
 	private long reservationId;
 	private long operationId;
@@ -224,8 +235,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			PaymentStatus.DONE,
 			NOW.plusSeconds(60),
 			new ConfirmedPayment.VirtualAccountDetails(
-				"088", "sensitive-account", "sensitive-customer", dueDate)
-		);
+				"088", "sensitive-account", "sensitive-customer", dueDate));
 
 		finalizer.applyApproved(execution(LEASE_OWNER), confirmed);
 
@@ -236,8 +246,7 @@ class PaymentOperationFinalizerIntegrationTest {
 				PaymentTransaction::getVirtualBankCode,
 				PaymentTransaction::getVirtualAccountNumber,
 				PaymentTransaction::getVirtualCustomerName,
-				PaymentTransaction::getVirtualDueDate
-			)
+				PaymentTransaction::getVirtualDueDate)
 			.containsExactly("088", "sensitive-account", "sensitive-customer", dueDate);
 	}
 
@@ -563,8 +572,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			AMOUNT,
 			"다른 사유",
 			"cancel-transaction-key",
-			NOW.plusSeconds(90)
-		);
+			NOW.plusSeconds(90));
 
 		assertThatThrownBy(() -> finalizer.applyCancelled(
 			cancellationExecution(LEASE_OWNER), mismatched))
@@ -650,8 +658,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			paymentRepository.count(),
 			transactionRepository.count(),
 			historyRepository.count(),
-			outboxRepository.count()
-		);
+			outboxRepository.count());
 	}
 
 	private boolean isMemberCouponUsed() {
@@ -684,8 +691,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			null,
 			leaseOwner,
 			1,
-			PaymentExecutionMode.CONFIRM
-		);
+			PaymentExecutionMode.CONFIRM);
 	}
 
 	private PaymentExecution manualExecution(String leaseOwner) {
@@ -700,8 +706,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			leaseOwner,
 			1,
 			PaymentExecutionMode.INQUIRE_CONFIRM,
-			true
-		);
+			true);
 	}
 
 	private void prepareManualReconciliationExecution() {
@@ -721,8 +726,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			PaymentMethod.CARD,
 			PaymentStatus.DONE,
 			NOW.plusSeconds(60),
-			null
-		);
+			null);
 	}
 
 	private PaymentExecution cancellationExecution(String leaseOwner) {
@@ -736,8 +740,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			"사용자 요청",
 			leaseOwner,
 			1,
-			PaymentExecutionMode.CANCEL
-		);
+			PaymentExecutionMode.CANCEL);
 	}
 
 	private CancelledPayment cancelledPayment() {
@@ -750,8 +753,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			AMOUNT,
 			"사용자 요청",
 			"cancel-transaction-key",
-			NOW.plusSeconds(90)
-		);
+			NOW.plusSeconds(90));
 	}
 
 	private void prepareCancellationFixture() {
@@ -900,8 +902,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			PaymentExecution execution,
 			ConfirmedPayment confirmed,
 			CountDownLatch applied,
-			CountDownLatch release
-		) {
+			CountDownLatch release) {
 			finalizer.applyApproved(execution, confirmed);
 			applied.countDown();
 			try {
@@ -919,8 +920,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			PaymentExecution execution,
 			CancelledPayment cancelled,
 			CountDownLatch applied,
-			CountDownLatch release
-		) {
+			CountDownLatch release) {
 			finalizer.applyCancelled(execution, cancelled);
 			applied.countDown();
 			try {

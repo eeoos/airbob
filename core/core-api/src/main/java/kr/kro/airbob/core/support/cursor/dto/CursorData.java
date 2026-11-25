@@ -4,8 +4,7 @@ import java.time.LocalDateTime;
 
 public record CursorData(
 	Long id,
-	LocalDateTime lastCreatedAt
-) implements CursorPayload {
+	LocalDateTime lastCreatedAt) implements CursorPayload {
 
 	@Override
 	public void validate() {

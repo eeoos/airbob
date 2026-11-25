@@ -26,27 +26,23 @@ class SchedulingConfigTest {
 	private final ApplicationContextRunner profileContextRunner = new ApplicationContextRunner()
 		.withInitializer(new ConfigDataApplicationContextInitializer())
 		.withUserConfiguration(SchedulingConfig.class);
-	private final ApplicationContextRunner integratedSmokeContextRunner =
-		new ApplicationContextRunner()
-			.withInitializer(new ConfigDataApplicationContextInitializer())
-			.withPropertyValues(
-				"spring.profiles.active=aws,test",
-				"spring.kafka.listener.auto-startup=true",
-				"operator-alert.kafka.auto-startup=true",
-				"accommodation.indexing.kafka.auto-startup=true",
-				"accommodation.detail-cache.invalidation.kafka.auto-startup=true"
-			)
-			.withUserConfiguration(
-				SchedulingConfig.class,
-				MessagingKafkaConfiguration.class,
-				AccommodationSearchKafkaConsumerConfiguration.class
-			)
-			.withBean(KafkaProperties.class, KafkaProperties::new)
-			.withBean(
-				ConcurrentKafkaListenerContainerFactoryConfigurer.class,
-				() -> mock(ConcurrentKafkaListenerContainerFactoryConfigurer.class)
-			)
-			.withBean(IntegrationEventCodec.class, () -> mock(IntegrationEventCodec.class));
+	private final ApplicationContextRunner integratedSmokeContextRunner = new ApplicationContextRunner()
+		.withInitializer(new ConfigDataApplicationContextInitializer())
+		.withPropertyValues(
+			"spring.profiles.active=aws,test",
+			"spring.kafka.listener.auto-startup=true",
+			"operator-alert.kafka.auto-startup=true",
+			"accommodation.indexing.kafka.auto-startup=true",
+			"accommodation.detail-cache.invalidation.kafka.auto-startup=true")
+		.withUserConfiguration(
+			SchedulingConfig.class,
+			MessagingKafkaConfiguration.class,
+			AccommodationSearchKafkaConsumerConfiguration.class)
+		.withBean(KafkaProperties.class, KafkaProperties::new)
+		.withBean(
+			ConcurrentKafkaListenerContainerFactoryConfigurer.class,
+			() -> mock(ConcurrentKafkaListenerContainerFactoryConfigurer.class))
+		.withBean(IntegrationEventCodec.class, () -> mock(IntegrationEventCodec.class));
 
 	@Test
 	@DisplayName("일반 프로필에서는 스케줄러를 활성화한다")
@@ -55,7 +51,8 @@ class SchedulingConfigTest {
 			.withUserConfiguration(SchedulingConfig.class)
 			.run(context -> {
 				assertThat(context).hasSingleBean(SchedulingConfig.class);
-				assertThat(context).hasBean("org.springframework.context.annotation.internalScheduledAnnotationProcessor");
+				assertThat(context)
+					.hasBean("org.springframework.context.annotation.internalScheduledAnnotationProcessor");
 			});
 	}
 
@@ -108,16 +105,13 @@ class SchedulingConfigTest {
 				assertThat(context).hasBean(SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER);
 				ThreadPoolTaskScheduler defaultScheduler = context.getBean(
 					SchedulingConfig.DEFAULT_TASK_SCHEDULER,
-					ThreadPoolTaskScheduler.class
-				);
+					ThreadPoolTaskScheduler.class);
 				ThreadPoolTaskScheduler scheduler = context.getBean(
 					SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER,
-					ThreadPoolTaskScheduler.class
-				);
+					ThreadPoolTaskScheduler.class);
 				ThreadPoolTaskScheduler quoteScheduler = context.getBean(
 					SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER,
-					ThreadPoolTaskScheduler.class
-				);
+					ThreadPoolTaskScheduler.class);
 				assertThat(defaultScheduler.getScheduledThreadPoolExecutor().getCorePoolSize())
 					.isEqualTo(4);
 				assertThat(scheduler.getScheduledThreadPoolExecutor().getCorePoolSize()).isOne();

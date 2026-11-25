@@ -49,11 +49,13 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationReader.findWithAddressAndReviewSummaryByIdInAndStatus(
-			new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
+		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationReader
+			.findWithAddressAndReviewSummaryByIdInAndStatus(
+				new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
 
 		Map<Long, RecentlyViewedAccommodationProjection> accommodationMap = accommodationsInDb.stream()
-			.collect(Collectors.toMap(RecentlyViewedAccommodationProjection::accommodationId, projection -> projection));
+			.collect(
+				Collectors.toMap(RecentlyViewedAccommodationProjection::accommodationId, projection -> projection));
 
 		Set<Long> existingIdsInDb = accommodationMap.keySet();
 		List<Long> idsToDeleteFromRedis = accommodationIdsFromRedis.stream()
@@ -92,7 +94,6 @@ public class RecentlyViewedService {
 		return accommodationIds.stream()
 			.collect(Collectors.toMap(
 				id -> id,
-				wishlistAccommodationIds::contains
-			));
+				wishlistAccommodationIds::contains));
 	}
 }

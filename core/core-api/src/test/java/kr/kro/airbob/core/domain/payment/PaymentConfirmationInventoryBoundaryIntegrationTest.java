@@ -1,9 +1,9 @@
 package kr.kro.airbob.core.domain.payment;
 
+import static kr.kro.airbob.core.domain.reservation.ReservationCheckoutTestDriver.createPendingReservation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static kr.kro.airbob.core.domain.reservation.ReservationCheckoutTestDriver.createPendingReservation;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -48,8 +48,8 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
-import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
+import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
@@ -80,17 +80,13 @@ import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMess
 class PaymentConfirmationInventoryBoundaryIntegrationTest {
 
 	private static final String TIME_ZONE_ID = "UTC";
-	private static final Instant CONFIRMATION_ACCEPTED_AT =
-		Instant.parse("2026-08-17T00:00:00Z");
-	private static final Instant RESERVATION_EXPIRES_AT =
-		CONFIRMATION_ACCEPTED_AT.plusSeconds(60);
-	private static final Instant NEW_RESERVATION_REQUESTED_AT =
-		RESERVATION_EXPIRES_AT.plusSeconds(60);
+	private static final Instant CONFIRMATION_ACCEPTED_AT = Instant.parse("2026-08-17T00:00:00Z");
+	private static final Instant RESERVATION_EXPIRES_AT = CONFIRMATION_ACCEPTED_AT.plusSeconds(60);
+	private static final Instant NEW_RESERVATION_REQUESTED_AT = RESERVATION_EXPIRES_AT.plusSeconds(60);
 	private static final LocalDate STAY_START = LocalDate.of(2026, 8, 27);
 	private static final LocalDate STAY_END = STAY_START.plusDays(2);
 	private static final long PAYMENT_AMOUNT = 200_000L;
-	private static final UUID PAYMENT_ATTEMPT_ID =
-		UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
+	private static final UUID PAYMENT_ATTEMPT_ID = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 	private static final long BLOCK_ASSERTION_MILLIS = 500L;
 
 	@Container
@@ -99,9 +95,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		.withCommand("--log-bin-trust-function-creators=1");
 
 	@Container
-	private static final GenericContainer<?> REDIS =
-		new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
-			.withExposedPorts(6379);
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -115,24 +110,41 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private AdjustableClock clock;
-	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PaymentOperationCommandService commandService;
-	@Autowired private ReservationCheckoutService reservationTransactionService;
-	@Autowired private PaymentOperationRepository paymentOperationRepository;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private AdjustableClock clock;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PaymentOperationCommandService commandService;
+	@Autowired
+	private ReservationCheckoutService reservationTransactionService;
+	@Autowired
+	private PaymentOperationRepository paymentOperationRepository;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private OccupancyPolicyRepository occupancyPolicyRepository;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private io.awspring.cloud.s3.S3Template s3Template;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
 
 	private TransactionTemplate transactionTemplate;
 	private ExecutorService executor;
@@ -175,8 +187,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		awaitPrepared(createPrepared, create);
 
 		clock.set(CONFIRMATION_ACCEPTED_AT);
-		Future<Accepted> confirmation = executor.submit(() ->
-			transactionTemplate.execute(status -> PaymentOperationResponse.Accepted.from(commandService.requestConfirmation(
+		Future<Accepted> confirmation = executor.submit(() -> transactionTemplate
+			.execute(status -> PaymentOperationResponse.Accepted.from(commandService.requestConfirmation(
 				confirmationRequest().toConfirmation(), confirmingGuest.getId()))));
 
 		try {
@@ -238,8 +250,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		}));
 		awaitPrepared(confirmationPrepared, confirmation);
 
-		Future<?> inventoryLockProbe = executor.submit(() ->
-			transactionTemplate.executeWithoutResult(status -> jdbc.queryForList("""
+		Future<?> inventoryLockProbe = executor
+			.submit(() -> transactionTemplate.executeWithoutResult(status -> jdbc.queryForList("""
 				SELECT stay_date
 				FROM accommodation_inventory_day
 				WHERE accommodation_id = ?
@@ -315,8 +327,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		createPendingReservation(reservationTransactionService,
 			new ReservationCreateCommand(accommodation.getId(), STAY_START, STAY_END, 2),
 			competingGuest.getId(),
-			"inventory boundary concurrency test"
-		);
+			"inventory boundary concurrency test");
 	}
 
 	private PaymentRequest.Confirm confirmationRequest() {
@@ -324,8 +335,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 			"boundary-payment-key",
 			pendingReservation.getReservationUid().toString(),
 			Math.toIntExact(PAYMENT_AMOUNT),
-			PAYMENT_ATTEMPT_ID
-		);
+			PAYMENT_ATTEMPT_ID);
 	}
 
 	private void clearRows() {
@@ -355,8 +365,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 
 	private void assertFutureFailedWith(
 		Future<?> future,
-		Class<? extends Throwable> expectedCause
-	) {
+		Class<? extends Throwable> expectedCause) {
 		assertThatThrownBy(() -> future.get(10, TimeUnit.SECONDS))
 			.isInstanceOf(ExecutionException.class)
 			.hasCauseInstanceOf(expectedCause);

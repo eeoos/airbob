@@ -8,10 +8,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 
 @Component
 public class ReviewCursorParamArgumentResolver
-	extends AbstractCursorParamArgumentResolver<
-		ReviewCursorData,
-		CursorRequest.ReviewCursorPageRequest
-	> {
+	extends AbstractCursorParamArgumentResolver<ReviewCursorData, CursorRequest.ReviewCursorPageRequest> {
 
 	public ReviewCursorParamArgumentResolver(CursorDecoder cursorDecoder) {
 		super(cursorDecoder);
@@ -30,21 +27,18 @@ public class ReviewCursorParamArgumentResolver
 	@Override
 	protected CursorRequest.ReviewCursorPageRequest createRequest(
 		int size,
-		ReviewCursorData cursorData
-	) {
+		ReviewCursorData cursorData) {
 		return CursorRequest.ReviewCursorPageRequest.builder()
 			.size(size)
 			.lastId(cursorData != null ? cursorData.id() : null)
 			.lastCreatedAt(
 				cursorData != null
 					? cursorData.lastCreatedAt()
-					: null
-			)
+					: null)
 			.lastRating(
 				cursorData != null
 					? cursorData.lastRating()
-					: null
-			)
+					: null)
 			.build();
 	}
 }

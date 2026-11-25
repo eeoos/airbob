@@ -10,8 +10,7 @@ public record PaymentProviderCommand(
 	String orderId,
 	long amount,
 	String providerIdempotencyKey,
-	String cancellationReason
-) {
+	String cancellationReason) {
 	public PaymentProviderCommand {
 		if (cancellationReason != null
 			&& (cancellationReason.isBlank()

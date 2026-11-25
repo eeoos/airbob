@@ -15,8 +15,7 @@ public record PaymentExecution(
 	String leaseOwner,
 	long dispatchGeneration,
 	PaymentExecutionMode mode,
-	boolean manualReconciliation
-) {
+	boolean manualReconciliation) {
 	public PaymentExecution(
 		UUID operationUid,
 		UUID reservationUid,
@@ -27,16 +26,14 @@ public record PaymentExecution(
 		String cancellationReason,
 		String leaseOwner,
 		long dispatchGeneration,
-		PaymentExecutionMode mode
-	) {
+		PaymentExecutionMode mode) {
 		this(
 			operationUid, reservationUid, paymentKey, orderId, amount,
 			providerIdempotencyKey, cancellationReason, leaseOwner, dispatchGeneration, mode, false);
 	}
 
 	public static PaymentExecution from(
-		PaymentOperation operation, String leaseOwner, PaymentExecutionMode mode
-	) {
+		PaymentOperation operation, String leaseOwner, PaymentExecutionMode mode) {
 		UUID reservationUid = operation.getReservation().getReservationUid();
 		return new PaymentExecution(
 			operation.getOperationUid(), reservationUid, operation.getPaymentKey(),
@@ -52,7 +49,6 @@ public record PaymentExecution(
 			orderId,
 			amount,
 			providerIdempotencyKey,
-			cancellationReason
-		);
+			cancellationReason);
 	}
 }

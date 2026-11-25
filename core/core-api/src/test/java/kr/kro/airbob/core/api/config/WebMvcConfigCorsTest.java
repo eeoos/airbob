@@ -6,9 +6,6 @@ import static org.mockito.Mockito.*;
 import java.io.IOException;
 import java.util.List;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -16,6 +13,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.filter.CorsFilter;
 
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
@@ -50,8 +49,7 @@ class WebMvcConfigCorsTest {
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
-			mock(QueryCountInterceptor.class)
-		);
+			mock(QueryCountInterceptor.class));
 	}
 
 	private MockHttpServletRequest request(String method, String path) {

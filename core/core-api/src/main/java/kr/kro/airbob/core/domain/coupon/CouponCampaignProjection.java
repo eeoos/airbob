@@ -17,8 +17,7 @@ public record CouponCampaignProjection(
 	LocalDateTime usableFrom,
 	LocalDateTime usableUntil,
 	Integer totalQuantity,
-	boolean hasRemainingStock
-) {
+	boolean hasRemainingStock) {
 	@QueryProjection
 	public CouponCampaignProjection {
 	}

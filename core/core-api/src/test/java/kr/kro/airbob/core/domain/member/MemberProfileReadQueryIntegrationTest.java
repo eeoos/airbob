@@ -72,12 +72,18 @@ class MemberProfileReadQueryIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private ObjectMapper objectMapper;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private ObjectMapper objectMapper;
 	private MemberHistoryRepository historyRepository;
 	private SessionInvalidator sessionInvalidator;
 	private MemberService service;
@@ -92,7 +98,8 @@ class MemberProfileReadQueryIntegrationTest {
 			""");
 		historyRepository = mock(MemberHistoryRepository.class);
 		sessionInvalidator = mock(SessionInvalidator.class);
-		service = new MemberService(new MemberReader(memberRepository), new MemberWriter(memberRepository, historyRepository, Clock.systemUTC()), sessionInvalidator);
+		service = new MemberService(new MemberReader(memberRepository),
+			new MemberWriter(memberRepository, historyRepository, Clock.systemUTC()), sessionInvalidator);
 	}
 
 	@ParameterizedTest
