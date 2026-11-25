@@ -158,7 +158,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail
-			.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
+			.from(accommodationQueryService.getHostAccommodationDetail(accommodation.getId(), host.getId()));
 
 		assertThat(response.name()).isEqualTo("host-editor-accommodation");
 		assertThat(response.policy().maxOccupancy()).isEqualTo(4);
@@ -182,7 +182,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail
-			.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
+			.from(accommodationQueryService.getHostAccommodationDetail(accommodation.getId(), host.getId()));
 
 		assertThat(response.id()).isEqualTo(accommodation.getId());
 		assertThat(response.address().city()).isNull();
@@ -203,7 +203,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		assertThatThrownBy(
-			() -> AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(
+			() -> AccommodationResponse.HostDetail.from(accommodationQueryService.getHostAccommodationDetail(
 				missing ? Long.MAX_VALUE : accommodation.getId(), other.getId())))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isOne();
@@ -218,7 +218,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
-			.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
+			.from(accommodationQueryService.getAccommodation(accommodation.getId(), null));
 
 		assertThat(response.reviewSummary().totalCount()).isEqualTo(4);
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
@@ -239,7 +239,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
-			.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
+			.from(accommodationQueryService.getAccommodation(accommodation.getId(), null));
 
 		assertThat(response.reviewSummary().totalCount()).isZero();
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -255,7 +255,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
-			.from(accommodationQueryService.findAccommodation(accommodation.getId(), host.getId()));
+			.from(accommodationQueryService.getAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(response.isInWishlist()).isFalse();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
@@ -274,7 +274,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.Availability response = AccommodationResponse.Availability
-			.from(accommodationQueryService.findAccommodationAvailability(accommodation.getId()));
+			.from(accommodationQueryService.getAccommodationAvailability(accommodation.getId()));
 
 		assertThat(response.bookingWindowStartInclusive()).isEqualTo(windowStart);
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(windowEndExclusive);

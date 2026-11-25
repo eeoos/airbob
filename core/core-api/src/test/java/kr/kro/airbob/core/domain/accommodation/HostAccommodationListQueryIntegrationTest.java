@@ -195,7 +195,7 @@ class HostAccommodationListQueryIntegrationTest {
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
 		sqlCapture.statements.clear();
-		HostAccommodationInfos result = HostAccommodationInfos.from(service.findMyAccommodations(hostId,
+		HostAccommodationInfos result = HostAccommodationInfos.from(service.getMyAccommodations(hostId,
 			CursorPageRequest.builder().size(size)
 				.lastId(cursor == null ? null : cursor.id())
 				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(),

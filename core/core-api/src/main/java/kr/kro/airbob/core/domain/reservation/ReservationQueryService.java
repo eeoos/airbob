@@ -27,7 +27,7 @@ public class ReservationQueryService {
 	private final Clock clock;
 
 	@Transactional(readOnly = true)
-	public GuestReservationPage findMyReservations(Long memberId,
+	public GuestReservationPage getMyReservations(Long memberId,
 		CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
 		Instant now = clock.instant();
 
@@ -48,7 +48,7 @@ public class ReservationQueryService {
 	}
 
 	@Transactional(readOnly = true)
-	public GuestReservationDetail findMyReservationDetail(String reservationUidStr, Long memberId) {
+	public GuestReservationDetail getMyReservationDetail(String reservationUidStr, Long memberId) {
 		UUID reservationUid = parseReservationUid(reservationUidStr);
 
 		GuestReservationDetailProjection reservation = reservationReader.readGuestDetail(reservationUid, memberId);
@@ -60,7 +60,7 @@ public class ReservationQueryService {
 	}
 
 	@Transactional(readOnly = true)
-	public HostReservationPage findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest,
+	public HostReservationPage getHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest,
 		ReservationFilterType filterType) {
 		Slice<HostReservationListProjection> reservationSlice = reservationReader.readHostPage(
 			hostId, cursorRequest, filterType, clock.instant());
@@ -77,7 +77,7 @@ public class ReservationQueryService {
 	}
 
 	@Transactional(readOnly = true)
-	public HostReservationDetailProjection findHostReservationDetail(String reservationUidStr, Long hostId) {
+	public HostReservationDetailProjection getHostReservationDetail(String reservationUidStr, Long hostId) {
 		UUID reservationUid = parseReservationUid(reservationUidStr);
 		return reservationReader.readHostDetail(reservationUid, hostId);
 	}

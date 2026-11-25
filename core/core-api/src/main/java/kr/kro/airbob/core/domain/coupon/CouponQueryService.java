@@ -22,7 +22,7 @@ public class CouponQueryService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	@Transactional(readOnly = true)
-	public CouponCampaignPage findCouponCampaigns(CursorRequest.CouponCampaignCursorPageRequest request) {
+	public CouponCampaignPage getCouponCampaigns(CursorRequest.CouponCampaignCursorPageRequest request) {
 		LocalDateTime now = couponReader.readDatabaseNow();
 		Slice<CouponCampaignProjection> slice = couponReader.readCampaigns(now, request);
 		List<CouponCampaignPage.Item> campaigns = slice.getContent().stream()
@@ -35,7 +35,7 @@ public class CouponQueryService {
 	}
 
 	@Transactional(readOnly = true)
-	public MemberCouponPage findMyCoupons(Long memberId, CursorRequest.CursorPageRequest request) {
+	public MemberCouponPage getMyCoupons(Long memberId, CursorRequest.CursorPageRequest request) {
 		LocalDateTime now = timeProvider.now();
 		Slice<MemberCouponProjection> slice = couponReader.readMemberCoupons(memberId, request);
 		List<MemberCouponPage.Item> coupons = slice.getContent().stream()

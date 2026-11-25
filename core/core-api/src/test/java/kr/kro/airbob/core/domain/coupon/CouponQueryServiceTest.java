@@ -71,7 +71,7 @@ class CouponQueryServiceTest {
 		when(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
 			.thenReturn(new SliceImpl<>(List.of(upcoming, open), PageRequest.of(0, 20), false));
 
-		CouponResponse.CouponInfos response = CouponResponse.CouponInfos.from(service.findCouponCampaigns(
+		CouponResponse.CouponInfos response = CouponResponse.CouponInfos.from(service.getCouponCampaigns(
 			new CursorRequest.CouponCampaignCursorPageRequest(20, null, null)));
 
 		assertThat(response.infos())
@@ -95,7 +95,7 @@ class CouponQueryServiceTest {
 		when(memberCouponRepository.findByMemberIdWithCursor(10L, null, null, PageRequest.of(0, 20)))
 			.thenReturn(new SliceImpl<>(List.of(used, available), PageRequest.of(0, 20), false));
 
-		CouponResponse.MemberCouponInfos response = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(
+		CouponResponse.MemberCouponInfos response = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(
 			10L, new CursorRequest.CursorPageRequest(20, null, null)));
 
 		assertThat(response.infos())
@@ -120,7 +120,7 @@ class CouponQueryServiceTest {
 			.thenReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
 
 		var result = CouponResponse.CouponInfos
-			.from(service.findCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(2, 19L, boundary)));
+			.from(service.getCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(2, 19L, boundary)));
 
 		assertThat(result.pageInfo().hasNext()).isTrue();
 		assertThat(result.pageInfo().currentSize()).isEqualTo(2);
@@ -139,7 +139,7 @@ class CouponQueryServiceTest {
 			.thenReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
 
 		var result = CouponResponse.MemberCouponInfos
-			.from(service.findMyCoupons(10L, new CursorRequest.CursorPageRequest(2, 500L, NOW.plusHours(1))));
+			.from(service.getMyCoupons(10L, new CursorRequest.CursorPageRequest(2, 500L, NOW.plusHours(1))));
 
 		assertThat(result.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(2L, 1L);
 		assertThat(result.pageInfo().hasNext()).isTrue();
@@ -160,9 +160,9 @@ class CouponQueryServiceTest {
 			.thenReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
 
 		var campaigns = CouponResponse.CouponInfos
-			.from(service.findCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(20, null, null)));
+			.from(service.getCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(20, null, null)));
 		var owned = CouponResponse.MemberCouponInfos
-			.from(service.findMyCoupons(10L, new CursorRequest.CursorPageRequest(20, null, null)));
+			.from(service.getMyCoupons(10L, new CursorRequest.CursorPageRequest(20, null, null)));
 
 		assertThat(campaigns.infos()).isEmpty();
 		assertThat(owned.infos()).isEmpty();

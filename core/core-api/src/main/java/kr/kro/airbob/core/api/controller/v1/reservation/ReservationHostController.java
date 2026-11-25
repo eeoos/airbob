@@ -23,7 +23,7 @@ public class ReservationHostController implements ReservationHostApi {
 		Long hostId) {
 
 		ReservationResponse.HostReservationInfos response = ReservationResponse.HostReservationInfos.from(
-			queryService.findHostReservations(hostId, cursorRequest, filterType));
+			queryService.getHostReservations(hostId, cursorRequest, filterType));
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -34,7 +34,7 @@ public class ReservationHostController implements ReservationHostApi {
 		Long hostId) {
 
 		ReservationResponse.HostDetail response = ReservationResponse.HostDetail.from(
-			queryService.findHostReservationDetail(reservationUid, hostId));
+			queryService.getHostReservationDetail(reservationUid, hostId));
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

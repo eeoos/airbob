@@ -305,7 +305,7 @@ class HostReservationListReadQueryIntegrationTest {
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
 		sqlCapture.statements.clear();
-		HostReservationInfos result = HostReservationInfos.from(service.findHostReservations(hostId,
+		HostReservationInfos result = HostReservationInfos.from(service.getHostReservations(hostId,
 			new CursorPageRequest(size, cursor == null ? null : cursor.id(),
 				cursor == null ? null : cursor.lastCreatedAt()),
 			filter));

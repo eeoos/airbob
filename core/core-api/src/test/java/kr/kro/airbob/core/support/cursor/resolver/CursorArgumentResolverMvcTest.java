@@ -217,7 +217,7 @@ class CursorArgumentResolverMvcTest {
 		}
 
 		@GetMapping("/review-cursor")
-		ApiResponse<CursorRequest.ReviewCursorPageRequest> findReviews(
+		ApiResponse<CursorRequest.ReviewCursorPageRequest> getReviews(
 			@CursorParam
 			CursorRequest.ReviewCursorPageRequest request) {
 			return ApiResponse.success(request);

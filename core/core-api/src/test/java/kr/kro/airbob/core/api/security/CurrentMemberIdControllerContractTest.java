@@ -64,11 +64,11 @@ class CurrentMemberIdControllerContractTest {
 			required(AccommodationHostController.class, "getHostAccommodationDetail"),
 			required(AuthController.class, "getMyInfo"),
 			required(CouponController.class, "issueCoupon"),
-			required(CouponController.class, "findMyCoupons"),
+			required(CouponController.class, "getMyCoupons"),
 			required(PaymentController.class, "confirmPayment"),
 			required(PaymentController.class, "getPaymentByPaymentKey"),
 			required(PaymentController.class, "getPaymentByOrderId"),
-			required(PaymentOperationController.class, "find"),
+			required(PaymentOperationController.class, "get"),
 			required(RecentlyViewedController.class, "addRecentlyViewed"),
 			required(RecentlyViewedController.class, "removeRecentlyViewed"),
 			required(RecentlyViewedController.class, "getRecentlyViewed"),
@@ -92,11 +92,11 @@ class CurrentMemberIdControllerContractTest {
 			required(WishlistController.class, "createWishlist"),
 			required(WishlistController.class, "updateWishlist"),
 			required(WishlistController.class, "deleteWishlist"),
-			required(WishlistController.class, "findWishlists"),
+			required(WishlistController.class, "getWishlists"),
 			required(WishlistAccommodationController.class, "createWishlistAccommodation"),
 			required(WishlistAccommodationController.class, "updateWishlistAccommodation"),
 			required(WishlistAccommodationController.class, "deleteWishlistAccommodation"),
-			required(WishlistAccommodationController.class, "findWishlistAccommodations"),
+			required(WishlistAccommodationController.class, "getWishlistAccommodations"),
 			optional(AccommodationSearchController.class, "searchAccommodations"));
 	}
 

@@ -34,7 +34,7 @@ public interface CouponApi {
 		""")
 	@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공", useReturnTypeSchema = true)
 	@GetMapping("/v1/coupons")
-	ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findCouponCampaigns(
+	ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> getCouponCampaigns(
 		@CursorParam
 		CursorRequest.CouponCampaignCursorPageRequest request);
 
@@ -48,7 +48,7 @@ public interface CouponApi {
 		""")
 	@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공", useReturnTypeSchema = true)
 	@GetMapping("/v1/members/me/coupons")
-	ResponseEntity<ApiResponse<CouponResponse.MemberCouponInfos>> findMyCoupons(
+	ResponseEntity<ApiResponse<CouponResponse.MemberCouponInfos>> getMyCoupons(
 		@CurrentMemberId
 		Long memberId,
 		@CursorParam

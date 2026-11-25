@@ -185,7 +185,7 @@ class ReservationCheckoutServiceTest {
 			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(false);
 
-		var response = queryService.findMyReservationDetail(reservationUid.toString(), memberId);
+		var response = queryService.getMyReservationDetail(reservationUid.toString(), memberId);
 
 		assertThat(response.canWriteReview()).isTrue();
 	}
@@ -199,7 +199,7 @@ class ReservationCheckoutServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		var response = queryService.findMyReservationDetail(reservationUid.toString(), memberId);
+		var response = queryService.getMyReservationDetail(reservationUid.toString(), memberId);
 
 		assertThat(response.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
@@ -217,7 +217,7 @@ class ReservationCheckoutServiceTest {
 			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(false);
 
-		var response = queryService.findMyReservationDetail(reservationUid.toString(), memberId);
+		var response = queryService.getMyReservationDetail(reservationUid.toString(), memberId);
 
 		assertThat(response.canWriteReview()).isTrue();
 	}
@@ -234,7 +234,7 @@ class ReservationCheckoutServiceTest {
 			accommodation.getId(), memberId, kr.kro.airbob.core.domain.review.ReviewStatus.PUBLISHED))
 			.willReturn(true);
 
-		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.getMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 	}
 
@@ -249,7 +249,7 @@ class ReservationCheckoutServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.getMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
 	}
@@ -263,7 +263,7 @@ class ReservationCheckoutServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.getMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
 	}
@@ -278,7 +278,7 @@ class ReservationCheckoutServiceTest {
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
 			.willReturn(Optional.of(guestDetail(reservation)));
 
-		assertThat(queryService.findMyReservationDetail(reservationUid.toString(), memberId)
+		assertThat(queryService.getMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
 		then(reviewRepository).shouldHaveNoInteractions();
 	}

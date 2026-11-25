@@ -19,12 +19,12 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 	private final WishlistService wishlistService;
 
 	@Override
-	public ResponseEntity<ApiResponse<WishlistResponse.Membership>> findMembership(
+	public ResponseEntity<ApiResponse<WishlistResponse.Membership>> getMembership(
 		Long accommodationId,
 		Long wishlistId,
 		Long memberId) {
 		return ResponseEntity.ok(ApiResponse.success(WishlistResponse.Membership.from(
-			wishlistService.findMembership(memberId, accommodationId, wishlistId))));
+			wishlistService.getMembership(memberId, accommodationId, wishlistId))));
 	}
 
 	@Override
@@ -58,11 +58,11 @@ public class WishlistAccommodationController implements WishlistAccommodationApi
 	}
 
 	@Override
-	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> findWishlistAccommodations(
+	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> getWishlistAccommodations(
 		CursorRequest.CursorPageRequest request,
 		Long wishlistId,
 		Long memberId) {
-		WishlistAccommodationPage page = wishlistService.findWishlistAccommodations(wishlistId, request, memberId);
+		WishlistAccommodationPage page = wishlistService.getWishlistAccommodations(wishlistId, request, memberId);
 
 		return ResponseEntity
 			.ok(ApiResponse.success(WishlistAccommodationResponse.WishlistAccommodationInfos.from(page)));

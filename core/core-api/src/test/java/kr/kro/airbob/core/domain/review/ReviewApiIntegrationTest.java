@@ -207,7 +207,7 @@ class ReviewApiIntegrationTest {
 		List<Long> all = new ArrayList<>();
 		var request = CursorRequest.ReviewCursorPageRequest.builder().size(2).build();
 		for (int page = 0; page < 2; page++) {
-			var result = ReviewResponse.ReviewInfos.from(service.findReviews(101L, request, sort));
+			var result = ReviewResponse.ReviewInfos.from(service.getReviews(101L, request, sort));
 			assertThat(result.pageInfo().currentSize()).isEqualTo(2);
 			all.addAll(result.reviews().stream().map(ReviewResponse.ReviewInfo::id).toList());
 			for (var review : result.reviews()) {
@@ -240,8 +240,8 @@ class ReviewApiIntegrationTest {
 		insertReview(201, 10, 3, "PUBLISHED", CREATED_AT);
 		jdbc.update("UPDATE accommodation SET status = 'DRAFT' WHERE id = 101");
 		var firstPage = CursorRequest.ReviewCursorPageRequest.builder().size(20).build();
-		assertThat(service.findReviews(101L, firstPage, ReviewSortType.LATEST).reviews()).hasSize(1);
-		var missing = service.findReviews(999L, firstPage, ReviewSortType.LATEST);
+		assertThat(service.getReviews(101L, firstPage, ReviewSortType.LATEST).reviews()).hasSize(1);
+		var missing = service.getReviews(999L, firstPage, ReviewSortType.LATEST);
 		assertThat(missing.reviews()).isEmpty();
 		assertThat(missing.pageInfo().hasNext()).isFalse();
 		assertThat(missing.pageInfo().nextCursor()).isNull();

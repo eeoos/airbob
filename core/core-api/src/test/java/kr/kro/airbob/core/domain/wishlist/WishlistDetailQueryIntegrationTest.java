@@ -215,7 +215,7 @@ class WishlistDetailQueryIntegrationTest {
 		boolean inAny = false;
 		boolean inTarget = false;
 		do {
-			var page = WishlistResponse.WishlistInfos.from(service.findWishlists(CursorPageRequest.builder().size(20)
+			var page = WishlistResponse.WishlistInfos.from(service.getWishlists(CursorPageRequest.builder().size(20)
 				.lastId(cursor == null ? null : cursor.id())
 				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), OWNER_ID, 31L), true);
 			pages++;
@@ -284,7 +284,7 @@ class WishlistDetailQueryIntegrationTest {
 
 	private WishlistResponse.Membership membership(long memberId, Long accommodationId, Long wishlistId) {
 		Statistics statistics = prepareMeasurement();
-		var result = WishlistResponse.Membership.from(service.findMembership(memberId, accommodationId, wishlistId));
+		var result = WishlistResponse.Membership.from(service.getMembership(memberId, accommodationId, wishlistId));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		return result;
@@ -408,7 +408,7 @@ class WishlistDetailQueryIntegrationTest {
 			insertItem(501, WISHLIST_ID, 31);
 		}
 		Statistics statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findWishlistAccommodations(
+		assertThatThrownBy(() -> service.getWishlistAccommodations(
 			WISHLIST_ID, CursorPageRequest.builder().size(20).build(), OTHER_MEMBER_ID))
 			.isInstanceOf(WishlistAccessDeniedException.class);
 		assertHeaderOnlyRead(statistics);
@@ -424,13 +424,13 @@ class WishlistDetailQueryIntegrationTest {
 		assertHeaderOnlyRead(statistics);
 
 		statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findWishlistAccommodations(
+		assertThatThrownBy(() -> service.getWishlistAccommodations(
 			999L, CursorPageRequest.builder().size(20).build(), OWNER_ID))
 			.isInstanceOf(WishlistNotFoundException.class);
 		assertHeaderOnlyRead(statistics);
 
 		statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findWishlistAccommodations(
+		assertThatThrownBy(() -> service.getWishlistAccommodations(
 			WISHLIST_ID, CursorPageRequest.builder().size(20).build(), OTHER_MEMBER_ID))
 			.isInstanceOf(WishlistNotFoundException.class);
 		assertHeaderOnlyRead(statistics);
@@ -443,7 +443,7 @@ class WishlistDetailQueryIntegrationTest {
 	private WishlistAccommodationInfos findPage(CursorPageRequest request) {
 		Statistics statistics = prepareMeasurement();
 		var result = WishlistAccommodationInfos
-			.from(service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID));
+			.from(service.getWishlistAccommodations(WISHLIST_ID, request, OWNER_ID));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(selectedColumnCounts()).containsExactly(2, 12);

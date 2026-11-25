@@ -44,7 +44,7 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistSummaryPage findWishlists(CursorRequest.CursorPageRequest page, Long memberId,
+	public WishlistSummaryPage getWishlists(CursorRequest.CursorPageRequest page, Long memberId,
 		Long accommodationId) {
 		Slice<WishlistSummary> slice = wishlistReader.readSummaries(memberId, accommodationId, page);
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
@@ -75,12 +75,12 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistMembership findMembership(Long memberId, Long accommodationId, Long wishlistId) {
+	public WishlistMembership getMembership(Long memberId, Long accommodationId, Long wishlistId) {
 		return wishlistReader.readMembership(memberId, accommodationId, wishlistId);
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistAccommodationPage findWishlistAccommodations(Long wishlistId,
+	public WishlistAccommodationPage getWishlistAccommodations(Long wishlistId,
 		CursorRequest.CursorPageRequest page, Long memberId) {
 		String wishlistName = wishlistReader.readOwnedName(wishlistId, memberId);
 		Slice<WishlistAccommodationItem> slice = wishlistReader.readPublishedAccommodations(wishlistId, page);

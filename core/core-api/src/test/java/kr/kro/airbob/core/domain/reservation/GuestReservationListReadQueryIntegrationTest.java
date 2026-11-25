@@ -260,7 +260,7 @@ class GuestReservationListReadQueryIntegrationTest {
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
 		sqlCapture.statements.clear();
-		GuestReservationInfos result = GuestReservationInfos.from(service.findMyReservations(guestId,
+		GuestReservationInfos result = GuestReservationInfos.from(service.getMyReservations(guestId,
 			new CursorPageRequest(size, cursor == null ? null : cursor.id(),
 				cursor == null ? null : cursor.lastCreatedAt()),
 			filter));

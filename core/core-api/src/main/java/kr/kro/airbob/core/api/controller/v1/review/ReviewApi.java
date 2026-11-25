@@ -139,7 +139,7 @@ public interface ReviewApi {
 	@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "리뷰 목록. 결과가 없으면 reviews는 빈 배열입니다.", useReturnTypeSchema = true)
 	@ApiErrors({ErrorCode.INVALID_TYPE_VALUE})
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews")
-	ResponseEntity<ApiResponse<ReviewResponse.ReviewInfos>> findReviews(
+	ResponseEntity<ApiResponse<ReviewResponse.ReviewInfos>> getReviews(
 		@Parameter(description = "조회할 숙소 ID", example = "101")
 		@PathVariable
 		Long accommodationId,

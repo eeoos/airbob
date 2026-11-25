@@ -35,7 +35,7 @@ public interface WishlistAccommodationApi {
 		ErrorCode.INVALID_TYPE_VALUE
 	})
 	@GetMapping("/v1/members/wishlists/membership")
-	ResponseEntity<ApiResponse<WishlistResponse.Membership>> findMembership(
+	ResponseEntity<ApiResponse<WishlistResponse.Membership>> getMembership(
 		@Parameter(description = "저장 여부를 확인할 숙소 ID", example = "101")
 		@RequestParam
 		Long accommodationId,
@@ -108,7 +108,7 @@ public interface WishlistAccommodationApi {
 		ErrorCode.WISHLIST_ACCESS_DENIED
 	})
 	@GetMapping("/v1/members/wishlists/accommodations/{id}")
-	ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> findWishlistAccommodations(
+	ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> getWishlistAccommodations(
 		@CursorParam
 		CursorRequest.CursorPageRequest request,
 		@Parameter(description = "위시리스트 ID", example = "42")

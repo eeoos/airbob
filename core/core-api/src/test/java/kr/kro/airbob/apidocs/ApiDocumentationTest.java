@@ -428,7 +428,7 @@ class ApiDocumentationTest {
 	void optionalFieldsMatchHistoricalCouponsAndZeroPriceReservations() throws Exception {
 		Instant now = Instant.parse("2027-01-01T00:00:00Z");
 		java.time.LocalDateTime couponStart = java.time.LocalDateTime.parse("2027-01-01T00:00:00");
-		when(context.getBean(CouponQueryService.class).findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(
+		when(context.getBean(CouponQueryService.class).getCouponCampaigns(any())).thenReturn(new CouponCampaignPage(
 			List.of(new CouponCampaignPage.Item(new kr.kro.airbob.core.domain.coupon.CouponCampaignProjection(1L,
 				"과거 쿠폰",
 				null, DiscountType.FIXED_AMOUNT, 1000, null, null, couponStart, couponStart.plusDays(1), couponStart,
@@ -471,7 +471,7 @@ class ApiDocumentationTest {
 			new HostAccommodationDetailProjection(101L, null, null, null,
 				null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
 			List.of(), List.of());
-		when(context.getBean(AccommodationQueryService.class).findHostAccommodationDetail(101L, 10L)).thenReturn(draft);
+		when(context.getBean(AccommodationQueryService.class).getHostAccommodationDetail(101L, 10L)).thenReturn(draft);
 		String body = mvc.perform(get("/api/v1/profile/host/accommodations/101").cookie(SESSION))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(specification("client"), "/api/v1/profile/host/accommodations/{accommodationId}", "get", "200",
@@ -716,7 +716,7 @@ class ApiDocumentationTest {
 		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("accommodationId");
 		assertThat(operation.has("requestBody")).isFalse();
 		assertThat(operation.path("security").isEmpty()).isTrue();
-		when(context.getBean(AccommodationQueryService.class).findAccommodationAvailability(101L))
+		when(context.getBean(AccommodationQueryService.class).getAccommodationAvailability(101L))
 			.thenReturn(new AccommodationAvailability(LocalDate.parse("2027-01-01"), LocalDate.parse("2027-04-01"),
 				List.of(new AccommodationAvailability.DateRange(LocalDate.parse("2027-01-10"),
 					LocalDate.parse("2027-01-12")))));
@@ -738,28 +738,28 @@ class ApiDocumentationTest {
 			new AccommodationDetailSnapshot.Policy(4, 1, 0), List.of(), List.of(),
 			new AccommodationDetailSnapshot.ReviewSummary(0, BigDecimal.ZERO)), false);
 		var service = context.getBean(AccommodationQueryService.class);
-		when(service.findAccommodation(101L, null)).thenReturn(detail);
+		when(service.getAccommodation(101L, null)).thenReturn(detail);
 		String body = mvc.perform(get("/api/v1/accommodations/101")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(specification("client"), "/api/v1/accommodations/{accommodationId}", "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/currency").isNull()).isTrue();
 		assertThat(mapper.readTree(body).at("/data/host/nickname").isNull()).isTrue();
 		assertThat(mapper.readTree(body).at("/data/is_in_wishlist").asBoolean()).isFalse();
-		verify(service).findAccommodation(101L, null);
+		verify(service).getAccommodation(101L, null);
 
-		when(service.findAccommodation(101L, 10L)).thenReturn(detail);
+		when(service.getAccommodation(101L, 10L)).thenReturn(detail);
 		String authenticated = mvc.perform(get("/api/v1/accommodations/101").cookie(SESSION))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(specification("client"), "/api/v1/accommodations/{accommodationId}", "get", "200",
 			authenticated);
-		verify(service).findAccommodation(101L, 10L);
+		verify(service).getAccommodation(101L, 10L);
 	}
 
 	@Test
 	void accommodationHostListDocumentsDraftNullsAndOnlyUserSuppliedFilters() throws Exception {
 		var draft = new HostAccommodationProjection(101L, null, null, AccommodationStatus.DRAFT, null,
 			null, null, null, null, null);
-		when(context.getBean(AccommodationQueryService.class).findMyAccommodations(eq(10L), any(),
+		when(context.getBean(AccommodationQueryService.class).getMyAccommodations(eq(10L), any(),
 			eq(AccommodationStatus.DRAFT)))
 			.thenReturn(new HostAccommodationPage(List.of(draft), new CursorResponse.PageInfo(false, null, 1)));
 		String path = "/api/v1/profile/host/accommodations";
@@ -769,7 +769,7 @@ class ApiDocumentationTest {
 		validateResponse(spec, path, "get", "200", body);
 		assertThat(spec.path("paths").path(path).path("get").path("parameters").findValuesAsText("name"))
 			.containsExactlyInAnyOrder("status", "cursor", "size");
-		verify(context.getBean(AccommodationQueryService.class)).findMyAccommodations(eq(10L),
+		verify(context.getBean(AccommodationQueryService.class)).getMyAccommodations(eq(10L),
 			argThat(request -> request.size() == 20 && request.lastId() == null && request.lastCreatedAt() == null),
 			eq(AccommodationStatus.DRAFT));
 		String invalid = mvc.perform(get(path).cookie(SESSION).param("status", "UNKNOWN"))
@@ -782,7 +782,7 @@ class ApiDocumentationTest {
 		String path = "/api/v1/profile/host/accommodations";
 		JsonNode spec = specification("client");
 		var service = context.getBean(AccommodationQueryService.class);
-		when(service.findMyAccommodations(eq(10L), any(), eq(AccommodationStatus.DRAFT)))
+		when(service.getMyAccommodations(eq(10L), any(), eq(AccommodationStatus.DRAFT)))
 			.thenReturn(new HostAccommodationPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 		LocalDateTime createdAt = LocalDateTime.parse("2027-01-01T12:30:00");
 		String cursor = new CursorEncoder(mapper).encode(new CursorData(80L, createdAt));
@@ -790,7 +790,7 @@ class ApiDocumentationTest {
 			.perform(get(path).cookie(SESSION).param("cursor", cursor).param("size", "7").param("status", "DRAFT"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
-		verify(service).findMyAccommodations(eq(10L),
+		verify(service).getMyAccommodations(eq(10L),
 			argThat(
 				request -> request.size() == 7 && request.lastId() == 80L && createdAt.equals(request.lastCreatedAt())),
 			eq(AccommodationStatus.DRAFT));
@@ -1002,7 +1002,7 @@ class ApiDocumentationTest {
 		JsonNode example = spec.at("/components/schemas/ReservationResponseGuestDetail/example");
 		assertThat(example.path("status").asText()).isEqualTo("PAYMENT_PENDING");
 		assertThat(example.path("payment").isNull()).isTrue();
-		when(context.getBean(ReservationQueryService.class).findMyReservationDetail(uid, 10L))
+		when(context.getBean(ReservationQueryService.class).getMyReservationDetail(uid, 10L))
 			.thenReturn(GuestReservationDetail.of(guestDetail(pending), false, now));
 		String detail = mvc.perform(get(guestPath, uid).cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
@@ -1012,7 +1012,7 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(detail).at("/data/status").asText()).isEqualTo("EXPIRED");
 		assertThat(mapper.readTree(detail).at("/data/payment").isNull()).isTrue();
 		var guestRow = guestDetail(pending);
-		when(context.getBean(ReservationQueryService.class).findHostReservationDetail(uid, 10L))
+		when(context.getBean(ReservationQueryService.class).getHostReservationDetail(uid, 10L))
 			.thenReturn(new HostReservationDetailProjection(UUID.fromString(uid), "AB12CD",
 				ReservationStatus.PAYMENT_PENDING, guestRow.createdAt(), 2, guestRow.checkInAt(), guestRow.checkOutAt(),
 				"Asia/Seoul", null, guestRow.accommodationId(), guestRow.accommodationName(),
@@ -1023,9 +1023,9 @@ class ApiDocumentationTest {
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, hostPath, "get", "200", host);
 		assertThat(mapper.readTree(host).at("/data/status").asText()).isEqualTo("PAYMENT_PENDING");
-		when(context.getBean(ReservationQueryService.class).findMyReservationDetail(uid, 10L))
+		when(context.getBean(ReservationQueryService.class).getMyReservationDetail(uid, 10L))
 			.thenThrow(new ReservationNotFoundException());
-		when(context.getBean(ReservationQueryService.class).findHostReservationDetail(uid, 10L))
+		when(context.getBean(ReservationQueryService.class).getHostReservationDetail(uid, 10L))
 			.thenThrow(new ReservationNotFoundException());
 		for (String path : List.of(guestPath, hostPath)) {
 			String missing = mvc.perform(get(path, uid).cookie(SESSION)).andExpect(status().isNotFound())
@@ -1043,13 +1043,13 @@ class ApiDocumentationTest {
 		var page = new CursorResponse.PageInfo(false, null, 1);
 		LocalDate checkIn = LocalDate.parse("2027-01-10");
 		LocalDate checkOut = LocalDate.parse("2027-01-12");
-		when(context.getBean(ReservationQueryService.class).findMyReservations(eq(10L), any(), any()))
+		when(context.getBean(ReservationQueryService.class).getMyReservations(eq(10L), any(), any()))
 			.thenReturn(new GuestReservationPage(List.of(new GuestReservationPage.Item(
 				new GuestReservationListProjection(
 					201L, UUID.fromString(uid), checkIn, checkOut, "Asia/Seoul", ReservationStatus.EXPIRED, null, null,
 					accommodation.id(), accommodation.name(), accommodation.thumbnailUrl()),
 				ReservationStatus.EXPIRED)), page));
-		when(context.getBean(ReservationQueryService.class).findHostReservations(eq(10L), any(), any()))
+		when(context.getBean(ReservationQueryService.class).getHostReservations(eq(10L), any(), any()))
 			.thenReturn(new HostReservationPage(List.of(new HostReservationListProjection(
 				201L, UUID.fromString(uid), "AB12CD", 190000L, "KRW", 2, checkIn, checkOut, "Asia/Seoul",
 				ReservationStatus.CONFIRMED, null, 20L, null, null, accommodation.id(), accommodation.name(),
@@ -1152,8 +1152,8 @@ class ApiDocumentationTest {
 			.paymentKey("example-payment-key").method(PaymentMethod.CARD).amount(10000L).balanceAmount(0L)
 			.status(PaymentStatus.CANCELED).build(), List.of(PaymentTransaction.builder().build()));
 		PaymentQueryService service = context.getBean(PaymentQueryService.class);
-		when(service.findPaymentByPaymentKey("example-payment-key", 10L)).thenReturn(current);
-		when(service.findPaymentByOrderId(DOCUMENTATION_ORDER_ID.toString(), 10L)).thenReturn(legacy);
+		when(service.getPaymentByPaymentKey("example-payment-key", 10L)).thenReturn(current);
+		when(service.getPaymentByOrderId(DOCUMENTATION_ORDER_ID.toString(), 10L)).thenReturn(legacy);
 		String keyPath = "/api/v1/payments/{paymentKey}";
 		String orderPath = "/api/v1/payments/orders/{orderId}";
 		String body = mvc.perform(get(keyPath, "example-payment-key").cookie(SESSION)).andExpect(status().isOk())
@@ -1182,7 +1182,7 @@ class ApiDocumentationTest {
 				state, "PROVIDER_RESULT", java.time.LocalDateTime.ofInstant(now, java.time.ZoneOffset.UTC),
 				now.plusSeconds(5).plusNanos(1), DOCUMENTATION_ORDER_ID, ReservationStatus.EXPIRED,
 				now.plusSeconds(86400), now.minusSeconds(1));
-			when(context.getBean(PaymentOperationQueryService.class).find(DOCUMENTATION_OPERATION_ID, 10L))
+			when(context.getBean(PaymentOperationQueryService.class).get(DOCUMENTATION_OPERATION_ID, 10L))
 				.thenReturn(PaymentOperationDetail.of(row, now));
 			String body = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION)).andExpect(status().isOk())
 				.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse().getContentAsString();
@@ -1222,11 +1222,11 @@ class ApiDocumentationTest {
 		verifyNoInteractions(operationService, paymentService);
 		for (boolean forbidden : List.of(false, true)) {
 			doThrow(forbidden ? new PaymentAccessDeniedException() : new PaymentOperationNotFoundException())
-				.when(operationService).find(any(), eq(10L));
+				.when(operationService).get(any(), eq(10L));
 			doThrow(forbidden ? new PaymentAccessDeniedException() : new PaymentNotFoundException())
-				.when(paymentService).findPaymentByPaymentKey(any(), eq(10L));
+				.when(paymentService).getPaymentByPaymentKey(any(), eq(10L));
 			doThrow(forbidden ? new PaymentAccessDeniedException() : new PaymentNotFoundException())
-				.when(paymentService).findPaymentByOrderId(any(), eq(10L));
+				.when(paymentService).getPaymentByOrderId(any(), eq(10L));
 			for (String path : List.of(operationPath, "/api/v1/payments/{paymentKey}",
 				"/api/v1/payments/orders/{orderId}")) {
 				var response = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION))
@@ -1260,16 +1260,16 @@ class ApiDocumentationTest {
 		var item = new PaymentOperationManualReviewQueueItem(
 			DOCUMENTATION_OPERATION_ID, PaymentOperationType.CONFIRM, 5, 1, Instant.parse("2027-01-01T00:00:00Z"), 7L,
 			true);
-		when(service.findManualReviewQueue(50)).thenReturn(new PaymentOperationManualReviewQueue(List.of(item), false));
+		when(service.getManualReviewQueue(50)).thenReturn(new PaymentOperationManualReviewQueue(List.of(item), false));
 		String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
 			.getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/items/0").size()).isEqualTo(7);
 		assertThat(body).doesNotContain("payment_key", "evidence_reference", "failure_code");
-		verify(service).findManualReviewQueue(50);
+		verify(service).getManualReviewQueue(50);
 		for (int invalidLimit : List.of(0, 101)) {
 			doThrow(new kr.kro.airbob.core.support.error.InvalidInputException("limit")).when(service)
-				.findManualReviewQueue(invalidLimit);
+				.getManualReviewQueue(invalidLimit);
 			String invalid = mvc.perform(get(path).cookie(SESSION).param("limit", Integer.toString(invalidLimit)))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C001", invalid);
@@ -1384,8 +1384,8 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		CouponQueryService service = context.getBean(CouponQueryService.class);
 		var emptyPage = new CursorResponse.PageInfo(false, null, 0);
-		when(service.findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(List.of(), emptyPage));
-		when(service.findMyCoupons(eq(10L), any())).thenReturn(new MemberCouponPage(List.of(), emptyPage));
+		when(service.getCouponCampaigns(any())).thenReturn(new CouponCampaignPage(List.of(), emptyPage));
+		when(service.getMyCoupons(eq(10L), any())).thenReturn(new MemberCouponPage(List.of(), emptyPage));
 		for (String path : List.of("/api/v1/coupons", "/api/v1/members/me/coupons")) {
 			JsonNode operation = spec.path("paths").path(path).path("get");
 			assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("cursor", "size");
@@ -1422,8 +1422,8 @@ class ApiDocumentationTest {
 				.andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C010", mismatched);
 		}
-		verify(service).findCouponCampaigns(argThat(request -> request.size() == 20 && request.lastId() == null));
-		verify(service).findMyCoupons(eq(10L), argThat(request -> request.size() == 20 && request.lastId() == null));
+		verify(service).getCouponCampaigns(argThat(request -> request.size() == 20 && request.lastId() == null));
+		verify(service).getMyCoupons(eq(10L), argThat(request -> request.size() == 20 && request.lastId() == null));
 	}
 
 	@Test
@@ -1439,7 +1439,7 @@ class ApiDocumentationTest {
 			campaignInfos.add(CouponCampaignPage.Item.of(row, now));
 		}
 		CouponQueryService service = context.getBean(CouponQueryService.class);
-		when(service.findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(campaignInfos,
+		when(service.getCouponCampaigns(any())).thenReturn(new CouponCampaignPage(campaignInfos,
 			new CursorResponse.PageInfo(false, null, 4)));
 		String campaigns = mvc.perform(get("/api/v1/coupons").cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
@@ -1460,7 +1460,7 @@ class ApiDocumentationTest {
 				index == 0, index >= 3);
 			ownedInfos.add(MemberCouponPage.Item.of(row, now));
 		}
-		when(service.findMyCoupons(eq(10L), any())).thenReturn(new MemberCouponPage(ownedInfos,
+		when(service.getMyCoupons(eq(10L), any())).thenReturn(new MemberCouponPage(ownedInfos,
 			new CursorResponse.PageInfo(false, null, 5)));
 		String owned = mvc.perform(get("/api/v1/members/me/coupons").cookie(SESSION)).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
@@ -1697,14 +1697,14 @@ class ApiDocumentationTest {
 			new ReviewItem(202, 3, null, null,
 				20, "여행자", null, List.of())),
 			new CursorResponse.PageInfo(false, null, 2));
-		when(service.findReviews(eq(101L), any(), any())).thenReturn(page);
+		when(service.getReviews(eq(101L), any(), any())).thenReturn(page);
 		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse()
 			.getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/reviews/0/reviewed_at").asText())
 			.isEqualTo("2027-01-10T02:00:00.123456Z");
 		assertThat(mapper.readTree(body).at("/data/reviews/1/images").isEmpty()).isTrue();
-		verify(service).findReviews(eq(101L), argThat(request -> request.size() == 20 && request.lastId() == null),
+		verify(service).getReviews(eq(101L), argThat(request -> request.size() == 20 && request.lastId() == null),
 			eq(ReviewSortType.LATEST));
 		for (String invalidSize : List.of("0", "51", "invalid")) {
 			String invalid = mvc.perform(get(path, 101).param("size", invalidSize)).andExpect(status().isBadRequest())
@@ -1718,7 +1718,7 @@ class ApiDocumentationTest {
 			.andExpect(status().isBadRequest())
 			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "400", "C010", invalidCursor);
-		when(service.findReviews(eq(999L), any(), any()))
+		when(service.getReviews(eq(999L), any(), any()))
 			.thenReturn(new ReviewPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 		String empty = mvc.perform(get(path, 999)).andExpect(status().isOk()).andReturn().getResponse()
 			.getContentAsString();
@@ -2032,7 +2032,7 @@ class ApiDocumentationTest {
 		verifyNoInteractions(service);
 		for (WishlistMembership membership : List.of(new WishlistMembership(true, true, true),
 			new WishlistMembership(true, false, true), new WishlistMembership(false, null, false))) {
-			when(service.findMembership(10L, 101L, 42L)).thenReturn(membership);
+			when(service.getMembership(10L, 101L, 42L)).thenReturn(membership);
 			String response = mvc
 				.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("wishlistId", "42")
 					.param("memberId", "999"))
@@ -2041,7 +2041,7 @@ class ApiDocumentationTest {
 			assertThat(mapper.readTree(response).path("data"))
 				.isEqualTo(mapper.valueToTree(WishlistResponse.Membership.from(membership)));
 		}
-		when(service.findMembership(10L, 101L, null)).thenReturn(new WishlistMembership(true, null, false));
+		when(service.getMembership(10L, 101L, null)).thenReturn(new WishlistMembership(true, null, false));
 		String omitted = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", omitted);
@@ -2054,7 +2054,7 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		String path = "/api/v1/members/wishlists";
 		WishlistService service = context.getBean(WishlistService.class);
-		when(service.findWishlists(any(), eq(10L), isNull())).thenReturn(new WishlistSummaryPage(List.of(
+		when(service.getWishlists(any(), eq(10L), isNull())).thenReturn(new WishlistSummaryPage(List.of(
 			new WishlistSummary(42L, "서울 여행", LocalDateTime.parse("2027-01-10T02:00:00.123456"), 2, null, null),
 			new WishlistSummary(43L, "옛 목록", null, 0, null, null)), new CursorResponse.PageInfo(false, null, 2)));
 		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
@@ -2063,9 +2063,9 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(response).at("/data/wishlists/0/created_at").asText())
 			.isEqualTo("2027-01-10T02:00:00.123456Z");
 		assertThat(mapper.readTree(response).at("/data/wishlists/0/is_contained").isNull()).isTrue();
-		verify(service).findWishlists(argThat(request -> request.size() == 20 && request.lastId() == null), eq(10L),
+		verify(service).getWishlists(argThat(request -> request.size() == 20 && request.lastId() == null), eq(10L),
 			isNull());
-		when(service.findWishlists(any(), eq(10L), eq(101L))).thenReturn(new WishlistSummaryPage(List.of(
+		when(service.getWishlists(any(), eq(10L), eq(101L))).thenReturn(new WishlistSummaryPage(List.of(
 			new WishlistSummary(42L, "서울 여행", LocalDateTime.parse("2027-01-10T02:00:00"), 2, null, 501L),
 			new WishlistSummary(43L, "다음 여행", LocalDateTime.parse("2027-01-09T02:00:00"), 0, null, null)),
 			new CursorResponse.PageInfo(false, null, 2)));
@@ -2095,7 +2095,7 @@ class ApiDocumentationTest {
 		WishlistService service = context.getBean(WishlistService.class);
 		var item = new WishlistAccommodationItem(501, null, 101, "서울 하우스", null, "대한민국", null, "서울", null,
 			null, null, LocalDateTime.parse("2027-01-10T02:00:00.123456"));
-		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
+		when(service.getWishlistAccommodations(eq(42L), any(), eq(10L)))
 			.thenReturn(
 				new WishlistAccommodationPage("서울 여행", List.of(item), new CursorResponse.PageInfo(false, null, 1)));
 		String response = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn()
@@ -2105,7 +2105,7 @@ class ApiDocumentationTest {
 			.isZero();
 		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/is_in_wishlist").asBoolean()).isTrue();
 		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/memo").isNull()).isTrue();
-		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
+		when(service.getWishlistAccommodations(eq(42L), any(), eq(10L)))
 			.thenReturn(new WishlistAccommodationPage("서울 여행", List.of(), new CursorResponse.PageInfo(false, null, 0)));
 		String empty = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
 			.getContentAsString();
@@ -2113,7 +2113,7 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(empty).at("/data/wishlist_name").asText()).isEqualTo("서울 여행");
 		assertThat(mapper.readTree(empty).at("/data/wishlist_accommodations").isEmpty()).isTrue();
 		for (BaseException error : List.of(new WishlistNotFoundException(), new WishlistAccessDeniedException())) {
-			doThrow(error).when(service).findWishlistAccommodations(eq(42L), any(), eq(10L));
+			doThrow(error).when(service).getWishlistAccommodations(eq(42L), any(), eq(10L));
 			var failed = mvc.perform(get(path, 42).cookie(SESSION))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
 			assertDocumentedError(spec, path, "get", Integer.toString(failed.getStatus()),

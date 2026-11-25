@@ -130,7 +130,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(201, 8L, 12, true, NOW.plusMinutes(1));
 		Statistics statistics = prepareMeasurement();
 
-		var result = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20)));
+		var result = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(20)));
 
 		try (var fixture = new ClassPathResource("contracts/member-coupons.json").getInputStream()) {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(result)))
@@ -159,7 +159,7 @@ class MemberCouponReadIntegrationTest {
 		when(timeProvider.now()).thenReturn(now);
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos())
+		assertThat(CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(20))).infos())
 			.singleElement()
 			.satisfies(info -> assertThat(info.status()).isEqualTo(expected));
 
@@ -178,7 +178,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(400, 8L, 12, true, NOW.plusMinutes(1));
 		Statistics statistics = prepareMeasurement();
 
-		var result = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20)));
+		var result = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(20)));
 
 		assertThat(result.infos()).extracting(CouponResponse.MemberCouponInfo::couponId)
 			.containsExactly(12L, 13L, 14L);
@@ -186,7 +186,7 @@ class MemberCouponReadIntegrationTest {
 		assertRead(statistics);
 
 		statistics = prepareMeasurement();
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(8L, firstPage(20))).infos())
+		assertThat(CouponResponse.MemberCouponInfos.from(service.getMyCoupons(8L, firstPage(20))).infos())
 			.singleElement().satisfies(info -> {
 				assertThat(info.couponId()).isEqualTo(12L);
 				assertThat(info.status()).isEqualTo(MemberCouponStatus.USED);
@@ -202,7 +202,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(101, 8L, 12, false, NOW);
 		Statistics statistics = prepareMeasurement();
 
-		var result = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(memberId, firstPage(20)));
+		var result = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(memberId, firstPage(20)));
 
 		assertThat(result.infos()).isEmpty();
 		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 0));
@@ -226,7 +226,7 @@ class MemberCouponReadIntegrationTest {
 				discount_value = 15, min_payment_price = NULL, max_discount_amount = 15000 WHERE id = 12
 			""");
 		Statistics statistics = prepareMeasurement();
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos())
+		assertThat(CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(20))).infos())
 			.containsExactly(
 				new CouponResponse.MemberCouponInfo(12L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE,
 					15, null, 15000, NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC),
@@ -252,7 +252,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(198, 8L, 13, true, createdAt);
 		Statistics statistics = prepareMeasurement();
 
-		var first = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(2)));
+		var first = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(2)));
 
 		assertThat(first.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(12L, 13L);
 		assertThat(first.pageInfo().hasNext()).isTrue();
@@ -262,7 +262,7 @@ class MemberCouponReadIntegrationTest {
 		assertRead(statistics);
 
 		statistics = prepareMeasurement();
-		var second = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, nextPage(2, cursor)));
+		var second = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, nextPage(2, cursor)));
 
 		assertThat(second.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(15L, 14L);
 		assertThat(second.infos()).allMatch(info -> info.status() == MemberCouponStatus.AVAILABLE);
@@ -280,7 +280,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(200, MEMBER_ID, 13, false, NOW);
 		insertOwned(201, MEMBER_ID, 12, false, NOW);
 		Statistics statistics = prepareMeasurement();
-		var first = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(2)));
+		var first = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(2)));
 		assertThat(first.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(12L, 13L);
 		CursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CursorData.class);
 		assertRead(statistics);
@@ -289,7 +289,7 @@ class MemberCouponReadIntegrationTest {
 		jdbc.update("DELETE FROM member_coupon WHERE id = 200");
 		statistics = prepareMeasurement();
 
-		var second = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, nextPage(2, cursor)));
+		var second = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, nextPage(2, cursor)));
 
 		assertThat(second.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(14L);
 		assertThat(second.pageInfo()).isEqualTo(new PageInfo(false, null, 1));
@@ -305,7 +305,7 @@ class MemberCouponReadIntegrationTest {
 		insertOwned(102, MEMBER_ID, 13, false, NOW);
 		Statistics statistics = prepareMeasurement();
 
-		var result = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(2)));
+		var result = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(2)));
 
 		assertThat(result.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(13L, 12L);
 		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 2));
@@ -322,7 +322,7 @@ class MemberCouponReadIntegrationTest {
 
 	private void assertCurrentStatus(MemberCouponStatus expected) {
 		Statistics statistics = prepareMeasurement();
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos())
+		assertThat(CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(20))).infos())
 			.singleElement()
 			.satisfies(info -> assertThat(info.status()).isEqualTo(expected));
 		assertRead(statistics);

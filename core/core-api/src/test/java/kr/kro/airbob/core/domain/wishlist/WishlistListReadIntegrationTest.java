@@ -263,7 +263,7 @@ class WishlistListReadIntegrationTest {
 		entityManagerFactory.unwrap(SessionFactory.class).getStatistics().clear();
 		sqlCapture.statements.clear();
 		var result = WishlistResponse.WishlistInfos.from(
-			service.findWishlists(request, memberId, accommodationId), accommodationId != null);
+			service.getWishlists(request, memberId, accommodationId), accommodationId != null);
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
