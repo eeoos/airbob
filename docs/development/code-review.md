@@ -14,7 +14,7 @@ airbob의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성한�
 
 ## 지적하지 않는 것
 
-- CI가 이미 강제하는 것: 컴파일, 테스트 통과, ArchUnit(계층 규칙, [코드 규칙](coding-convention.md#코드-규칙)), OpenAPI 스냅샷, `scripts/ci/contracts.py`, GitHub Action의 SHA 고정, 포매팅·import 순서·static이 아닌 와일드카드 import·AssertJ가 아닌 단언 API(Spotless, [코딩 컨벤션](coding-convention.md))
+- CI가 이미 강제하는 것: 컴파일, 테스트 통과, ArchUnit(계층 규칙, [코드 규칙](coding-convention.md#코드-규칙)), OpenAPI 스냅샷, `scripts/ci/contracts.py`, GitHub Action의 SHA 고정, 포매팅·import 순서·static이 아닌 와일드카드 import·테스트 단언 클래스(JUnit `Assertions`, JUnit 4·3 `Assert`, Hamcrest `MatcherAssert`)(Spotless, [코딩 컨벤션](coding-convention.md))
 - 비현실적인 전제가 있어야 일어나는 경로
   - 외부 API가 계약과 다른 응답을 보내는 경우(예: 정수 필드에 `null`)
   - 러너나 플랫폼의 비정상 동작(예: 러너가 제공한 파일에 쓰지 못함)

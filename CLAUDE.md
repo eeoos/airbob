@@ -9,7 +9,7 @@ state. The README, `docs/` and `scripts/README.md` are written in Korean.
 - Run `./gradlew compileJava` after entity changes to regenerate QueryDSL Q-classes.
 - Java code follows the Naver convention through Spotless. The edit hook formats each edited file.
   `spotlessCheck`, part of `./gradlew build`, fails on unformatted code, a non-static wildcard import,
-  or a non-AssertJ assertion API (JUnit `Assertions`, JUnit 4 `Assert`, Hamcrest `MatcherAssert`).
+  or a non-AssertJ assertion class (JUnit `Assertions`, JUnit 4/3 `Assert`, Hamcrest `MatcherAssert`).
   Fix formatting with `./gradlew spotlessApply`. `spotlessApply` cannot fix a non-static wildcard
   import; replace it with class imports by hand. The Stop hook runs `spotlessCheck`; the edit hook
   does not. Do not change the formatter XML; see `docs/development/coding-convention.md`.

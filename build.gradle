@@ -55,8 +55,8 @@ configure(subprojects.findAll { it.subprojects.isEmpty() }) {
 			// JUnit 4 and Hamcrest are on the test classpath through Testcontainers and spring-boot-starter-test;
 			// org.hamcrest.Matchers stays allowed for MockMvc jsonPath matchers.
 			forbidRegex('Non-AssertJ assertions',
-				'org\\.junit\\.jupiter\\.api\\.Assertions\\b|org\\.junit\\.Assert\\b|org\\.hamcrest\\.MatcherAssert\\b',
-				'Assert with AssertJ (assertThat, assertThatThrownBy) instead of JUnit Assertions, JUnit 4 Assert or Hamcrest MatcherAssert')
+				'org\\.junit\\.jupiter\\.api\\.Assertions\\b|org\\.junit\\.Assert\\b|junit\\.framework\\.Assert\\b|org\\.hamcrest\\.MatcherAssert\\b',
+				'Assert with AssertJ (assertThat, assertThatThrownBy) instead of JUnit Assertions, JUnit 4 or 3 Assert, or Hamcrest MatcherAssert')
 			eclipse().configFile(rootProject.file('config/formatter/naver-eclipse-formatter.xml'))
 		}
 	}
