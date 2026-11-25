@@ -31,8 +31,9 @@ paths:
   `contents: read`, and a called workflow cannot request more than its caller grants.
 - Claude review: `claude-review.yml` runs `scripts/ci/claude_review.py` on same-repository, non-draft PRs
   when opened, reopened, or marked ready for review, and when the `claude-review` label is added. It
-  prints the review to the job log before posting it, and a usage footer it cannot read does not stop the
-  post. It is informational, not part of `CI result`, and
+  logs the usage and then the review (or the unusable raw response) before posting, with workflow commands
+  stopped around model output, and a usage footer it cannot read does not stop the post. It is
+  informational, not part of `CI result`, and
   stays outside `ci.yml` for the same permission reason. The script collects the context from Git at the
   event's base and head SHAs (criteria and rules from base), sends one review request to the Messages
   API with no tools (structured output; the SDK retries up to twice on connection errors and HTTP

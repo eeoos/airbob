@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import secrets
 import subprocess
 import urllib.parse
 import urllib.request
@@ -138,6 +139,11 @@ def build_request(repo, base, head, title='', body=''):
     return '\n\n'.join(sections), omitted
 
 
+def response_text(message):
+    # A fallback during streaming continues the answer in a new text block, so the blocks are joined.
+    return ''.join(block.text for block in message.content if block.type == 'text')
+
+
 def summary_of(message):
     if message.stop_reason == 'refusal':
         details = getattr(message, 'stop_details', None)
@@ -145,18 +151,17 @@ def summary_of(message):
                            f"{getattr(details, 'explanation', '')}")
     if message.stop_reason == 'max_tokens':
         raise RuntimeError(f'the review stopped at max_tokens ({MAX_TOKENS})')
-    # A fallback during streaming continues the answer in a new text block, so the blocks are joined.
-    texts = [block.text for block in message.content if block.type == 'text']
-    if not texts:
+    text = response_text(message)
+    if not text:
         raise RuntimeError(f'no text in the response (stop_reason {message.stop_reason})')
-    summary = (json.loads(''.join(texts)).get('summary') or '').strip()
+    summary = (json.loads(text).get('summary') or '').strip()
     if not summary:
         raise RuntimeError('the response has an empty summary')
     return summary
 
 
 def review(user_message, client=None):
-    """(summary, final message) of one review request.
+    """The final message of one review request.
 
     The SDK retries up to twice on connection errors and on HTTP 408, 409, 429, and 5xx. A request the
     server was still processing when the connection dropped may be billed.
@@ -170,8 +175,7 @@ def review(user_message, client=None):
             betas=['server-side-fallback-2026-07-01'], fallbacks='default',
             output_config={'effort': EFFORT, 'format': {'type': 'json_schema', 'schema': SCHEMA}},
             messages=[{'role': 'user', 'content': user_message}]) as stream:
-        message = stream.get_final_message()
-    return summary_of(message), message
+        return stream.get_final_message()
 
 
 def usage_details(usage):
@@ -226,6 +230,12 @@ def pull_request_text(event_path):
     return pull.get('title') or '', pull.get('body') or ''
 
 
+def log_model_output(label, text):
+    """Print model output to the job log with workflow commands stopped, since it can quote PR content."""
+    token = secrets.token_hex(16)
+    print(f'::stop-commands::{token}\n{label}\n{text}\n::{token}::')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--base', required=True, help='PR base commit (pull_request.base.sha)')
@@ -251,15 +261,21 @@ def main():
             Path(args.dry_run).write_text(f'# system\n\n{SYSTEM}\n\n# user\n\n{user_message}\n')
             return
         use_github_identity()
-        text, message = review(user_message)
-        # The review is billed by now: keep it in the job log first, and let no footer problem stop the comment.
-        print(f'{MARKER}\n{text}')
+        message = review(user_message)
+        # The response is billed by now: log its usage and text before anything that can fail, and let no
+        # footer problem stop the comment.
         try:
             details = usage_details(message.usage)
         except Exception as error:
             print(f'Could not read the usage: {error!r}')
             details = '토큰 정보를 읽지 못함'
         print(details)
+        try:
+            text = summary_of(message)
+        except Exception:
+            log_model_output(f'Unusable response (stop_reason {message.stop_reason}):', response_text(message))
+            raise
+        log_model_output(MARKER, text)
     if args.dry_run:
         print(text)
         return

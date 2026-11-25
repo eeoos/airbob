@@ -53,8 +53,11 @@
 - [ci/claude_review.py](ci/claude_review.py): `claude-review.yml`이 PR을 Claude로 리뷰하고 결과를 새 댓글로 단다.
   - git에서 리뷰 기준, `CLAUDE.md`, 바뀐 경로에 해당하는 `.claude/rules`, PR 설명, 커밋, diff, 바뀐 파일을 모은다.
     - 기준과 규칙은 base 커밋에서 읽는다. PR이 자기를 리뷰할 기준을 약하게 바꿀 수 없게 하기 위해서다.
+    - 단, 지금은 워크플로가 PR head의 이 스크립트를 실행하므로, PR이 스크립트를 고치면 이 보장도 사라진다. 후속 `pull_request_target` 전환(main의 스크립트로 실행) 뒤에 보장된다.
   - Messages API에 도구 없이 리뷰 요청을 한 번 보낸다(구조화 출력). 연결 오류와 일부 HTTP 오류(408·409·429·5xx)는 SDK가 최대 2회 재시도한다. 인증은 ID 페더레이션(GitHub OIDC)이다.
-  - 받은 리뷰는 댓글을 달기 전에 실행 로그에 먼저 출력한다. 게시가 실패해도 과금된 리뷰가 남는다. 토큰 정보를 읽지 못해도 꼬리말에 그 사실만 적고 게시한다.
+  - 응답을 받으면 토큰 수부터 실행 로그에 출력한다. 이어서 리뷰 본문을, 응답을 쓸 수 없으면(`max_tokens`, 거절, JSON 오류) 그 원문을 출력한다. 그래서 게시나 응답 처리가 실패해도 과금된 결과가 남는다.
+    - 모델 출력은 PR 내용을 인용할 수 있어서, 워크플로 명령을 멈춘(`::stop-commands::`) 상태로 출력한다.
+    - 토큰 정보를 읽지 못해도 꼬리말에 그 사실만 적고 게시한다.
   - 로컬에서는 `--dry-run <파일>`로 보낼 요청을 파일로 확인할 수 있다.
   - 설치할 패키지는 [ci/claude-review-requirements.txt](ci/claude-review-requirements.txt)에 버전과 해시로 고정한다. 버전을 올리거나 다시 만들 때는 저장소 루트에서 `printf 'anthropic==2.8.0\n' | uv pip compile - --universal --python-version 3.12 --generate-hashes --no-header -o scripts/ci/claude-review-requirements.txt`를 실행한다.
 - [ci/pr_comment.py](ci/pr_comment.py): `pr-report.yml`(`workflow_run`)이 보고서를 PR 고정 댓글 하나로 만들거나 갱신한다.

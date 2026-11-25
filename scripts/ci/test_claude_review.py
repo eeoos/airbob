@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import re
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -183,9 +184,9 @@ class ResponseTests(unittest.TestCase):
             return Stream()
 
         client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream)))
-        summary, _ = claude_review.review('변경 내용', client)
+        response = claude_review.review('변경 내용', client)
 
-        self.assertEqual(summary, '지적 없음')
+        self.assertEqual(claude_review.summary_of(response), '지적 없음')
         self.assertEqual(len(calls), 1)
         request = calls[0]
         self.assertEqual((request['model'], request['fallbacks']), ('claude-opus-5-5', 'default'))
@@ -259,20 +260,31 @@ class MainTests(unittest.TestCase):
         with mock.patch('sys.argv', argv), mock.patch.dict('os.environ', {'GITHUB_TOKEN': 'token'}, clear=True), \
                 mock.patch.object(pr_report, 'Repo'), \
                 mock.patch.object(claude_review, 'build_request', return_value=('요청', [])), \
-                mock.patch.object(claude_review, 'review', return_value=('리뷰 본문', response)), \
+                mock.patch.object(claude_review, 'review', return_value=response), \
                 mock.patch.object(claude_review.pr_comment, 'github', return_value=post), \
                 contextlib.redirect_stdout(log):
             claude_review.main()
 
-    def test_a_failed_post_leaves_the_billed_review_in_the_log(self):
+    def test_a_failed_post_leaves_the_billed_review_in_the_log_with_workflow_commands_stopped(self):
         log = io.StringIO()
+        review = message('{"summary": "리뷰 본문\\n::add-mask::x"}')
         with self.assertRaises(OSError):
-            self.run_main(message(), mock.Mock(side_effect=OSError('HTTP 502')), log)
-        self.assertIn(f'{claude_review.MARKER}\n리뷰 본문', log.getvalue())
+            self.run_main(review, mock.Mock(side_effect=OSError('HTTP 502')), log)
+        self.assertRegex(log.getvalue(), re.compile(
+            rf'::stop-commands::([0-9a-f]{{32}})\n{re.escape(claude_review.MARKER)}\n리뷰 본문\n::add-mask::x\n::\1::\n'))
+
+    def test_an_unusable_response_still_logs_its_tokens_and_text(self):
+        log = io.StringIO()
+        post = mock.Mock()
+        with self.assertRaises(RuntimeError):
+            self.run_main(message('{"summary": "잘린', stop_reason='max_tokens'), post, log)
+        self.assertIn('입력 1,000 / 출력 200', log.getvalue())
+        self.assertIn('Unusable response (stop_reason max_tokens):\n{"summary": "잘린\n', log.getvalue())
+        post.assert_not_called()
 
     def test_an_unreadable_usage_does_not_stop_the_comment(self):
         post = mock.Mock()
-        self.run_main(message(input_tokens=None), post, io.StringIO())
+        self.run_main(message('{"summary": "리뷰 본문"}', input_tokens=None), post, io.StringIO())
         method, url, payload = post.call_args.args
         self.assertEqual((method, url), ('POST', 'https://api.github.com/repos/eeoos/airbob/issues/223/comments'))
         self.assertIn('리뷰 본문', payload['body'])
