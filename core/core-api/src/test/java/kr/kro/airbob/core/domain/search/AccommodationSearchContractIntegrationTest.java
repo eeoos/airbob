@@ -213,7 +213,7 @@ class AccommodationSearchContractIntegrationTest {
 	private AccommodationSearchInfos search(Condition request, MapBounds bounds, int page,
 		Long memberId) {
 		return AccommodationSearchInfos
-			.from(service.searchAccommodations(request.toCondition(bounds), PageRequest.of(page, 18), memberId));
+			.from(service.getSearchResults(request.toCondition(bounds), PageRequest.of(page, 18), memberId));
 	}
 
 	private void assertIds(AccommodationSearchInfos response, Long... ids) {

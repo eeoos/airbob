@@ -66,7 +66,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	CouponQueryService.class, CouponReader.class,
 	CouponTimeProvider.class, CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
-	CouponCampaignReadIntegrationTest.ReadTestConfig.class})
+	CouponCampaignReadIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("발급 쿠폰 목록 MySQL 조회 계약")
 class CouponCampaignReadIntegrationTest {
@@ -404,7 +404,7 @@ class CouponCampaignReadIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

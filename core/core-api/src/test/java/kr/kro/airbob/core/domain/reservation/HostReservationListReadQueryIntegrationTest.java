@@ -68,7 +68,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
-	HostReservationListReadQueryIntegrationTest.ReadTestConfig.class})
+	HostReservationListReadQueryIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class HostReservationListReadQueryIntegrationTest {
 
@@ -358,7 +358,7 @@ class HostReservationListReadQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		Clock clock() {
 			return Clock.fixed(NOW, ZoneOffset.UTC);

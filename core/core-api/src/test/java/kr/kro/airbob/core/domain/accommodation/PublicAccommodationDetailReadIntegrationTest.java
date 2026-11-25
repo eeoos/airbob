@@ -53,7 +53,7 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 @Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	AccommodationDetailReader.class,
 	WishlistReader.class,
-	PublicAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
+	PublicAccommodationDetailReadIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PublicAccommodationDetailReadIntegrationTest {
 
@@ -239,7 +239,7 @@ class PublicAccommodationDetailReadIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

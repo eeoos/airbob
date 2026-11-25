@@ -71,8 +71,8 @@ public class AccommodationQueryService {
 
 		return new HostAccommodationDetail(
 			accommodation,
-			accommodationDetailReader.loadAmenities(accommodationId),
-			accommodationDetailReader.loadImages(accommodationId));
+			accommodationDetailReader.readAmenities(accommodationId),
+			accommodationDetailReader.readImages(accommodationId));
 	}
 
 }

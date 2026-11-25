@@ -65,7 +65,7 @@ import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 	ClockConfiguration.class,
 	JpaAuditingConfiguration.class,
 	QueryDslConfiguration.class,
-	ReservationRepositoryQueryTest.SqlCaptureConfig.class
+	ReservationRepositoryQueryTest.SqlCaptureConfiguration.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("예약 QueryDSL 저장소 테스트")
@@ -641,7 +641,7 @@ class ReservationRepositoryQueryTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class SqlCaptureConfig {
+	static class SqlCaptureConfiguration {
 
 		@Bean
 		CapturingStatementInspector capturingStatementInspector() {

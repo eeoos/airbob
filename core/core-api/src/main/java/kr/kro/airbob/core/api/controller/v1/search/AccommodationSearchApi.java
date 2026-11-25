@@ -44,7 +44,7 @@ public interface AccommodationSearchApi {
 		ErrorCode.SEARCH_UNAVAILABLE
 	})
 	@GetMapping("/v1/search/accommodations")
-	ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> searchAccommodations(
+	ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> getSearchResults(
 		@ParameterObject
 		@Valid
 		@ModelAttribute

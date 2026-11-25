@@ -63,7 +63,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 	ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
-	WishlistDetailQueryIntegrationTest.ReadTestConfig.class
+	WishlistDetailQueryIntegrationTest.ReadTestConfiguration.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("위시리스트 상세 조회 계약 MySQL 통합 테스트")
@@ -502,7 +502,7 @@ class WishlistDetailQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

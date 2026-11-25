@@ -193,12 +193,12 @@ class AccommodationQueryServiceTest {
 		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
 		when(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
 			.thenReturn(Optional.of(accommodation));
-		when(accommodationDetailReader.loadAmenities(1L)).thenReturn(List.of());
-		when(accommodationDetailReader.loadImages(1L)).thenReturn(List.of());
+		when(accommodationDetailReader.readAmenities(1L)).thenReturn(List.of());
+		when(accommodationDetailReader.readImages(1L)).thenReturn(List.of());
 
 		AccommodationResponse.HostDetail.from(accommodationQueryService.getHostAccommodationDetail(1L, 7L));
 
-		verify(accommodationDetailReader).loadImages(1L);
+		verify(accommodationDetailReader).readImages(1L);
 	}
 
 	private void givenCachedAccommodation(Long accommodationId) {

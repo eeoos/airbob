@@ -18,7 +18,7 @@ public class AccommodationSearchService {
 	private final SearchWishlistReader wishlistReader;
 	private final BookingWindowProvider bookingWindowProvider;
 
-	public AccommodationSearchPage searchAccommodations(
+	public AccommodationSearchPage getSearchResults(
 		AccommodationSearchCondition condition,
 		Pageable pageable,
 		Long memberId) {

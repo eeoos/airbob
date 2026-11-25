@@ -62,7 +62,7 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 @Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	RecentlyViewedService.class,
 	RecentlyViewedReader.class, RecentlyViewedWriter.class, WishlistReader.class, AccommodationReader.class,
-	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
+	RecentlyViewedQueryIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")
 class RecentlyViewedQueryIntegrationTest {
@@ -363,7 +363,7 @@ class RecentlyViewedQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

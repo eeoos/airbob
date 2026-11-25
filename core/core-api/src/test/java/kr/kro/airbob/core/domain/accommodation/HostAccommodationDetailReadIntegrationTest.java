@@ -61,7 +61,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 	AccommodationDetailReader.class,
 	WishlistReader.class, AccommodationQueryService.class,
 	ReservationAvailabilityReader.class, AccommodationReader.class,
-	HostAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
+	HostAccommodationDetailReadIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class HostAccommodationDetailReadIntegrationTest {
 
@@ -271,7 +271,7 @@ class HostAccommodationDetailReadIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

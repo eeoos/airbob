@@ -43,7 +43,7 @@ import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 	ClockConfiguration.class,
 	JpaAuditingConfiguration.class,
 	QueryDslConfiguration.class,
-	AccommodationImageRepositoryQueryTest.SqlCaptureConfig.class
+	AccommodationImageRepositoryQueryTest.SqlCaptureConfiguration.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 이미지 저장소 쿼리 테스트")
@@ -121,7 +121,7 @@ class AccommodationImageRepositoryQueryTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class SqlCaptureConfig {
+	static class SqlCaptureConfiguration {
 
 		@Bean
 		CapturingStatementInspector capturingStatementInspector() {

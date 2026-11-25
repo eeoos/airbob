@@ -44,7 +44,7 @@ S3는 `cloud.aws.s3.*` 프로퍼티와 빈 등록(`core.domain.image.config`), �
 | `common.monitoring`(쿼리 수 측정, 로컬 SQL 추적) | `core.support.monitoring` (PR 17d) |
 | `common.validation` | `core.support.validation` (PR 17d) |
 | `config`(앱 설정), `config.apidocs` | `core.api.config`, `core.api.config.apidocs` (PR 17e. 템플릿의 `core.api.config` 자리. JPA 설정은 템플릿에서 storage/db-core에 있으나 엔티티와 함께 선택 단계에서 옮긴다) |
-| `config.AccommodationDetailRedisConfiguration`·`AccommodationDetailRedisProperties` | `core.domain.accommodation.cache.config` (PR 17e. 숙소 상세 캐시 전용 Redis라 도메인이 자기 설정을 갖는다) |
+| `config.AccommodationDetailRedisConfig`·`AccommodationDetailRedisProperties` | `core.domain.accommodation.cache.config` (PR 17e. 숙소 상세 캐시 전용 Redis라 도메인이 자기 설정을 갖는다. 설정 클래스는 이름 규칙 PR에서 `AccommodationDetailRedisConfiguration`이 됐다) |
 | `messaging.event`, `messaging.outbox`, `messaging.infrastructure.kafka` | `core.support.messaging.event`, `.outbox`, `.kafka` (PR 17f. 모든 도메인이 쓰는 기술 인프라이고 도메인에 의존하지 않는다. 배포·스크립트 계약 테스트는 `core.support.messaging.infrastructure`) |
 | `messaging.alert` | `core.domain.operatoralert` (PR 17g. 수동 확인·DLT 사고를 Slack까지 전달하는 업무 기능이라 도메인으로 둔다. `application`은 도메인 루트로, `event`·`infrastructure.{kafka,outbox,slack}`·`monitoring`은 하위 패키지로) |
 | `geo`(지오코딩·시간대 포트와 구현) | `core.domain.accommodation.location` (PR 17h. 유일한 사용처인 accommodation이 포트를 갖는다. `GeocodingService` → `GeocodingGateway`, `GoogleGeocodingService`(`@Service`) → `GoogleGeocodingAdapter`(`@Component`). 도메인 결과 `GeocodeResult`에서 Google 응답 타입 viewport를 빼고, viewport 보정에만 쓰이던 `ViewportAdjuster`·`Coordinate`를 삭제) |

@@ -54,7 +54,7 @@ import kr.kro.airbob.core.support.error.ErrorCode;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
-	MemberProfileReadQueryIntegrationTest.ReadTestConfig.class})
+	MemberProfileReadQueryIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class MemberProfileReadQueryIntegrationTest {
 
@@ -178,7 +178,7 @@ class MemberProfileReadQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

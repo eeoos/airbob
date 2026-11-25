@@ -21,7 +21,7 @@ public class AccommodationSearchController implements AccommodationSearchApi {
 	private final AccommodationSearchService accommodationSearchService;
 
 	@Override
-	public ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> searchAccommodations(
+	public ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> getSearchResults(
 		AccommodationSearchRequest.MapBounds mapBounds,
 		AccommodationSearchRequest.Condition searchRequest,
 		Pageable pageable,
@@ -37,7 +37,7 @@ public class AccommodationSearchController implements AccommodationSearchApi {
 
 		AccommodationSearchResponse.AccommodationSearchInfos infos = AccommodationSearchResponse.AccommodationSearchInfos
 			.from(
-				accommodationSearchService.searchAccommodations(searchRequest.toCondition(mapBounds), pageable,
+				accommodationSearchService.getSearchResults(searchRequest.toCondition(mapBounds), pageable,
 					memberId));
 
 		return ResponseEntity.ok(ApiResponse.success(infos));

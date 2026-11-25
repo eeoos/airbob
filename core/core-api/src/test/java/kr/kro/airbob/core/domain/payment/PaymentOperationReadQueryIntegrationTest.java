@@ -57,7 +57,7 @@ import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({JpaAuditingConfiguration.class, QueryDslConfiguration.class, PaymentOperationQueryService.class,
 	PaymentOperationReader.class,
-	PaymentOperationReadQueryIntegrationTest.ReadTestConfig.class})
+	PaymentOperationReadQueryIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PaymentOperationReadQueryIntegrationTest {
 
@@ -276,7 +276,7 @@ class PaymentOperationReadQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		Clock clock() {
 			return Clock.fixed(NOW, ZoneOffset.UTC);

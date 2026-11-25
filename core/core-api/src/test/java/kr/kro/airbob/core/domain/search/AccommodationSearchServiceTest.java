@@ -68,7 +68,7 @@ class AccommodationSearchServiceTest {
 		given(bookingWindowProvider.eligibleTimeZonesForStay(
 			request.getCheckIn(), request.getCheckOut())).willReturn(Set.of());
 
-		var result = accommodationSearchService.searchAccommodations(
+		var result = accommodationSearchService.getSearchResults(
 			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null);
@@ -114,7 +114,7 @@ class AccommodationSearchServiceTest {
 		willThrow(new IOException("connection refused"))
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
 
-		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
+		assertThatThrownBy(() -> accommodationSearchService.getSearchResults(
 			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null))
@@ -130,7 +130,7 @@ class AccommodationSearchServiceTest {
 		willThrow(mock(ElasticsearchException.class))
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
 
-		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
+		assertThatThrownBy(() -> accommodationSearchService.getSearchResults(
 			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null))
@@ -167,7 +167,7 @@ class AccommodationSearchServiceTest {
 		given(esClient.search(any(SearchRequest.class), eq(AccommodationDocument.class)))
 			.willReturn(response);
 
-		var result = accommodationSearchService.searchAccommodations(
+		var result = accommodationSearchService.getSearchResults(
 			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null);

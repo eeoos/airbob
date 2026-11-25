@@ -2296,7 +2296,7 @@ class ApiDocumentationTest {
 	@Test
 	void searchBindsCamelCaseFiltersIsoDatesAndOptionalSessionIdentity() throws Exception {
 		var service = context.getBean(AccommodationSearchService.class);
-		when(service.searchAccommodations(any(), any(), any()))
+		when(service.getSearchResults(any(), any(), any()))
 			.thenReturn(AccommodationSearchPage.empty(org.springframework.data.domain.PageRequest.of(0, 18)));
 		String path = "/api/v1/search/accommodations";
 		mvc.perform(get(path).param("destination", "서울").param("checkIn", "2027-01-10").param("checkOut", "2027-01-12")
@@ -2306,7 +2306,7 @@ class ApiDocumentationTest {
 			.param("accommodationTypes", "APT").param("topLeftLat", "38").param("topLeftLng", "126")
 			.param("bottomRightLat", "37").param("bottomRightLng", "128").param("memberId", "999"))
 			.andExpect(status().isOk());
-		verify(service).searchAccommodations(argThat(condition -> condition.destination().equals("서울")
+		verify(service).getSearchResults(argThat(condition -> condition.destination().equals("서울")
 			&& condition.checkIn().equals(LocalDate.parse("2027-01-10"))
 			&& condition.checkOut().equals(LocalDate.parse("2027-01-12"))
 			&& condition.minPrice() == 0 && condition.maxPrice() == 200000 && condition.adultOccupancy() == 2
@@ -2317,16 +2317,16 @@ class ApiDocumentationTest {
 			&& condition.mapArea().bottomRightLat() == 37 && condition.mapArea().bottomRightLng() == 128),
 			argThat(page -> page.getPageNumber() == 0 && page.getPageSize() == 18), isNull());
 		mvc.perform(get(path).cookie(SESSION).param("memberId", "999")).andExpect(status().isOk());
-		verify(service).searchAccommodations(any(), any(), eq(10L));
+		verify(service).getSearchResults(any(), any(), eq(10L));
 		mvc.perform(get(path).cookie(new Cookie("SESSION_ID", "expired"))).andExpect(status().isOk());
-		verify(service, org.mockito.Mockito.times(2)).searchAccommodations(any(), any(), isNull());
+		verify(service, org.mockito.Mockito.times(2)).getSearchResults(any(), any(), isNull());
 		assertThat(specification("client").path("paths").path(path).path("get").path("security").isEmpty()).isTrue();
 	}
 
 	@Test
 	void searchNormalizesPageAndSizeWithoutAcceptingUserSort() throws Exception {
 		var service = context.getBean(AccommodationSearchService.class);
-		when(service.searchAccommodations(any(), any(), any()))
+		when(service.getSearchResults(any(), any(), any()))
 			.thenReturn(AccommodationSearchPage.empty(org.springframework.data.domain.PageRequest.of(0, 18)));
 		String path = "/api/v1/search/accommodations";
 		String[][] values = {{"-1", "0", "0"}, {"invalid", "invalid", "0"}, {"15", "100", "14"},
@@ -2336,7 +2336,7 @@ class ApiDocumentationTest {
 				.andExpect(status().isOk());
 		}
 		var pages = org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
-		verify(service, org.mockito.Mockito.times(values.length)).searchAccommodations(any(), pages.capture(),
+		verify(service, org.mockito.Mockito.times(values.length)).getSearchResults(any(), pages.capture(),
 			isNull());
 		assertThat(pages.getAllValues()).extracting(page -> page.getPageNumber()).containsExactly(0, 0, 14, 14, 2);
 		assertThat(pages.getAllValues()).allSatisfy(page -> assertThat(page.getPageSize()).isEqualTo(18));
@@ -2399,7 +2399,7 @@ class ApiDocumentationTest {
 		String path = "/api/v1/search/accommodations";
 		var card = new AccommodationSearchItem(AccommodationDocument.builder().accommodationId(101L).build(), false);
 		var page = new AccommodationSearchPage(List.of(card), 18, 0, 1, 1L, false);
-		when(service.searchAccommodations(any(), any(), isNull()))
+		when(service.getSearchResults(any(), any(), isNull()))
 			.thenReturn(page);
 		String response = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isOk()).andReturn()
 			.getResponse().getContentAsString();
@@ -2415,13 +2415,13 @@ class ApiDocumentationTest {
 		assertThat(item.path("is_in_wishlist").asBoolean()).isFalse();
 		assertThat(mapper.readTree(response).at("/data/page_info/is_first").asBoolean()).isTrue();
 		assertThat(mapper.readTree(response).at("/data/page_info/is_last").asBoolean()).isTrue();
-		when(service.searchAccommodations(any(), any(), isNull()))
+		when(service.getSearchResults(any(), any(), isNull()))
 			.thenReturn(AccommodationSearchPage.empty(org.springframework.data.domain.PageRequest.of(0, 18)));
 		String empty = mvc.perform(get(path)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/stay_search_result_listing").isEmpty()).isTrue();
 		assertThat(mapper.readTree(empty).at("/data/page_info/total_elements").asLong()).isZero();
-		when(service.searchAccommodations(any(), any(), isNull()))
+		when(service.getSearchResults(any(), any(), isNull()))
 			.thenThrow(new SearchUnavailableException(new java.io.IOException("synthetic unavailable")));
 		var unavailable = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isServiceUnavailable())
 			.andReturn().getResponse();

@@ -97,7 +97,7 @@ class CurrentMemberIdControllerContractTest {
 			required(WishlistAccommodationController.class, "updateWishlistAccommodation"),
 			required(WishlistAccommodationController.class, "deleteWishlistAccommodation"),
 			required(WishlistAccommodationController.class, "getWishlistAccommodations"),
-			optional(AccommodationSearchController.class, "searchAccommodations"));
+			optional(AccommodationSearchController.class, "getSearchResults"));
 	}
 
 	private static HandlerContract required(Class<?> controllerType, String methodName) {

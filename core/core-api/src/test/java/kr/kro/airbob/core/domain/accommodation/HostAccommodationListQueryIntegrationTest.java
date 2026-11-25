@@ -67,7 +67,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 	AccommodationQueryService.class,
 	ReservationAvailabilityReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
-	HostAccommodationListQueryIntegrationTest.SqlCaptureConfig.class
+	HostAccommodationListQueryIntegrationTest.SqlCaptureConfiguration.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("호스트 숙소 목록 projection MySQL 통합 테스트")
@@ -230,7 +230,7 @@ class HostAccommodationListQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class SqlCaptureConfig {
+	static class SqlCaptureConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();
