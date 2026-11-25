@@ -31,10 +31,11 @@ MAX_TOKENS = 64000  # includes thinking, which grows with EFFORT
 PRICES = dict(input=4.0, output=20.0, cache_write=5.0, cache_read=0.2)
 AUDIENCE = 'https://api.anthropic.com'
 GUIDE = 'docs/development/code-review.md'
-# Size limits in characters. The first two runs (PR #223) sent about 1.9 to 2 characters per token for this
-# mix of Korean and code, so REQUEST_LIMIT is about 400,000 tokens (about $1.60 of input at PRICES) on top of
-# at most MAX_TOKENS of output (about $1.28). Mostly Korean prose has more tokens per character: MODEL's
-# 1M-token context still fits one token per character plus MAX_TOKENS, with input up to about $3.20.
+# Size limits in characters, not tokens. The first two runs (PR #223) sent about 1.9 to 2 characters per
+# token for this mix of Korean and code, so REQUEST_LIMIT is about 400,000 tokens (about $1.60 of input at
+# PRICES) on top of at most MAX_TOKENS of output (about $1.28). Those figures assume that mix: text with more
+# tokens per character (emoji, rare symbols) costs more, and past MODEL's 1M-token context window the API
+# rejects the request or ends the output early, so the job fails without a comment.
 DIFF_LIMIT = 400_000     # a larger change is not reviewed
 FILE_LIMIT = 100_000     # a larger file is left to the diff
 REQUEST_LIMIT = 800_000  # the whole request; changed files fill what the rest leaves, then go to the diff
@@ -225,14 +226,6 @@ def pull_request_text(event_path):
     return pull.get('title') or '', pull.get('body') or ''
 
 
-def keep_in_step_summary(text, environ=os.environ):
-    """Write the review to the run's step summary first, so a failed comment post does not lose a billed review."""
-    path = environ.get('GITHUB_STEP_SUMMARY')
-    if path:
-        with open(path, 'a', encoding='utf-8') as summary:
-            summary.write(f'{text}\n')
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--base', required=True, help='PR base commit (pull_request.base.sha)')
@@ -259,8 +252,13 @@ def main():
             return
         use_github_identity()
         text, message = review(user_message)
-        keep_in_step_summary(text)
-        details = usage_details(message.usage)
+        # The review is billed by now: keep it in the job log first, and let no footer problem stop the comment.
+        print(f'{MARKER}\n{text}')
+        try:
+            details = usage_details(message.usage)
+        except Exception as error:
+            print(f'Could not read the usage: {error!r}')
+            details = '토큰 정보를 읽지 못함'
         print(details)
     if args.dry_run:
         print(text)

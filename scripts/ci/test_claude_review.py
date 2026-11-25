@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -243,20 +245,38 @@ class IdentityTests(unittest.TestCase):
         claude_review.use_github_identity(environ)
         self.assertEqual(environ, {})
 
-    def test_the_review_is_kept_in_the_step_summary(self):
-        with tempfile.TemporaryDirectory() as directory:
-            summary = Path(directory) / 'summary.md'
-            summary.write_text('앞 단계\n', encoding='utf-8')
-            claude_review.keep_in_step_summary('리뷰 본문', {'GITHUB_STEP_SUMMARY': str(summary)})
-            self.assertEqual(summary.read_text(encoding='utf-8'), '앞 단계\n리뷰 본문\n')
-        claude_review.keep_in_step_summary('리뷰 본문', {})
-
     def test_the_pull_request_text_comes_from_the_event(self):
         with tempfile.TemporaryDirectory() as directory:
             event = Path(directory) / 'event.json'
             event.write_text(json.dumps({'pull_request': {'title': '제목', 'body': None}}))
             self.assertEqual(claude_review.pull_request_text(str(event)), ('제목', ''))
         self.assertEqual(claude_review.pull_request_text(None), ('', ''))
+
+
+class MainTests(unittest.TestCase):
+    def run_main(self, response, post, log):
+        argv = ['claude_review.py', '--base', 'a' * 40, '--head', 'b' * 40, '--pr', '223', '--repository', 'eeoos/airbob']
+        with mock.patch('sys.argv', argv), mock.patch.dict('os.environ', {'GITHUB_TOKEN': 'token'}, clear=True), \
+                mock.patch.object(pr_report, 'Repo'), \
+                mock.patch.object(claude_review, 'build_request', return_value=('요청', [])), \
+                mock.patch.object(claude_review, 'review', return_value=('리뷰 본문', response)), \
+                mock.patch.object(claude_review.pr_comment, 'github', return_value=post), \
+                contextlib.redirect_stdout(log):
+            claude_review.main()
+
+    def test_a_failed_post_leaves_the_billed_review_in_the_log(self):
+        log = io.StringIO()
+        with self.assertRaises(OSError):
+            self.run_main(message(), mock.Mock(side_effect=OSError('HTTP 502')), log)
+        self.assertIn(f'{claude_review.MARKER}\n리뷰 본문', log.getvalue())
+
+    def test_an_unreadable_usage_does_not_stop_the_comment(self):
+        post = mock.Mock()
+        self.run_main(message(input_tokens=None), post, io.StringIO())
+        method, url, payload = post.call_args.args
+        self.assertEqual((method, url), ('POST', 'https://api.github.com/repos/eeoos/airbob/issues/223/comments'))
+        self.assertIn('리뷰 본문', payload['body'])
+        self.assertIn('토큰 정보를 읽지 못함', payload['body'])
 
 
 if __name__ == '__main__':
