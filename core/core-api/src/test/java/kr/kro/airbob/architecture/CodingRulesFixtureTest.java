@@ -3,10 +3,12 @@ package kr.kro.airbob.architecture;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -63,7 +65,7 @@ class CodingRulesFixtureTest {
 	@ParameterizedTest
 	@ValueSource(classes = {CurrentTimeMillis.class, NowWithoutArguments.class, NowWithZone.class,
 		NowByReference.class, CurrentTimeMillisByReference.class, SystemClockOutsideConfig.class,
-		SystemInstantSource.class})
+		SystemInstantSource.class, TickingSystemClock.class})
 	void clockRuleReportsReadingTheSystemClock(Class<?> fixture) {
 		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, fixture)).isTrue();
 	}
@@ -176,9 +178,19 @@ class CodingRulesFixtureTest {
 		}
 	}
 
+	static class TickingSystemClock {
+		Clock clock(ZoneId zone) {
+			return Clock.tickSeconds(zone);
+		}
+	}
+
 	static class ReadsTheClockBean {
 		LocalDate today(Clock clock) {
 			return LocalDate.now(clock);
+		}
+
+		Clock ticking(Clock clock) {
+			return Clock.tick(clock, Duration.ofSeconds(1));
 		}
 
 		long millis(Clock clock) {
