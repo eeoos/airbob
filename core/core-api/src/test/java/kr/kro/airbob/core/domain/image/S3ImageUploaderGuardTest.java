@@ -19,7 +19,8 @@ class S3ImageUploaderGuardTest {
 
 	@Test
 	void disabledUploaderRejectsUploadBeforeTouchingS3() {
-		S3ImageUploader uploader = new S3ImageUploader(s3StorageClient, false);
+		S3ImageUploader uploader = new S3ImageUploader(s3StorageClient, false, "airbob-images",
+			"https://cdn.example.com");
 		MockMultipartFile file = new MockMultipartFile("file", "image.png", "image/png", new byte[] {1});
 
 		assertThatThrownBy(() -> uploader.upload(file, "lab"))
@@ -31,7 +32,8 @@ class S3ImageUploaderGuardTest {
 
 	@Test
 	void disabledUploaderIgnoresDeleteBeforeTouchingS3() {
-		S3ImageUploader uploader = new S3ImageUploader(s3StorageClient, false);
+		S3ImageUploader uploader = new S3ImageUploader(s3StorageClient, false, "airbob-images",
+			"https://cdn.example.com");
 
 		uploader.delete("https://cdn.example.com/lab/image.png");
 

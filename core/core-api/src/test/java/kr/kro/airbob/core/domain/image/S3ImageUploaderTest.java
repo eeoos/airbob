@@ -13,7 +13,6 @@ import java.io.InputStream;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import kr.kro.airbob.client.s3.S3StorageClient;
 
@@ -59,9 +58,6 @@ class S3ImageUploaderTest {
 	}
 
 	private S3ImageUploader uploader() {
-		S3ImageUploader uploader = new S3ImageUploader(s3StorageClient, true);
-		ReflectionTestUtils.setField(uploader, "bucket", BUCKET);
-		ReflectionTestUtils.setField(uploader, "cloudfrontDomain", CLOUDFRONT);
-		return uploader;
+		return new S3ImageUploader(s3StorageClient, true, BUCKET, CLOUDFRONT);
 	}
 }

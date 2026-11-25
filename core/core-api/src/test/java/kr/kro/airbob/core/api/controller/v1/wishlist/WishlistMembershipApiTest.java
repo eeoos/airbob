@@ -5,6 +5,8 @@ import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.time.Clock;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,8 @@ class WishlistMembershipApiTest {
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.addFilters(new SessionAuthFilter(
-				new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))),
+				new SessionAuthenticationService(
+					new SessionReader(new SessionRedisRepository(redisTemplate, Clock.systemUTC()))),
 				objectMapper))
 			.build();
 	}

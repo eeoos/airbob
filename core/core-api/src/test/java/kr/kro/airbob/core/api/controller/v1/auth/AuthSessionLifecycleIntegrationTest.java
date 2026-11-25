@@ -96,7 +96,7 @@ class AuthSessionLifecycleIntegrationTest {
 		when(members.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
 			.thenReturn(Optional.of(new MemberProfile(10L, EMAIL, "여행자")));
 
-		SessionRedisRepository sessions = new SessionRedisRepository(redis);
+		SessionRedisRepository sessions = new SessionRedisRepository(redis, Clock.systemUTC());
 		MemberReader memberReader = new MemberReader(members);
 		SessionWriter sessionWriter = new SessionWriter(sessions);
 		AuthService authentication = new AuthService(memberReader, new SessionIssuer(memberReader, sessionWriter),

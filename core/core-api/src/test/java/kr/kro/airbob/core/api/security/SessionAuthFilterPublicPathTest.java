@@ -3,6 +3,8 @@ package kr.kro.airbob.core.api.security;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -95,7 +97,8 @@ class SessionAuthFilterPublicPathTest {
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
 		SessionAuthFilter filter = new SessionAuthFilter(
-			new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))),
+			new SessionAuthenticationService(
+				new SessionReader(new SessionRedisRepository(redisTemplate, Clock.systemUTC()))),
 			new ObjectMapper());
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
 		request.setCookies(new Cookie("SESSION_ID", "valid-session"));
@@ -119,7 +122,8 @@ class SessionAuthFilterPublicPathTest {
 		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
 		when(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:10")).thenReturn(true);
 		SessionAuthFilter filter = new SessionAuthFilter(
-			new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))),
+			new SessionAuthenticationService(
+				new SessionReader(new SessionRedisRepository(redisTemplate, Clock.systemUTC()))),
 			new ObjectMapper());
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
 		request.setCookies(new Cookie("SESSION_ID", "valid-session"));
@@ -138,7 +142,8 @@ class SessionAuthFilterPublicPathTest {
 	private SessionAuthFilter createFilter() {
 		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
 		return new SessionAuthFilter(
-			new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))),
+			new SessionAuthenticationService(
+				new SessionReader(new SessionRedisRepository(redisTemplate, Clock.systemUTC()))),
 			new ObjectMapper());
 	}
 

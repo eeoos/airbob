@@ -22,18 +22,20 @@ public class S3ImageUploader {
 
 	private final S3StorageClient s3StorageClient;
 	private final boolean writeEnabled;
-
-	@Value("${cloud.aws.s3.bucket}")
-	private String bucket;
-
-	@Value("${cloud.cloudfront.domain}")
-	private String cloudfrontDomain;
+	private final String bucket;
+	private final String cloudfrontDomain;
 
 	public S3ImageUploader(S3StorageClient s3StorageClient,
 		@Value("${cloud.aws.s3.write-enabled:true}")
-		boolean writeEnabled) {
+		boolean writeEnabled,
+		@Value("${cloud.aws.s3.bucket}")
+		String bucket,
+		@Value("${cloud.cloudfront.domain}")
+		String cloudfrontDomain) {
 		this.s3StorageClient = s3StorageClient;
 		this.writeEnabled = writeEnabled;
+		this.bucket = bucket;
+		this.cloudfrontDomain = cloudfrontDomain;
 	}
 
 	public String upload(MultipartFile multipartFile, String dirName) throws IOException {
