@@ -21,12 +21,8 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 
    ```
    mkdir -p build/review
-   codex exec -s read-only --ephemeral --output-schema scripts/ci/review-schema.json \
-     -o build/review/codex-<head 8자리>.json "<지시문>"
-   python3 scripts/ci/review_format.py build/review/codex-<head 8자리>.json > build/review/codex-<head 8자리>.md
+   codex exec -s read-only --ephemeral -o build/review/codex-<head 8자리>.md "<지시문>"
    ```
-
-   - `--output-schema`가 답을 리뷰 기준의 스키마로 강제하고, `review_format.py`가 Claude 리뷰 댓글과 같은 모양으로 그린다.
 
    지시문:
    > 이 저장소의 `<base>...HEAD` 변경을 리뷰하라. `git log`와 `git diff <base>...HEAD`로 변경을 보고, 필요하면 저장소 파일을 읽어라. 파일은 수정하지 마라. 기준은 docs/development/code-review.md다. 변경 의도: <PR 요약 한두 줄>.
@@ -55,7 +51,6 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 5. **기록한다.**
    - `docs/development/ai-review-log.md`에 한 줄을 추가하고 브랜치에 커밋한다.
    - PR 본문에 아래 절을 넣는다. 재리뷰도 한 행과 접은 표 하나를 더한다. 기록 파일은 리뷰마다 한 줄 요약이라, 지적별 판정은 이 표에만 남는다.
-   - 접은 표의 `#`, 심각도, 지적 열은 렌더링된 리뷰의 제목 줄(`### <번호>. <심각도> · <제목>`)을 그대로 옮긴다. 번호는 렌더러가 심각도순으로 매긴 것이다.
 
    ```
    ## AI 리뷰
@@ -76,7 +71,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
    - `claude-review.yml`은 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
    - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
    - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
-   - 실행이 취소(cancelled)됐으면 미완료로 보고 라벨로 다시 돌린다. 워크플로 수준의 동시성 그룹이라, 다른 라벨이 붙어 생긴 실행이 대기 중인 리뷰를 취소할 수 있다.
+   - 실행이 취소(cancelled)되면 미완료로 보고 라벨로 다시 돌린다. 같은 PR에 다른 라벨이 붙으면, 동시성 그룹에서 대기 중이던 리뷰 실행이 취소될 수 있다.
 2. **결과를 읽는다.**
    - 리뷰는 `<!-- airbob-claude-review -->`로 시작하는 댓글 하나다. 인라인 댓글은 없다. `gh pr view <번호> --comments`로 읽는다.
      - 꼬리말의 "실행" ID가 기다린 실행의 ID와 같은 댓글만 쓴다.
