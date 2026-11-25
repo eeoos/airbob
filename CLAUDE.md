@@ -36,7 +36,11 @@ ArchUnit tests in `core/core-api/src/test/java/kr/kro/airbob/architecture` enfor
 strictly for `kr.kro.airbob.core..` and freeze legacy violations (cross-domain repository use,
 domain cycles, entity → DTO/service) in `core/core-api/src/test/resources/archunit_store`. Never add
 entries to the store to make a new violation pass; fixing a violation prunes it, so commit the
-shrunk store with the fix.
+shrunk store with the fix. `CodingRulesTest` bans field injection (including `@Value` fields; use
+constructor or `@Bean` method parameters), `System.out`/`System.err`/`printStackTrace()`, throwing
+`Exception`/`RuntimeException`, `java.util.logging`, and reading the current time without the `Clock`
+bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`). Tests assert with AssertJ, not JUnit
+`Assertions` (`TestCodingRulesTest`).
 
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`core/domain/payment/messaging/`,

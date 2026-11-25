@@ -7,6 +7,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 |---|---|---|
 | 포매팅·import | 아래 [포매팅](#포매팅) | 편집 훅의 자동 정리, Stop 훅과 CI의 `spotlessCheck` |
 | 계층·의존 | [코드 구조](../architecture/code-structure.md) | ArchUnit(`core/core-api/src/test/java/kr/kro/airbob/architecture`) |
+| 코드 규칙 | 아래 [코드 규칙](#코드-규칙) | ArchUnit `CodingRulesTest`, `TestCodingRulesTest` |
 
 ## 포매팅
 
@@ -65,3 +66,31 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
   git config blame.ignoreRevsFile .git-blame-ignore-revs
   ```
 - 이 커밋 전에 갈라진 브랜치는 main을 합칠 때 충돌할 수 있다. 자기 브랜치의 변경을 기준으로 충돌을 풀고 `./gradlew spotlessApply`를 실행한다.
+
+## 코드 규칙
+
+ArchUnit 테스트(`core/core-api/src/test/java/kr/kro/airbob/architecture`)가 강제한다. 위반하면 `./gradlew build`가 실패한다.
+
+| 금지 | 대상 | 대신 쓸 것 |
+|---|---|---|
+| 필드 주입. `@Autowired`, `@Inject`, `@Resource`, `@Value`가 붙은 필드 | main | 생성자 파라미터(`final` 필드 + `@RequiredArgsConstructor`). 설정값은 생성자나 `@Bean` 메서드 파라미터에 `@Value`를 붙인다 |
+| 표준 출력. `System.out`, `System.err`, `printStackTrace()` | main | `@Slf4j` 로거 |
+| 일반 예외 직접 생성. `Throwable`, `Exception`, `RuntimeException` | main | 구체적인 예외. 보통 `ErrorCode`를 가진 `BaseException`의 하위 예외 |
+| `java.util.logging` | main | SLF4J(`@Slf4j`) |
+| `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()` | main | `Clock` 빈을 주입받아 `now(clock)`, `clock.instant()`, `clock.millis()`를 쓴다. 경과 시간은 `System.nanoTime()`으로 잰다 |
+| JUnit `Assertions` | test | AssertJ의 `assertThat`, `assertThatThrownBy` |
+
+- **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfig`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`).
+- **테스트 코드는 대부분 대상이 아니다.** 테스트의 `@Autowired` 필드는 스프링 테스트의 관행이고, 동시성 테스트는 결과를 표준 출력으로 남긴다.
+- **규칙의 시험.** `CodingRulesFixtureTest`는 규칙마다 위반 예시 클래스를 두고, 규칙이 그 위반을 실제로 잡는지 확인한다.
+  - 이 프로젝트의 ArchUnit 설정(`resolveMissingDependenciesFromClassPath=false`)은 JDK와 라이브러리 클래스를 가져오지 않는다. 그래서 그 타입은 이름으로만 안다.
+  - 이름만으로 판단할 수 없는 규칙은 아무것도 잡지 못한 채 통과할 수 있다. 실제로 ArchUnit 기본 규칙은 `IllegalStateException` 같은 하위 클래스에서 부른 `printStackTrace()`를 놓쳤다. 그래서 메서드 이름으로 잡는 조건을 더했다.
+- **도입할 때 고친 위반(2026-11-25).**
+  - 필드 주입 8개: `ElasticsearchConfig`, `RedisConfig`, `S3ImageUploader`, `SettlementGenerator`의 `@Value` 필드
+  - `Clock` 없이 시각을 읽은 5곳: `WishlistRepositoryImpl`, `SessionRedisRepository`, `RecentlyViewedWriter`
+  - JUnit `Assertions`를 쓴 테스트 3개 파일
+- **넣지 않은 ArchUnit 기본 규칙.**
+  - JodaTime 금지: 의존성이 없다.
+  - 옛 날짜·시간 클래스 금지: JDBC에 값을 넘기는 `java.sql.Timestamp`·`Date` 사용이 정당하다.
+  - 사용 중단 API 금지: 라이브러리 클래스를 가져오지 않아 JDK API의 사용 중단 표시를 볼 수 없다.
+- **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 끝난다. Stop 훅은 core-api의 Java 코드가 바뀌면 이 테스트를 실행한다.
