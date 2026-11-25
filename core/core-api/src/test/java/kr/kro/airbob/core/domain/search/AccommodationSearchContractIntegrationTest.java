@@ -204,7 +204,7 @@ class AccommodationSearchContractIntegrationTest {
 		var anonymous = search(request("서울"), new MapBounds(), 0, null);
 		assertThat(anonymous.staySearchResultListing()).allSatisfy(card -> assertThat(card.isInWishlist()).isFalse());
 		verifyNoInteractions(wishlists);
-		when(wishlists.findWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
+		when(wishlists.readWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
 		var authenticated = search(request("서울"), new MapBounds(), 0, 7L);
 		assertThat(authenticated.staySearchResultListing())
 			.allSatisfy(card -> assertThat(card.isInWishlist()).isEqualTo(card.id() == 2));

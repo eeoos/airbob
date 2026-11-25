@@ -19,7 +19,7 @@ public class CouponService {
 	public Long createCoupon(NewCoupon dto) {
 		var coupon = Coupon.of(dto);
 		coupon.validateConfiguration();
-		if (!couponReader.databaseNow().isBefore(coupon.getIssueStartAt()))
+		if (!couponReader.readDatabaseNow().isBefore(coupon.getIssueStartAt()))
 			throw new CouponInvalidConfigurationException();
 		return couponWriter.create(coupon);
 	}
@@ -27,7 +27,7 @@ public class CouponService {
 	@Transactional
 	public void updateCoupon(CouponPatch dto, Long couponId) {
 		var coupon = couponReader.readForUpdate(couponId);
-		var now = couponReader.databaseNow();
+		var now = couponReader.readDatabaseNow();
 		if (coupon.changesPreparedIssuanceConfiguration(dto))
 			requireBeforeStart(coupon, now);
 		Integer previous = coupon.getTotalQuantity();
@@ -44,7 +44,7 @@ public class CouponService {
 	public void changeQuantity(Long couponId, Integer quantity) {
 		Coupon.validateQuantity(quantity);
 		var coupon = couponReader.readForUpdate(couponId);
-		requireBeforeStart(coupon, couponReader.databaseNow());
+		requireBeforeStart(coupon, couponReader.readDatabaseNow());
 		Integer previous = coupon.getTotalQuantity();
 		coupon.changeTotalQuantity(quantity);
 		if (!Objects.equals(previous, quantity))
@@ -54,7 +54,7 @@ public class CouponService {
 	@Transactional
 	public void deleteCoupon(Long couponId) {
 		var coupon = couponReader.readForUpdate(couponId);
-		requireBeforeStart(coupon, couponReader.databaseNow());
+		requireBeforeStart(coupon, couponReader.readDatabaseNow());
 		if (coupon.isStockPrepared())
 			couponWriter.removeUnitsAbove(couponId, 0);
 		// Only an unstarted, never-issued campaign may be discarded.

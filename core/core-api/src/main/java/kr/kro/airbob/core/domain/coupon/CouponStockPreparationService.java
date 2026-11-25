@@ -14,7 +14,7 @@ public class CouponStockPreparationService {
 	@Transactional
 	public void prepare(Long couponId) {
 		var coupon = couponReader.readForUpdate(couponId);
-		var now = couponReader.databaseNow();
+		var now = couponReader.readDatabaseNow();
 		if (coupon.isStockPrepared())
 			throw new CouponAlreadyPreparedException();
 		if (!Boolean.TRUE.equals(coupon.getIsActive()) || !now.isBefore(coupon.getIssueStartAt())

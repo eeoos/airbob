@@ -52,7 +52,7 @@ class AccommodationDetailReaderTest {
 		when(accommodationAmenityRepository.findDetailAmenitiesByAccommodationId(1L)).thenReturn(List.of());
 		when(accommodationImageRepository.findDetailImagesByAccommodationIdOrderByIdAsc(1L)).thenReturn(List.of());
 
-		AccommodationDetailSnapshot snapshot = reader.load(1L);
+		AccommodationDetailSnapshot snapshot = reader.read(1L);
 
 		assertThat(snapshot.id()).isEqualTo(1L);
 		assertThat(snapshot.name()).isEqualTo("서울의 집");
@@ -67,7 +67,7 @@ class AccommodationDetailReaderTest {
 		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
 			1L, AccommodationStatus.PUBLISHED)).thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> reader.load(1L))
+		assertThatThrownBy(() -> reader.read(1L))
 			.isInstanceOf(AccommodationNotFoundException.class);
 
 		verifyNoInteractions(accommodationAmenityRepository, accommodationImageRepository);

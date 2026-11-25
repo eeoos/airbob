@@ -96,7 +96,7 @@ public class WishlistReader implements AccommodationWishlistReader, SearchWishli
 	}
 
 	@Override
-	public Set<Long> findWishlistedAccommodationIds(Long memberId, List<Long> accommodationIds) {
+	public Set<Long> readWishlistedAccommodationIds(Long memberId, List<Long> accommodationIds) {
 		return wishlistAccommodationRepository.findAccommodationIdsByMemberIdAndAccommodationIds(
 			memberId, accommodationIds);
 	}

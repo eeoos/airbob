@@ -23,7 +23,7 @@ public class AccommodationDetailReader {
 	private final AccommodationWishlistReader wishlistReader;
 
 	@Transactional(readOnly = true)
-	public AccommodationDetailSnapshot load(Long accommodationId) {
+	public AccommodationDetailSnapshot read(Long accommodationId) {
 		PublicAccommodationDetailProjection projection = accommodationRepository
 			.findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);

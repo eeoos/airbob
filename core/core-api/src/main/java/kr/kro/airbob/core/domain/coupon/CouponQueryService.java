@@ -23,7 +23,7 @@ public class CouponQueryService {
 
 	@Transactional(readOnly = true)
 	public CouponCampaignPage findCouponCampaigns(CursorRequest.CouponCampaignCursorPageRequest request) {
-		LocalDateTime now = couponReader.databaseNow();
+		LocalDateTime now = couponReader.readDatabaseNow();
 		Slice<CouponCampaignProjection> slice = couponReader.readCampaigns(now, request);
 		List<CouponCampaignPage.Item> campaigns = slice.getContent().stream()
 			.map(coupon -> CouponCampaignPage.Item.of(coupon, now))

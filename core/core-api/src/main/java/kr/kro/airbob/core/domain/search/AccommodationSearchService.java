@@ -63,6 +63,6 @@ public class AccommodationSearchService {
 	private Set<Long> getWishlist(List<Long> ids, Long memberId) {
 		if (memberId == null)
 			return Set.of();
-		return wishlistReader.findWishlistedAccommodationIds(memberId, ids);
+		return wishlistReader.readWishlistedAccommodationIds(memberId, ids);
 	}
 }

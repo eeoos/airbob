@@ -50,7 +50,7 @@ public class RecentlyViewedService {
 
 		// DB에서 존재하는 숙소 정보만 조회
 		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationReader
-			.findWithAddressAndReviewSummaryByIdInAndStatus(
+			.readWithAddressAndReviewSummaryByIdInAndStatus(
 				new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
 
 		Map<Long, RecentlyViewedAccommodationProjection> accommodationMap = accommodationsInDb.stream()
@@ -89,7 +89,7 @@ public class RecentlyViewedService {
 
 	private Map<Long, Boolean> getWishlistMap(Long memberId, List<Long> accommodationIds) {
 		Set<Long> wishlistAccommodationIds = wishlistReader
-			.findWishlistedAccommodationIds(memberId, accommodationIds);
+			.readWishlistedAccommodationIds(memberId, accommodationIds);
 
 		return accommodationIds.stream()
 			.collect(Collectors.toMap(

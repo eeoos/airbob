@@ -62,7 +62,7 @@ public class ReservationInventorySeeder implements AccommodationInventorySeeder 
 		if (batchSize < 1 || batchSize > AccommodationInventoryDayRepository.MAX_SEED_TARGETS) {
 			throw new IllegalArgumentException("inventory seed batch size must be between 1 and 1000");
 		}
-		List<InventorySeedTarget> targets = accommodationReader.findInventorySeedTargets(
+		List<InventorySeedTarget> targets = accommodationReader.readInventorySeedTargets(
 			AccommodationStatus.PUBLISHED,
 			afterAccommodationId,
 			PageRequest.of(0, batchSize));

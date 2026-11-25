@@ -35,7 +35,7 @@ class AccommodationSearchSnapshotReaderTest {
 		given(documentBuilder.buildAccommodationDocument(ACCOMMODATION_UID))
 			.willReturn(published);
 
-		assertThat(reader.readPublished(ACCOMMODATION_UID)).contains(published);
+		assertThat(reader.findPublished(ACCOMMODATION_UID)).contains(published);
 	}
 
 	@Test
@@ -49,7 +49,7 @@ class AccommodationSearchSnapshotReaderTest {
 			.willReturn(unpublished)
 			.willThrow(new AccommodationNotFoundException());
 
-		assertThat(reader.readPublished(ACCOMMODATION_UID)).isEmpty();
-		assertThat(reader.readPublished(ACCOMMODATION_UID)).isEmpty();
+		assertThat(reader.findPublished(ACCOMMODATION_UID)).isEmpty();
+		assertThat(reader.findPublished(ACCOMMODATION_UID)).isEmpty();
 	}
 }

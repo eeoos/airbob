@@ -123,10 +123,8 @@ public class CommonCodeReader {
 			.orElseThrow(CommonCodeGroupNotFoundException::new);
 	}
 
-	public void checkGroupExists(String groupCode) {
-		if (!groupRepository.existsById(groupCode)) {
-			throw new CommonCodeGroupNotFoundException();
-		}
+	public boolean existsGroup(String groupCode) {
+		return groupRepository.existsById(groupCode);
 	}
 
 	/** 관리자용: 비활성 포함 전체 코드를 sortOrder, code 오름차순으로 조회 */

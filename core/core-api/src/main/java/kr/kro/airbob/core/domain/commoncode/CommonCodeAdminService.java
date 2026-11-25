@@ -39,7 +39,7 @@ public class CommonCodeAdminService {
 
 	@Transactional(readOnly = true)
 	public List<CommonCodeDetail> getAll(String groupCode) {
-		commonCodeReader.checkGroupExists(groupCode);
+		requireGroupExists(groupCode);
 		return commonCodeReader.readAllCodes(groupCode).stream()
 			.map(CommonCodeDetail::from)
 			.toList();
@@ -47,7 +47,7 @@ public class CommonCodeAdminService {
 
 	@Transactional
 	public CommonCodeDetail create(String groupCode, NewCommonCode newCode) {
-		commonCodeReader.checkGroupExists(groupCode);
+		requireGroupExists(groupCode);
 		return CommonCodeDetail.from(commonCodeWriter.createCode(groupCode, newCode));
 	}
 
@@ -56,5 +56,11 @@ public class CommonCodeAdminService {
 		CommonCode commonCode = commonCodeReader.readCode(groupCode, code);
 		commonCode.updateDisplay(patch.name(), patch.description(), patch.sortOrder(), patch.active());
 		return CommonCodeDetail.from(commonCode);
+	}
+
+	private void requireGroupExists(String groupCode) {
+		if (!commonCodeReader.existsGroup(groupCode)) {
+			throw new CommonCodeGroupNotFoundException();
+		}
 	}
 }

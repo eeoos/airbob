@@ -28,7 +28,7 @@ public class AccommodationQueryService {
 	public PublicAccommodationDetail findAccommodation(Long accommodationId, Long viewerId) {
 		AccommodationDetailSnapshot snapshot = accommodationDetailCache.getOrLoad(
 			accommodationId,
-			() -> accommodationDetailReader.load(accommodationId));
+			() -> accommodationDetailReader.read(accommodationId));
 		boolean isInWishlist = viewerId != null
 			&& accommodationDetailReader.isInWishlist(accommodationId, viewerId);
 

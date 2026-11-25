@@ -230,7 +230,7 @@ class GlobalTemporalFlowIntegrationTest {
 		Reservation confirmed = reservationRepository.findByReservationUid(UUID.fromString(freeReservationUid))
 			.orElseThrow();
 		assertOwnedLocalNights(complimentary, confirmed.getId(), expected, "OCCUPIED");
-		AccommodationDocument document = searchReader.readPublished(complimentary.getAccommodationUid()).orElseThrow();
+		AccommodationDocument document = searchReader.findPublished(complimentary.getAccommodationUid()).orElseThrow();
 		assertThat(document.timeZoneId()).isEqualTo(expected.zone());
 		assertThat(document.reservationRanges()).singleElement().satisfies(range -> {
 			assertThat(range.gte()).isEqualTo(expected.checkIn());

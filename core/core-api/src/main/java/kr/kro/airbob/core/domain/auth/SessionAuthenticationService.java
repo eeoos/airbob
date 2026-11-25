@@ -15,6 +15,6 @@ public class SessionAuthenticationService {
 
 	/** 세션의 회원 ID. 세션이 없거나 읽을 수 없거나, 회원의 세션이 모두 무효화되었으면 비어 있다. */
 	public Optional<Long> authenticate(String sessionId) {
-		return sessionReader.readActiveMemberId(sessionId);
+		return sessionReader.findActiveMemberId(sessionId);
 	}
 }
