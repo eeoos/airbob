@@ -7,7 +7,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 |---|---|---|
 | 포매팅·import | 아래 [포매팅](#포매팅) | 편집 훅의 자동 정리, Stop 훅과 CI의 `spotlessCheck` |
 | 계층·의존 | [코드 구조](../architecture/code-structure.md) | ArchUnit(`core/core-api/src/test/java/kr/kro/airbob/architecture`) |
-| 코드 규칙 | 아래 [코드 규칙](#코드-규칙) | ArchUnit `CodingRulesTest`, 테스트의 JUnit `Assertions` 금지는 Spotless |
+| 코드 규칙 | 아래 [코드 규칙](#코드-규칙) | ArchUnit `CodingRulesTest`, 테스트의 단언 API 제한은 Spotless |
 
 ## 포매팅
 
@@ -34,7 +34,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 명령 | 하는 일 |
 |---|---|
 | `./gradlew spotlessApply` | 모든 모듈의 Java 파일을 포매팅한다 |
-| `./gradlew spotlessCheck` | 포매팅이 다르거나, static이 아닌 와일드카드 import나 JUnit `Assertions`가 있으면 실패한다. `check`에 포함되어 `./gradlew build`가 함께 실행한다 |
+| `./gradlew spotlessCheck` | 포매팅이 다르거나, static이 아닌 와일드카드 import나 AssertJ가 아닌 단언 API가 있으면 실패한다. `check`에 포함되어 `./gradlew build`가 함께 실행한다 |
 
 `spotlessApply`는 static이 아닌 와일드카드 import를 고치지 못한다. 쓰는 클래스를 하나씩 import하도록 직접 바꾼다.
 
@@ -69,7 +69,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 
 ## 코드 규칙
 
-main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr/kro/airbob/architecture`)가, 테스트의 JUnit `Assertions` 금지는 Spotless(`forbidRegex`)가 강제한다. 위반하면 `./gradlew build`가 실패한다.
+main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr/kro/airbob/architecture`)가, 테스트의 단언 API 제한은 Spotless(`forbidRegex`)가 강제한다. 위반하면 `./gradlew build`가 실패한다.
 
 | 금지 | 대상 | 대신 쓸 것 |
 |---|---|---|
@@ -78,7 +78,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | 일반 예외 직접 생성. `Throwable`, `Exception`, `RuntimeException` | main | 구체적인 예외. 보통 `ErrorCode`를 가진 `BaseException`의 하위 예외 |
 | `java.util.logging` | main | SLF4J(`@Slf4j`) |
 | `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()`, `ClockConfig` 밖에서 시스템 시계 만들기(`Clock.systemUTC()`·`systemDefaultZone()`·`system(ZoneId)`, `Clock.tickSeconds`·`tickMinutes`·`tickMillis`, `InstantSource.system()`) | main | `Clock` 빈을 주입받아 `clock.instant()`, `clock.millis()`, `LocalDate.now(clock)`를 쓴다. 저장할 `LocalDateTime`은 JPA 감사 시각처럼 `LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)`로 만든다. 주입받은 시계를 감싸는 `Clock.tick(clock, …)`, `Clock.offset(clock, …)`은 쓸 수 있다. 경과 시간은 `System.nanoTime()`으로 잰다 |
-| JUnit `Assertions` | 모든 모듈의 test | AssertJ의 `assertThat`, `assertThatThrownBy` |
+| AssertJ가 아닌 단언 API. JUnit `Assertions`, JUnit 4 `org.junit.Assert`, Hamcrest `MatcherAssert` | 모든 모듈의 test | AssertJ의 `assertThat`, `assertThatThrownBy`. MockMvc `jsonPath`에 넘기는 Hamcrest `Matchers`는 쓸 수 있다 |
 
 - **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfig`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`). 옛 날짜 API(`new Date()`, `Calendar.getInstance()`)는 이 규칙이 다루지 않는다. main에서 쓰지 않으며 새 코드에도 쓰지 않는다.
 - **테스트 코드는 대부분 대상이 아니다.** 테스트의 `@Autowired` 필드는 스프링 테스트의 관행이고, 동시성 테스트는 결과를 표준 출력으로 남긴다.
@@ -86,7 +86,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - 이 프로젝트의 ArchUnit 설정(`resolveMissingDependenciesFromClassPath=false`)은 JDK와 라이브러리 클래스를 가져오지 않는다. 그래서 그 타입은 이름으로만 안다.
   - 이름만으로 판단할 수 없는 규칙은 아무것도 잡지 못한 채 통과할 수 있다. 실제로 ArchUnit 기본 규칙은 `IllegalStateException` 같은 하위 클래스에서 부른 `printStackTrace()`와, 필드 없이 쓰는 `Logger.getGlobal()`을 놓쳤다.
   - 기본 규칙은 직접 호출만 본다. `orElseGet(Instant::now)`, `orElseThrow(RuntimeException::new)` 같은 메서드·생성자 참조도 잡도록 조건을 더했다. 픽스처는 호출과 참조를 모두 담는다.
-- **JUnit `Assertions`를 Spotless로 막는 이유.** ArchUnit 규칙은 core-api 테스트 클래스만 가져와서 클라이언트 모듈의 테스트를 보지 못한다. API 문서 테스트만 바뀐 PR은 CI에서 테스트 대신 `spotlessCheck`와 `verifyOpenApi`만 돈다. Spotless는 모든 모듈에 적용되고 두 경우 모두 실행된다.
+- **테스트 단언을 Spotless로 막는 이유.** ArchUnit 규칙은 core-api 테스트 클래스만 가져와서 클라이언트 모듈의 테스트를 보지 못한다. API 문서 테스트만 바뀐 PR은 CI에서 테스트 대신 `spotlessCheck`와 `verifyOpenApi`만 돈다. Spotless는 모든 모듈에 적용되고 두 경우 모두 실행된다. JUnit 4와 Hamcrest는 Testcontainers와 `spring-boot-starter-test`를 통해 테스트 클래스패스에 있어서 함께 막는다.
 - **도입할 때 고친 위반(2026-11-25).**
   - 필드 주입 8개: `ElasticsearchConfig`, `RedisConfig`, `S3ImageUploader`, `SettlementGenerator`의 `@Value` 필드
   - `Clock` 없이 시각을 읽은 5곳: `WishlistRepositoryImpl`, `SessionRedisRepository`, `RecentlyViewedWriter`
