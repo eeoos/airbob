@@ -70,6 +70,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 1. **실행을 기다린다.**
    - `claude-review.yml`은 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
    - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
+   - 리뷰를 받은 PR은 고치는 동안 초안으로 돌리거나 닫지 않는다. 초안을 준비 완료로 되돌리거나 다시 열면 라벨 없이 리뷰가 다시 돈다.
    - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
    - 실행이 취소(cancelled)되면 미완료로 보고 라벨로 다시 돌린다. 같은 PR에 다른 라벨이 붙으면, 동시성 그룹에서 대기 중이던 리뷰 실행이 취소될 수 있다.
 2. **결과를 읽는다.**
