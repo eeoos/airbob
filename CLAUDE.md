@@ -39,8 +39,8 @@ entries to the store to make a new violation pass; fixing a violation prunes it,
 shrunk store with the fix. `CodingRulesTest` bans field injection (including `@Value` fields; use
 constructor or `@Bean` method parameters), `System.out`/`System.err`/`printStackTrace()`, throwing
 `Exception`/`RuntimeException`, `java.util.logging`, and reading the current time without the `Clock`
-bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`). Tests assert with AssertJ, not JUnit
-`Assertions` (`TestCodingRulesTest`).
+bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`). Tests assert with AssertJ; `spotlessCheck` rejects
+JUnit `Assertions` in every module.
 
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`core/domain/payment/messaging/`,

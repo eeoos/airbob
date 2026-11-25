@@ -7,6 +7,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
@@ -32,23 +35,31 @@ class CodingRulesFixtureTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(classes = {PrintsToStandardOut.class, PrintsStackTrace.class})
+	@ValueSource(classes = {PrintsToStandardOut.class, PrintsStackTrace.class, PrintsStackTraceByReference.class})
 	void standardStreamRuleReportsConsoleOutput(Class<?> fixture) {
 		assertThat(hasViolation(CodingRulesTest.noStandardStreams, fixture)).isTrue();
 	}
 
-	@Test
-	void genericExceptionRuleReportsRuntimeException() {
-		assertThat(hasViolation(CodingRulesTest.noGenericExceptions, ThrowsRuntimeException.class)).isTrue();
+	@ParameterizedTest
+	@ValueSource(classes = {ThrowsRuntimeException.class, RuntimeExceptionByReference.class})
+	void genericExceptionRuleReportsRuntimeException(Class<?> fixture) {
+		assertThat(hasViolation(CodingRulesTest.noGenericExceptions, fixture)).isTrue();
 	}
 
 	@Test
-	void javaUtilLoggingRuleReportsItsLogger() {
-		assertThat(hasViolation(CodingRulesTest.noJavaUtilLogging, UsesJavaUtilLogging.class)).isTrue();
+	void genericExceptionRuleAllowsSpecificExceptions() {
+		assertThat(hasViolation(CodingRulesTest.noGenericExceptions, SpecificException.class)).isFalse();
 	}
 
 	@ParameterizedTest
-	@ValueSource(classes = {CurrentTimeMillis.class, NowWithoutArguments.class, NowWithZone.class})
+	@ValueSource(classes = {JavaUtilLoggingField.class, JavaUtilLoggingWithoutField.class})
+	void javaUtilLoggingRuleReportsItsLogger(Class<?> fixture) {
+		assertThat(hasViolation(CodingRulesTest.noJavaUtilLogging, fixture)).isTrue();
+	}
+
+	@ParameterizedTest
+	@ValueSource(classes = {CurrentTimeMillis.class, NowWithoutArguments.class, NowWithZone.class,
+		NowByReference.class, CurrentTimeMillisByReference.class})
 	void clockRuleReportsReadingTheSystemClock(Class<?> fixture) {
 		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, fixture)).isTrue();
 	}
@@ -84,14 +95,38 @@ class CodingRulesFixtureTest {
 		}
 	}
 
+	static class PrintsStackTraceByReference {
+		void print(List<Throwable> errors) {
+			errors.forEach(Throwable::printStackTrace);
+		}
+	}
+
 	static class ThrowsRuntimeException {
 		void fail() {
 			throw new RuntimeException("fixture");
 		}
 	}
 
-	static class UsesJavaUtilLogging {
+	static class RuntimeExceptionByReference {
+		Object require(Optional<Object> value) {
+			return value.orElseThrow(RuntimeException::new);
+		}
+	}
+
+	static class SpecificException extends RuntimeException {
+		SpecificException() {
+			super("fixture");
+		}
+	}
+
+	static class JavaUtilLoggingField {
 		final Logger logger = Logger.getLogger("fixture");
+	}
+
+	static class JavaUtilLoggingWithoutField {
+		void log() {
+			Logger.getGlobal().info("fixture");
+		}
 	}
 
 	static class CurrentTimeMillis {
@@ -109,6 +144,18 @@ class CodingRulesFixtureTest {
 	static class NowWithZone {
 		LocalDateTime now() {
 			return LocalDateTime.now(ZoneOffset.UTC);
+		}
+	}
+
+	static class NowByReference {
+		Instant now(Optional<Instant> given) {
+			return given.orElseGet(Instant::now);
+		}
+	}
+
+	static class CurrentTimeMillisByReference {
+		long now(OptionalLong given) {
+			return given.orElseGet(System::currentTimeMillis);
 		}
 	}
 

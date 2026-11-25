@@ -51,6 +51,9 @@ configure(subprojects.findAll { it.subprojects.isEmpty() }) {
 			// The Naver convention allows wildcards only in static imports; forbidWildcardImports() rejects both.
 			forbidRegex('Non-static wildcard import', '(?m)^import (?!static\\s)[\\w.]+\\.\\*;',
 				'Import each class by name; only static imports may use *')
+			// Tests assert with AssertJ. A lint here covers every module's tests, unlike an ArchUnit rule in core-api.
+			forbidRegex('JUnit Assertions', 'org\\.junit\\.jupiter\\.api\\.Assertions\\b',
+				'Assert with AssertJ (assertThat, assertThatThrownBy) instead of JUnit Assertions')
 			eclipse().configFile(rootProject.file('config/formatter/naver-eclipse-formatter.xml'))
 		}
 	}
