@@ -1,8 +1,7 @@
 package kr.kro.airbob.core.domain.auth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -38,8 +37,8 @@ class AuthServiceTest {
 
 		String sessionId = authService.login("guest@airbob.test", "password1");
 
-		assertFalse(sessionId.isBlank());
-		assertEquals("session-1", sessionId);
+		assertThat(sessionId).isNotBlank();
+		assertThat(sessionId).isEqualTo("session-1");
 		then(sessionIssuer).should().issue(1L, member.getPassword());
 	}
 
@@ -50,7 +49,8 @@ class AuthServiceTest {
 		given(memberRepository.findByEmailAndStatus("guest@airbob.test", MemberStatus.ACTIVE))
 			.willReturn(Optional.of(member));
 
-		assertThrows(InvalidPasswordException.class, () -> authService.login("guest@airbob.test", "password1"));
+		assertThatThrownBy(() -> authService.login("guest@airbob.test", "password1"))
+			.isInstanceOf(InvalidPasswordException.class);
 		then(sessionIssuer).shouldHaveNoInteractions();
 	}
 
