@@ -54,6 +54,7 @@
   - git에서 리뷰 기준, `CLAUDE.md`, 바뀐 경로에 해당하는 `.claude/rules`, PR 설명, 커밋, diff, 바뀐 파일을 모은다.
     - 기준과 규칙은 base 커밋에서 읽는다. PR이 자기를 리뷰할 기준을 약하게 바꿀 수 없게 하기 위해서다.
   - Messages API에 도구 없이 리뷰 요청을 한 번 보낸다(구조화 출력). 연결 오류와 일부 HTTP 오류(408·409·429·5xx)는 SDK가 최대 2회 재시도한다. 인증은 ID 페더레이션(GitHub OIDC)이다.
+  - 받은 리뷰는 댓글을 달기 전에 실행의 Step Summary에 먼저 쓴다. 게시가 실패해도 과금된 리뷰가 남는다.
   - 로컬에서는 `--dry-run <파일>`로 보낼 요청을 파일로 확인할 수 있다.
   - 설치할 패키지는 [ci/claude-review-requirements.txt](ci/claude-review-requirements.txt)에 버전과 해시로 고정한다. 버전을 올리거나 다시 만들 때는 저장소 루트에서 `printf 'anthropic==2.8.0\n' | uv pip compile - --universal --python-version 3.12 --generate-hashes --no-header -o scripts/ci/claude-review-requirements.txt`를 실행한다.
 - [ci/pr_comment.py](ci/pr_comment.py): `pr-report.yml`(`workflow_run`)이 보고서를 PR 고정 댓글 하나로 만들거나 갱신한다.

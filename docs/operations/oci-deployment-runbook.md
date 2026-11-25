@@ -39,7 +39,9 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
 - 게시: `main`의 `pr-report.yml`
 - 각 실행의 Step Summary에도 같은 보고서가 남는다.
 
-**Claude 리뷰:** `claude-review.yml`이 PR을 열 때 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
+**Claude 리뷰:** `claude-review.yml`이 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
+- 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 돈다.
+- 리뷰 본문은 댓글을 달기 전에 실행의 Step Summary에 먼저 남긴다. 게시가 실패해도 과금된 리뷰를 잃지 않는다.
 - 다시 리뷰하려면 `claude-review` 라벨을 붙인다. push마다 돌지 않는다.
 - `CI result`에 포함되지 않고 머지를 막지 않는다.
 - Messages API에 리뷰 요청을 한 번 보낸다. 연결 오류와 일부 HTTP 오류(408·409·429·5xx)는 SDK가 최대 2회 재시도한다. 처리 중에 연결이 끊긴 요청은 과금될 수 있다.

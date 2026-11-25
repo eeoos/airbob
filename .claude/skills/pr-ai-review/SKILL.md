@@ -47,25 +47,26 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
      - 재리뷰는 최대 2회다. 2회째에도 필수가 나오면 더 돌지 않고 사용자에게 묻는다. 계속 새 결함이 나온다는 것은 땜질보다 설계를 다시 볼 신호일 수 있다.
 5. **기록한다.**
    - `docs/development/ai-review-log.md`에 한 줄을 추가하고 브랜치에 커밋한다.
-   - PR 본문에 아래 절을 넣는다.
+   - PR 본문에 아래 절을 넣는다. 재리뷰도 한 행과 접은 표 하나를 더한다. 기록 파일은 리뷰마다 한 줄 요약이라, 지적별 판정은 이 표에만 남는다.
 
    ```
    ## AI 리뷰
-   | 단계 | 리뷰어 | 지적 | 고침 | 보류 | 넘김 | 오탐 |
-   |---|---|---:|---:|---:|---:|---:|
-   | PR 전 | Codex <모델>, <수준> | … | … | … | … | … |
+   | 단계 | 리뷰어 | 범위 | 지적 | 고침 | 보류 | 넘김 | 오탐 | 실제 결함 |
+   |---|---|---|---:|---:|---:|---:|---:|---:|
+   | PR 전 | Codex <모델>, <수준> | `<base>...<head>` | … | … | … | … | … | … |
 
-   <details><summary>지적별 판정</summary>
+   <details><summary>지적별 판정: PR 전</summary>
 
-   | # | 심각도 | 지적 | 판정 | 근거 |
-   |---|---|---|---|---|
+   | # | 심각도 | 지적 | 판정 | 실제 결함 | 근거 |
+   |---|---|---|---|:-:|---|
    </details>
    ```
 
 ## B. PR 후: Claude 리뷰
 
 1. **실행을 기다린다.**
-   - `claude-review.yml`은 PR을 열 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다.
+   - `claude-review.yml`은 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
+   - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
    - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
 2. **결과를 읽는다.**
    - 리뷰는 `<!-- airbob-claude-review -->`로 시작하는 댓글 하나다. 인라인 댓글은 없다. `gh pr view <번호> --comments`로 읽는다.
@@ -76,6 +77,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
    - 넘김·오탐 판정의 근거도 Codex에게 묻는다. Claude 리뷰어는 작성자와 같은 계열이라, 다른 계열의 확인이 더 필요하다.
    - 지적마다 Codex가 이미 낸 것인지 표시한다. 이 표시가 "2단계 추가 발견"의 근거가 된다.
 4. **기록한다.**
-   - PR 본문의 "AI 리뷰" 표에 PR 후 행을 추가한다(`gh pr edit <번호> --body-file <파일>`).
+   - PR 본문의 "AI 리뷰" 표에 PR 후 행과 지적별 접은 표를 추가한다. 접은 표에는 `Codex도 냄` 열을 더한다.
+     - 본문은 `gh api -X PATCH repos/<저장소>/pulls/<번호> -F body=@<파일>`로 바꾼다. `gh pr edit`은 classic Projects 조회 오류로 실패할 수 있다.
    - 기록 파일에 한 줄을 추가해 커밋하고 push한다.
 5. **다시 리뷰가 필요하면** PR에 `claude-review` 라벨을 붙인다. 이미 붙어 있으면 뗐다가 다시 붙인다.

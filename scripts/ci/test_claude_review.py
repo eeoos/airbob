@@ -243,6 +243,14 @@ class IdentityTests(unittest.TestCase):
         claude_review.use_github_identity(environ)
         self.assertEqual(environ, {})
 
+    def test_the_review_is_kept_in_the_step_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = Path(directory) / 'summary.md'
+            summary.write_text('앞 단계\n', encoding='utf-8')
+            claude_review.keep_in_step_summary('리뷰 본문', {'GITHUB_STEP_SUMMARY': str(summary)})
+            self.assertEqual(summary.read_text(encoding='utf-8'), '앞 단계\n리뷰 본문\n')
+        claude_review.keep_in_step_summary('리뷰 본문', {})
+
     def test_the_pull_request_text_comes_from_the_event(self):
         with tempfile.TemporaryDirectory() as directory:
             event = Path(directory) / 'event.json'

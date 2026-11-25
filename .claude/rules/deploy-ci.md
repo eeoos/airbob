@@ -29,8 +29,9 @@ paths:
   and is not part of `CI result`; `pr-report.yml` (`workflow_run`, default-branch code) posts the one
   sticky comment. Never add `pull-requests: write` or `actions: read` to `ci.yml`: CD reuses it with
   `contents: read`, and a called workflow cannot request more than its caller grants.
-- Claude review: `claude-review.yml` runs `scripts/ci/claude_review.py` on same-repository PRs when
-  opened and when the `claude-review` label is added. It is informational, not part of `CI result`, and
+- Claude review: `claude-review.yml` runs `scripts/ci/claude_review.py` on same-repository, non-draft PRs
+  when opened, reopened, or marked ready for review, and when the `claude-review` label is added. It
+  keeps the review in the step summary before posting it. It is informational, not part of `CI result`, and
   stays outside `ci.yml` for the same permission reason. The script collects the context from Git at the
   event's base and head SHAs (criteria and rules from base), sends one review request to the Messages
   API with no tools (structured output; the SDK retries up to twice on connection errors and HTTP
