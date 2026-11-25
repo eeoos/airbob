@@ -77,10 +77,10 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | 표준 출력. `System.out`, `System.err`, `printStackTrace()` | main | `@Slf4j` 로거 |
 | 일반 예외 직접 생성. `Throwable`, `Exception`, `RuntimeException` | main | 구체적인 예외. 보통 `ErrorCode`를 가진 `BaseException`의 하위 예외 |
 | `java.util.logging` | main | SLF4J(`@Slf4j`) |
-| `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()` | main | `Clock` 빈을 주입받아 `clock.instant()`, `clock.millis()`, `LocalDate.now(clock)`를 쓴다. 저장할 `LocalDateTime`은 JPA 감사 시각처럼 `LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)`로 만든다. 경과 시간은 `System.nanoTime()`으로 잰다 |
+| `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()`, `ClockConfig` 밖에서 시스템 시계 만들기(`Clock.systemUTC()`·`Clock.tick*()`·`InstantSource.system()` 등) | main | `Clock` 빈을 주입받아 `clock.instant()`, `clock.millis()`, `LocalDate.now(clock)`를 쓴다. 저장할 `LocalDateTime`은 JPA 감사 시각처럼 `LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)`로 만든다. 경과 시간은 `System.nanoTime()`으로 잰다 |
 | JUnit `Assertions` | 모든 모듈의 test | AssertJ의 `assertThat`, `assertThatThrownBy` |
 
-- **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfig`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`).
+- **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfig`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`). 옛 날짜 API(`new Date()`, `Calendar.getInstance()`)는 이 규칙이 다루지 않는다. main에서 쓰지 않으며 새 코드에도 쓰지 않는다.
 - **테스트 코드는 대부분 대상이 아니다.** 테스트의 `@Autowired` 필드는 스프링 테스트의 관행이고, 동시성 테스트는 결과를 표준 출력으로 남긴다.
 - **규칙의 시험.** `CodingRulesFixtureTest`는 규칙마다 위반 예시 클래스를 두고, 규칙이 그 위반을 실제로 잡는지 확인한다.
   - 이 프로젝트의 ArchUnit 설정(`resolveMissingDependenciesFromClassPath=false`)은 JDK와 라이브러리 클래스를 가져오지 않는다. 그래서 그 타입은 이름으로만 안다.

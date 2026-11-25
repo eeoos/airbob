@@ -19,6 +19,8 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.junit.CacheMode;
 import com.tngtech.archunit.lang.ArchRule;
 
+import kr.kro.airbob.core.api.config.ClockConfig;
+
 /**
  * Coding rules for application code. See docs/development/coding-convention.md ("코드 규칙").
  * {@link CodingRulesFixtureTest} checks that each rule reports the violation it is meant to catch.
@@ -32,6 +34,9 @@ class CodingRulesTest {
 
 	private static final Set<String> GENERIC_EXCEPTIONS = Set.of(
 		"java.lang.Throwable", "java.lang.Exception", "java.lang.RuntimeException");
+	/** Static methods of Clock and InstantSource that create a clock on the system time. */
+	private static final Set<String> SYSTEM_CLOCK_FACTORIES = Set.of(
+		"system", "systemUTC", "systemDefaultZone", "tickSeconds", "tickMinutes", "tickMillis");
 
 	/** Covers @Value as well as @Autowired, @Inject and @Resource fields. */
 	@ArchTest
@@ -75,13 +80,21 @@ class CodingRulesTest {
 				&& GENERIC_EXCEPTIONS.contains(access.getTargetOwner().getName()));
 	}
 
-	/** java.time {@code now()} or {@code now(ZoneId)}, and {@code System.currentTimeMillis()}. */
+	/**
+	 * java.time {@code now()} or {@code now(ZoneId)}, {@code System.currentTimeMillis()}, and a system Clock or
+	 * InstantSource created outside ClockConfig, which defines the Clock bean.
+	 */
 	private static DescribedPredicate<JavaAccess<?>> readsTheSystemClock() {
 		return DescribedPredicate.describe("read the current time without the Clock bean", access -> {
 			if (!(access.getTarget() instanceof CodeUnitAccessTarget target)) {
 				return false;
 			}
-			if (target.getOwner().getName().equals("java.lang.System")) {
+			String owner = target.getOwner().getName();
+			if (owner.equals("java.time.Clock") || owner.equals("java.time.InstantSource")) {
+				return SYSTEM_CLOCK_FACTORIES.contains(target.getName())
+					&& !access.getOriginOwner().getName().equals(ClockConfig.class.getName());
+			}
+			if (owner.equals("java.lang.System")) {
 				return target.getName().equals("currentTimeMillis");
 			}
 			List<String> parameters = target.getRawParameterTypes().stream().map(JavaClass::getName).toList();

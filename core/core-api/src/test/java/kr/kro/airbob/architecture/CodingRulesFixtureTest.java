@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.InstantSource;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -20,6 +21,8 @@ import org.springframework.beans.factory.annotation.Value;
 
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
+
+import kr.kro.airbob.core.api.config.ClockConfig;
 
 /**
  * Checks that each rule in {@link CodingRulesTest} reports the violation it is meant to catch. The rules run
@@ -59,14 +62,16 @@ class CodingRulesFixtureTest {
 
 	@ParameterizedTest
 	@ValueSource(classes = {CurrentTimeMillis.class, NowWithoutArguments.class, NowWithZone.class,
-		NowByReference.class, CurrentTimeMillisByReference.class})
+		NowByReference.class, CurrentTimeMillisByReference.class, SystemClockOutsideConfig.class,
+		SystemInstantSource.class})
 	void clockRuleReportsReadingTheSystemClock(Class<?> fixture) {
 		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, fixture)).isTrue();
 	}
 
-	@Test
-	void clockRuleAllowsTheClockBeanAndElapsedTime() {
-		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, ReadsTheClockBean.class)).isFalse();
+	@ParameterizedTest
+	@ValueSource(classes = {ReadsTheClockBean.class, ClockConfig.class})
+	void clockRuleAllowsTheClockBeanAndElapsedTime(Class<?> fixture) {
+		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, fixture)).isFalse();
 	}
 
 	private static boolean hasViolation(ArchRule rule, Class<?> fixture) {
@@ -156,6 +161,18 @@ class CodingRulesFixtureTest {
 	static class CurrentTimeMillisByReference {
 		long now(OptionalLong given) {
 			return given.orElseGet(System::currentTimeMillis);
+		}
+	}
+
+	static class SystemClockOutsideConfig {
+		Instant now() {
+			return Clock.systemUTC().instant();
+		}
+	}
+
+	static class SystemInstantSource {
+		Instant now() {
+			return InstantSource.system().instant();
 		}
 	}
 

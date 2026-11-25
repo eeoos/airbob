@@ -8,7 +8,8 @@ state. The README, `docs/` and `scripts/README.md` are written in Korean.
 
 - Run `./gradlew compileJava` after entity changes to regenerate QueryDSL Q-classes.
 - Java code follows the Naver convention through Spotless. The edit hook formats each edited file.
-  `spotlessCheck`, part of `./gradlew build`, fails on unformatted code or a non-static wildcard import.
+  `spotlessCheck`, part of `./gradlew build`, fails on unformatted code, a non-static wildcard import,
+  or JUnit `Assertions` (tests assert with AssertJ).
   Fix formatting with `./gradlew spotlessApply`. `spotlessApply` cannot fix a non-static wildcard
   import; replace it with class imports by hand. The Stop hook runs `spotlessCheck`; the edit hook
   does not. Do not change the formatter XML; see `docs/development/coding-convention.md`.
@@ -37,10 +38,10 @@ strictly for `kr.kro.airbob.core..` and freeze legacy violations (cross-domain r
 domain cycles, entity → DTO/service) in `core/core-api/src/test/resources/archunit_store`. Never add
 entries to the store to make a new violation pass; fixing a violation prunes it, so commit the
 shrunk store with the fix. `CodingRulesTest` bans field injection (including `@Value` fields; use
-constructor or `@Bean` method parameters), `System.out`/`System.err`/`printStackTrace()`, throwing
-`Exception`/`RuntimeException`, `java.util.logging`, and reading the current time without the `Clock`
-bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`). Tests assert with AssertJ; `spotlessCheck` rejects
-JUnit `Assertions` in every module.
+constructor or `@Bean` method parameters), `System.out`/`System.err`/`printStackTrace()`, creating
+`Throwable`/`Exception`/`RuntimeException` (constructor references included), `java.util.logging`, and
+reading the current time without the `Clock` bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`,
+or a system `Clock`/`InstantSource` created outside `ClockConfig`).
 
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`core/domain/payment/messaging/`,
