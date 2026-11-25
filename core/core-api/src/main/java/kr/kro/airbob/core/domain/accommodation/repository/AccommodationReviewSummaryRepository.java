@@ -16,7 +16,7 @@ public interface AccommodationReviewSummaryRepository extends JpaRepository<Acco
 
 	Optional<AccommodationReviewSummary> findByAccommodationId(Long accommodationId);
 
-	Optional<AccommodationReviewSummary> findByAccommodation_AccommodationUid(UUID accommodationUid);
+	Optional<AccommodationReviewSummary> findByAccommodationAccommodationUid(UUID accommodationUid);
 
 	// ===== 원자적 집계 갱신 (낙관적 락 대체) =====
 	// MySQL ON DUPLICATE KEY UPDATE / UPDATE 는 SET 절을 좌→우로 평가하므로,

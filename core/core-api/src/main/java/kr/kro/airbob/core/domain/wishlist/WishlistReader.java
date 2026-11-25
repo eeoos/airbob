@@ -91,7 +91,7 @@ public class WishlistReader implements AccommodationWishlistReader, SearchWishli
 
 	@Override
 	public boolean isInWishlist(Long accommodationId, Long viewerId) {
-		return wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(
+		return wishlistAccommodationRepository.existsByWishlistMemberIdAndAccommodationId(
 			viewerId, accommodationId);
 	}
 

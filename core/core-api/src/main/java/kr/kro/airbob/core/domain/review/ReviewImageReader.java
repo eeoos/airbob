@@ -25,7 +25,7 @@ public class ReviewImageReader {
 
 	/** 리뷰 ID별 이미지. 이미지가 없는 리뷰는 맵에 없다. */
 	public Map<Long, List<StoredImage>> readByReviewIds(List<Long> reviewIds) {
-		return reviewImageRepository.findAllByReview_IdIn(reviewIds).stream()
+		return reviewImageRepository.findAllByReviewIdIn(reviewIds).stream()
 			.collect(Collectors.groupingBy(
 				reviewImage -> reviewImage.getReview().getId(),
 				Collectors.mapping(StoredImage::from, Collectors.toList())));

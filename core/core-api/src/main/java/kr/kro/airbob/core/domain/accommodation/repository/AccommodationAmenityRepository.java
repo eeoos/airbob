@@ -26,7 +26,7 @@ public interface AccommodationAmenityRepository extends JpaRepository<Accommodat
 		@Param("accommodationId")
 		Long accommodationId);
 
-	List<AccommodationAmenity> findAllByAccommodation_AccommodationUid(UUID accommodationUid);
+	List<AccommodationAmenity> findAllByAccommodationAccommodationUid(UUID accommodationUid);
 
 	@Modifying
 	@Query("DELETE FROM AccommodationAmenity amenity WHERE amenity.accommodation.id = :accommodationId")

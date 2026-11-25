@@ -16,6 +16,6 @@ public class AccommodationAmenityReader {
 	private final AccommodationAmenityRepository amenityRepository;
 
 	public List<AccommodationAmenity> findAllByAccommodationUid(UUID accommodationUid) {
-		return amenityRepository.findAllByAccommodation_AccommodationUid(accommodationUid);
+		return amenityRepository.findAllByAccommodationAccommodationUid(accommodationUid);
 	}
 }
