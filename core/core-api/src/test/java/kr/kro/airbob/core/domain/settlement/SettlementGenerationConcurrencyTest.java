@@ -64,7 +64,7 @@ class SettlementGenerationConcurrencyTest {
 	private S3Template s3Template;
 
 	@Container
-	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> mysqlContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
@@ -74,12 +74,12 @@ class SettlementGenerationConcurrencyTest {
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
-		registry.add("spring.datasource.url", mySQLContainer::getJdbcUrl);
-		registry.add("spring.datasource.username", mySQLContainer::getUsername);
-		registry.add("spring.datasource.password", mySQLContainer::getPassword);
-		registry.add("spring.flyway.url", mySQLContainer::getJdbcUrl);
-		registry.add("spring.flyway.user", mySQLContainer::getUsername);
-		registry.add("spring.flyway.password", mySQLContainer::getPassword);
+		registry.add("spring.datasource.url", mysqlContainer::getJdbcUrl);
+		registry.add("spring.datasource.username", mysqlContainer::getUsername);
+		registry.add("spring.datasource.password", mysqlContainer::getPassword);
+		registry.add("spring.flyway.url", mysqlContainer::getJdbcUrl);
+		registry.add("spring.flyway.user", mysqlContainer::getUsername);
+		registry.add("spring.flyway.password", mysqlContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
 	}
@@ -235,8 +235,8 @@ class SettlementGenerationConcurrencyTest {
 	private void awaitSettlementWaiters(int count) throws Exception {
 		// 별도 테스트 컨테이너의 잠금 대기를 관찰해, 실제 SELECT/UPDATE 경쟁이 시작된 후 차단을 해제한다.
 		try (
-			Connection observer = DriverManager.getConnection(mySQLContainer.getJdbcUrl(), "root",
-				mySQLContainer.getPassword());
+			Connection observer = DriverManager.getConnection(mysqlContainer.getJdbcUrl(), "root",
+				mysqlContainer.getPassword());
 			var statement = observer.createStatement()) {
 			long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
 			while (System.nanoTime() < deadline) {

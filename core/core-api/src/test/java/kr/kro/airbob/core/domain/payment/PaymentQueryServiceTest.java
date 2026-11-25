@@ -80,11 +80,11 @@ class PaymentQueryServiceTest {
 
 	@Nested
 	@DisplayName("findPaymentByPaymentKey 테스트")
-	class FindPaymentByPaymentKeyTest {
+	class GetPaymentByPaymentKeyTest {
 
 		@Test
 		@DisplayName("정상 조회 시 PaymentInfo를 반환한다")
-		void 정상_조회() {
+		void returnsPaymentInfo() {
 			// given
 			given(paymentRepository.findByPaymentKey(paymentKey))
 				.willReturn(Optional.of(payment));
@@ -99,7 +99,7 @@ class PaymentQueryServiceTest {
 
 		@Test
 		@DisplayName("Payment가 없으면 PaymentNotFoundException이 발생한다")
-		void Payment_없음_예외() {
+		void throwsWhenPaymentMissing() {
 			// given
 			given(paymentRepository.findByPaymentKey(paymentKey))
 				.willReturn(Optional.empty());
@@ -111,7 +111,7 @@ class PaymentQueryServiceTest {
 
 		@Test
 		@DisplayName("소유권 검증 실패 시 PaymentAccessDeniedException이 발생한다")
-		void 소유권_검증_실패() {
+		void throwsWhenNotOwner() {
 			// given
 			Long wrongMemberId = 999L;
 
@@ -127,11 +127,11 @@ class PaymentQueryServiceTest {
 
 	@Nested
 	@DisplayName("findPaymentByOrderId 테스트")
-	class FindPaymentByOrderIdTest {
+	class GetPaymentByOrderIdTest {
 
 		@Test
 		@DisplayName("orderId로 정상 조회 시 PaymentInfo를 반환한다")
-		void 정상_조회() {
+		void returnsPaymentInfo() {
 			// given
 			given(paymentRepository.findByOrderId(orderId))
 				.willReturn(Optional.of(payment));
@@ -146,7 +146,7 @@ class PaymentQueryServiceTest {
 
 		@Test
 		@DisplayName("Payment가 없으면 PaymentNotFoundException이 발생한다")
-		void Payment_없음_예외() {
+		void throwsWhenPaymentMissing() {
 			// given
 			given(paymentRepository.findByOrderId(orderId))
 				.willReturn(Optional.empty());
@@ -158,7 +158,7 @@ class PaymentQueryServiceTest {
 
 		@Test
 		@DisplayName("소유권 검증 실패 시 PaymentAccessDeniedException이 발생한다")
-		void 소유권_검증_실패() {
+		void throwsWhenNotOwner() {
 			// given
 			Long wrongMemberId = 999L;
 

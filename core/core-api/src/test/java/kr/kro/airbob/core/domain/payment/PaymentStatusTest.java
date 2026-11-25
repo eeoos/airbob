@@ -18,7 +18,7 @@ class PaymentStatusTest {
 		@ParameterizedTest
 		@ValueSource(strings = {"READY", "ready", "Ready"})
 		@DisplayName("READY 상태 변환 성공")
-		void READY_상태_변환(String statusName) {
+		void convertsReady(String statusName) {
 			// when
 			PaymentStatus status = PaymentStatus.from(statusName);
 
@@ -29,7 +29,7 @@ class PaymentStatusTest {
 		@ParameterizedTest
 		@ValueSource(strings = {"IN_PROGRESS", "in_progress", "In_Progress"})
 		@DisplayName("IN_PROGRESS 상태 변환 성공")
-		void IN_PROGRESS_상태_변환(String statusName) {
+		void convertsInProgress(String statusName) {
 			// when
 			PaymentStatus status = PaymentStatus.from(statusName);
 
@@ -39,7 +39,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("WAITING_FOR_DEPOSIT 상태 변환 성공")
-		void WAITING_FOR_DEPOSIT_상태_변환() {
+		void convertsWaitingForDeposit() {
 			// when
 			PaymentStatus status = PaymentStatus.from("WAITING_FOR_DEPOSIT");
 
@@ -49,7 +49,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("DONE 상태 변환 성공")
-		void DONE_상태_변환() {
+		void convertsDone() {
 			// when
 			PaymentStatus status = PaymentStatus.from("DONE");
 
@@ -59,7 +59,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("CANCELED 상태 변환 성공")
-		void CANCELED_상태_변환() {
+		void convertsCanceled() {
 			// when
 			PaymentStatus status = PaymentStatus.from("CANCELED");
 
@@ -69,7 +69,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("PARTIAL_CANCELED 상태 변환 성공")
-		void PARTIAL_CANCELED_상태_변환() {
+		void convertsPartialCanceled() {
 			// when
 			PaymentStatus status = PaymentStatus.from("PARTIAL_CANCELED");
 
@@ -79,7 +79,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("ABORTED 상태 변환 성공")
-		void ABORTED_상태_변환() {
+		void convertsAborted() {
 			// when
 			PaymentStatus status = PaymentStatus.from("ABORTED");
 
@@ -89,7 +89,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("EXPIRED 상태 변환 성공")
-		void EXPIRED_상태_변환() {
+		void convertsExpired() {
 			// when
 			PaymentStatus status = PaymentStatus.from("EXPIRED");
 
@@ -99,7 +99,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("null 입력 시 IllegalArgumentException이 발생한다")
-		void null_입력_예외() {
+		void rejectsNull() {
 			// when & then
 			assertThatThrownBy(() -> PaymentStatus.from(null))
 				.isInstanceOf(IllegalArgumentException.class)
@@ -108,7 +108,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("알 수 없는 상태명 입력 시 IllegalArgumentException이 발생한다")
-		void 알수없는_상태_예외() {
+		void rejectsUnknownStatus() {
 			// when & then
 			assertThatThrownBy(() -> PaymentStatus.from("INVALID_STATUS"))
 				.isInstanceOf(IllegalArgumentException.class);
@@ -116,7 +116,7 @@ class PaymentStatusTest {
 
 		@Test
 		@DisplayName("빈 문자열 입력 시 IllegalArgumentException이 발생한다")
-		void 빈문자열_예외() {
+		void rejectsEmptyString() {
 			// when & then
 			assertThatThrownBy(() -> PaymentStatus.from(""))
 				.isInstanceOf(IllegalArgumentException.class);

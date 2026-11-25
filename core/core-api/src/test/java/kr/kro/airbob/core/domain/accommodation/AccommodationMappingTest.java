@@ -17,7 +17,7 @@ class AccommodationMappingTest {
 
 	@Test
 	@DisplayName("여러 숙소가 한 회원을 소유자로 참조하므로 member는 지연 로딩 다대일 관계다")
-	void member_연관관계는_지연_로딩_다대일이다() throws NoSuchFieldException {
+	void memberIsLazyManyToOne() throws NoSuchFieldException {
 		Field memberField = Accommodation.class.getDeclaredField("member");
 
 		ManyToOne manyToOne = memberField.getAnnotation(ManyToOne.class);

@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.MethodParameter;
@@ -32,7 +33,8 @@ class CurrentMemberIdControllerContractTest {
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("currentMemberHandlers")
-	void currentMemberId를_컨트롤러_인자로_명시한다(HandlerContract contract) {
+	@DisplayName("currentMemberId를 컨트롤러 인자로 명시한다")
+	void declaresCurrentMemberIdAsControllerArgument(HandlerContract contract) {
 		List<Method> matchingMethods = Arrays.stream(contract.controllerType().getDeclaredMethods())
 			.filter(candidate -> candidate.getName().equals(contract.methodName()))
 			.toList();

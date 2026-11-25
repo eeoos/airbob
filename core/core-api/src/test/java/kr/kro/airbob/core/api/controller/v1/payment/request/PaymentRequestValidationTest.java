@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import jakarta.validation.Validation;
@@ -14,7 +15,8 @@ class PaymentRequestValidationTest {
 	private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
 	@Test
-	void 결제키가_200자를_초과하면_거부한다() {
+	@DisplayName("결제키가 200자를 초과하면 거부한다")
+	void rejectsPaymentKeyLongerThan200Characters() {
 		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
 			"p".repeat(201), UUID.randomUUID().toString(), 10_000, UUID.randomUUID());
 
@@ -23,7 +25,8 @@ class PaymentRequestValidationTest {
 	}
 
 	@Test
-	void 결제시도_토큰이_없으면_거부한다() {
+	@DisplayName("결제 시도 토큰이 없으면 거부한다")
+	void rejectsMissingPaymentAttemptToken() {
 		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
 			"payment-key", UUID.randomUUID().toString(), 10_000, null);
 
@@ -32,7 +35,8 @@ class PaymentRequestValidationTest {
 	}
 
 	@Test
-	void 취소사유는_200자까지_허용하고_201자는_거부한다() {
+	@DisplayName("취소 사유는 200자까지 허용하고 201자는 거부한다")
+	void acceptsCancelReasonUpTo200CharactersAndRejects201() {
 		PaymentRequest.Cancel maximum = new PaymentRequest.Cancel("사".repeat(200), null);
 		PaymentRequest.Cancel oversized = new PaymentRequest.Cancel("사".repeat(201), null);
 
