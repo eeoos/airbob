@@ -21,8 +21,12 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 
    ```
    mkdir -p build/review
-   codex exec -s read-only --ephemeral -o build/review/codex-<head 8자리>.md "<지시문>"
+   codex exec -s read-only --ephemeral --output-schema scripts/ci/review-schema.json \
+     -o build/review/codex-<head 8자리>.json "<지시문>"
+   python3 scripts/ci/review_format.py build/review/codex-<head 8자리>.json > build/review/codex-<head 8자리>.md
    ```
+
+   - `--output-schema`가 답을 리뷰 기준의 스키마로 강제하고, `review_format.py`가 Claude 리뷰 댓글과 같은 모양으로 그린다.
 
    지시문:
    > 이 저장소의 `<base>...HEAD` 변경을 리뷰하라. `git log`와 `git diff <base>...HEAD`로 변경을 보고, 필요하면 저장소 파일을 읽어라. 파일은 수정하지 마라. 기준은 docs/development/code-review.md다. 변경 의도: <PR 요약 한두 줄>.
@@ -51,6 +55,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 5. **기록한다.**
    - `docs/development/ai-review-log.md`에 한 줄을 추가하고 브랜치에 커밋한다.
    - PR 본문에 아래 절을 넣는다. 재리뷰도 한 행과 접은 표 하나를 더한다. 기록 파일은 리뷰마다 한 줄 요약이라, 지적별 판정은 이 표에만 남는다.
+   - 접은 표의 `#`, 심각도, 지적 열은 렌더링된 리뷰의 제목 줄(`### <번호>. <심각도> · <제목>`)을 그대로 옮긴다. 번호는 렌더러가 심각도순으로 매긴 것이다.
 
    ```
    ## AI 리뷰

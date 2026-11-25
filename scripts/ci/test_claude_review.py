@@ -10,13 +10,20 @@ from unittest import mock
 
 import claude_review
 import pr_report
+import review_format
 from test_contracts import TempRepo
 
 RULE = '---\npaths:\n  - "scripts/**/*"\n---\n\n# CI rule\n'
 OTHER_RULE = '---\npaths:\n  - "core/**/*"\n---\n\n# Core rule\n'
 
 
-def message(text='{"summary": "지적 없음"}', stop_reason='end_turn', **usage):
+def review_json(**fields):
+    review = dict(overview='', findings=[], checked=[], unverified=[])
+    review.update(fields)
+    return json.dumps(review, ensure_ascii=False)
+
+
+def message(text=review_json(), stop_reason='end_turn', **usage):
     counts = dict(input_tokens=1000, output_tokens=200, cache_creation_input_tokens=None, cache_read_input_tokens=None)
     counts.update(usage)
     return SimpleNamespace(stop_reason=stop_reason, stop_details=None, model='claude-opus-5-5',
@@ -152,19 +159,21 @@ class RequestTests(unittest.TestCase):
 
 
 class ResponseTests(unittest.TestCase):
-    def test_the_summary_comes_from_the_structured_output(self):
-        self.assertEqual(claude_review.summary_of(message('{"summary": "  | 파일 | 심각도 |  "}')), '| 파일 | 심각도 |')
+    def test_the_review_comes_from_the_structured_output(self):
+        self.assertEqual(claude_review.review_of(message(review_json(overview='요약')))['overview'], '요약')
 
     def test_an_answer_continued_by_a_fallback_model_is_joined(self):
-        continued = message('{"summary": "앞부분')
-        continued.content += [SimpleNamespace(type='fallback'), SimpleNamespace(type='text', text=' 뒷부분"}')]
-        self.assertEqual(claude_review.summary_of(continued), '앞부분 뒷부분')
+        whole = review_json(overview='앞부분 뒷부분')
+        cut = whole.index(' 뒷부분')
+        continued = message(whole[:cut])
+        continued.content += [SimpleNamespace(type='fallback'), SimpleNamespace(type='text', text=whole[cut:])]
+        self.assertEqual(claude_review.review_of(continued)['overview'], '앞부분 뒷부분')
 
-    def test_a_response_without_a_summary_fails_the_run(self):
+    def test_an_unusable_response_fails_the_run(self):
         for bad in (message(stop_reason='refusal'), message(stop_reason='max_tokens'),
-                    message('{"summary": ""}'), SimpleNamespace(stop_reason='end_turn', content=[])):
+                    SimpleNamespace(stop_reason='end_turn', content=[])):
             with self.assertRaises(RuntimeError):
-                claude_review.summary_of(bad)
+                claude_review.review_of(bad)
 
     def test_one_request_with_structured_output_effort_and_fallback(self):
         calls = []
@@ -186,13 +195,13 @@ class ResponseTests(unittest.TestCase):
         client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream)))
         response = claude_review.review('변경 내용', client)
 
-        self.assertEqual(claude_review.summary_of(response), '지적 없음')
+        self.assertEqual(claude_review.review_of(response)['findings'], [])
         self.assertEqual(len(calls), 1)
         request = calls[0]
         self.assertEqual((request['model'], request['fallbacks']), ('claude-opus-5-5', 'default'))
         self.assertEqual(request['output_config']['effort'], 'xhigh')
         self.assertEqual(request['max_tokens'], 64000)
-        self.assertEqual(request['output_config']['format']['schema']['required'], ['summary'])
+        self.assertEqual(request['output_config']['format'], {'type': 'json_schema', 'schema': review_format.schema()})
         self.assertEqual(request['messages'], [{'role': 'user', 'content': '변경 내용'}])
         self.assertNotIn('tools', request)
 
@@ -267,31 +276,34 @@ class MainTests(unittest.TestCase):
 
     def test_a_failed_post_leaves_the_billed_review_in_the_log_with_workflow_commands_stopped(self):
         log = io.StringIO()
-        review = message('{"summary": "리뷰 본문\\n::add-mask::x"}')
+        review = message(review_json(overview='리뷰 본문\n::add-mask::x'))
         with self.assertRaises(OSError):
             self.run_main(review, mock.Mock(side_effect=OSError('HTTP 502')), log)
-        self.assertRegex(log.getvalue(), re.compile(
-            rf'::stop-commands::([0-9a-f]{{32}})\n{re.escape(claude_review.MARKER)}\n리뷰 본문\n::add-mask::x\n::\1::\n'))
+        out = log.getvalue()
+        token = re.search(r'::stop-commands::([0-9a-f]{32})\n', out).group(1)
+        self.assertIn(f'::stop-commands::{token}\n{claude_review.MARKER}\n## Claude 리뷰\n', out)
+        self.assertLess(out.index(f'::stop-commands::{token}'), out.index('::add-mask::x'))
+        self.assertLess(out.index('::add-mask::x'), out.index(f'::{token}::\n'))
 
     def test_an_unusable_response_still_logs_its_tokens_and_text(self):
         log = io.StringIO()
         post = mock.Mock()
         with self.assertRaises(RuntimeError):
-            self.run_main(message('{"summary": "잘린', stop_reason='max_tokens'), post, log)
+            self.run_main(message('{"overview": "잘린', stop_reason='max_tokens'), post, log)
         self.assertIn('입력 1,000 / 출력 200', log.getvalue())
-        self.assertIn('Unusable response (stop_reason max_tokens):\n{"summary": "잘린\n', log.getvalue())
+        self.assertIn('Unusable response (stop_reason max_tokens):\n{"overview": "잘린\n', log.getvalue())
         post.assert_not_called()
 
     def test_a_refused_partial_answer_is_not_logged(self):
         log = io.StringIO()
         with self.assertRaisesRegex(RuntimeError, 'declined'):
-            self.run_main(message('{"summary": "거절 전 부분', stop_reason='refusal'), mock.Mock(), log)
+            self.run_main(message('{"overview": "거절 전 부분', stop_reason='refusal'), mock.Mock(), log)
         self.assertIn('입력 1,000 / 출력 200', log.getvalue())
         self.assertNotIn('거절 전 부분', log.getvalue())
 
     def test_an_unreadable_usage_does_not_stop_the_comment(self):
         post = mock.Mock()
-        self.run_main(message('{"summary": "리뷰 본문"}', input_tokens=None), post, io.StringIO())
+        self.run_main(message(review_json(overview='리뷰 본문'), input_tokens=None), post, io.StringIO())
         method, url, payload = post.call_args.args
         self.assertEqual((method, url), ('POST', 'https://api.github.com/repos/eeoos/airbob/issues/223/comments'))
         self.assertIn('리뷰 본문', payload['body'])
