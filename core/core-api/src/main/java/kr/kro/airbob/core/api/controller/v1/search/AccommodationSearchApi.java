@@ -48,11 +48,11 @@ public interface AccommodationSearchApi {
 		@ParameterObject
 		@Valid
 		@ModelAttribute
-		AccommodationSearchRequest.MapBoundsDto mapBounds,
+		AccommodationSearchRequest.MapBounds mapBounds,
 		@ParameterObject
 		@Valid
 		@ModelAttribute
-		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
+		AccommodationSearchRequest.Condition searchRequest,
 		@ParameterObject
 		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0)
 		Pageable pageable,

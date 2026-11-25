@@ -22,8 +22,8 @@ public class AccommodationSearchController implements AccommodationSearchApi {
 
 	@Override
 	public ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> searchAccommodations(
-		AccommodationSearchRequest.MapBoundsDto mapBounds,
-		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
+		AccommodationSearchRequest.MapBounds mapBounds,
+		AccommodationSearchRequest.Condition searchRequest,
 		Pageable pageable,
 		Long memberId) {
 

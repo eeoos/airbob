@@ -404,11 +404,11 @@ class GlobalTemporalFlowIntegrationTest {
 			.hits(hits -> hits.hits(List.of())));
 		given(elasticsearchClient.search(any(SearchRequest.class), eq(AccommodationDocument.class)))
 			.willReturn(emptyResponse);
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.Condition request = new AccommodationSearchRequest.Condition();
 		request.setDestination("Temporal");
 		request.setCheckIn(expected.checkIn());
 		request.setCheckOut(expected.checkOut());
-		searchService.searchAccommodations(request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+		searchService.searchAccommodations(request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18), null);
 		ArgumentCaptor<SearchRequest> captured = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(elasticsearchClient).search(captured.capture(), eq(AccommodationDocument.class));
