@@ -22,9 +22,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.payment.PaymentOperation;
 import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewQueueItem;
 import kr.kro.airbob.core.domain.payment.PaymentOperationResolution;
@@ -38,9 +38,9 @@ import kr.kro.airbob.core.domain.payment.repository.query.JpaPaymentOperationMan
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	ClockConfig.class,
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	ClockConfiguration.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	JpaPaymentOperationManualReviewQueryRepository.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

@@ -26,9 +26,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationImage;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
@@ -40,9 +40,9 @@ import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	ClockConfig.class,
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	ClockConfiguration.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	AccommodationImageRepositoryQueryTest.SqlCaptureConfig.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

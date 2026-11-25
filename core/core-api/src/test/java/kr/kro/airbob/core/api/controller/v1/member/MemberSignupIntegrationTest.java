@@ -44,9 +44,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
@@ -64,7 +64,8 @@ import kr.kro.airbob.core.support.persistence.history.ChangeType;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, MemberService.class, MemberReader.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class, MemberService.class,
+	MemberReader.class,
 	MemberWriter.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

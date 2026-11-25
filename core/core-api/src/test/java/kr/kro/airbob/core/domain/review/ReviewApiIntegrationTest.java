@@ -42,9 +42,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.review.response.ReviewResponse;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReviewSummaryWriter;
@@ -66,7 +66,8 @@ import kr.kro.airbob.core.support.error.BaseException;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, ReviewService.class, MemberReader.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class, ReviewService.class,
+	MemberReader.class,
 	ReviewImageService.class,
 	AccommodationReader.class, AccommodationReviewSummaryWriter.class, ReservationReader.class,
 	ReviewReader.class, ReviewWriter.class, ReviewImageReader.class, ReviewImageWriter.class,

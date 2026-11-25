@@ -19,13 +19,13 @@ import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
 
 @DisplayName("MVC 인증 및 인가 설정 테스트")
-class WebMvcConfigSecurityTest {
+class WebMvcConfigurationSecurityTest {
 
 	@Test
 	@DisplayName("현재 회원 ID argument resolver를 MVC에 등록한다")
 	void registersCurrentMemberIdArgumentResolver() {
 		CurrentMemberIdArgumentResolver currentMemberIdArgumentResolver = mock(CurrentMemberIdArgumentResolver.class);
-		WebMvcConfig config = new WebMvcConfig(
+		WebMvcConfiguration config = new WebMvcConfiguration(
 			currentMemberIdArgumentResolver,
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
@@ -42,7 +42,7 @@ class WebMvcConfigSecurityTest {
 	@DisplayName("관리자 API에 세션 인증과 ADMIN 인가를 모두 적용한다")
 	void adminPathIsProtected() {
 		AdminAuthInterceptor adminAuthInterceptor = mock(AdminAuthInterceptor.class);
-		WebMvcConfig config = new WebMvcConfig(
+		WebMvcConfiguration config = new WebMvcConfiguration(
 			mock(CurrentMemberIdArgumentResolver.class),
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),

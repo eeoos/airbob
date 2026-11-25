@@ -40,9 +40,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.HostAccommodationInfo;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.HostAccommodationInfos;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse.AddressSummaryInfo;
@@ -63,7 +63,8 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
-	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class,
+	ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	AccommodationQueryService.class,
 	ReservationAvailabilityReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	HostAccommodationListQueryIntegrationTest.SqlCaptureConfig.class

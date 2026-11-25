@@ -54,8 +54,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.payment.gateway.CancelledPayment;
@@ -80,8 +80,8 @@ import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMess
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	CouponTimeProvider.class,
 	CouponUsageManager.class,
 	AccommodationInventoryDayRepository.class,

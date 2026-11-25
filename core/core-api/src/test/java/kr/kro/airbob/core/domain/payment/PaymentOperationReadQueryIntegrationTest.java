@@ -45,8 +45,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
 import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
 
@@ -55,7 +55,7 @@ import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({JpaAuditingConfig.class, QueryDslConfig.class, PaymentOperationQueryService.class,
+@Import({JpaAuditingConfiguration.class, QueryDslConfiguration.class, PaymentOperationQueryService.class,
 	PaymentOperationReader.class,
 	PaymentOperationReadQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

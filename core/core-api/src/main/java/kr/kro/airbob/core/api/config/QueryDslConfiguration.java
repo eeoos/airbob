@@ -9,7 +9,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 @Configuration
-public class QueryDslConfig {
+public class QueryDslConfiguration {
 	@PersistenceContext
 	private EntityManager entityManager;
 

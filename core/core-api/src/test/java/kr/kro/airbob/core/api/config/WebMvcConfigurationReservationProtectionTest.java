@@ -15,12 +15,12 @@ import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
 
 @DisplayName("예약 세션 인증 경계 테스트")
-class WebMvcConfigReservationProtectionTest {
+class WebMvcConfigurationReservationProtectionTest {
 
 	@Test
 	@DisplayName("견적과 checkout 엔드포인트에 세션 인증 필터를 적용한다")
 	void reservationEndpointsUseSessionAuthentication() {
-		WebMvcConfig config = new WebMvcConfig(
+		WebMvcConfiguration config = new WebMvcConfiguration(
 			mock(CurrentMemberIdArgumentResolver.class),
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),

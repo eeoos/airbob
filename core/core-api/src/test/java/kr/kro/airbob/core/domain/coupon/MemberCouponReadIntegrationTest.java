@@ -42,9 +42,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.coupon.response.CouponResponse;
 import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
@@ -59,7 +59,8 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, CouponQueryService.class, CouponReader.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	CouponQueryService.class, CouponReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	MemberCouponReadIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

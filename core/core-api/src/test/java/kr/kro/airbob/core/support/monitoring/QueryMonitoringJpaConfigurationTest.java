@@ -10,12 +10,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer;
 
 @DisplayName("쿼리 모니터링 JPA 설정 테스트")
-class QueryMonitoringJpaConfigTest {
+class QueryMonitoringJpaConfigurationTest {
 
 	@Test
 	@DisplayName("Spring이 관리하는 StatementInspector 인스턴스를 Hibernate 설정에 등록한다")
 	void registersSpringManagedStatementInspector() {
-		QueryMonitoringJpaConfig config = new QueryMonitoringJpaConfig();
+		QueryMonitoringJpaConfiguration config = new QueryMonitoringJpaConfiguration();
 		SqlQueryStatementInspector inspector = new SqlQueryStatementInspector();
 		HibernatePropertiesCustomizer customizer = config.queryCountStatementInspectorCustomizer(inspector);
 		Map<String, Object> hibernateProperties = new HashMap<>();
@@ -23,6 +23,6 @@ class QueryMonitoringJpaConfigTest {
 		customizer.customize(hibernateProperties);
 
 		assertThat(hibernateProperties)
-			.containsEntry(QueryMonitoringJpaConfig.STATEMENT_INSPECTOR_PROPERTY, inspector);
+			.containsEntry(QueryMonitoringJpaConfiguration.STATEMENT_INSPECTOR_PROPERTY, inspector);
 	}
 }

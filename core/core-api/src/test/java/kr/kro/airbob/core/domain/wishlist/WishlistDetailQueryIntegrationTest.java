@@ -39,9 +39,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfo;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfos;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
@@ -60,7 +60,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
-	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
+	ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	WishlistDetailQueryIntegrationTest.ReadTestConfig.class

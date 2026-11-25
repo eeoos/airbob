@@ -32,7 +32,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.core.api.config.RedisConfig;
+import kr.kro.airbob.core.api.config.RedisConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
@@ -73,7 +73,7 @@ class AuthSessionLifecycleIntegrationTest {
 	static void connectToIsolatedRedis() {
 		connections = new LettuceConnectionFactory(REDIS.getHost(), REDIS.getMappedPort(6379));
 		connections.afterPropertiesSet();
-		redis = new RedisConfig().redisTemplate(connections);
+		redis = new RedisConfiguration().redisTemplate(connections);
 		redis.afterPropertiesSet();
 	}
 

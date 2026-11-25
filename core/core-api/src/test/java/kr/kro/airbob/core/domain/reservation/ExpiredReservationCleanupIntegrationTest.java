@@ -36,8 +36,8 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.coupon.CouponTimeProvider;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.reservation.inventory.AccommodationInventoryDayRepository;
@@ -50,7 +50,7 @@ import kr.kro.airbob.core.support.context.UserContext;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	JpaAuditingConfig.class, QueryDslConfig.class, CouponTimeProvider.class, CouponUsageManager.class,
+	JpaAuditingConfiguration.class, QueryDslConfiguration.class, CouponTimeProvider.class, CouponUsageManager.class,
 	AccommodationInventoryDayRepository.class, ReservationInventoryManager.class,
 	ReservationHistoryBatchWriter.class, ReservationReader.class, ReservationHistoryWriter.class,
 	ExpiredReservationCleanupService.class,

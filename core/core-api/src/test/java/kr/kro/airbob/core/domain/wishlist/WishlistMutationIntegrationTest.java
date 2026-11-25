@@ -32,9 +32,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.member.MemberNotFoundException;
@@ -48,7 +48,7 @@ import kr.kro.airbob.core.support.error.BaseException;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

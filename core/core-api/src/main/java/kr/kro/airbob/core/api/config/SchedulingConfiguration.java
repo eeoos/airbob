@@ -10,7 +10,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 @Configuration(proxyBeanMethods = false)
 @Profile("!test")
 @EnableScheduling
-public class SchedulingConfig {
+public class SchedulingConfiguration {
 	public static final String DEFAULT_TASK_SCHEDULER = "taskScheduler";
 	public static final String RESERVATION_CLEANUP_TASK_SCHEDULER = "reservationCleanupTaskScheduler";
 	public static final String RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER = "reservationQuoteCleanupTaskScheduler";

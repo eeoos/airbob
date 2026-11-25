@@ -32,9 +32,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AmenityResponse;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
@@ -60,9 +60,9 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	ClockConfig.class,
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	ClockConfiguration.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	AccommodationQueryService.class,
 	AccommodationDetailReader.class, WishlistReader.class,
 	AccommodationInventoryDayRepository.class,

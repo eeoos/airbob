@@ -88,8 +88,8 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 
 import jakarta.servlet.http.Cookie;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.WebMvcConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.WebMvcConfiguration;
 import kr.kro.airbob.core.api.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
@@ -3114,8 +3114,9 @@ class ApiDocumentationTest {
 		MultipleOpenApiSupportConfiguration.class,
 		SpringDocPageableConfiguration.class, SpringDocSortConfiguration.class, SwaggerConfig.class,
 		SwaggerUiConfigProperties.class, SwaggerUiOAuthProperties.class})
-	@Import({OpenApiConfiguration.class, WebMvcConfig.class, GlobalExceptionHandler.class, SessionAuthFilter.class,
-		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class, ClockConfig.class,
+	@Import({OpenApiConfiguration.class, WebMvcConfiguration.class, GlobalExceptionHandler.class,
+		SessionAuthFilter.class,
+		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class, ClockConfiguration.class,
 		AdminAuthInterceptor.class, QueryCountInterceptor.class, CurrentMemberIdArgumentResolver.class,
 		CursorDecoder.class, CursorParamArgumentResolver.class, CouponCampaignCursorParamArgumentResolver.class,
 		ReviewCursorParamArgumentResolver.class})

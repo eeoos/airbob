@@ -37,16 +37,16 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 
 @DataJpaTest
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	ExpiredReservationCleanupRepositoryIntegrationTest.CleanupQueryTestConfiguration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

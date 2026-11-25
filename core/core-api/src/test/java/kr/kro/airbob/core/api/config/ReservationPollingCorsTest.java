@@ -26,7 +26,7 @@ class ReservationPollingCorsTest {
 	@Test
 	@DisplayName("허용된 브라우저 origin은 Location과 Retry-After 헤더를 읽을 수 있다")
 	void exposesPollingLocationAndRetryAfterToAllowedOrigin() throws Exception {
-		CorsFilter corsFilter = new WebMvcConfig(
+		CorsFilter corsFilter = new WebMvcConfiguration(
 			mock(CurrentMemberIdArgumentResolver.class),
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),

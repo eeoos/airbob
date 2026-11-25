@@ -47,8 +47,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse.HostReservationInfo;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse.HostReservationInfos;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
@@ -66,7 +66,7 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({JpaAuditingConfig.class, QueryDslConfig.class,
+@Import({JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	HostReservationListReadQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)

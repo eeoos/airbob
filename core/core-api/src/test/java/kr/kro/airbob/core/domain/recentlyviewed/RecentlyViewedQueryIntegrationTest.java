@@ -43,9 +43,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.recentlyviewed.response.RecentlyViewedResponse.RecentlyViewedAccommodationInfo;
 import kr.kro.airbob.core.api.controller.v1.recentlyviewed.response.RecentlyViewedResponse.RecentlyViewedAccommodationInfos;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
@@ -59,7 +59,8 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	RecentlyViewedService.class,
 	RecentlyViewedReader.class, RecentlyViewedWriter.class, WishlistReader.class, AccommodationReader.class,
 	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
