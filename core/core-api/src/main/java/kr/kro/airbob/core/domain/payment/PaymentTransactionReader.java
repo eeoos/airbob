@@ -12,8 +12,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PaymentTransactionReader {
 
-	private static final List<PaymentTransactionType> CANCELLATION_TYPES =
-		List.of(PaymentTransactionType.CANCEL, PaymentTransactionType.PARTIAL_CANCEL);
+	private static final List<PaymentTransactionType> CANCELLATION_TYPES = List.of(PaymentTransactionType.CANCEL,
+		PaymentTransactionType.PARTIAL_CANCEL);
 
 	private final PaymentTransactionRepository transactionRepository;
 

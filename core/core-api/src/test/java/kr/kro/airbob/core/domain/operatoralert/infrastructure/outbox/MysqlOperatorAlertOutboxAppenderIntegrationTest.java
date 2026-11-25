@@ -50,10 +50,8 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 @DisplayName("operator alert atomic outbox append")
 class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 
-	private static final UUID SUBJECT_UID =
-		UUID.fromString("4929fed6-2ff1-4867-b099-59311ef194a1");
-	private static final UUID OCCURRENCE_UID =
-		UUID.fromString("55eacfc3-cce9-470b-88f1-4df081320322");
+	private static final UUID SUBJECT_UID = UUID.fromString("4929fed6-2ff1-4867-b099-59311ef194a1");
+	private static final UUID OCCURRENCE_UID = UUID.fromString("55eacfc3-cce9-470b-88f1-4df081320322");
 
 	@Container
 	static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
@@ -77,8 +75,7 @@ class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 		OperatorAlertOutboxPublisher publisher,
 		PlatformTransactionManager transactionManager,
 		IntegrationEventCodec codec,
-		Clock clock
-	) {
+		Clock clock) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.enqueueService = enqueueService;
 		this.publisher = publisher;
@@ -119,8 +116,7 @@ class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 		try (var executor = Executors.newFixedThreadPool(2)) {
 			List<Future<OperatorAlertPublication>> calls = List.of(
 				executor.submit(() -> enqueueTogether(ready, start)),
-				executor.submit(() -> enqueueTogether(ready, start))
-			);
+				executor.submit(() -> enqueueTogether(ready, start)));
 			ready.await();
 			start.countDown();
 
@@ -167,18 +163,16 @@ class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 	@Test
 	void eventIdCollisionWithDifferentDedupeIdentityIsNotSilentlyIgnored() {
 		UUID fixedEventId = UUID.fromString("de4b6371-a2ee-4fe5-9f54-ad0190cd74af");
-		MysqlOperatorAlertOutboxAppender fixedIdAppender =
-			new MysqlOperatorAlertOutboxAppender(
-				jdbcTemplate, codec, clock, () -> fixedEventId);
+		MysqlOperatorAlertOutboxAppender fixedIdAppender = new MysqlOperatorAlertOutboxAppender(
+			jdbcTemplate, codec, clock, () -> fixedEventId);
 		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 		OperatorAlertRequestedV1 first = event(OCCURRENCE_UID);
 		OperatorAlertRequestedV1 differentDedupe = event(UUID.randomUUID());
 
-		transaction.executeWithoutResult(status ->
-			assertThat(fixedIdAppender.appendIfAbsent(first)).isTrue());
+		transaction.executeWithoutResult(status -> assertThat(fixedIdAppender.appendIfAbsent(first)).isTrue());
 
-		assertThatThrownBy(() -> transaction.executeWithoutResult(status ->
-			fixedIdAppender.appendIfAbsent(differentDedupe)))
+		assertThatThrownBy(
+			() -> transaction.executeWithoutResult(status -> fixedIdAppender.appendIfAbsent(differentDedupe)))
 			.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 		assertThat(jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM outbox", Integer.class)).isEqualTo(1);
@@ -186,8 +180,7 @@ class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 
 	private OperatorAlertPublication enqueueTogether(
 		CountDownLatch ready,
-		CountDownLatch start
-	) throws InterruptedException {
+		CountDownLatch start) throws InterruptedException {
 		ready.countDown();
 		start.await();
 		return enqueueService.enqueue(request());
@@ -207,8 +200,7 @@ class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 			SUBJECT_UID,
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
 			new OperatorAlertSourcePosition("PAYMENT_OPERATION.events", 0, 11L),
-			OCCURRENCE_UID
-		);
+			OCCURRENCE_UID);
 	}
 
 	private OperatorAlertRequestedV1 event(UUID occurrenceUid) {
@@ -217,8 +209,7 @@ class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 			SUBJECT_UID,
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
 			OperatorAlertSourcePosition.none(),
-			occurrenceUid
-		);
+			occurrenceUid);
 	}
 
 	@Configuration(proxyBeanMethods = false)
@@ -255,8 +246,7 @@ class MysqlOperatorAlertOutboxAppenderIntegrationTest {
 		MysqlOperatorAlertOutboxAppender appender(
 			JdbcTemplate jdbcTemplate,
 			IntegrationEventCodec codec,
-			Clock clock
-		) {
+			Clock clock) {
 			return new MysqlOperatorAlertOutboxAppender(jdbcTemplate, codec, clock);
 		}
 

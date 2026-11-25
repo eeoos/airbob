@@ -11,8 +11,7 @@ public record AccommodationSearchPage(
 	int currentPage,
 	int totalPages,
 	long totalElements,
-	boolean hasNext
-) {
+	boolean hasNext) {
 
 	public static final int MAX_PAGE_NUMBER = 14;
 

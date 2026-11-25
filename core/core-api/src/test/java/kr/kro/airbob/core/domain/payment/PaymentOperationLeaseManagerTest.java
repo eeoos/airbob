@@ -4,10 +4,9 @@ import static kr.kro.airbob.core.domain.payment.PaymentExecutionMode.CONFIRM;
 import static kr.kro.airbob.core.domain.payment.PaymentExecutionMode.INQUIRE_CONFIRM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -38,9 +37,12 @@ class PaymentOperationLeaseManagerTest {
 	private static final UUID RESERVATION_UID = UUID.fromString("018290b8-d807-7a2e-8f41-114c7d0a4a21");
 	private static final Instant NOW = Instant.parse("2026-08-14T00:00:00Z");
 
-	@Mock private PaymentOperationRepository repository;
-	@Mock private OperatorAlertOutboxPublisher alertPublisher;
-	@Mock private PaymentOperationManualResolutionRecorder resolutionRecorder;
+	@Mock
+	private PaymentOperationRepository repository;
+	@Mock
+	private OperatorAlertOutboxPublisher alertPublisher;
+	@Mock
+	private PaymentOperationManualResolutionRecorder resolutionRecorder;
 
 	private PaymentOperation operation;
 	private PaymentOperationLeaseManager service;
@@ -55,8 +57,7 @@ class PaymentOperationLeaseManagerTest {
 			new PaymentRetryBackoff(properties.retryInitialDelay(), properties.retryMaxDelay()),
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			alertPublisher,
-			resolutionRecorder
-		);
+			resolutionRecorder);
 	}
 
 	@Test
@@ -230,8 +231,7 @@ class PaymentOperationLeaseManagerTest {
 			RESERVATION_UID.toString(),
 			100_000L,
 			"provider-key",
-			null
-		));
+			null));
 	}
 
 	@Test

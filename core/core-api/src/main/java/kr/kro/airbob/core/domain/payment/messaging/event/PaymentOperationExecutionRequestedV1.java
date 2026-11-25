@@ -10,15 +10,13 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventDestination;
 public record PaymentOperationExecutionRequestedV1(
 	UUID operationUid,
 	UUID reservationUid,
-	long dispatchGeneration
-) implements IntegrationEvent {
+	long dispatchGeneration) implements IntegrationEvent {
 	public static final String TOPIC = IntegrationEventDestination.Topic.PAYMENT_OPERATION;
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
 		IntegrationEventDestination.PAYMENT_OPERATION,
 		"PAYMENT_OPERATION",
 		"PAYMENT_OPERATION_EXECUTION_REQUESTED",
-		"1"
-	);
+		"1");
 
 	public PaymentOperationExecutionRequestedV1 {
 		Objects.requireNonNull(operationUid, "operationUid must not be null");

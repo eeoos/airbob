@@ -6,8 +6,7 @@ public record CommonCodeDetail(
 	String name,
 	String description,
 	int sortOrder,
-	boolean active
-) {
+	boolean active) {
 	public static CommonCodeDetail from(CommonCode commonCode) {
 		return new CommonCodeDetail(
 			commonCode.getCode(),

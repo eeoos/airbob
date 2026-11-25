@@ -15,8 +15,8 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.InOrder;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -27,8 +27,10 @@ import kr.kro.airbob.core.domain.payment.monitoring.PaymentOperationRecoveryMetr
 class PaymentOperationRecoverySchedulerTest {
 	private static final Instant NOW = Instant.parse("2026-08-17T00:00:00Z");
 
-	@Mock private PaymentOperationRecoveryService recoveryService;
-	@Mock private PaymentOperationRecoveryMetrics metrics;
+	@Mock
+	private PaymentOperationRecoveryService recoveryService;
+	@Mock
+	private PaymentOperationRecoveryMetrics metrics;
 
 	private PaymentOperationRecoveryScheduler scheduler;
 

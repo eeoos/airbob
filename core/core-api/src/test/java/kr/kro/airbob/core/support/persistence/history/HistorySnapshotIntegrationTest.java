@@ -17,9 +17,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -57,27 +57,41 @@ import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository
 @DisplayName("이력 테이블 SCD2 동작 통합 테스트")
 class HistorySnapshotIntegrationTest {
 
-	@Autowired private MemberService memberService;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private MemberHistoryRepository memberHistoryRepository;
-	@Autowired private RedisTemplate<String, Object> redisTemplate;
-	@Autowired private SessionRedisRepository sessionRedisRepository;
-	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private AccommodationCommandService accommodationCommandService;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private AccommodationHistoryRepository accommodationHistoryRepository;
+	@Autowired
+	private MemberService memberService;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private MemberHistoryRepository memberHistoryRepository;
+	@Autowired
+	private RedisTemplate<String, Object> redisTemplate;
+	@Autowired
+	private SessionRedisRepository sessionRedisRepository;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+	@Autowired
+	private AccommodationCommandService accommodationCommandService;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AccommodationHistoryRepository accommodationHistoryRepository;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -111,8 +125,7 @@ class HistorySnapshotIntegrationTest {
 			.build();
 
 		AccommodationHistory history = AccommodationHistory.of(
-			accommodation, ChangeType.UPDATE, "시간대 변경", LocalDateTime.of(2026, 8, 12, 0, 0)
-		);
+			accommodation, ChangeType.UPDATE, "시간대 변경", LocalDateTime.of(2026, 8, 12, 0, 0));
 
 		assertThat(history.getTimeZoneId()).isEqualTo("America/New_York");
 	}
@@ -190,8 +203,8 @@ class HistorySnapshotIntegrationTest {
 		TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
 		ExecutorService executor = Executors.newFixedThreadPool(2);
-		CompletableFuture<Void> deletionLockFuture = CompletableFuture.runAsync(() ->
-			transactionTemplate.executeWithoutResult(status -> {
+		CompletableFuture<Void> deletionLockFuture = CompletableFuture
+			.runAsync(() -> transactionTemplate.executeWithoutResult(status -> {
 				memberRepository.findByIdForUpdate(member.getId()).orElseThrow();
 				deletionLockAcquired.countDown();
 				try {
@@ -206,12 +219,11 @@ class HistorySnapshotIntegrationTest {
 
 		try {
 			assertThat(deletionLockAcquired.await(5, TimeUnit.SECONDS)).isTrue();
-			CompletableFuture<Member> loginLockFuture = CompletableFuture.supplyAsync(() ->
-				transactionTemplate.execute(status -> {
+			CompletableFuture<Member> loginLockFuture = CompletableFuture
+				.supplyAsync(() -> transactionTemplate.execute(status -> {
 					loginLockAttempted.countDown();
 					return memberRepository.findByIdAndStatusForUpdate(
-						member.getId(), MemberStatus.ACTIVE
-					).orElseThrow();
+						member.getId(), MemberStatus.ACTIVE).orElseThrow();
 				}), executor);
 
 			assertThat(loginLockAttempted.await(5, TimeUnit.SECONDS)).isTrue();

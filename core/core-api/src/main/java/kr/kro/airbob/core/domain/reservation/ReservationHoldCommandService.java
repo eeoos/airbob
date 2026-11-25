@@ -42,8 +42,7 @@ public class ReservationHoldCommandService {
 			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
-			reservation.getId()
-		);
+			reservation.getId());
 		reservation.expire();
 		couponUsageManager.restore(reservation.getId());
 		reservationHistoryWriter.record(reservation, ChangeType.STATUS_CHANGE, HOLD_RELEASE_REASON);
@@ -53,8 +52,7 @@ public class ReservationHoldCommandService {
 	@Transactional
 	public ReservationPaymentAttempt beginPaymentAttempt(
 		String reservationUid,
-		Long memberId
-	) {
+		Long memberId) {
 		Reservation reservation = findGuestReservationForUpdate(reservationUid, memberId);
 		validateAttemptIssuanceState(reservation);
 		Instant serverTime = clock.instant();
@@ -72,8 +70,7 @@ public class ReservationHoldCommandService {
 		return ReservationPaymentAttempt.of(
 			reservation,
 			paymentAttemptPolicy.remainingSeconds(serverTime, reservation.getExpiresAt()),
-			serverTime
-		);
+			serverTime);
 	}
 
 	private Reservation findGuestReservationForUpdate(String reservationUid, Long memberId) {

@@ -20,8 +20,7 @@ public class MemberAdminController implements MemberAdminApi {
 	public ResponseEntity<ApiResponse<MemberAdminResponse.RoleChanged>> changeRole(
 		Long actorId,
 		Long memberId,
-		MemberAdminRequest.ChangeRole request
-	) {
+		MemberAdminRequest.ChangeRole request) {
 		MemberRole role = memberAdminService.changeRole(actorId, memberId, request.role(), request.reason());
 		return ResponseEntity.ok(ApiResponse.success(new MemberAdminResponse.RoleChanged(memberId, role)));
 	}

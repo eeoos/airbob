@@ -7,7 +7,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
 
 final class CouponIssueFailureClassifier {
-	private CouponIssueFailureClassifier() { }
+	private CouponIssueFailureClassifier() {}
 
 	static boolean duplicateMemberCoupon(Throwable failure) {
 		for (Throwable cause = failure; cause != null; cause = cause.getCause()) {

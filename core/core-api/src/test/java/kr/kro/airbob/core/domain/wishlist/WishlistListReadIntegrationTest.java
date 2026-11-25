@@ -82,13 +82,20 @@ class WishlistListReadIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private WishlistService service;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private CursorDecoder cursorDecoder;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
+	@Autowired
+	private WishlistService service;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private CursorDecoder cursorDecoder;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
 
 	@BeforeEach
 	void fixture() {
@@ -96,13 +103,14 @@ class WishlistListReadIntegrationTest {
 			INSERT INTO member (id, nickname, status, updated_at)
 			VALUES (7, 'owner', 'ACTIVE', NOW(6)), (8, 'other', 'ACTIVE', NOW(6)), (9, 'empty', 'ACTIVE', NOW(6))
 			""");
-		jdbc.update("""
-			INSERT INTO accommodation (id, name, member_id, thumbnail_url, status, accommodation_uid,
-				check_in_time, check_out_time, time_zone_id, updated_at)
-			VALUES (31, '공개 숙소', 7, '/stay.jpg', 'PUBLISHED', UUID_TO_BIN(UUID()), '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6)),
-				(32, '비공개 숙소', 7, '/private.jpg', 'UNPUBLISHED', UUID_TO_BIN(UUID()), '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6)),
-				(33, '사진 없는 숙소', 7, NULL, 'PUBLISHED', UUID_TO_BIN(UUID()), '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6))
-			""");
+		jdbc.update(
+			"""
+				INSERT INTO accommodation (id, name, member_id, thumbnail_url, status, accommodation_uid,
+					check_in_time, check_out_time, time_zone_id, updated_at)
+				VALUES (31, '공개 숙소', 7, '/stay.jpg', 'PUBLISHED', UUID_TO_BIN(UUID()), '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6)),
+					(32, '비공개 숙소', 7, '/private.jpg', 'UNPUBLISHED', UUID_TO_BIN(UUID()), '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6)),
+					(33, '사진 없는 숙소', 7, NULL, 'PUBLISHED', UUID_TO_BIN(UUID()), '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6))
+				""");
 		jdbc.update("""
 			INSERT INTO wishlist (id, name, member_id, status, accommodation_count, representative_accommodation_id,
 				created_at, updated_at)
@@ -184,7 +192,8 @@ class WishlistListReadIntegrationTest {
 
 		var result = read(OWNER_ID, 31L, firstPage(20));
 
-		assertThat(result.wishlists()).extracting(WishlistResponse.WishlistInfo::id).containsExactly(44L, 43L, 42L, 41L);
+		assertThat(result.wishlists()).extracting(WishlistResponse.WishlistInfo::id).containsExactly(44L, 43L, 42L,
+			41L);
 		assertThat(result.wishlists()).allMatch(info -> info.thumbnailImageUrl() == null);
 		assertThat(result.wishlists()).extracting(WishlistResponse.WishlistInfo::wishlistItemCount)
 			.containsExactly(0L, 1L, 2L, 1L);
@@ -197,7 +206,8 @@ class WishlistListReadIntegrationTest {
 
 		var result = read(OWNER_ID, 31L, firstPage(20));
 
-		assertThat(result.wishlists()).extracting(WishlistResponse.WishlistInfo::id).containsExactly(44L, 43L, 42L, 41L);
+		assertThat(result.wishlists()).extracting(WishlistResponse.WishlistInfo::id).containsExactly(44L, 43L, 42L,
+			41L);
 		assertThat(result.wishlists()).filteredOn(info -> info.id() == 43L || info.id() == 42L)
 			.extracting(WishlistResponse.WishlistInfo::thumbnailImageUrl).containsExactly("/stay.jpg", "/stay.jpg");
 	}

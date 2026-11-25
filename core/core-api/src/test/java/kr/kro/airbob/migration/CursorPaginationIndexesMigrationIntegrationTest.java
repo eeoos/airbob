@@ -55,7 +55,7 @@ class CursorPaginationIndexesMigrationIntegrationTest {
 		flyway("32").migrate();
 		try (Connection connection = DriverManager.getConnection(
 			MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
-			 Statement statement = connection.createStatement()) {
+			Statement statement = connection.createStatement()) {
 			insertExistingRows(statement);
 			Map<String, List<Map<String, String>>> dataBefore = businessRows(statement);
 			var indexesBefore = indexes(statement);
@@ -80,37 +80,39 @@ class CursorPaginationIndexesMigrationIntegrationTest {
 			       (2, 'other host', 'MEMBER', 'ACTIVE', '2026-10-16 01:00:00.123456'),
 			       (3, 'guest', 'MEMBER', 'ACTIVE', '2026-10-16 01:00:00.123456')
 			""");
-		statement.executeUpdate("""
-			INSERT INTO accommodation (id, member_id, name, accommodation_uid, status,
-			    check_in_time, check_out_time, time_zone_id, created_at, updated_at)
-			VALUES (10, 1, 'published', UUID_TO_BIN(UUID()), 'PUBLISHED',
-			        '15:00:00', '11:00:00', 'Asia/Seoul', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
-			       (11, 1, 'unpublished', UUID_TO_BIN(UUID()), 'UNPUBLISHED',
-			        '15:00:00', '11:00:00', 'America/New_York', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
-			       (12, 2, 'other host', UUID_TO_BIN(UUID()), 'PUBLISHED',
-			        '15:00:00', '11:00:00', 'Asia/Seoul', NULL, '2026-10-16 01:00:00.123456')
-			""");
-		statement.executeUpdate("""
-			INSERT INTO reservation (id, reservation_uid, reservation_code, accommodation_id, guest_id,
-			    check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
-			    guest_count, total_price, discount_amount, status, message, expires_at, created_at, updated_at, currency)
-			VALUES (100, UUID_TO_BIN(UUID()), 'CURSOR-100', 10, 3,
-			        '2026-10-20', '2026-10-21', '2026-10-20 06:00:00', '2026-10-21 02:00:00', 'Asia/Seoul',
-			        2, 120000, 10000, 'PAYMENT_PENDING', NULL, '2026-10-17 01:15:00.123456',
-			        '2026-10-17 01:00:00.123456', '2026-10-17 01:00:00.123456', 'KRW'),
-			       (101, UUID_TO_BIN(UUID()), 'CURSOR-101', 11, 3,
-			        '2026-10-20', '2026-10-21', '2026-10-20 19:00:00', '2026-10-21 15:00:00', 'America/New_York',
-			        1, 100000, 0, 'CONFIRMED', 'preserve me', '2026-10-17 01:15:00.123456',
-			        '2026-10-17 01:00:00.123456', '2026-10-17 01:02:00.654321', 'KRW'),
-			       (102, UUID_TO_BIN(UUID()), 'CURSOR-102', 10, 3,
-			        '2026-10-22', '2026-10-23', '2026-10-22 06:00:00', '2026-10-23 02:00:00', 'Asia/Seoul',
-			        2, 150000, 0, 'CANCELLED', NULL, '2026-10-17 01:15:00.123455',
-			        '2026-10-17 01:00:00.123455', '2026-10-17 01:02:00.654321', 'KRW'),
-			       (103, UUID_TO_BIN(UUID()), 'CURSOR-103', 12, 3,
-			        '2026-10-20', '2026-10-21', '2026-10-20 06:00:00', '2026-10-21 02:00:00', 'Asia/Seoul',
-			        3, 180000, 0, 'CANCELLATION_FAILED', NULL, '2026-10-17 01:15:00.123457',
-			        '2026-10-17 01:00:00.123457', '2026-10-17 01:02:00.654321', 'KRW')
-			""");
+		statement.executeUpdate(
+			"""
+				INSERT INTO accommodation (id, member_id, name, accommodation_uid, status,
+				    check_in_time, check_out_time, time_zone_id, created_at, updated_at)
+				VALUES (10, 1, 'published', UUID_TO_BIN(UUID()), 'PUBLISHED',
+				        '15:00:00', '11:00:00', 'Asia/Seoul', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
+				       (11, 1, 'unpublished', UUID_TO_BIN(UUID()), 'UNPUBLISHED',
+				        '15:00:00', '11:00:00', 'America/New_York', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
+				       (12, 2, 'other host', UUID_TO_BIN(UUID()), 'PUBLISHED',
+				        '15:00:00', '11:00:00', 'Asia/Seoul', NULL, '2026-10-16 01:00:00.123456')
+				""");
+		statement.executeUpdate(
+			"""
+				INSERT INTO reservation (id, reservation_uid, reservation_code, accommodation_id, guest_id,
+				    check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
+				    guest_count, total_price, discount_amount, status, message, expires_at, created_at, updated_at, currency)
+				VALUES (100, UUID_TO_BIN(UUID()), 'CURSOR-100', 10, 3,
+				        '2026-10-20', '2026-10-21', '2026-10-20 06:00:00', '2026-10-21 02:00:00', 'Asia/Seoul',
+				        2, 120000, 10000, 'PAYMENT_PENDING', NULL, '2026-10-17 01:15:00.123456',
+				        '2026-10-17 01:00:00.123456', '2026-10-17 01:00:00.123456', 'KRW'),
+				       (101, UUID_TO_BIN(UUID()), 'CURSOR-101', 11, 3,
+				        '2026-10-20', '2026-10-21', '2026-10-20 19:00:00', '2026-10-21 15:00:00', 'America/New_York',
+				        1, 100000, 0, 'CONFIRMED', 'preserve me', '2026-10-17 01:15:00.123456',
+				        '2026-10-17 01:00:00.123456', '2026-10-17 01:02:00.654321', 'KRW'),
+				       (102, UUID_TO_BIN(UUID()), 'CURSOR-102', 10, 3,
+				        '2026-10-22', '2026-10-23', '2026-10-22 06:00:00', '2026-10-23 02:00:00', 'Asia/Seoul',
+				        2, 150000, 0, 'CANCELLED', NULL, '2026-10-17 01:15:00.123455',
+				        '2026-10-17 01:00:00.123455', '2026-10-17 01:02:00.654321', 'KRW'),
+				       (103, UUID_TO_BIN(UUID()), 'CURSOR-103', 12, 3,
+				        '2026-10-20', '2026-10-21', '2026-10-20 06:00:00', '2026-10-21 02:00:00', 'Asia/Seoul',
+				        3, 180000, 0, 'CANCELLATION_FAILED', NULL, '2026-10-17 01:15:00.123457',
+				        '2026-10-17 01:00:00.123457', '2026-10-17 01:02:00.654321', 'KRW')
+				""");
 		statement.executeUpdate("""
 			INSERT INTO accommodation_inventory_day
 			    (accommodation_id, stay_date, state, reservation_id, hold_expires_at)
@@ -119,20 +121,22 @@ class CursorPaginationIndexesMigrationIntegrationTest {
 			       (11, '2026-10-20', 'OCCUPIED', 101, NULL),
 			       (12, '2026-10-20', 'OCCUPIED', 103, NULL)
 			""");
-		statement.executeUpdate("""
-			INSERT INTO review (id, accommodation_id, member_id, rating, content, status, created_at, updated_at)
-			VALUES (200, 10, 3, 5, '첫 번째 리뷰', 'PUBLISHED', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
-			       (201, 10, 3, 5, '같은 평점과 시각', 'PUBLISHED', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
-			       (202, 10, 3, 1, '낮은 평점', 'PUBLISHED', '2026-10-16 01:00:00.123457', '2026-10-16 01:00:00.123457'),
-			       (203, 11, 3, NULL, NULL, 'DELETED', NULL, '2026-10-16 01:00:00.123456')
-			""");
-		statement.executeUpdate("""
-			INSERT INTO wishlist
-			    (id, name, member_id, status, accommodation_count, representative_accommodation_id, created_at, updated_at)
-			VALUES (300, '여름 여행', 1, 'ACTIVE', 2, 11, '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
-			       (301, '겨울 여행', 1, 'ACTIVE', 1, 12, '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
-			       (302, '삭제한 여행', 2, 'DELETED', 1, 10, NULL, '2026-10-16 01:00:00.123456')
-			""");
+		statement.executeUpdate(
+			"""
+				INSERT INTO review (id, accommodation_id, member_id, rating, content, status, created_at, updated_at)
+				VALUES (200, 10, 3, 5, '첫 번째 리뷰', 'PUBLISHED', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
+				       (201, 10, 3, 5, '같은 평점과 시각', 'PUBLISHED', '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
+				       (202, 10, 3, 1, '낮은 평점', 'PUBLISHED', '2026-10-16 01:00:00.123457', '2026-10-16 01:00:00.123457'),
+				       (203, 11, 3, NULL, NULL, 'DELETED', NULL, '2026-10-16 01:00:00.123456')
+				""");
+		statement.executeUpdate(
+			"""
+				INSERT INTO wishlist
+				    (id, name, member_id, status, accommodation_count, representative_accommodation_id, created_at, updated_at)
+				VALUES (300, '여름 여행', 1, 'ACTIVE', 2, 11, '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
+				       (301, '겨울 여행', 1, 'ACTIVE', 1, 12, '2026-10-16 01:00:00.123456', '2026-10-16 01:00:00.123456'),
+				       (302, '삭제한 여행', 2, 'DELETED', 1, 10, NULL, '2026-10-16 01:00:00.123456')
+				""");
 		statement.executeUpdate("""
 			INSERT INTO wishlist_accommodation
 			    (id, wishlist_id, accommodation_id, memo, created_at, updated_at)
@@ -145,7 +149,8 @@ class CursorPaginationIndexesMigrationIntegrationTest {
 
 	private Map<String, List<Map<String, String>>> businessRows(Statement statement) throws SQLException {
 		Map<String, List<Map<String, String>>> snapshot = new LinkedHashMap<>();
-		for (String table : List.of("member", "accommodation", "reservation", "review", "wishlist", "wishlist_accommodation")) {
+		for (String table : List.of("member", "accommodation", "reservation", "review", "wishlist",
+			"wishlist_accommodation")) {
 			snapshot.put(table, rows(statement, "SELECT * FROM " + table + " ORDER BY id"));
 		}
 		snapshot.put("accommodation_inventory_day", rows(statement, """

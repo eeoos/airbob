@@ -83,16 +83,26 @@ class MemberCouponReadIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private CouponQueryService service;
-	@Autowired private MemberCouponRepository memberCouponRepository;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private CursorDecoder cursorDecoder;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@MockitoBean private CouponTimeProvider timeProvider;
-	@MockitoBean private kr.kro.airbob.core.domain.coupon.repository.CouponIssueUnitStore stockManager;
+	@Autowired
+	private CouponQueryService service;
+	@Autowired
+	private MemberCouponRepository memberCouponRepository;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private CursorDecoder cursorDecoder;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@MockitoBean
+	private CouponTimeProvider timeProvider;
+	@MockitoBean
+	private kr.kro.airbob.core.domain.coupon.repository.CouponIssueUnitStore stockManager;
 
 	@BeforeEach
 	void fixture() {
@@ -148,7 +158,8 @@ class MemberCouponReadIntegrationTest {
 		when(timeProvider.now()).thenReturn(now);
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos()).singleElement()
+		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos())
+			.singleElement()
 			.satisfies(info -> assertThat(info.status()).isEqualTo(expected));
 
 		assertRead(statistics);
@@ -174,10 +185,11 @@ class MemberCouponReadIntegrationTest {
 		assertRead(statistics);
 
 		statistics = prepareMeasurement();
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(8L, firstPage(20))).infos()).singleElement().satisfies(info -> {
-			assertThat(info.couponId()).isEqualTo(12L);
-			assertThat(info.status()).isEqualTo(MemberCouponStatus.USED);
-		});
+		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(8L, firstPage(20))).infos())
+			.singleElement().satisfies(info -> {
+				assertThat(info.couponId()).isEqualTo(12L);
+				assertThat(info.status()).isEqualTo(MemberCouponStatus.USED);
+			});
 		assertRead(statistics);
 	}
 
@@ -213,9 +225,11 @@ class MemberCouponReadIntegrationTest {
 				discount_value = 15, min_payment_price = NULL, max_discount_amount = 15000 WHERE id = 12
 			""");
 		Statistics statistics = prepareMeasurement();
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos()).containsExactly(
-			new CouponResponse.MemberCouponInfo(12L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE,
-				15, null, 15000, NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusDays(1).toInstant(java.time.ZoneOffset.UTC), MemberCouponStatus.AVAILABLE));
+		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos())
+			.containsExactly(
+				new CouponResponse.MemberCouponInfo(12L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE,
+					15, null, 15000, NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC),
+					NOW.plusDays(1).toInstant(java.time.ZoneOffset.UTC), MemberCouponStatus.AVAILABLE));
 		assertRead(statistics);
 
 		assertThat(memberCouponRepository.reuseByReservationId(88L, NOW)).isEqualTo(1);
@@ -307,7 +321,8 @@ class MemberCouponReadIntegrationTest {
 
 	private void assertCurrentStatus(MemberCouponStatus expected) {
 		Statistics statistics = prepareMeasurement();
-		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos()).singleElement()
+		assertThat(CouponResponse.MemberCouponInfos.from(service.findMyCoupons(MEMBER_ID, firstPage(20))).infos())
+			.singleElement()
 			.satisfies(info -> assertThat(info.status()).isEqualTo(expected));
 		assertRead(statistics);
 	}
@@ -347,7 +362,8 @@ class MemberCouponReadIntegrationTest {
 		assertThat(selected).doesNotContain(".member_id", ".reservation_id", ".used_at", ".issue_start_at",
 			".issue_end_at", ".total_quantity", ".stock_prepared_at",
 			".updated_at", ".created_by", ".updated_by");
-		assertThat(sql).contains(" join coupon ", "limit ?").doesNotContain(" join member ", " for update", " for share");
+		assertThat(sql).contains(" join coupon ", "limit ?").doesNotContain(" join member ", " for update",
+			" for share");
 		verifyNoInteractions(stockManager);
 	}
 

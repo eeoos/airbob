@@ -19,8 +19,7 @@ public interface AccommodationDetailCacheMetricRecorder {
 	void recordEviction(
 		EvictionSource source,
 		AccommodationDetailCacheInvalidationReason reason,
-		OperationResult result
-	);
+		OperationResult result);
 
 	interface TaggedValue {
 		default String tagValue() {

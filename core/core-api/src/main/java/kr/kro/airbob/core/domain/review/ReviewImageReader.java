@@ -28,7 +28,6 @@ public class ReviewImageReader {
 		return reviewImageRepository.findAllByReview_IdIn(reviewIds).stream()
 			.collect(Collectors.groupingBy(
 				reviewImage -> reviewImage.getReview().getId(),
-				Collectors.mapping(StoredImage::from, Collectors.toList())
-			));
+				Collectors.mapping(StoredImage::from, Collectors.toList())));
 	}
 }

@@ -24,15 +24,13 @@ class WebMvcConfigSecurityTest {
 	@Test
 	@DisplayName("현재 회원 ID argument resolver를 MVC에 등록한다")
 	void registersCurrentMemberIdArgumentResolver() {
-		CurrentMemberIdArgumentResolver currentMemberIdArgumentResolver =
-			mock(CurrentMemberIdArgumentResolver.class);
+		CurrentMemberIdArgumentResolver currentMemberIdArgumentResolver = mock(CurrentMemberIdArgumentResolver.class);
 		WebMvcConfig config = new WebMvcConfig(
 			currentMemberIdArgumentResolver,
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
-			mock(QueryCountInterceptor.class)
-		);
+			mock(QueryCountInterceptor.class));
 		List<HandlerMethodArgumentResolver> resolvers = new ArrayList<>();
 
 		config.addArgumentResolvers(resolvers);
@@ -49,8 +47,7 @@ class WebMvcConfigSecurityTest {
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			adminAuthInterceptor,
-			mock(QueryCountInterceptor.class)
-		);
+			mock(QueryCountInterceptor.class));
 
 		assertThat(config.sessionFilter().getUrlPatterns())
 			.contains("/api/v1/*");

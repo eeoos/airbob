@@ -5,15 +5,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-
 import kr.kro.airbob.core.support.messaging.outbox.application.OutboxCleanupResult;
 
 public class OutboxCleanupMetrics {
 
-	public static final String LAST_SUCCESS_EPOCH_SECONDS =
-		"airbob.messaging.outbox.cleanup.last.success.epoch.seconds";
-	public static final String LAST_DELETED_COUNT =
-		"airbob.messaging.outbox.cleanup.last.deleted.count";
+	public static final String LAST_SUCCESS_EPOCH_SECONDS = "airbob.messaging.outbox.cleanup.last.success.epoch.seconds";
+	public static final String LAST_DELETED_COUNT = "airbob.messaging.outbox.cleanup.last.deleted.count";
 	public static final String FAILURE_COUNT = "airbob.messaging.outbox.cleanup.failures";
 
 	private final AtomicLong lastSuccessEpochSeconds = new AtomicLong();

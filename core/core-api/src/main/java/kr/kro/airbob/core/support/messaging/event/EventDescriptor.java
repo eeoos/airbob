@@ -4,14 +4,12 @@ public record EventDescriptor(
 	String destination,
 	String aggregateType,
 	String eventType,
-	String eventVersion
-) {
+	String eventVersion) {
 	public EventDescriptor(
 		IntegrationEventDestination destination,
 		String aggregateType,
 		String eventType,
-		String eventVersion
-	) {
+		String eventVersion) {
 		this(
 			destination == null ? null : destination.topic(),
 			aggregateType,

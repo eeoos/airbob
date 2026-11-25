@@ -10,9 +10,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -38,20 +38,27 @@ import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 @DisplayName("위시리스트 반정규화(개수/대표 썸네일) 통합 테스트")
 class WishlistDenormalizationIntegrationTest {
 
-	@Autowired private WishlistService wishlistService;
-	@Autowired private JdbcTemplate jdbc;
+	@Autowired
+	private WishlistService wishlistService;
+	@Autowired
+	private JdbcTemplate jdbc;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -119,11 +126,10 @@ class WishlistDenormalizationIntegrationTest {
 		add(acc1);
 		long membershipId = add(acc2);
 		add(acc3);
-		CursorRequest.CursorPageRequest request =
-			CursorRequest.CursorPageRequest.builder().size(20).build();
+		CursorRequest.CursorPageRequest request = CursorRequest.CursorPageRequest.builder().size(20).build();
 
-		WishlistResponse.WishlistInfos after =
-			WishlistResponse.WishlistInfos.from(wishlistService.findWishlists(request, host, acc2), true);
+		WishlistResponse.WishlistInfos after = WishlistResponse.WishlistInfos
+			.from(wishlistService.findWishlists(request, host, acc2), true);
 
 		assertThat(after.wishlists()).singleElement().satisfies(info -> {
 			assertThat(info.isContained()).isTrue();
@@ -137,16 +143,14 @@ class WishlistDenormalizationIntegrationTest {
 		long lowerId = add(acc1);
 		long higherId = add(acc2);
 		assertThat(jdbc.update(
-				"UPDATE wishlist_accommodation SET created_at = '2026-07-20 12:00:00.000000' WHERE id IN (?, ?)",
-				lowerId,
-				higherId
-			))
+			"UPDATE wishlist_accommodation SET created_at = '2026-07-20 12:00:00.000000' WHERE id IN (?, ?)",
+			lowerId,
+			higherId))
 			.isEqualTo(2);
-		CursorRequest.CursorPageRequest request =
-			CursorRequest.CursorPageRequest.builder().size(20).build();
+		CursorRequest.CursorPageRequest request = CursorRequest.CursorPageRequest.builder().size(20).build();
 
-		WishlistResponse.WishlistInfos after =
-			WishlistResponse.WishlistInfos.from(wishlistService.findWishlists(request, host, null), false);
+		WishlistResponse.WishlistInfos after = WishlistResponse.WishlistInfos
+			.from(wishlistService.findWishlists(request, host, null), false);
 
 		assertThat(higherId).isGreaterThan(lowerId);
 		assertThat(after.wishlists().getFirst().thumbnailImageUrl()).isEqualTo("url-2");
@@ -224,11 +228,13 @@ class WishlistDenormalizationIntegrationTest {
 	}
 
 	private long insertAccommodation(String thumbnailUrl) {
-		jdbc.update("""
-			INSERT INTO accommodation
-				(member_id, check_in_time, check_out_time, accommodation_uid, status, base_price, thumbnail_url, updated_at)
-			VALUES (?, '15:00:00', '11:00:00', UUID_TO_BIN(UUID()), 'PUBLISHED', 100000, ?, NOW(6))
-			""", host, thumbnailUrl);
+		jdbc.update(
+			"""
+				INSERT INTO accommodation
+					(member_id, check_in_time, check_out_time, accommodation_uid, status, base_price, thumbnail_url, updated_at)
+				VALUES (?, '15:00:00', '11:00:00', UUID_TO_BIN(UUID()), 'PUBLISHED', 100000, ?, NOW(6))
+				""",
+			host, thumbnailUrl);
 		return jdbc.queryForObject("SELECT id FROM accommodation ORDER BY id DESC LIMIT 1", Long.class);
 	}
 }

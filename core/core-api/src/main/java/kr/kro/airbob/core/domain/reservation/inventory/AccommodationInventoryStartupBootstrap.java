@@ -19,11 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@ConditionalOnProperty(
-	name = "reservation.inventory.startup.enabled",
-	havingValue = "true",
-	matchIfMissing = true
-)
+@ConditionalOnProperty(name = "reservation.inventory.startup.enabled", havingValue = "true", matchIfMissing = true)
 public class AccommodationInventoryStartupBootstrap implements ApplicationRunner {
 
 	private final ReservationInventorySeeder inventorySeeder;
@@ -33,8 +29,8 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 	public AccommodationInventoryStartupBootstrap(
 		ReservationInventorySeeder inventorySeeder,
 		AccommodationInventoryReadiness readiness,
-		@Value("${reservation.inventory.startup.batch-size:1000}") int batchSize
-	) {
+		@Value("${reservation.inventory.startup.batch-size:1000}")
+		int batchSize) {
 		if (batchSize < 1 || batchSize > AccommodationInventoryDayRepository.MAX_SEED_TARGETS) {
 			throw new IllegalArgumentException("inventory startup batch size must be between 1 and 1000");
 		}
@@ -54,8 +50,7 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 		long missingDaysSubmitted = 0;
 		long insertStatements = 0;
 		while (true) {
-			ReservationInventorySeeder.SeedBatch batch =
-				inventorySeeder.seedNextPublishedBatch(cursor, batchSize);
+			ReservationInventorySeeder.SeedBatch batch = inventorySeeder.seedNextPublishedBatch(cursor, batchSize);
 			if (batch.processed() == 0) {
 				break;
 			}
@@ -71,7 +66,7 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 			long now = System.nanoTime();
 			if (now - lastProgressAt >= 10_000_000_000L) {
 				log.info("Inventory startup progress: accommodations={} expectedDays={} "
-						+ "missingDaysSubmitted={} insertStatements={} elapsedMs={} cursor={}",
+					+ "missingDaysSubmitted={} insertStatements={} elapsedMs={} cursor={}",
 					totalSeeded, expectedDays, missingDaysSubmitted, insertStatements,
 					(now - startedAt) / 1_000_000, cursor);
 				lastProgressAt = now;
@@ -82,7 +77,7 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 		}
 		readiness.markReady();
 		log.info("예약 inventory startup bootstrap 완료: accommodations={} expectedDays={} "
-				+ "missingDaysSubmitted={} insertStatements={} elapsedMs={}",
+			+ "missingDaysSubmitted={} insertStatements={} elapsedMs={}",
 			totalSeeded, expectedDays, missingDaysSubmitted, insertStatements,
 			(System.nanoTime() - startedAt) / 1_000_000);
 	}

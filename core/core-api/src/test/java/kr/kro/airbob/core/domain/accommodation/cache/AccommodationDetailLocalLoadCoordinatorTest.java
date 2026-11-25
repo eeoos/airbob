@@ -22,13 +22,12 @@ class AccommodationDetailLocalLoadCoordinatorTest {
 	@Test
 	@DisplayName("분리된 이전 조회가 끝나도 이후에 등록된 조회는 제거하지 않는다")
 	void detachedOldLoadCompletionDoesNotRemoveReplacementLoad() throws Exception {
-		AccommodationDetailLocalLoadCoordinator coordinator =
-			new AccommodationDetailLocalLoadCoordinator(
-				mock(AccommodationDetailCacheMetricRecorder.class), Duration.ofSeconds(5));
+		AccommodationDetailLocalLoadCoordinator coordinator = new AccommodationDetailLocalLoadCoordinator(
+			mock(AccommodationDetailCacheMetricRecorder.class), Duration.ofSeconds(5));
 		CountDownLatch oldLoadStarted = new CountDownLatch(1);
 		CountDownLatch releaseOldLoad = new CountDownLatch(1);
-		CompletableFuture<AccommodationDetailSnapshot> oldLoad = CompletableFuture.supplyAsync(() ->
-			coordinator.loadOrJoin(1L, () -> {
+		CompletableFuture<AccommodationDetailSnapshot> oldLoad = CompletableFuture
+			.supplyAsync(() -> coordinator.loadOrJoin(1L, () -> {
 				oldLoadStarted.countDown();
 				await(releaseOldLoad);
 				return snapshot("old");
@@ -38,8 +37,8 @@ class AccommodationDetailLocalLoadCoordinatorTest {
 		coordinator.detachCurrent(1L);
 		CountDownLatch replacementStarted = new CountDownLatch(1);
 		CountDownLatch releaseReplacement = new CountDownLatch(1);
-		CompletableFuture<AccommodationDetailSnapshot> replacement = CompletableFuture.supplyAsync(() ->
-			coordinator.loadOrJoin(1L, () -> {
+		CompletableFuture<AccommodationDetailSnapshot> replacement = CompletableFuture
+			.supplyAsync(() -> coordinator.loadOrJoin(1L, () -> {
 				replacementStarted.countDown();
 				await(releaseReplacement);
 				return snapshot("replacement");

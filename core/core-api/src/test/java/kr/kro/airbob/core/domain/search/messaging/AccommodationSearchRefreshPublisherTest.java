@@ -20,22 +20,20 @@ import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 @DisplayName("숙소 검색 refresh 발행 계약")
 class AccommodationSearchRefreshPublisherTest {
 
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
 
-	@Mock private OutboxWriter outboxWriter;
+	@Mock
+	private OutboxWriter outboxWriter;
 
 	@Test
 	@DisplayName("도메인은 협소한 포트로 단일 refresh 이벤트만 outbox에 추가한다")
 	void appendsOneVersionedRefreshEvent() {
-		AccommodationSearchRefreshPublisher publisher =
-			new OutboxAccommodationSearchRefreshPublisher(outboxWriter);
+		AccommodationSearchRefreshPublisher publisher = new OutboxAccommodationSearchRefreshPublisher(outboxWriter);
 
 		publisher.requestRefresh(ACCOMMODATION_UID);
 
 		then(outboxWriter).should().append(argThat(event -> {
-			AccommodationSearchRefreshRequestedV1 refresh =
-				(AccommodationSearchRefreshRequestedV1) event;
+			AccommodationSearchRefreshRequestedV1 refresh = (AccommodationSearchRefreshRequestedV1)event;
 			assertThat(refresh.accommodationUid()).isEqualTo(ACCOMMODATION_UID);
 			assertThat(refresh.aggregateId()).isEqualTo(ACCOMMODATION_UID.toString());
 			assertThat(refresh.partitionKey()).isEqualTo(ACCOMMODATION_UID.toString());

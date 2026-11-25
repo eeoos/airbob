@@ -24,9 +24,10 @@ public interface ReservationQuoteRepository extends JpaRepository<ReservationQuo
 		where quote.quoteUid = :quoteUid and quote.memberId = :memberId
 		""")
 	Optional<ReservationQuote> findByQuoteUidAndMemberIdForUpdate(
-		@Param("quoteUid") UUID quoteUid,
-		@Param("memberId") Long memberId
-	);
+		@Param("quoteUid")
+		UUID quoteUid,
+		@Param("memberId")
+		Long memberId);
 
 	@Query(value = """
 		select id
@@ -37,13 +38,16 @@ public interface ReservationQuoteRepository extends JpaRepository<ReservationQuo
 		for update skip locked
 		""", nativeQuery = true)
 	List<Long> findRetentionExpiredIdsForCleanup(
-		@Param("cutoffExclusive") Instant cutoffExclusive,
-		@Param("batchSize") int batchSize
-	);
+		@Param("cutoffExclusive")
+		Instant cutoffExclusive,
+		@Param("batchSize")
+		int batchSize);
 
 	@Modifying
 	// Keep this as a direct primary-key DELETE. JpaRepository's JPQL batch delete
 	// waited on a row already skipped by the concurrent MySQL locking read.
 	@Query(value = "delete from reservation_quote where id in (:ids)", nativeQuery = true)
-	int deleteCleanupBatchByIds(@Param("ids") List<Long> ids);
+	int deleteCleanupBatchByIds(
+		@Param("ids")
+		List<Long> ids);
 }

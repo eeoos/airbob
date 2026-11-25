@@ -5,8 +5,7 @@ import java.util.Objects;
 
 public record OutboxCleanupResult(
 	int deletedCount,
-	Instant observedAt
-) {
+	Instant observedAt) {
 
 	public OutboxCleanupResult {
 		if (deletedCount < 0) {

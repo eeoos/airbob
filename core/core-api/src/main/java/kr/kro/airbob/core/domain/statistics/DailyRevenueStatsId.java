@@ -2,7 +2,6 @@ package kr.kro.airbob.core.domain.statistics;
 
 import java.io.Serializable;
 import java.time.LocalDate;
-import java.util.Objects;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

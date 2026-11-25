@@ -14,9 +14,10 @@ public class GoogleGeocodingConfiguration {
 	// todo: 배포 후엔 api ip 제한 걸기
 	@Bean
 	public GoogleGeocodingClient googleGeocodingClient(
-		@Qualifier("generalRestClient") RestClient restClient,
-		@Value("${google.api.key}") String googleApiKey
-	) {
+		@Qualifier("generalRestClient")
+		RestClient restClient,
+		@Value("${google.api.key}")
+		String googleApiKey) {
 		return new GoogleGeocodingClient(restClient, googleApiKey);
 	}
 }

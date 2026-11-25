@@ -1,9 +1,9 @@
 package kr.kro.airbob.core.domain.wishlist.repository.querydsl;
 
 import static kr.kro.airbob.core.domain.accommodation.QAccommodation.*;
+import static kr.kro.airbob.core.domain.accommodation.QAccommodationReviewSummary.*;
 import static kr.kro.airbob.core.domain.accommodation.QAddress.*;
 import static kr.kro.airbob.core.domain.member.QMember.*;
-import static kr.kro.airbob.core.domain.accommodation.QAccommodationReviewSummary.*;
 import static kr.kro.airbob.core.domain.wishlist.QWishlist.*;
 import static kr.kro.airbob.core.domain.wishlist.QWishlistAccommodation.*;
 
@@ -17,11 +17,10 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.jpa.impl.JPAQuery;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import jakarta.persistence.LockModeType;
-
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
 import kr.kro.airbob.core.domain.wishlist.QWishlistAccommodationItem;
 import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationItem;
@@ -29,7 +28,7 @@ import kr.kro.airbob.core.domain.wishlist.WishlistStatus;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class WishlistAccommodationRepositoryImpl implements WishlistAccommodationRepositoryCustom{
+public class WishlistAccommodationRepositoryImpl implements WishlistAccommodationRepositoryCustom {
 
 	private final JPAQueryFactory queryFactory;
 
@@ -50,18 +49,16 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 				address.district,
 				accommodationReviewSummary.averageRating,
 				accommodationReviewSummary.totalReviewCount,
-				wishlistAccommodation.createdAt
-			))
+				wishlistAccommodation.createdAt))
 			.from(wishlistAccommodation)
 			.join(wishlistAccommodation.accommodation, accommodation)
 			.join(accommodation.address, address)
 			.leftJoin(accommodationReviewSummary)
-				.on(accommodationReviewSummary.accommodationId.eq(accommodation.id));
+			.on(accommodationReviewSummary.accommodationId.eq(accommodation.id));
 		List<WishlistAccommodationItem> content = query.where(
-				wishlistAccommodation.wishlist.id.eq(wishlistId),
-				accommodation.status.eq(AccommodationStatus.PUBLISHED),
-				cursorCondition(lastId, lastCreatedAt)
-			)
+			wishlistAccommodation.wishlist.id.eq(wishlistId),
+			accommodation.status.eq(AccommodationStatus.PUBLISHED),
+			cursorCondition(lastId, lastCreatedAt))
 			.orderBy(wishlistAccommodation.createdAt.desc(), wishlistAccommodation.id.desc())
 			.limit(pageable.getPageSize() + 1)
 			.fetch();
@@ -86,8 +83,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 				member.id.eq(memberId),
 				wishlist.status.eq(WishlistStatus.ACTIVE),
 				accommodation.id.in(accommodationIds),
-				accommodation.status.eq(AccommodationStatus.PUBLISHED)
-			)
+				accommodation.status.eq(AccommodationStatus.PUBLISHED))
 			.fetch();
 
 		return new HashSet<>(result);

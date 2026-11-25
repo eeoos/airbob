@@ -19,8 +19,7 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 @DisplayName("공통 integration-event Kafka 설정")
 class MessagingKafkaConfigurationTest {
 
-	private final MessagingKafkaConfiguration configuration =
-		new MessagingKafkaConfiguration();
+	private final MessagingKafkaConfiguration configuration = new MessagingKafkaConfiguration();
 	private final ApplicationContextRunner profileContextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(MessagingKafkaConfiguration.class)
 		.withBean(KafkaProperties.class, KafkaProperties::new)
@@ -31,9 +30,8 @@ class MessagingKafkaConfigurationTest {
 
 	@Test
 	void usesStringSerializersForCanonicalEventJson() {
-		DefaultKafkaProducerFactory<String, String> producerFactory =
-			(DefaultKafkaProducerFactory<String, String>)configuration
-				.integrationEventProducerFactory(new KafkaProperties());
+		DefaultKafkaProducerFactory<String, String> producerFactory = (DefaultKafkaProducerFactory<String, String>)configuration
+			.integrationEventProducerFactory(new KafkaProperties());
 
 		assertThat(producerFactory.getConfigurationProperties())
 			.containsEntry(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class)

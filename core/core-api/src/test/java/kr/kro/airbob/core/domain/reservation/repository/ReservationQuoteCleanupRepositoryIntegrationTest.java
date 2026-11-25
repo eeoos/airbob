@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -31,8 +31,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -108,8 +108,7 @@ class ReservationQuoteCleanupRepositoryIntegrationTest {
 		assertThat(deleted).containsExactly(oldestConsumedId, middleUnconsumedId);
 		assertThat(existingQuoteIds()).contains(
 			newestUnconsumedId,
-			boundaryId
-		).doesNotContain(oldestConsumedId, middleUnconsumedId);
+			boundaryId).doesNotContain(oldestConsumedId, middleUnconsumedId);
 	}
 
 	@Test
@@ -125,16 +124,13 @@ class ReservationQuoteCleanupRepositoryIntegrationTest {
 					RETENTION_CUTOFF,
 					1,
 					firstBatchLocked,
-					releaseFirstTransaction
-				),
-				executor
-			);
+					releaseFirstTransaction),
+				executor);
 			assertThat(firstBatchLocked.await(5, TimeUnit.SECONDS)).isTrue();
 
 			List<Long> second = CompletableFuture.supplyAsync(
 				() -> cleanupTransaction.cleanupOneBatch(RETENTION_CUTOFF, 10),
-				executor
-			).get(2, TimeUnit.SECONDS);
+				executor).get(2, TimeUnit.SECONDS);
 
 			releaseFirstTransaction.countDown();
 			List<Long> firstDeleted = first.get(5, TimeUnit.SECONDS);
@@ -199,8 +195,7 @@ class ReservationQuoteCleanupRepositoryIntegrationTest {
 		long accommodationId,
 		Long reservationId,
 		Instant createdAt,
-		int sequence
-	) {
+		int sequence) {
 		UUID quoteUid = UUID.nameUUIDFromBytes(
 			("quote-cleanup-" + sequence).getBytes(StandardCharsets.UTF_8));
 		LocalDate checkIn = LocalDate.of(2026, 10, 1).plusDays(sequence);
@@ -278,8 +273,7 @@ class ReservationQuoteCleanupRepositoryIntegrationTest {
 			Instant cutoff,
 			int batchSize,
 			CountDownLatch locked,
-			CountDownLatch release
-		) {
+			CountDownLatch release) {
 			List<Long> ids = lockIds(cutoff, batchSize);
 			locked.countDown();
 			awaitRelease(release);

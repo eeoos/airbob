@@ -22,8 +22,7 @@ public record WishlistAccommodationItem(
 	String district,
 	BigDecimal averageRating,
 	Integer reviewCount,
-	LocalDateTime createdAt
-) {
+	LocalDateTime createdAt) {
 	@QueryProjection
 	public WishlistAccommodationItem {
 	}

@@ -16,8 +16,7 @@ public class PaymentOperationExecutionService {
 	private static final int FAILURE_MESSAGE_MAX_LENGTH = 512;
 	private static final String UNKNOWN_CODE = "UNKNOWN_GATEWAY_RESULT";
 	private static final String UNEXPECTED_GATEWAY_MESSAGE = "Unexpected payment gateway failure.";
-	private static final String RESPONSE_MISMATCH_MESSAGE =
-		"Provider approval did not match the payment operation.";
+	private static final String RESPONSE_MISMATCH_MESSAGE = "Provider approval did not match the payment operation.";
 
 	private final PaymentOperationLeaseManager leaseManager;
 	private final PaymentProviderGateway gateway;
@@ -28,8 +27,7 @@ public class PaymentOperationExecutionService {
 		PaymentOperationLeaseManager leaseManager,
 		PaymentProviderGateway gateway,
 		PaymentOperationFinalizer finalizer,
-		PaymentOperationExecutionFence executionFence
-	) {
+		PaymentOperationExecutionFence executionFence) {
 		this.leaseManager = leaseManager;
 		this.gateway = gateway;
 		this.finalizer = finalizer;
@@ -64,8 +62,7 @@ public class PaymentOperationExecutionService {
 			leaseManager.markOutcomeUnknown(
 				claimedExecution,
 				"UNCLASSIFIED_GATEWAY_FAILURE",
-				UNEXPECTED_GATEWAY_MESSAGE
-			);
+				UNEXPECTED_GATEWAY_MESSAGE);
 			return;
 		}
 
@@ -102,8 +99,7 @@ public class PaymentOperationExecutionService {
 			finalizer.applyDeclined(
 				execution,
 				sanitizeCode(execution, declined.code()),
-				sanitizeMessage(execution, declined.message())
-			);
+				sanitizeMessage(execution, declined.message()));
 			return;
 		}
 		if (result instanceof PaymentGatewayResult.RetryableFailure retryable) {
@@ -132,8 +128,7 @@ public class PaymentOperationExecutionService {
 			leaseManager.markOutcomeUnknown(
 				execution,
 				"PROVIDER_RESPONSE_MISMATCH",
-				RESPONSE_MISMATCH_MESSAGE
-			);
+				RESPONSE_MISMATCH_MESSAGE);
 			return;
 		}
 
@@ -220,8 +215,7 @@ public class PaymentOperationExecutionService {
 
 	private boolean isCorrelatedCancellation(
 		PaymentExecution execution,
-		CancelledPayment cancelled
-	) {
+		CancelledPayment cancelled) {
 		return cancelled != null
 			&& Objects.equals(execution.paymentKey(), cancelled.paymentKey())
 			&& Objects.equals(execution.orderId(), cancelled.orderId())

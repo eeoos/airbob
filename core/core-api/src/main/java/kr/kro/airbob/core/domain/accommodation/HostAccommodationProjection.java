@@ -14,8 +14,7 @@ public record HostAccommodationProjection(
 	String state,
 	String city,
 	String district,
-	LocalDateTime createdAt
-) {
+	LocalDateTime createdAt) {
 	@QueryProjection
 	public HostAccommodationProjection {
 	}

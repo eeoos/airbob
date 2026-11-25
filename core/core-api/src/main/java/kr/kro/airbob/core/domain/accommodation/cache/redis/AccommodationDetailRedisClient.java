@@ -17,8 +17,7 @@ public final class AccommodationDetailRedisClient {
 
 	public AccommodationDetailRedisClient(
 		StringRedisTemplate redisTemplate,
-		LettuceConnectionFactory connectionFactory
-	) {
+		LettuceConnectionFactory connectionFactory) {
 		this.redisTemplate = redisTemplate;
 		this.connectionFactory = connectionFactory;
 	}

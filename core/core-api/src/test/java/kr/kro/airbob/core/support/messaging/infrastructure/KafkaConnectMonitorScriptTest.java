@@ -19,8 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class KafkaConnectMonitorScriptTest {
 
-	private static final Path SCRIPT =
-		Path.of("docker/debezium/monitor-connector.sh").toAbsolutePath();
+	private static final Path SCRIPT = Path.of("docker/debezium/monitor-connector.sh").toAbsolutePath();
 
 	@TempDir
 	Path tempDir;
@@ -61,8 +60,7 @@ class KafkaConnectMonitorScriptTest {
 	void logsOnlyStateTransitions() throws Exception {
 		Execution execution = execute("failed-failed-running-running", Map.of(
 			"CONNECTOR_MONITOR_MAX_CHECKS", "4",
-			"CONNECTOR_MONITOR_INTERVAL_SECONDS", "0"
-		));
+			"CONNECTOR_MONITOR_INTERVAL_SECONDS", "0"));
 
 		assertThat(execution.completed()).isTrue();
 		assertThat(execution.exitCode()).withFailMessage(execution.output()).isZero();
@@ -76,8 +74,7 @@ class KafkaConnectMonitorScriptTest {
 		Execution execution = execute("hang", Map.of(
 			"CONNECTOR_MONITOR_MAX_CHECKS", "1",
 			"CONNECTOR_MONITOR_HTTP_CONNECT_TIMEOUT_SECONDS", "1",
-			"CONNECTOR_MONITOR_HTTP_MAX_TIME_SECONDS", "1"
-		));
+			"CONNECTOR_MONITOR_HTTP_MAX_TIME_SECONDS", "1"));
 
 		assertThat(execution.completed()).isTrue();
 		assertThat(execution.exitCode()).isNotZero();
@@ -113,8 +110,7 @@ class KafkaConnectMonitorScriptTest {
 			completed,
 			completed ? process.exitValue() : -1,
 			output,
-			Duration.ofNanos(System.nanoTime() - startedAtNanos)
-		);
+			Duration.ofNanos(System.nanoTime() - startedAtNanos));
 	}
 
 	private int occurrences(String text, String needle) {

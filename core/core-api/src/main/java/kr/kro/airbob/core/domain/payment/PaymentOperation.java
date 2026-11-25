@@ -124,8 +124,7 @@ public class PaymentOperation extends BaseEntity {
 	private long version;
 
 	public static PaymentOperation createConfirmation(
-		Reservation reservation, Long requesterMemberId, String paymentKey, long amount, Instant now
-	) {
+		Reservation reservation, Long requesterMemberId, String paymentKey, long amount, Instant now) {
 		requireMaxLength(paymentKey, PAYMENT_KEY_MAX_LENGTH, "paymentKey");
 		UUID operationUid = UUID.randomUUID();
 		return PaymentOperation.builder()
@@ -154,8 +153,7 @@ public class PaymentOperation extends BaseEntity {
 		String paymentKey,
 		long amount,
 		String cancellationReason,
-		Instant now
-	) {
+		Instant now) {
 		requireMaxLength(paymentKey, PAYMENT_KEY_MAX_LENGTH, "paymentKey");
 		requireMaxLength(cancellationReason, CANCELLATION_REASON_MAX_LENGTH, "cancellationReason");
 		if (cancellationReason == null || cancellationReason.isBlank()) {
@@ -230,8 +228,7 @@ public class PaymentOperation extends BaseEntity {
 	}
 
 	public Optional<PaymentExecutionMode> acquireLease(
-		String owner, long expectedGeneration, Instant now, Duration leaseDuration
-	) {
+		String owner, long expectedGeneration, Instant now, Duration leaseDuration) {
 		if (!isQueuedGeneration(expectedGeneration)) {
 			return Optional.empty();
 		}
@@ -248,8 +245,7 @@ public class PaymentOperation extends BaseEntity {
 	}
 
 	public boolean markManualReviewIfAttemptsExhausted(
-		long expectedGeneration, int maxAttempts, Instant now
-	) {
+		long expectedGeneration, int maxAttempts, Instant now) {
 		if (attemptCount < maxAttempts || !isQueuedGeneration(expectedGeneration)) {
 			return false;
 		}
@@ -324,8 +320,7 @@ public class PaymentOperation extends BaseEntity {
 		Instant now,
 		String code,
 		String message,
-		boolean notPaidEligible
-	) {
+		boolean notPaidEligible) {
 		if (!manualReconciliationPending || !isOwnedBy(owner, expectedGeneration)) {
 			return false;
 		}
@@ -355,8 +350,7 @@ public class PaymentOperation extends BaseEntity {
 	}
 
 	public boolean scheduleRetry(
-		String owner, long expectedGeneration, Instant retryAt, String code, String message
-	) {
+		String owner, long expectedGeneration, Instant retryAt, String code, String message) {
 		return transitionFromExecution(
 			owner,
 			expectedGeneration,
@@ -369,16 +363,14 @@ public class PaymentOperation extends BaseEntity {
 	}
 
 	public boolean markOutcomeUnknown(
-		String owner, long expectedGeneration, Instant retryAt, String code, String message
-	) {
+		String owner, long expectedGeneration, Instant retryAt, String code, String message) {
 		return transitionFromExecution(
 			owner, expectedGeneration, inquiryActionFor(operationType),
 			retryAt, code, message);
 	}
 
 	public boolean markManualReview(
-		String owner, long expectedGeneration, Instant now, String code, String message
-	) {
+		String owner, long expectedGeneration, Instant now, String code, String message) {
 		if (!isOwnedBy(owner, expectedGeneration)) {
 			return false;
 		}
@@ -394,8 +386,7 @@ public class PaymentOperation extends BaseEntity {
 		PaymentOperationNextAction retryAction,
 		Instant retryAt,
 		String code,
-		String message
-	) {
+		String message) {
 		if (!isOwnedBy(owner, expectedGeneration)) {
 			return false;
 		}

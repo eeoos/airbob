@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,8 +19,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
-
-import java.time.format.DateTimeFormatter;
 
 import kr.kro.airbob.core.domain.accommodation.AccommodationQueryService;
 import kr.kro.airbob.core.domain.accommodation.port.AccommodationAvailability;
@@ -52,9 +51,7 @@ class AccommodationAvailabilityApiTest {
 				LocalDate.of(2026, 11, 13),
 				List.of(new AccommodationAvailability.DateRange(
 					LocalDate.of(2026, 8, 20),
-					LocalDate.of(2026, 8, 23)
-				))
-			));
+					LocalDate.of(2026, 8, 23)))));
 
 		mockMvc.perform(get("/api/v1/accommodations/42/availability"))
 			.andExpect(status().isOk())

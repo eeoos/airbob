@@ -1,10 +1,11 @@
 package kr.kro.airbob.apidocs;
 
+import static kr.kro.airbob.core.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -14,24 +15,24 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.List;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -40,9 +41,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springdoc.core.configuration.*;
-import org.springdoc.core.properties.*;
-import org.springdoc.webmvc.core.configuration.*;
+import org.springdoc.core.configuration.SpringDocConfiguration;
+import org.springdoc.core.configuration.SpringDocPageableConfiguration;
+import org.springdoc.core.configuration.SpringDocSortConfiguration;
+import org.springdoc.core.configuration.SpringDocSpecPropertiesConfiguration;
+import org.springdoc.core.properties.SpringDocConfigProperties;
+import org.springdoc.core.properties.SwaggerUiConfigProperties;
+import org.springdoc.core.properties.SwaggerUiOAuthProperties;
+import org.springdoc.webmvc.core.configuration.MultipleOpenApiSupportConfiguration;
+import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springdoc.webmvc.ui.SwaggerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -59,7 +66,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.MediaType;
@@ -69,6 +75,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -84,8 +92,6 @@ import kr.kro.airbob.core.api.config.WebMvcConfig;
 import kr.kro.airbob.core.api.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
-import kr.kro.airbob.core.api.controller.v1.member.response.MemberResponse;
-import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
@@ -110,15 +116,33 @@ import kr.kro.airbob.core.domain.auth.InvalidPasswordException;
 import kr.kro.airbob.core.domain.auth.SessionAuthenticationService;
 import kr.kro.airbob.core.domain.auth.SessionReader;
 import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
-import kr.kro.airbob.core.domain.commoncode.*;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeAdminService;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeDetail;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeDuplicateException;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeGroupDetail;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeGroupDuplicateException;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeGroupNotFoundException;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeGroupPatch;
+import kr.kro.airbob.core.domain.commoncode.CommonCodeNotFoundException;
+import kr.kro.airbob.core.domain.commoncode.CommonCodePatch;
 import kr.kro.airbob.core.domain.commoncode.CommonCodeService;
-import kr.kro.airbob.core.domain.coupon.*;
+import kr.kro.airbob.core.domain.commoncode.NewCommonCode;
+import kr.kro.airbob.core.domain.commoncode.NewCommonCodeGroup;
+import kr.kro.airbob.core.domain.coupon.CouponAlreadyIssuedException;
+import kr.kro.airbob.core.domain.coupon.CouponAlreadyPreparedException;
 import kr.kro.airbob.core.domain.coupon.CouponCampaignPage;
+import kr.kro.airbob.core.domain.coupon.CouponConfigurationLockedException;
+import kr.kro.airbob.core.domain.coupon.CouponInvalidConfigurationException;
 import kr.kro.airbob.core.domain.coupon.CouponIssuanceStatus;
+import kr.kro.airbob.core.domain.coupon.CouponIssueContendedException;
+import kr.kro.airbob.core.domain.coupon.CouponNotFoundException;
+import kr.kro.airbob.core.domain.coupon.CouponNotIssuableException;
 import kr.kro.airbob.core.domain.coupon.CouponQueryService;
 import kr.kro.airbob.core.domain.coupon.CouponService;
 import kr.kro.airbob.core.domain.coupon.CouponSkipLockedIssueService;
+import kr.kro.airbob.core.domain.coupon.CouponSoldOutException;
+import kr.kro.airbob.core.domain.coupon.CouponStockNotPreparedException;
+import kr.kro.airbob.core.domain.coupon.CouponStockPreparationNotAllowedException;
 import kr.kro.airbob.core.domain.coupon.CouponStockPreparationService;
 import kr.kro.airbob.core.domain.coupon.DiscountType;
 import kr.kro.airbob.core.domain.coupon.MemberCouponPage;
@@ -136,13 +160,33 @@ import kr.kro.airbob.core.domain.member.MemberProfile;
 import kr.kro.airbob.core.domain.member.MemberRole;
 import kr.kro.airbob.core.domain.member.MemberRoleChangeNotAllowedException;
 import kr.kro.airbob.core.domain.member.MemberService;
+import kr.kro.airbob.core.domain.payment.Payment;
 import kr.kro.airbob.core.domain.payment.PaymentAccessDeniedException;
 import kr.kro.airbob.core.domain.payment.PaymentCancellationCommandService;
 import kr.kro.airbob.core.domain.payment.PaymentDetail;
+import kr.kro.airbob.core.domain.payment.PaymentMethod;
+import kr.kro.airbob.core.domain.payment.PaymentNotFoundException;
+import kr.kro.airbob.core.domain.payment.PaymentOperation;
+import kr.kro.airbob.core.domain.payment.PaymentOperationCommandService;
+import kr.kro.airbob.core.domain.payment.PaymentOperationConflictException;
 import kr.kro.airbob.core.domain.payment.PaymentOperationDetail;
+import kr.kro.airbob.core.domain.payment.PaymentOperationDetailRow;
+import kr.kro.airbob.core.domain.payment.PaymentOperationExecutionFenceUnavailableException;
+import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewCommandService;
+import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewQueryService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewQueue;
+import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewQueueItem;
+import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewResult;
+import kr.kro.airbob.core.domain.payment.PaymentOperationNotFoundException;
+import kr.kro.airbob.core.domain.payment.PaymentOperationQueryService;
 import kr.kro.airbob.core.domain.payment.PaymentOperationReceipt;
+import kr.kro.airbob.core.domain.payment.PaymentOperationStatus;
+import kr.kro.airbob.core.domain.payment.PaymentOperationType;
+import kr.kro.airbob.core.domain.payment.PaymentQueryService;
+import kr.kro.airbob.core.domain.payment.PaymentStatus;
+import kr.kro.airbob.core.domain.payment.PaymentTransaction;
 import kr.kro.airbob.core.domain.recentlyviewed.RecentlyViewedAccommodation;
+import kr.kro.airbob.core.domain.recentlyviewed.RecentlyViewedService;
 import kr.kro.airbob.core.domain.reservation.GuestReservationDetail;
 import kr.kro.airbob.core.domain.reservation.GuestReservationListProjection;
 import kr.kro.airbob.core.domain.reservation.GuestReservationPage;
@@ -172,9 +216,21 @@ import kr.kro.airbob.core.domain.review.ReviewPage;
 import kr.kro.airbob.core.domain.review.ReviewService;
 import kr.kro.airbob.core.domain.review.ReviewSortType;
 import kr.kro.airbob.core.domain.review.ReviewUpdateForbiddenException;
+import kr.kro.airbob.core.domain.search.AccommodationDocument;
+import kr.kro.airbob.core.domain.search.AccommodationSearchItem;
+import kr.kro.airbob.core.domain.search.AccommodationSearchPage;
+import kr.kro.airbob.core.domain.search.AccommodationSearchService;
+import kr.kro.airbob.core.domain.search.SearchUnavailableException;
 import kr.kro.airbob.core.domain.settlement.HostSettlementDetail;
 import kr.kro.airbob.core.domain.settlement.HostSettlementTotals;
+import kr.kro.airbob.core.domain.settlement.Settlement;
+import kr.kro.airbob.core.domain.settlement.SettlementAccessDeniedException;
+import kr.kro.airbob.core.domain.settlement.SettlementAlreadyPaidException;
 import kr.kro.airbob.core.domain.settlement.SettlementLine;
+import kr.kro.airbob.core.domain.settlement.SettlementMonthNotClosedException;
+import kr.kro.airbob.core.domain.settlement.SettlementNotFoundException;
+import kr.kro.airbob.core.domain.settlement.SettlementService;
+import kr.kro.airbob.core.domain.settlement.SettlementStatus;
 import kr.kro.airbob.core.domain.settlement.SettlementSummary;
 import kr.kro.airbob.core.domain.statistics.DailyRevenueTotal;
 import kr.kro.airbob.core.domain.statistics.RevenueStatsService;
@@ -189,45 +245,16 @@ import kr.kro.airbob.core.domain.wishlist.WishlistService;
 import kr.kro.airbob.core.domain.wishlist.WishlistSummary;
 import kr.kro.airbob.core.domain.wishlist.WishlistSummaryPage;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
-import kr.kro.airbob.core.support.cursor.resolver.*;
+import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
+import kr.kro.airbob.core.support.cursor.resolver.CouponCampaignCursorParamArgumentResolver;
+import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
+import kr.kro.airbob.core.support.cursor.resolver.ReviewCursorParamArgumentResolver;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
-import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
-import kr.kro.airbob.core.support.monitoring.QueryCountMetricRecorder;
-import static kr.kro.airbob.core.domain.reservation.ReservationReadTestFixtures.guestDetail;
-import kr.kro.airbob.core.domain.payment.Payment;
-import kr.kro.airbob.core.domain.payment.PaymentMethod;
-import kr.kro.airbob.core.domain.payment.PaymentNotFoundException;
-import kr.kro.airbob.core.domain.payment.PaymentOperation;
-import kr.kro.airbob.core.domain.payment.PaymentOperationCommandService;
-import kr.kro.airbob.core.domain.payment.PaymentOperationConflictException;
-import kr.kro.airbob.core.domain.payment.PaymentOperationDetailRow;
-import kr.kro.airbob.core.domain.payment.PaymentOperationExecutionFenceUnavailableException;
-import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewCommandService;
-import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewQueryService;
-import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewQueueItem;
-import kr.kro.airbob.core.domain.payment.PaymentOperationManualReviewResult;
-import kr.kro.airbob.core.domain.payment.PaymentOperationNotFoundException;
-import kr.kro.airbob.core.domain.payment.PaymentOperationQueryService;
-import kr.kro.airbob.core.domain.payment.PaymentOperationStatus;
-import kr.kro.airbob.core.domain.payment.PaymentOperationType;
-import kr.kro.airbob.core.domain.payment.PaymentQueryService;
-import kr.kro.airbob.core.domain.payment.PaymentStatus;
-import kr.kro.airbob.core.domain.payment.PaymentTransaction;
-import kr.kro.airbob.core.domain.recentlyviewed.RecentlyViewedService;
-import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.error.BaseException;
 import kr.kro.airbob.core.support.error.InvalidInputException;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import kr.kro.airbob.core.domain.search.AccommodationDocument;
-import kr.kro.airbob.core.domain.search.AccommodationSearchItem;
-import kr.kro.airbob.core.domain.search.AccommodationSearchPage;
-import kr.kro.airbob.core.domain.search.AccommodationSearchService;
-import kr.kro.airbob.core.domain.search.SearchUnavailableException;
-import kr.kro.airbob.core.domain.settlement.*;
-import kr.kro.airbob.core.domain.settlement.Settlement;
-import kr.kro.airbob.core.domain.settlement.SettlementService;
-import kr.kro.airbob.core.domain.settlement.SettlementStatus;
+import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
+import kr.kro.airbob.core.support.monitoring.QueryCountMetricRecorder;
 
 @SpringBootTest(classes = ApiDocumentationTest.MvcApplication.class, properties = {
 	"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"
@@ -267,12 +294,18 @@ import kr.kro.airbob.core.domain.settlement.SettlementStatus;
 	QueryCountMetricRecorder.class
 })
 class ApiDocumentationTest {
-	@Autowired MockMvc mvc;
-	@Autowired ObjectMapper mapper;
-	@Autowired ApplicationContext context;
-	@Autowired RequestMappingHandlerMapping mappings;
-	@Autowired SessionAuthFilter authFilter;
-	@MockitoBean RedisTemplate<String, Object> redis;
+	@Autowired
+	MockMvc mvc;
+	@Autowired
+	ObjectMapper mapper;
+	@Autowired
+	ApplicationContext context;
+	@Autowired
+	RequestMappingHandlerMapping mappings;
+	@Autowired
+	SessionAuthFilter authFilter;
+	@MockitoBean
+	RedisTemplate<String, Object> redis;
 
 	private static final UUID DOCUMENTATION_OPERATION_ID = UUID.fromString("00000000-0000-0000-0000-000000000040");
 	private static final UUID DOCUMENTATION_ORDER_ID = UUID.fromString("00000000-0000-0000-0000-000000000020");
@@ -291,7 +324,8 @@ class ApiDocumentationTest {
 		Set<String> actual = new HashSet<>();
 		mappings.getHandlerMethods().forEach((mapping, handler) -> mapping.getPatternValues().stream()
 			.filter(path -> path.startsWith("/api/v1/"))
-			.forEach(path -> mapping.getMethodsCondition().getMethods().forEach(method -> actual.add(method + " " + path))));
+			.forEach(
+				path -> mapping.getMethodsCondition().getMethods().forEach(method -> actual.add(method + " " + path))));
 		Set<String> documented = new HashSet<>();
 		Set<String> operationIds = new HashSet<>();
 		for (String group : new String[] {"client", "admin"}) {
@@ -316,7 +350,8 @@ class ApiDocumentationTest {
 					assertSecurityMatchesRealFilter(path.getKey(), method.getKey(), operation);
 					for (JsonNode parameter : operation.path("parameters")) {
 						if (parameter.path("in").asText().equals("query")) {
-							assertThat(parameter.path("name").asText()).as(path.getKey()).isNotIn("memberId", "hostId", "actorMemberId", "cursorData");
+							assertThat(parameter.path("name").asText()).as(path.getKey()).isNotIn("memberId", "hostId",
+								"actorMemberId", "cursorData");
 						}
 					}
 					for (JsonNode response : operation.path("responses")) {
@@ -327,13 +362,17 @@ class ApiDocumentationTest {
 					}
 				}
 			}
-			JsonNode meta = new ObjectMapper().readTree(getClass().getResourceAsStream("/apidocs/openapi-3.1-schema.json"));
-			assertThat(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(meta).validate(spec)).isEmpty();
+			JsonNode meta = new ObjectMapper()
+				.readTree(getClass().getResourceAsStream("/apidocs/openapi-3.1-schema.json"));
+			assertThat(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(meta).validate(spec))
+				.isEmpty();
 			Path out = Path.of(System.getProperty("airbob.openapi.output", "build/openapi"));
 			Files.createDirectories(out);
-			ObjectMapper yaml = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER).disable(YAMLGenerator.Feature.SPLIT_LINES));
-			Files.writeString(out.resolve(group + ".yaml"), "# Generated by ./gradlew updateOpenApi. Edit Java sources, not this file.\n"
-				+ yaml.writeValueAsString(sorted(spec)));
+			ObjectMapper yaml = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+				.disable(YAMLGenerator.Feature.SPLIT_LINES));
+			Files.writeString(out.resolve(group + ".yaml"),
+				"# Generated by ./gradlew updateOpenApi. Edit Java sources, not this file.\n"
+					+ yaml.writeValueAsString(sorted(spec)));
 		}
 		assertThat(documented).containsExactlyInAnyOrderElementsOf(actual);
 	}
@@ -349,7 +388,8 @@ class ApiDocumentationTest {
 		assertThat(parameters.get("size").at("/schema/maximum").asInt()).isEqualTo(50);
 		JsonNode checkout = spec.path("paths").path("/api/v1/reservations").path("post");
 		assertThat(checkout.path("parameters").findValuesAsText("name")).contains("Idempotency-Key");
-		assertThat(spec.path("paths").path("/api/v1/payments/confirm").path("post").path("responses").has("202")).isTrue();
+		assertThat(spec.path("paths").path("/api/v1/payments/confirm").path("post").path("responses").has("202"))
+			.isTrue();
 		assertThat(spec.path("paths").path("/api/v1/reservations/{reservationUid}").path("post")
 			.at("/responses/202/headers/Location").isMissingNode()).isFalse();
 		assertThat(spec.toString()).doesNotContain("quote_expires_at", "Bearer", "bearerAuth");
@@ -361,11 +401,13 @@ class ApiDocumentationTest {
 		when(context.getBean(PaymentOperationCommandService.class).requestConfirmation(any(), anyLong()))
 			.thenReturn(new PaymentOperationReceipt(UUID.fromString("00000000-0000-0000-0000-000000000001"),
 				PaymentOperationStatus.QUEUED, false));
-		String body = mvc.perform(post("/api/v1/payments/confirm").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
-			.content("""
-				{"payment_key":"example-payment-key","order_id":"00000000-0000-0000-0000-000000000002",
-				 "amount":10000,"payment_attempt_id":"00000000-0000-0000-0000-000000000003"}
-				""")).andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+		String body = mvc
+			.perform(post("/api/v1/payments/confirm").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"payment_key":"example-payment-key","order_id":"00000000-0000-0000-0000-000000000002",
+					 "amount":10000,"payment_attempt_id":"00000000-0000-0000-0000-000000000003"}
+					"""))
+			.andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, "/api/v1/payments/confirm", "post", "202", body);
 		assertThat(mapper.readTree(body).path("data").has("operation_id")).isTrue();
 		assertThat(mapper.readTree(body).has("error")).isFalse();
@@ -386,7 +428,8 @@ class ApiDocumentationTest {
 		Instant now = Instant.parse("2027-01-01T00:00:00Z");
 		java.time.LocalDateTime couponStart = java.time.LocalDateTime.parse("2027-01-01T00:00:00");
 		when(context.getBean(CouponQueryService.class).findCouponCampaigns(any())).thenReturn(new CouponCampaignPage(
-			List.of(new CouponCampaignPage.Item(new kr.kro.airbob.core.domain.coupon.CouponCampaignProjection(1L, "과거 쿠폰",
+			List.of(new CouponCampaignPage.Item(new kr.kro.airbob.core.domain.coupon.CouponCampaignProjection(1L,
+				"과거 쿠폰",
 				null, DiscountType.FIXED_AMOUNT, 1000, null, null, couponStart, couponStart.plusDays(1), couponStart,
 				couponStart.plusDays(1), null, false), CouponIssuanceStatus.OPEN)),
 			new CursorResponse.PageInfo(false, null, 1)));
@@ -396,11 +439,14 @@ class ApiDocumentationTest {
 		validateResponse(spec, "/api/v1/coupons", "get", "200", coupons);
 		assertThat(mapper.readTree(coupons).at("/data/infos/0/total_quantity").isNull()).isTrue();
 		when(context.getBean(ReservationCheckoutService.class).checkout(any(), anyLong(), any()))
-			.thenReturn(new ReservationReady(UUID.fromString("00000000-0000-0000-0000-000000000020"), "숙소", LocalDate.parse("2027-01-10"),
+			.thenReturn(new ReservationReady(UUID.fromString("00000000-0000-0000-0000-000000000020"), "숙소",
+				LocalDate.parse("2027-01-10"),
 				LocalDate.parse("2027-01-12"), 2, 10000L, 10000L, 0L, "KRW", ReservationStatus.CONFIRMED,
 				false, false, null, now, "docs@example.invalid", "여행자"));
-		String ready = mvc.perform(post("/api/v1/reservations").cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
-			.contentType(MediaType.APPLICATION_JSON).content("{\"quote_uid\":\"00000000-0000-0000-0000-000000000010\"}"))
+		String ready = mvc
+			.perform(post("/api/v1/reservations").cookie(SESSION).header("Idempotency-Key", "checkout-00000001")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"quote_uid\":\"00000000-0000-0000-0000-000000000010\"}"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, "/api/v1/reservations", "post", "200", ready);
 		assertThat(mapper.readTree(ready).at("/data/payment_required").asBoolean()).isFalse();
@@ -413,25 +459,30 @@ class ApiDocumentationTest {
 		JsonNode hostPayment = spec.at("/components/schemas/ReservationResponseHostDetail/properties/payment");
 		validateInstance(spec, guestPayment, mapper.readTree("null"));
 		validateInstance(spec, hostPayment, mapper.readTree("null"));
-		validateInstance(spec, guestPayment, mapper.readTree("{\"method\":\"카드\",\"total_amount\":10000,\"status\":\"DONE\",\"approved_at\":\"2027-01-01T00:00:00Z\"}"));
+		validateInstance(spec, guestPayment, mapper.readTree(
+			"{\"method\":\"카드\",\"total_amount\":10000,\"status\":\"DONE\",\"approved_at\":\"2027-01-01T00:00:00Z\"}"));
 		validateInstance(spec, hostPayment, mapper.readTree("{\"total_amount\":10000}"));
 	}
 
 	@Test
 	void draftAccommodationPreservesNullableAddressAndPolicyFields() throws Exception {
-		HostAccommodationDetail draft = new HostAccommodationDetail(new HostAccommodationDetailProjection(101L, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null, null, null, null), List.of(), List.of());
+		HostAccommodationDetail draft = new HostAccommodationDetail(
+			new HostAccommodationDetailProjection(101L, null, null, null,
+				null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+			List.of(), List.of());
 		when(context.getBean(AccommodationQueryService.class).findHostAccommodationDetail(101L, 10L)).thenReturn(draft);
 		String body = mvc.perform(get("/api/v1/profile/host/accommodations/101").cookie(SESSION))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-		validateResponse(specification("client"), "/api/v1/profile/host/accommodations/{accommodationId}", "get", "200", body);
+		validateResponse(specification("client"), "/api/v1/profile/host/accommodations/{accommodationId}", "get", "200",
+			body);
 		assertThat(mapper.readTree(body).at("/data/address/city").isNull()).isTrue();
 	}
 
 	@Test
 	void uploadsAndSearchDescribeBrowserInputs() throws Exception {
 		JsonNode spec = specification("client");
-		for (String path : List.of("/api/v1/accommodations/{accommodationId}/images", "/api/v1/reviews/{reviewId}/images")) {
+		for (String path : List.of("/api/v1/accommodations/{accommodationId}/images",
+			"/api/v1/reviews/{reviewId}/images")) {
 			JsonNode operation = spec.path("paths").path(path).path("post");
 			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("images");
 			assertThat(operation.path("requestBody").path("content").path("multipart/form-data")
@@ -523,8 +574,8 @@ class ApiDocumentationTest {
 		validateResponse(spec, "/api/v1/members", "post", "201", response.getContentAsString());
 		assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.readTree("{\"success\":true}"));
 		assertThat(response.getHeader("Set-Cookie")).isNull();
-		verify(context.getBean(MemberService.class)).createMember(argThat(signup ->
-			signup.email().equals("docs@example.invalid") && signup.thumbnailImageUrl() == null));
+		verify(context.getBean(MemberService.class)).createMember(
+			argThat(signup -> signup.email().equals("docs@example.invalid") && signup.thumbnailImageUrl() == null));
 	}
 
 	@Test
@@ -537,9 +588,11 @@ class ApiDocumentationTest {
 		for (JsonNode invalid : List.of(mapper.createObjectNode(),
 			valid.deepCopy().put("nickname", "a".repeat(21)), valid.deepCopy().put("nickname", "   "),
 			valid.deepCopy().put("password", "short"), valid.deepCopy().put("password", "a".repeat(21)),
-			valid.deepCopy().put("email", ""), valid.deepCopy().put("email", "invalid-email"), valid.deepCopy().put("email", longEmail),
+			valid.deepCopy().put("email", ""), valid.deepCopy().put("email", "invalid-email"),
+			valid.deepCopy().put("email", longEmail),
 			valid.deepCopy().put("thumbnail_image_url", "a".repeat(256)))) {
-			var response = mvc.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
+			var response = mvc
+				.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
 				.andExpect(status().isBadRequest()).andReturn().getResponse();
 			assertDocumentedError(spec, "/api/v1/members", "post", "400", "C001", response.getContentAsString());
 			for (JsonNode error : mapper.readTree(response.getContentAsString()).at("/error/errors")) {
@@ -550,7 +603,8 @@ class ApiDocumentationTest {
 		}
 		verifyNoInteractions(service);
 		doThrow(new DuplicatedEmailException()).when(service).createMember(any());
-		var duplicate = mvc.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+		var duplicate = mvc
+			.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
 			.andExpect(status().isConflict()).andReturn().getResponse();
 		assertDocumentedError(spec, "/api/v1/members", "post", "409", "M002", duplicate.getContentAsString());
 	}
@@ -568,7 +622,8 @@ class ApiDocumentationTest {
 		var unauthenticated = mvc.perform(patch(path, 20).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isUnauthorized()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "401", "M004", unauthenticated.getContentAsString());
-		var forbidden = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		var forbidden = mvc
+			.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isForbidden()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "403", "M006", forbidden.getContentAsString());
 		verifyNoInteractions(service);
@@ -577,10 +632,12 @@ class ApiDocumentationTest {
 			.thenReturn(true);
 		when(service.changeRole(10L, 20L, MemberRole.ADMIN, "운영 관리자 지정"))
 			.thenReturn(MemberRole.ADMIN);
-		String body = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		String body = mvc
+			.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "patch", "200", body);
-		assertThat(mapper.readTree(body)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"member_id\":20,\"role\":\"ADMIN\"}}"));
+		assertThat(mapper.readTree(body))
+			.isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"member_id\":20,\"role\":\"ADMIN\"}}"));
 		verify(service).changeRole(10L, 20L, MemberRole.ADMIN, "운영 관리자 지정");
 	}
 
@@ -592,22 +649,26 @@ class ApiDocumentationTest {
 			.thenReturn(true);
 		for (String invalid : List.of("{}", "{\"role\":\"UNKNOWN\",\"reason\":\"역할 변경\"}",
 			"{\"role\":\"ADMIN\",\"reason\":\"   \"}", "{\"role\":\"ADMIN\",\"reason\":\"" + "a".repeat(256) + "\"}")) {
-			var response = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+			var response = mvc
+				.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse();
 			assertDocumentedError(spec, path, "patch", "400", "C001", response.getContentAsString());
 		}
 		String request = "{\"role\":\"MEMBER\",\"reason\":\"관리자 권한 회수\"}";
-		var invalidId = mvc.perform(patch(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		var invalidId = mvc
+			.perform(patch(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isBadRequest()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "400", "C004", invalidId.getContentAsString());
 		MemberAdminService service = context.getBean(MemberAdminService.class);
 		verifyNoInteractions(service);
 		doThrow(new MemberNotFoundException()).when(service).changeRole(anyLong(), anyLong(), any(), any());
-		var missing = mvc.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		var missing = mvc
+			.perform(patch(path, 20).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isNotFound()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "404", "M001", missing.getContentAsString());
 		doThrow(new MemberRoleChangeNotAllowedException()).when(service).changeRole(anyLong(), anyLong(), any(), any());
-		var selfDemotion = mvc.perform(patch(path, 10).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		var selfDemotion = mvc
+			.perform(patch(path, 10).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isConflict()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "patch", "409", "M007", selfDemotion.getContentAsString());
 	}
@@ -629,16 +690,21 @@ class ApiDocumentationTest {
 				.validate(mapper.readTree(invalid))).as(invalid).isNotEmpty();
 		}
 		String path = "/api/v1/accommodations/{accommodationId}";
-		String unchanged = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(omitted.toString()))
+		String unchanged = mvc
+			.perform(
+				patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(omitted.toString()))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "patch", "200", unchanged);
 		String times = """
 			{"name":"가상 숙소","description":"첫째 줄\\n둘째 줄","currency":"KRW","check_in_time":"15:00","check_out_time":"11:00:00"}
 			""";
 		validateInstance(spec, schema, mapper.readTree(times));
-		mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(times)).andExpect(status().isOk());
-		verify(context.getBean(AccommodationCommandService.class)).updateAccommodation(eq(101L), argThat(update ->
-			java.time.LocalTime.of(15, 0).equals(update.patch().checkInTime()) && java.time.LocalTime.of(11, 0).equals(update.patch().checkOutTime())), eq(10L));
+		mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(times))
+			.andExpect(status().isOk());
+		verify(context.getBean(AccommodationCommandService.class)).updateAccommodation(eq(101L),
+			argThat(update -> java.time.LocalTime.of(15, 0).equals(update.patch().checkInTime())
+				&& java.time.LocalTime.of(11, 0).equals(update.patch().checkOutTime())),
+			eq(10L));
 	}
 
 	@Test
@@ -651,10 +717,13 @@ class ApiDocumentationTest {
 		assertThat(operation.path("security").isEmpty()).isTrue();
 		when(context.getBean(AccommodationQueryService.class).findAccommodationAvailability(101L))
 			.thenReturn(new AccommodationAvailability(LocalDate.parse("2027-01-01"), LocalDate.parse("2027-04-01"),
-				List.of(new AccommodationAvailability.DateRange(LocalDate.parse("2027-01-10"), LocalDate.parse("2027-01-12")))));
-		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+				List.of(new AccommodationAvailability.DateRange(LocalDate.parse("2027-01-10"),
+					LocalDate.parse("2027-01-12")))));
+		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
-		assertThat(mapper.readTree(body).at("/data/unavailable_ranges/0/end_date_exclusive").asText()).isEqualTo("2027-01-12");
+		assertThat(mapper.readTree(body).at("/data/unavailable_ranges/0/end_date_exclusive").asText())
+			.isEqualTo("2027-01-12");
 		assertThat(mapper.readTree(body).at("/data/booking_window_end_exclusive").asText()).isEqualTo("2027-04-01");
 	}
 
@@ -663,7 +732,8 @@ class ApiDocumentationTest {
 		var detail = new PublicAccommodationDetail(new AccommodationDetailSnapshot(101L, "가상 숙소", "숙소 설명", "APARTMENT",
 			100000L, null, LocalTime.of(15, 0), LocalTime.of(11, 0), "Asia/Seoul",
 			new AccommodationDetailSnapshot.AddressSummary("대한민국", null, "서울", null),
-			new AccommodationDetailSnapshot.Coordinate(37.5, 127.0), new AccommodationDetailSnapshot.Host(10L, null, null),
+			new AccommodationDetailSnapshot.Coordinate(37.5, 127.0),
+			new AccommodationDetailSnapshot.Host(10L, null, null),
 			new AccommodationDetailSnapshot.Policy(4, 1, 0), List.of(), List.of(),
 			new AccommodationDetailSnapshot.ReviewSummary(0, BigDecimal.ZERO)), false);
 		var service = context.getBean(AccommodationQueryService.class);
@@ -679,7 +749,8 @@ class ApiDocumentationTest {
 		when(service.findAccommodation(101L, 10L)).thenReturn(detail);
 		String authenticated = mvc.perform(get("/api/v1/accommodations/101").cookie(SESSION))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-		validateResponse(specification("client"), "/api/v1/accommodations/{accommodationId}", "get", "200", authenticated);
+		validateResponse(specification("client"), "/api/v1/accommodations/{accommodationId}", "get", "200",
+			authenticated);
 		verify(service).findAccommodation(101L, 10L);
 	}
 
@@ -687,7 +758,8 @@ class ApiDocumentationTest {
 	void accommodationHostListDocumentsDraftNullsAndOnlyUserSuppliedFilters() throws Exception {
 		var draft = new HostAccommodationProjection(101L, null, null, AccommodationStatus.DRAFT, null,
 			null, null, null, null, null);
-		when(context.getBean(AccommodationQueryService.class).findMyAccommodations(eq(10L), any(), eq(AccommodationStatus.DRAFT)))
+		when(context.getBean(AccommodationQueryService.class).findMyAccommodations(eq(10L), any(),
+			eq(AccommodationStatus.DRAFT)))
 			.thenReturn(new HostAccommodationPage(List.of(draft), new CursorResponse.PageInfo(false, null, 1)));
 		String path = "/api/v1/profile/host/accommodations";
 		String body = mvc.perform(get(path).cookie(SESSION).param("status", "DRAFT")).andExpect(status().isOk())
@@ -713,11 +785,13 @@ class ApiDocumentationTest {
 			.thenReturn(new HostAccommodationPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 		LocalDateTime createdAt = LocalDateTime.parse("2027-01-01T12:30:00");
 		String cursor = new CursorEncoder(mapper).encode(new CursorData(80L, createdAt));
-		String body = mvc.perform(get(path).cookie(SESSION).param("cursor", cursor).param("size", "7").param("status", "DRAFT"))
+		String body = mvc
+			.perform(get(path).cookie(SESSION).param("cursor", cursor).param("size", "7").param("status", "DRAFT"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
 		verify(service).findMyAccommodations(eq(10L),
-			argThat(request -> request.size() == 7 && request.lastId() == 80L && createdAt.equals(request.lastCreatedAt())),
+			argThat(
+				request -> request.size() == 7 && request.lastId() == 80L && createdAt.equals(request.lastCreatedAt())),
 			eq(AccommodationStatus.DRAFT));
 
 		String malformed = mvc.perform(get(path).cookie(SESSION).param("cursor", "%%%"))
@@ -767,9 +841,11 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		String path = "/api/v1/accommodations/{accommodationId}/images";
 		AccommodationImageService service = context.getBean(AccommodationImageService.class);
-		var missing = mvc.perform(multipart(path, 101).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse();
+		var missing = mvc.perform(multipart(path, 101).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn()
+			.getResponse();
 		assertDocumentedError(spec, path, "post", "400", "C001", missing.getContentAsString());
-		var unsupported = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		var unsupported = mvc
+			.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "post", "415", "C011", unsupported.getContentAsString());
 		verifyNoInteractions(service);
@@ -782,7 +858,8 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(uploaded).at("/data/uploaded_images/0/id").asLong()).isEqualTo(301L);
 		doThrow(new org.springframework.web.multipart.MaxUploadSizeExceededException(10 * 1024 * 1024))
 			.when(service).uploadImages(eq(101L), anyList(), eq(10L));
-		String oversized = mvc.perform(multipart(path, 101).file(file).cookie(SESSION)).andExpect(status().isPayloadTooLarge())
+		String oversized = mvc.perform(multipart(path, 101).file(file).cookie(SESSION))
+			.andExpect(status().isPayloadTooLarge())
 			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "413", "I009", oversized);
 	}
@@ -791,9 +868,10 @@ class ApiDocumentationTest {
 	void reservationQuoteSchemaAcceptsOptionalCouponAndRejectsNonPositiveInputs() throws Exception {
 		JsonNode spec = specification("client");
 		JsonNode request = spec.at("/components/schemas/ReservationRequestQuote");
-		validateInstance(spec, request, mapper.readTree("""
-			{"accommodation_id":101,"check_in_date":"2027-01-10","check_out_date":"2027-01-12","guest_count":2,"coupon_id":null}
-			"""));
+		validateInstance(spec, request, mapper.readTree(
+			"""
+				{"accommodation_id":101,"check_in_date":"2027-01-10","check_out_date":"2027-01-12","guest_count":2,"coupon_id":null}
+				"""));
 		for (String field : List.of("accommodation_id", "guest_count", "coupon_id")) {
 			ObjectNode fieldSchema = ((ObjectNode)request.path("properties").path(field)).deepCopy();
 			assertThat(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
@@ -895,16 +973,19 @@ class ApiDocumentationTest {
 		PaymentCancellationCommandService service = context.getBean(PaymentCancellationCommandService.class);
 		when(service.requestCancellation(eq(uid), any(), eq(10L)))
 			.thenReturn(new PaymentOperationReceipt(operationId, PaymentOperationStatus.QUEUED, false));
-		String paid = mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		String paid = mvc
+			.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isAccepted()).andExpect(header().string("Location", url))
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "202", paid);
 		assertThat(mapper.readTree(paid)).isEqualTo(mapper.readTree("{\"success\":true}"));
-		when(service.requestCancellation(eq(uid), any(), eq(10L))).thenReturn(PaymentOperationReceipt.completedWithoutOperation());
+		when(service.requestCancellation(eq(uid), any(), eq(10L)))
+			.thenReturn(PaymentOperationReceipt.completedWithoutOperation());
 		mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isAccepted()).andExpect(header().doesNotExist("Location"));
 		when(service.requestCancellation(eq(uid), any(), eq(10L))).thenThrow(new PaymentAccessDeniedException());
-		String denied = mvc.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		String denied = mvc
+			.perform(post(path, uid).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "403", "P004", denied);
 	}
@@ -941,8 +1022,10 @@ class ApiDocumentationTest {
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, hostPath, "get", "200", host);
 		assertThat(mapper.readTree(host).at("/data/status").asText()).isEqualTo("PAYMENT_PENDING");
-		when(context.getBean(ReservationQueryService.class).findMyReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
-		when(context.getBean(ReservationQueryService.class).findHostReservationDetail(uid, 10L)).thenThrow(new ReservationNotFoundException());
+		when(context.getBean(ReservationQueryService.class).findMyReservationDetail(uid, 10L))
+			.thenThrow(new ReservationNotFoundException());
+		when(context.getBean(ReservationQueryService.class).findHostReservationDetail(uid, 10L))
+			.thenThrow(new ReservationNotFoundException());
 		for (String path : List.of(guestPath, hostPath)) {
 			String missing = mvc.perform(get(path, uid).cookie(SESSION)).andExpect(status().isNotFound())
 				.andReturn().getResponse().getContentAsString();
@@ -960,9 +1043,11 @@ class ApiDocumentationTest {
 		LocalDate checkIn = LocalDate.parse("2027-01-10");
 		LocalDate checkOut = LocalDate.parse("2027-01-12");
 		when(context.getBean(ReservationQueryService.class).findMyReservations(eq(10L), any(), any()))
-			.thenReturn(new GuestReservationPage(List.of(new GuestReservationPage.Item(new GuestReservationListProjection(
-				201L, UUID.fromString(uid), checkIn, checkOut, "Asia/Seoul", ReservationStatus.EXPIRED, null, null,
-				accommodation.id(), accommodation.name(), accommodation.thumbnailUrl()), ReservationStatus.EXPIRED)), page));
+			.thenReturn(new GuestReservationPage(List.of(new GuestReservationPage.Item(
+				new GuestReservationListProjection(
+					201L, UUID.fromString(uid), checkIn, checkOut, "Asia/Seoul", ReservationStatus.EXPIRED, null, null,
+					accommodation.id(), accommodation.name(), accommodation.thumbnailUrl()),
+				ReservationStatus.EXPIRED)), page));
 		when(context.getBean(ReservationQueryService.class).findHostReservations(eq(10L), any(), any()))
 			.thenReturn(new HostReservationPage(List.of(new HostReservationListProjection(
 				201L, UUID.fromString(uid), "AB12CD", 190000L, "KRW", 2, checkIn, checkOut, "Asia/Seoul",
@@ -991,18 +1076,21 @@ class ApiDocumentationTest {
 			 "amount":10000,"payment_attempt_id":"00000000-0000-0000-0000-000000000030"}
 			""");
 		JsonNode schema = spec.at("/components/schemas/PaymentRequestConfirm");
-		assertThat(schema.path("required").toString()).contains("payment_key", "order_id", "amount", "payment_attempt_id");
+		assertThat(schema.path("required").toString()).contains("payment_key", "order_id", "amount",
+			"payment_attempt_id");
 		assertThat(schema.at("/properties/amount/minimum").asInt()).isEqualTo(1);
 		assertThat(schema.at("/properties/payment_key/minLength").asInt()).isEqualTo(1);
 		assertThat(schema.at("/properties/amount/maximum").asLong()).isEqualTo(Integer.MAX_VALUE);
 		validateInstance(spec, schema, valid);
-		String unauthenticated = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+		String unauthenticated = mvc
+			.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
 			.andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "401", "M004", unauthenticated);
 		for (String field : List.of("payment_key", "order_id", "amount", "payment_attempt_id")) {
 			ObjectNode missing = valid.deepCopy();
 			missing.remove(field);
-			String invalid = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(missing.toString()))
+			String invalid = mvc
+				.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(missing.toString()))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "post", "400", "C001", invalid);
 		}
@@ -1010,34 +1098,45 @@ class ApiDocumentationTest {
 			valid.deepCopy().put("amount", 2147483648L), valid.deepCopy().put("payment_key", " "),
 			valid.deepCopy().put("payment_key", "p".repeat(201)), valid.deepCopy().put("order_id", " "),
 			valid.deepCopy().put("payment_attempt_id", "invalid"))) {
-			String body = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
+			String body = mvc
+				.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "post", "400", "C001", body);
 		}
-		String unsupported = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(valid.toString()))
+		String unsupported = mvc
+			.perform(post(path).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(valid.toString()))
 			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
 		verifyNoInteractions(service);
 
 		for (PaymentOperationStatus state : List.of(PaymentOperationStatus.QUEUED, PaymentOperationStatus.APPLIED)) {
-			PaymentOperation operation = PaymentOperation.builder().operationUid(DOCUMENTATION_OPERATION_ID).status(state).build();
+			PaymentOperation operation = PaymentOperation.builder().operationUid(DOCUMENTATION_OPERATION_ID)
+				.status(state).build();
 			when(service.requestConfirmation(any(), eq(10L))).thenReturn(PaymentOperationReceipt.accepted(operation));
-			String body = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+			String body = mvc
+				.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
 				.andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, "post", "202", body);
-			assertThat(mapper.readTree(body).at("/data/status").asText()).isEqualTo(state == PaymentOperationStatus.QUEUED ? "PENDING" : "SUCCEEDED");
-			assertThat(mapper.readTree(body).at("/data/status_url").asText()).isEqualTo("/api/v1/payment-operations/" + DOCUMENTATION_OPERATION_ID);
+			assertThat(mapper.readTree(body).at("/data/status").asText())
+				.isEqualTo(state == PaymentOperationStatus.QUEUED ? "PENDING" : "SUCCEEDED");
+			assertThat(mapper.readTree(body).at("/data/status_url").asText())
+				.isEqualTo("/api/v1/payment-operations/" + DOCUMENTATION_OPERATION_ID);
 		}
 		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new PaymentAccessDeniedException(),
-			new ReservationNotFoundException(), new kr.kro.airbob.core.domain.reservation.InvalidReservationPaymentAttemptException(),
+			new ReservationNotFoundException(),
+			new kr.kro.airbob.core.domain.reservation.InvalidReservationPaymentAttemptException(),
 			new kr.kro.airbob.core.domain.reservation.ExpiredReservationConfirmationException(),
-			new PaymentOperationConflictException(), new kr.kro.airbob.core.support.error.InvalidInputException("mismatch"))) {
+			new PaymentOperationConflictException(),
+			new kr.kro.airbob.core.support.error.InvalidInputException("mismatch"))) {
 			doThrow(error).when(service).requestConfirmation(any(), eq(10L));
-			var response = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
+			var response = mvc
+				.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid.toString()))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
-		assertThat(spec.path("paths").path(path).path("post").at("/responses/403/content/application~1json/examples").has("R008")).isFalse();
+		assertThat(spec.path("paths").path(path).path("post").at("/responses/403/content/application~1json/examples")
+			.has("R008")).isFalse();
 	}
 
 	@Test
@@ -1061,7 +1160,8 @@ class ApiDocumentationTest {
 		validateResponse(spec, keyPath, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/requested_at").asText()).isEqualTo("2027-01-01T00:00:01Z");
 		assertThat(mapper.readTree(body).at("/data/cancels").isEmpty()).isTrue();
-		String historical = mvc.perform(get(orderPath, DOCUMENTATION_ORDER_ID).cookie(SESSION)).andExpect(status().isOk())
+		String historical = mvc.perform(get(orderPath, DOCUMENTATION_ORDER_ID).cookie(SESSION))
+			.andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, orderPath, "get", "200", historical);
 		assertThat(mapper.readTree(historical).path("data").has("requested_at")).isFalse();
@@ -1112,7 +1212,8 @@ class ApiDocumentationTest {
 		assertDocumentedError(spec, operationPath, "get", "400", "C004", invalid);
 		PaymentOperationQueryService operationService = context.getBean(PaymentOperationQueryService.class);
 		PaymentQueryService paymentService = context.getBean(PaymentQueryService.class);
-		for (String path : List.of(operationPath, "/api/v1/payments/{paymentKey}", "/api/v1/payments/orders/{orderId}")) {
+		for (String path : List.of(operationPath, "/api/v1/payments/{paymentKey}",
+			"/api/v1/payments/orders/{orderId}")) {
 			String noSession = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID)).andExpect(status().isUnauthorized())
 				.andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "401", "M004", noSession);
@@ -1125,10 +1226,12 @@ class ApiDocumentationTest {
 				.when(paymentService).findPaymentByPaymentKey(any(), eq(10L));
 			doThrow(forbidden ? new PaymentAccessDeniedException() : new PaymentNotFoundException())
 				.when(paymentService).findPaymentByOrderId(any(), eq(10L));
-			for (String path : List.of(operationPath, "/api/v1/payments/{paymentKey}", "/api/v1/payments/orders/{orderId}")) {
+			for (String path : List.of(operationPath, "/api/v1/payments/{paymentKey}",
+				"/api/v1/payments/orders/{orderId}")) {
 				var response = mvc.perform(get(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION))
 					.andExpect(status().is(forbidden ? 403 : 404)).andReturn().getResponse();
-				assertDocumentedError(spec, path, "get", Integer.toString(response.getStatus()), forbidden ? "P004" : path.equals(operationPath) ? "P005" : "P001", response.getContentAsString());
+				assertDocumentedError(spec, path, "get", Integer.toString(response.getStatus()),
+					forbidden ? "P004" : path.equals(operationPath) ? "P005" : "P001", response.getContentAsString());
 			}
 		}
 	}
@@ -1143,23 +1246,29 @@ class ApiDocumentationTest {
 		assertThat(limit.at("/schema/minimum").asInt()).isEqualTo(1);
 		assertThat(limit.at("/schema/maximum").asInt()).isEqualTo(100);
 		assertThat(limit.at("/schema/default").asInt()).isEqualTo(50);
-		String noSession = mvc.perform(get(path)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+		String noSession = mvc.perform(get(path)).andExpect(status().isUnauthorized()).andReturn().getResponse()
+			.getContentAsString();
 		assertDocumentedError(spec, path, "get", "401", "M004", noSession);
-		String forbidden = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		String forbidden = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isForbidden()).andReturn()
+			.getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "403", "M006", forbidden);
-		PaymentOperationManualReviewQueryService service = context.getBean(PaymentOperationManualReviewQueryService.class);
+		PaymentOperationManualReviewQueryService service = context
+			.getBean(PaymentOperationManualReviewQueryService.class);
 		verifyNoInteractions(service);
 		allowDocumentationAdmin();
 		var item = new PaymentOperationManualReviewQueueItem(
-			DOCUMENTATION_OPERATION_ID, PaymentOperationType.CONFIRM, 5, 1, Instant.parse("2027-01-01T00:00:00Z"), 7L, true);
+			DOCUMENTATION_OPERATION_ID, PaymentOperationType.CONFIRM, 5, 1, Instant.parse("2027-01-01T00:00:00Z"), 7L,
+			true);
 		when(service.findManualReviewQueue(50)).thenReturn(new PaymentOperationManualReviewQueue(List.of(item), false));
-		String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/items/0").size()).isEqualTo(7);
 		assertThat(body).doesNotContain("payment_key", "evidence_reference", "failure_code");
 		verify(service).findManualReviewQueue(50);
 		for (int invalidLimit : List.of(0, 101)) {
-			doThrow(new kr.kro.airbob.core.support.error.InvalidInputException("limit")).when(service).findManualReviewQueue(invalidLimit);
+			doThrow(new kr.kro.airbob.core.support.error.InvalidInputException("limit")).when(service)
+				.findManualReviewQueue(invalidLimit);
 			String invalid = mvc.perform(get(path).cookie(SESSION).param("limit", Integer.toString(invalidLimit)))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C001", invalid);
@@ -1173,27 +1282,37 @@ class ApiDocumentationTest {
 	void paymentAdminActionsDocumentValidatedRequestsAndDifferentCompletionStates() throws Exception {
 		JsonNode spec = specification("admin");
 		allowDocumentationAdmin();
-		PaymentOperationManualReviewCommandService service = context.getBean(PaymentOperationManualReviewCommandService.class);
+		PaymentOperationManualReviewCommandService service = context
+			.getBean(PaymentOperationManualReviewCommandService.class);
 		for (String action : List.of("reconciliation", "mark-not-paid")) {
 			String path = "/api/v1/admin/payment-operations/{operationId}/" + action;
-			String valid = action.equals("reconciliation") ? "{\"expected_version\":7}" : """
-				{"expected_version":7,"reason_code":"PROVIDER_PAYMENT_NOT_FOUND","evidence_reference":"incident/ABC-123"}
-				""";
+			String valid = action.equals("reconciliation") ? "{\"expected_version\":7}"
+				: """
+					{"expected_version":7,"reason_code":"PROVIDER_PAYMENT_NOT_FOUND","evidence_reference":"incident/ABC-123"}
+					""";
 			for (String invalid : List.of("{}", valid.replace("\"expected_version\":7", "\"expected_version\":-1"))) {
-				String body = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+				String body = mvc
+					.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION)
+						.contentType(MediaType.APPLICATION_JSON).content(invalid))
 					.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 				assertDocumentedError(spec, path, "post", "400", "C001", body);
 			}
-			String wrongType = mvc.perform(post(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid))
+			String wrongType = mvc
+				.perform(post(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(valid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "post", "400", "C004", wrongType);
-			String unsupported = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(valid))
+			String unsupported = mvc
+				.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.TEXT_PLAIN)
+					.content(valid))
 				.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
 			if (action.equals("mark-not-paid")) {
 				for (String invalid : List.of(valid.replace("PROVIDER_PAYMENT_NOT_FOUND", "UNKNOWN"),
-					valid.replace("incident/ABC-123", "secret?query=value"), valid.replace("incident/ABC-123", "x".repeat(257)))) {
-					String body = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+					valid.replace("incident/ABC-123", "secret?query=value"),
+					valid.replace("incident/ABC-123", "x".repeat(257)))) {
+					String body = mvc
+						.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION)
+							.contentType(MediaType.APPLICATION_JSON).content(invalid))
 						.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 					assertDocumentedError(spec, path, "post", "400", "C001", body);
 					assertThat(body).doesNotContain("secret?query=value");
@@ -1207,14 +1326,19 @@ class ApiDocumentationTest {
 			new PaymentOperationManualReviewResult(DOCUMENTATION_OPERATION_ID, PaymentOperationStatus.DECLINED, 8));
 		for (String action : List.of("reconciliation", "mark-not-paid")) {
 			String path = "/api/v1/admin/payment-operations/{operationId}/" + action;
-			String request = action.equals("reconciliation") ? "{\"expected_version\":7}" : """
-				{"expected_version":7,"reason_code":"PROVIDER_PAYMENT_NOT_FOUND","evidence_reference":"incident/ABC-123"}
-				""";
-			String body = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			String request = action.equals("reconciliation") ? "{\"expected_version\":7}"
+				: """
+					{"expected_version":7,"reason_code":"PROVIDER_PAYMENT_NOT_FOUND","evidence_reference":"incident/ABC-123"}
+					""";
+			String body = mvc
+				.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+					.content(request))
 				.andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, "post", "202", body);
-			assertThat(mapper.readTree(body).at("/data/status").asText()).isEqualTo(action.equals("reconciliation") ? "QUEUED" : "DECLINED");
-			JsonNode example = spec.path("paths").path(path).path("post").at("/responses/202/content/application~1json/example");
+			assertThat(mapper.readTree(body).at("/data/status").asText())
+				.isEqualTo(action.equals("reconciliation") ? "QUEUED" : "DECLINED");
+			JsonNode example = spec.path("paths").path(path).path("post")
+				.at("/responses/202/content/application~1json/example");
 			assertThat(example).isEqualTo(mapper.readTree(body));
 		}
 	}
@@ -1223,24 +1347,32 @@ class ApiDocumentationTest {
 	void paymentAdminActionErrorsMatchConflictNotFoundAndFenceOutcomes() throws Exception {
 		JsonNode spec = specification("admin");
 		allowDocumentationAdmin();
-		PaymentOperationManualReviewCommandService service = context.getBean(PaymentOperationManualReviewCommandService.class);
+		PaymentOperationManualReviewCommandService service = context
+			.getBean(PaymentOperationManualReviewCommandService.class);
 		String request = "{\"expected_version\":7,\"reason_code\":\"PROVIDER_PAYMENT_NOT_FOUND\",\"evidence_reference\":\"incident/ABC-123\"}";
 		for (String action : List.of("reconciliation", "mark-not-paid")) {
 			String path = "/api/v1/admin/payment-operations/{operationId}/" + action;
-			for (kr.kro.airbob.core.support.error.BaseException error : List.of(new PaymentOperationNotFoundException(), new PaymentOperationConflictException())) {
+			for (kr.kro.airbob.core.support.error.BaseException error : List.of(new PaymentOperationNotFoundException(),
+				new PaymentOperationConflictException())) {
 				if (action.equals("reconciliation")) {
 					doThrow(error).when(service).requestReconciliation(any(), eq(10L), anyLong());
 				} else {
 					doThrow(error).when(service).markNotPaid(any(), eq(10L), anyLong(), any(), any());
 				}
-				var response = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+				var response = mvc
+					.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION)
+						.contentType(MediaType.APPLICATION_JSON).content(request))
 					.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-				assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+				assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()),
+					error.getErrorCode().getCode(), response.getContentAsString());
 			}
 		}
-		doThrow(new PaymentOperationExecutionFenceUnavailableException()).when(service).markNotPaid(any(), eq(10L), anyLong(), any(), any());
+		doThrow(new PaymentOperationExecutionFenceUnavailableException()).when(service).markNotPaid(any(), eq(10L),
+			anyLong(), any(), any());
 		String path = "/api/v1/admin/payment-operations/{operationId}/mark-not-paid";
-		var response = mvc.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		var response = mvc
+			.perform(post(path, DOCUMENTATION_OPERATION_ID).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+				.content(request))
 			.andExpect(status().isServiceUnavailable()).andReturn().getResponse();
 		assertDocumentedError(spec, path, "post", "503", "P007", response.getContentAsString());
 		assertThat(response.getHeader("Retry-After")).isNull();
@@ -1261,14 +1393,17 @@ class ApiDocumentationTest {
 			assertThat(size.path("default").asInt()).isEqualTo(20);
 			assertThat(size.path("minimum").asInt()).isEqualTo(1);
 			assertThat(size.path("maximum").asInt()).isEqualTo(50);
-			String unauthenticated = mvc.perform(get(path)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			String unauthenticated = mvc.perform(get(path)).andExpect(status().isUnauthorized()).andReturn()
+				.getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "401", "M004", unauthenticated);
-			String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			String body = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+				.getContentAsString();
 			validateResponse(spec, path, "get", "200", body);
 			assertThat(mapper.readTree(body).at("/data/infos").isEmpty()).isTrue();
 			assertThat(mapper.readTree(body).at("/data/page_info/next_cursor").isNull()).isTrue();
 			for (String invalidSize : List.of("0", "51", "invalid", "", "2147483648")) {
-				String invalid = mvc.perform(get(path).cookie(SESSION).param("size", invalidSize)).andExpect(status().isBadRequest())
+				String invalid = mvc.perform(get(path).cookie(SESSION).param("size", invalidSize))
+					.andExpect(status().isBadRequest())
 					.andReturn().getResponse().getContentAsString();
 				assertDocumentedError(spec, path, "get", "400", "C006", invalid);
 			}
@@ -1276,10 +1411,13 @@ class ApiDocumentationTest {
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C010", invalidCursor);
 			Object wrongCursor = path.equals("/api/v1/coupons")
-				? new kr.kro.airbob.core.support.cursor.dto.CursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"))
-				: new kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData(101L, java.time.LocalDateTime.parse("2027-01-01T00:00:00"));
+				? new kr.kro.airbob.core.support.cursor.dto.CursorData(101L,
+					java.time.LocalDateTime.parse("2027-01-01T00:00:00"))
+				: new kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData(101L,
+					java.time.LocalDateTime.parse("2027-01-01T00:00:00"));
 			String encoded = java.util.Base64.getEncoder().encodeToString(mapper.writeValueAsBytes(wrongCursor));
-			String mismatched = mvc.perform(get(path).cookie(SESSION).param("cursor", encoded)).andExpect(status().isBadRequest())
+			String mismatched = mvc.perform(get(path).cookie(SESSION).param("cursor", encoded))
+				.andExpect(status().isBadRequest())
 				.andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C010", mismatched);
 		}
@@ -1308,8 +1446,10 @@ class ApiDocumentationTest {
 		assertThat(mapper.readTree(campaigns).at("/data/infos").findValuesAsText("issuance_status"))
 			.containsExactly("UPCOMING", "SOLD_OUT", "OPEN", "OPEN");
 		assertThat(mapper.readTree(campaigns).at("/data/infos/3/total_quantity").isNull()).isTrue();
-		assertThat(mapper.readTree(campaigns).at("/data/infos/1/issue_start_at").asText()).isEqualTo("2027-01-01T00:00:00.123456Z");
-		assertThat(campaigns).doesNotContain("has_remaining_stock", "issued_quantity", "stock_prepared_at", "issue_strategy");
+		assertThat(mapper.readTree(campaigns).at("/data/infos/1/issue_start_at").asText())
+			.isEqualTo("2027-01-01T00:00:00.123456Z");
+		assertThat(campaigns).doesNotContain("has_remaining_stock", "issued_quantity", "stock_prepared_at",
+			"issue_strategy");
 
 		var ownedInfos = new java.util.ArrayList<MemberCouponPage.Item>();
 		for (int index = 0; index < 5; index++) {
@@ -1337,23 +1477,29 @@ class ApiDocumentationTest {
 		JsonNode operation = spec.path("paths").path(path).path("post");
 		assertThat(operation.has("requestBody")).isFalse();
 		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("couponId");
-		String noSession = mvc.perform(post(path, 101)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+		String noSession = mvc.perform(post(path, 101)).andExpect(status().isUnauthorized()).andReturn().getResponse()
+			.getContentAsString();
 		assertDocumentedError(spec, path, "post", "401", "M004", noSession);
 		String invalidId = mvc.perform(post(path, "invalid").cookie(SESSION)).andExpect(status().isBadRequest())
 			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "400", "C004", invalidId);
 		CouponSkipLockedIssueService service = context.getBean(CouponSkipLockedIssueService.class);
 		verifyNoInteractions(service);
-		String success = mvc.perform(post(path, 101).cookie(SESSION)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		String success = mvc.perform(post(path, 101).cookie(SESSION)).andExpect(status().isCreated()).andReturn()
+			.getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "201", success);
 		assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
 		verify(service).issue(101L, 10L);
-		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(), new CouponSoldOutException(),
-			new CouponAlreadyIssuedException(), new CouponNotIssuableException(), new CouponStockNotPreparedException(), new CouponIssueContendedException())) {
+		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(),
+			new CouponSoldOutException(),
+			new CouponAlreadyIssuedException(), new CouponNotIssuableException(), new CouponStockNotPreparedException(),
+			new CouponIssueContendedException())) {
 			doThrow(error).when(service).issue(101L, 10L);
-			var response = mvc.perform(post(path, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
+			var response = mvc.perform(post(path, 101).cookie(SESSION))
+				.andExpect(status().is(error.getErrorCode().getStatus().value()))
 				.andReturn().getResponse();
-			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 			assertThat(response.getHeader("Retry-After")).isNull();
 		}
 	}
@@ -1377,28 +1523,35 @@ class ApiDocumentationTest {
 		String noSession = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
 			.andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "401", "M004", noSession);
-		String forbidden = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
+		String forbidden = mvc
+			.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
 			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "403", "M006", forbidden);
 		verifyNoInteractions(service);
 		allowDocumentationAdmin();
 		for (ObjectNode invalid : List.of(request.deepCopy().put("issue_start_at", "2027-01-01T00:00:00"),
-			request.deepCopy().put("discount_type", "UNKNOWN"), request.deepCopy().put("total_quantity", 2147483648L))) {
-			String body = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
+			request.deepCopy().put("discount_type", "UNKNOWN"),
+			request.deepCopy().put("total_quantity", 2147483648L))) {
+			String body = mvc
+				.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid.toString()))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "post", "400", "C001", body);
 		}
 		when(service.createCoupon(any())).thenReturn(101L);
-		String success = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
+		String success = mvc
+			.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
 			.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "201", success);
 		assertThat(mapper.readTree(success).at("/data/id").asLong()).isEqualTo(101);
-		verify(service).createCoupon(argThat(dto -> dto.issueStartAt().equals(Instant.parse("2026-12-31T15:30:00Z")) && dto.description() == null));
+		verify(service).createCoupon(argThat(
+			dto -> dto.issueStartAt().equals(Instant.parse("2026-12-31T15:30:00Z")) && dto.description() == null));
 		doThrow(new CouponInvalidConfigurationException()).when(service).createCoupon(any());
-		String invalidConfiguration = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		String invalidConfiguration = mvc
+			.perform(post(path).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "400", "CP013", invalidConfiguration);
-		String unsupported = mvc.perform(post(path).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(request.toString()))
+		String unsupported = mvc
+			.perform(post(path).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(request.toString()))
 			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
 	}
@@ -1420,18 +1573,23 @@ class ApiDocumentationTest {
 		assertThat(schema.path("properties").has("issueEndAt")).isFalse();
 		validateInstance(spec, schema, mapper.readTree(request));
 		validateInstance(spec, schema, mapper.readTree("{}"));
-		String success = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		String success = mvc
+			.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "patch", "200", success);
 		CouponService service = context.getBean(CouponService.class);
-		verify(service).updateCoupon(argThat(dto -> dto.name() == null && dto.description().isEmpty() && dto.discountType() == null
-			&& dto.isActive() == null && dto.totalQuantity() == null), eq(101L));
+		verify(service)
+			.updateCoupon(argThat(dto -> dto.name() == null && dto.description().isEmpty() && dto.discountType() == null
+				&& dto.isActive() == null && dto.totalQuantity() == null), eq(101L));
 		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(),
 			new CouponConfigurationLockedException(), new CouponInvalidConfigurationException())) {
 			doThrow(error).when(service).updateCoupon(any(), eq(101L));
-			var response = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":200}"))
+			var response = mvc
+				.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+					.content("{\"total_quantity\":200}"))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, path, "patch", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, path, "patch", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
 	}
 
@@ -1440,17 +1598,24 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("admin");
 		allowDocumentationAdmin();
 		String path = "/api/v1/admin/coupons/{couponId}/quantity";
-		assertThat(spec.at("/components/schemas/CouponRequestQuantity/properties/total_quantity/minimum").asInt()).isEqualTo(1);
-		for (String request : List.of("{}", "{\"total_quantity\":null}", "{\"total_quantity\":0}", "{\"total_quantity\":-1}")) {
-			String invalid = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		assertThat(spec.at("/components/schemas/CouponRequestQuantity/properties/total_quantity/minimum").asInt())
+			.isEqualTo(1);
+		for (String request : List.of("{}", "{\"total_quantity\":null}", "{\"total_quantity\":0}",
+			"{\"total_quantity\":-1}")) {
+			String invalid = mvc
+				.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "patch", "400", "C001", invalid);
 		}
-		String invalidId = mvc.perform(patch(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":100}"))
+		String invalidId = mvc
+			.perform(patch(path, "invalid").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"total_quantity\":100}"))
 			.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "patch", "400", "C004", invalidId);
 		verifyNoInteractions(context.getBean(CouponService.class));
-		String success = mvc.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":100}"))
+		String success = mvc
+			.perform(patch(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"total_quantity\":100}"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "patch", "200", success);
 		assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
@@ -1467,11 +1632,14 @@ class ApiDocumentationTest {
 			String path = prepare ? preparePath : deletePath;
 			String method = prepare ? "post" : "delete";
 			assertThat(spec.path("paths").path(path).path(method).has("requestBody")).isFalse();
-			assertThat(spec.path("paths").path(path).path(method).path("parameters").findValuesAsText("name")).containsExactly("couponId");
-			String noSession = mvc.perform(prepare ? post(path, 101) : delete(path, 101)).andExpect(status().isUnauthorized())
+			assertThat(spec.path("paths").path(path).path(method).path("parameters").findValuesAsText("name"))
+				.containsExactly("couponId");
+			String noSession = mvc.perform(prepare ? post(path, 101) : delete(path, 101))
+				.andExpect(status().isUnauthorized())
 				.andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, method, "401", "M004", noSession);
-			String forbidden = mvc.perform((prepare ? post(path, 101) : delete(path, 101)).cookie(SESSION)).andExpect(status().isForbidden())
+			String forbidden = mvc.perform((prepare ? post(path, 101) : delete(path, 101)).cookie(SESSION))
+				.andExpect(status().isForbidden())
 				.andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, method, "403", "M006", forbidden);
 		}
@@ -1480,23 +1648,30 @@ class ApiDocumentationTest {
 		for (boolean prepare : List.of(true, false)) {
 			String path = prepare ? preparePath : deletePath;
 			String method = prepare ? "post" : "delete";
-			String success = mvc.perform((prepare ? post(path, 101) : delete(path, 101)).cookie(SESSION)).andExpect(status().isOk())
+			String success = mvc.perform((prepare ? post(path, 101) : delete(path, 101)).cookie(SESSION))
+				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, method, "200", success);
 			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
 		}
 		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(),
-			new CouponAlreadyPreparedException(), new CouponStockPreparationNotAllowedException(), new CouponInvalidConfigurationException())) {
+			new CouponAlreadyPreparedException(), new CouponStockPreparationNotAllowedException(),
+			new CouponInvalidConfigurationException())) {
 			doThrow(error).when(preparationService).prepare(101L);
-			var response = mvc.perform(post(preparePath, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
+			var response = mvc.perform(post(preparePath, 101).cookie(SESSION))
+				.andExpect(status().is(error.getErrorCode().getStatus().value()))
 				.andReturn().getResponse();
-			assertDocumentedError(spec, preparePath, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, preparePath, "post", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
-		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(), new CouponConfigurationLockedException())) {
+		for (kr.kro.airbob.core.support.error.BaseException error : List.of(new CouponNotFoundException(),
+			new CouponConfigurationLockedException())) {
 			doThrow(error).when(couponService).deleteCoupon(101L);
-			var response = mvc.perform(delete(deletePath, 101).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value()))
+			var response = mvc.perform(delete(deletePath, 101).cookie(SESSION))
+				.andExpect(status().is(error.getErrorCode().getStatus().value()))
 				.andReturn().getResponse();
-			assertDocumentedError(spec, deletePath, "delete", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, deletePath, "delete", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
 	}
 
@@ -1510,7 +1685,8 @@ class ApiDocumentationTest {
 		assertThat(operation.path("parameters").findValuesAsText("name"))
 			.containsExactlyInAnyOrder("accommodationId", "sortType", "cursor", "size");
 		JsonNode sort = java.util.stream.StreamSupport.stream(operation.path("parameters").spliterator(), false)
-			.filter(parameter -> parameter.path("name").asText().equals("sortType")).findFirst().orElseThrow().path("schema");
+			.filter(parameter -> parameter.path("name").asText().equals("sortType")).findFirst().orElseThrow()
+			.path("schema");
 		assertThat(sort.path("default").asText()).isEqualTo("LATEST");
 		assertThat(sort.path("enum").toString()).contains("LATEST", "HIGHEST_RATING", "LOWEST_RATING");
 		ReviewService service = context.getBean(ReviewService.class);
@@ -1518,11 +1694,14 @@ class ApiDocumentationTest {
 			new ReviewItem(201, 5, "좋은 숙소", LocalDateTime.parse("2027-01-10T02:00:00.123456"),
 				10, null, null, List.of(new StoredImage(301L, "https://example.invalid/review.png"))),
 			new ReviewItem(202, 3, null, null,
-				20, "여행자", null, List.of())), new CursorResponse.PageInfo(false, null, 2));
+				20, "여행자", null, List.of())),
+			new CursorResponse.PageInfo(false, null, 2));
 		when(service.findReviews(eq(101L), any(), any())).thenReturn(page);
-		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String body = mvc.perform(get(path, 101)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
-		assertThat(mapper.readTree(body).at("/data/reviews/0/reviewed_at").asText()).isEqualTo("2027-01-10T02:00:00.123456Z");
+		assertThat(mapper.readTree(body).at("/data/reviews/0/reviewed_at").asText())
+			.isEqualTo("2027-01-10T02:00:00.123456Z");
 		assertThat(mapper.readTree(body).at("/data/reviews/1/images").isEmpty()).isTrue();
 		verify(service).findReviews(eq(101L), argThat(request -> request.size() == 20 && request.lastId() == null),
 			eq(ReviewSortType.LATEST));
@@ -1534,11 +1713,14 @@ class ApiDocumentationTest {
 		String invalidSort = mvc.perform(get(path, 101).param("sortType", "latest")).andExpect(status().isBadRequest())
 			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "400", "C004", invalidSort);
-		String invalidCursor = mvc.perform(get(path, 101).param("cursor", "not-a-cursor!")).andExpect(status().isBadRequest())
+		String invalidCursor = mvc.perform(get(path, 101).param("cursor", "not-a-cursor!"))
+			.andExpect(status().isBadRequest())
 			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "400", "C010", invalidCursor);
-		when(service.findReviews(eq(999L), any(), any())).thenReturn(new ReviewPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
-		String empty = mvc.perform(get(path, 999)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		when(service.findReviews(eq(999L), any(), any()))
+			.thenReturn(new ReviewPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+		String empty = mvc.perform(get(path, 999)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/reviews").isEmpty()).isTrue();
 	}
@@ -1553,28 +1735,35 @@ class ApiDocumentationTest {
 		assertThat(schema.at("/properties/content/maxLength").asInt()).isEqualTo(1024);
 		assertThat(schema.at("/properties/content/minLength").asInt()).isEqualTo(1);
 		ReviewService service = context.getBean(ReviewService.class);
-		for (String invalid : List.of("{}", "{\"content\":\"본문\"}", "{\"rating\":5}", "{\"rating\":null,\"content\":\"본문\"}",
-			"{\"rating\":0,\"content\":\"본문\"}", "{\"rating\":6,\"content\":\"본문\"}", "{\"rating\":5,\"content\":\"  \"}",
+		for (String invalid : List.of("{}", "{\"content\":\"본문\"}", "{\"rating\":5}",
+			"{\"rating\":null,\"content\":\"본문\"}",
+			"{\"rating\":0,\"content\":\"본문\"}", "{\"rating\":6,\"content\":\"본문\"}",
+			"{\"rating\":5,\"content\":\"  \"}",
 			mapper.createObjectNode().put("rating", 5).put("content", "가".repeat(1025)).toString())) {
-			String body = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+			String body = mvc
+				.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "post", "400", "C001", body);
 		}
 		verifyNoInteractions(service);
 		when(service.createReview(eq(101L), anyInt(), any(), eq(10L))).thenReturn(201L);
 		String request = mapper.createObjectNode().put("rating", 5).put("content", "가".repeat(1024)).toString();
-		String success = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		String success = mvc
+			.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "201", success);
 		assertThat(mapper.readTree(success).at("/data/id").asLong()).isEqualTo(201);
 		for (BaseException error : List.of(new MemberNotFoundException(), new AccommodationNotFoundException(),
 			new ReviewCreationForbiddenException(), new ReviewAlreadyExistsException())) {
 			doThrow(error).when(service).createReview(eq(101L), anyInt(), any(), eq(10L));
-			var response = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			var response = mvc
+				.perform(post(path, 101).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
-		String unsupported = mvc.perform(post(path, 101).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(request))
+		String unsupported = mvc
+			.perform(post(path, 101).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content(request))
 			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
 	}
@@ -1587,17 +1776,21 @@ class ApiDocumentationTest {
 		assertThat(schema.path("required").toString()).isEqualTo("[\"content\"]");
 		assertThat(schema.at("/properties/content/minLength").asInt()).isEqualTo(1);
 		ReviewService service = context.getBean(ReviewService.class);
-		for (String invalid : List.of("{}", "{\"rating\":3}", "{\"content\":null}", "{\"content\":\"\"}", "{\"content\":\" \"}",
+		for (String invalid : List.of("{}", "{\"rating\":3}", "{\"content\":null}", "{\"content\":\"\"}",
+			"{\"content\":\" \"}",
 			"{\"content\":\"본문\",\"rating\":6}")) {
-			String body = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+			String body = mvc
+				.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, path, "patch", "400", "C001", body);
 		}
 		verifyNoInteractions(service);
 		when(service.updateReviewContent(eq(201L), any(), any(), eq(10L))).thenReturn(201L);
-		for (String request : List.of("{\"content\":\"수정 본문\"}", "{\"content\":\"수정 본문\",\"rating\":null}", "{\"content\":\"수정 본문\",\"rating\":1}")) {
+		for (String request : List.of("{\"content\":\"수정 본문\"}", "{\"content\":\"수정 본문\",\"rating\":null}",
+			"{\"content\":\"수정 본문\",\"rating\":1}")) {
 			validateInstance(spec, schema, mapper.readTree(request));
-			String success = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			String success = mvc
+				.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, "patch", "200", success);
 			assertThat(mapper.readTree(success).at("/data/id").asLong()).isEqualTo(201);
@@ -1605,27 +1798,37 @@ class ApiDocumentationTest {
 		for (BaseException error : List.of(new ReviewNotFoundException(),
 			new ReviewUpdateForbiddenException())) {
 			doThrow(error).when(service).updateReviewContent(eq(201L), any(), any(), eq(10L));
-			var response = mvc.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"수정 본문\"}"))
+			var response = mvc
+				.perform(patch(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+					.content("{\"content\":\"수정 본문\"}"))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, path, "patch", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, path, "patch", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
 	}
 
 	@Test
 	void everyReviewMutationRequiresTheSessionWithoutMemberIdInputs() throws Exception {
 		JsonNode spec = specification("client");
-		var requests = List.of(post("/api/v1/accommodations/{accommodationId}/reviews", 101).contentType(MediaType.APPLICATION_JSON).content("{\"rating\":5,\"content\":\"본문\"}"),
-			patch("/api/v1/reviews/{reviewId}", 201).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"본문\"}"),
+		var requests = List.of(
+			post("/api/v1/accommodations/{accommodationId}/reviews", 101).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"rating\":5,\"content\":\"본문\"}"),
+			patch("/api/v1/reviews/{reviewId}", 201).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"content\":\"본문\"}"),
 			delete("/api/v1/reviews/{reviewId}", 201),
-			multipart("/api/v1/reviews/{reviewId}/images", 201).file(new MockMultipartFile("images", "review.png", "image/png", new byte[] {1})),
+			multipart("/api/v1/reviews/{reviewId}/images", 201)
+				.file(new MockMultipartFile("images", "review.png", "image/png", new byte[] {1})),
 			delete("/api/v1/reviews/{reviewId}/images/{imageId}", 201, 301));
-		String[] paths = {"/api/v1/accommodations/{accommodationId}/reviews", "/api/v1/reviews/{reviewId}", "/api/v1/reviews/{reviewId}",
+		String[] paths = {"/api/v1/accommodations/{accommodationId}/reviews", "/api/v1/reviews/{reviewId}",
+			"/api/v1/reviews/{reviewId}",
 			"/api/v1/reviews/{reviewId}/images", "/api/v1/reviews/{reviewId}/images/{imageId}"};
 		String[] methods = {"post", "patch", "delete", "post", "delete"};
 		for (int index = 0; index < requests.size(); index++) {
-			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn()
+				.getResponse().getContentAsString();
 			assertDocumentedError(spec, paths[index], methods[index], "401", "M004", body);
-			assertThat(spec.path("paths").path(paths[index]).path(methods[index]).path("parameters").findValuesAsText("name"))
+			assertThat(
+				spec.path("paths").path(paths[index]).path(methods[index]).path("parameters").findValuesAsText("name"))
 				.doesNotContain("memberId", "member_id", "SESSION_ID");
 		}
 		verifyNoInteractions(context.getBean(ReviewService.class), context.getBean(ReviewImageService.class));
@@ -1639,12 +1842,14 @@ class ApiDocumentationTest {
 		String review = "/api/v1/reviews/{reviewId}", image = "/api/v1/reviews/{reviewId}/images/{imageId}";
 		for (String path : List.of(review, image)) {
 			assertThat(spec.path("paths").path(path).path("delete").has("requestBody")).isFalse();
-			String success = mvc.perform(delete(path, 201, 301).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			String success = mvc.perform(delete(path, 201, 301).cookie(SESSION)).andExpect(status().isOk()).andReturn()
+				.getResponse().getContentAsString();
 			validateResponse(spec, path, "delete", "200", success);
 			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
 		}
 		doThrow(new ReviewNotFoundException()).when(service).deleteReview(201L, 10L);
-		String missing = mvc.perform(delete(review, 201).cookie(SESSION)).andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		String missing = mvc.perform(delete(review, 201).cookie(SESSION)).andExpect(status().isNotFound()).andReturn()
+			.getResponse().getContentAsString();
 		assertDocumentedError(spec, review, "delete", "404", "V001", missing);
 		assertThat(spec.path("paths").path(image).path("delete").path("responses").has("404")).isFalse();
 		for (BaseException error : List.of(new ReviewAccessDeniedException(),
@@ -1652,7 +1857,8 @@ class ApiDocumentationTest {
 			doThrow(error).when(imageService).deleteReviewImage(201L, 301L, 10L);
 			var response = mvc.perform(delete(image, 201, 301).cookie(SESSION))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, image, "delete", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, image, "delete", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
 	}
 
@@ -1662,10 +1868,14 @@ class ApiDocumentationTest {
 		String path = "/api/v1/reviews/{reviewId}/images";
 		JsonNode operation = spec.path("paths").path(path).path("post");
 		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactly("reviewId");
-		assertThat(operation.at("/requestBody/content/multipart~1form-data/schema/properties/images/items/format").asText()).isEqualTo("binary");
-		String missing = mvc.perform(multipart(path, 201).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		assertThat(
+			operation.at("/requestBody/content/multipart~1form-data/schema/properties/images/items/format").asText())
+			.isEqualTo("binary");
+		String missing = mvc.perform(multipart(path, 201).cookie(SESSION)).andExpect(status().isBadRequest())
+			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "400", "C001", missing);
-		String unsupported = mvc.perform(post(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		String unsupported = mvc
+			.perform(post(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
 		ReviewImageService service = context.getBean(ReviewImageService.class);
@@ -1673,7 +1883,8 @@ class ApiDocumentationTest {
 		when(service.uploadReviewImages(eq(201L), anyList(), eq(10L)))
 			.thenReturn(List.of(new StoredImage(301L, "https://example.invalid/review.png")));
 		var file = new MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
-		String success = mvc.perform(multipart(path, 201).file(file).cookie(SESSION)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		String success = mvc.perform(multipart(path, 201).file(file).cookie(SESSION)).andExpect(status().isCreated())
+			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "post", "201", success);
 		assertThat(mapper.readTree(success).at("/data/uploaded_images/0/id").asLong()).isEqualTo(301);
 		for (BaseException error : List.of(new ReviewNotFoundException(),
@@ -1682,10 +1893,13 @@ class ApiDocumentationTest {
 			doThrow(error).when(service).uploadReviewImages(eq(201L), anyList(), eq(10L));
 			var response = mvc.perform(multipart(path, 201).file(file).cookie(SESSION))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
+			assertDocumentedError(spec, path, "post", Integer.toString(response.getStatus()),
+				error.getErrorCode().getCode(), response.getContentAsString());
 		}
-		doThrow(new MaxUploadSizeExceededException(10 * 1024 * 1024)).when(service).uploadReviewImages(eq(201L), anyList(), eq(10L));
-		String oversized = mvc.perform(multipart(path, 201).file(file).cookie(SESSION)).andExpect(status().isPayloadTooLarge()).andReturn().getResponse().getContentAsString();
+		doThrow(new MaxUploadSizeExceededException(10 * 1024 * 1024)).when(service).uploadReviewImages(eq(201L),
+			anyList(), eq(10L));
+		String oversized = mvc.perform(multipart(path, 201).file(file).cookie(SESSION))
+			.andExpect(status().isPayloadTooLarge()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "413", "I009", oversized);
 	}
 
@@ -1694,14 +1908,17 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		String lists = "/api/v1/members/wishlists", list = lists + "/{wishlistId}", membership = lists + "/membership";
 		String items = lists + "/accommodations/{id}", item = lists + "/accommodations/{id}";
-		var requests = List.of(post(lists), patch(list, 42), delete(list, 42), get(lists), get(membership).param("accommodationId", "101"),
+		var requests = List.of(post(lists), patch(list, 42), delete(list, 42), get(lists),
+			get(membership).param("accommodationId", "101"),
 			post(items, 42), patch(item, 501), delete(item, 501), get(items, 42));
 		String[] paths = {lists, list, list, lists, membership, items, item, item, items};
 		String[] methods = {"post", "patch", "delete", "get", "get", "post", "patch", "delete", "get"};
 		for (int index = 0; index < requests.size(); index++) {
-			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn()
+				.getResponse().getContentAsString();
 			assertDocumentedError(spec, paths[index], methods[index], "401", "M004", body);
-			assertThat(spec.path("paths").path(paths[index]).path(methods[index]).path("parameters").findValuesAsText("name"))
+			assertThat(
+				spec.path("paths").path(paths[index]).path(methods[index]).path("parameters").findValuesAsText("name"))
 				.doesNotContain("memberId", "member_id", "SESSION_ID");
 		}
 		verifyNoInteractions(context.getBean(WishlistService.class));
@@ -1720,10 +1937,12 @@ class ApiDocumentationTest {
 		}
 		for (String invalid : List.of("{}", "{\"name\":null}", "{\"name\":\"\"}", "{\"name\":\"  \"}",
 			mapper.createObjectNode().put("name", "가".repeat(256)).toString())) {
-			String created = mvc.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+			String created = mvc
+				.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, lists, "post", "400", "C001", created);
-			String renamed = mvc.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+			String renamed = mvc
+				.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, list, "patch", "400", "C001", renamed);
 		}
@@ -1732,11 +1951,13 @@ class ApiDocumentationTest {
 		when(service.updateWishlist(eq(42L), any(), eq(10L))).thenReturn(42L);
 		for (int length : List.of(1, 255)) {
 			String request = mapper.createObjectNode().put("name", "가".repeat(length)).toString();
-			String created = mvc.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			String created = mvc
+				.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, lists, "post", "201", created);
 			assertThat(mapper.readTree(created).at("/data/id").asLong()).isEqualTo(42);
-			String renamed = mvc.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			String renamed = mvc
+				.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, list, "patch", "200", renamed);
 		}
@@ -1748,14 +1969,17 @@ class ApiDocumentationTest {
 		String items = "/api/v1/members/wishlists/accommodations/{id}";
 		String item = "/api/v1/members/wishlists/accommodations/{id}";
 		WishlistService service = context.getBean(WishlistService.class);
-		for (String invalid : List.of("{}", "{\"accommodation_id\":null}", "{\"accommodation_id\":0}", "{\"accommodation_id\":-1}")) {
-			String response = mvc.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+		for (String invalid : List.of("{}", "{\"accommodation_id\":null}", "{\"accommodation_id\":0}",
+			"{\"accommodation_id\":-1}")) {
+			String response = mvc
+				.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, items, "post", "400", "C001", response);
 		}
 		for (String invalid : List.of("{}", "{\"memo\":null}", "{\"memo\":\"\"}", "{\"memo\":\"  \"}",
 			mapper.createObjectNode().put("memo", "나".repeat(1025)).toString())) {
-			String response = mvc.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
+			String response = mvc
+				.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, item, "patch", "400", "C001", response);
 		}
@@ -1766,14 +1990,17 @@ class ApiDocumentationTest {
 		assertThat(schema.at("/properties/memo/maxLength").asInt()).isEqualTo(1024);
 		when(service.createWishlistAccommodation(eq(42L), any(), eq(10L))).thenReturn(501L);
 		when(service.updateWishlistAccommodation(eq(501L), any(), eq(10L))).thenReturn(501L);
-		String created = mvc.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"accommodation_id\":101}"))
+		String created = mvc
+			.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"accommodation_id\":101}"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, items, "post", "200", created);
 		assertThat(mapper.readTree(created).at("/data/id").asLong()).isEqualTo(501);
 		verify(service).createWishlistAccommodation(42L, 101L, 10L);
 		for (int length : List.of(1, 1024)) {
 			String request = mapper.createObjectNode().put("memo", "나".repeat(length)).toString();
-			String updated = mvc.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			String updated = mvc
+				.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, item, "patch", "200", updated);
 			assertThat(mapper.readTree(updated).at("/data/id").asLong()).isEqualTo(501);
@@ -1785,15 +2012,19 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("client");
 		String path = "/api/v1/members/wishlists/membership";
 		JsonNode operation = spec.path("paths").path(path).path("get");
-		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactlyInAnyOrder("accommodationId", "wishlistId");
+		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactlyInAnyOrder("accommodationId",
+			"wishlistId");
 		operation.path("parameters").forEach(parameter -> assertThat(parameter.path("required").asBoolean())
 			.isEqualTo(parameter.path("name").asText().equals("accommodationId")));
-		String missing = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+		String missing = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn()
+			.getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "400", "C001", missing);
 		for (String parameter : List.of("accommodationId", "wishlistId")) {
 			var request = get(path).cookie(SESSION).param(parameter, "invalid");
-			if (parameter.equals("wishlistId")) request.param("accommodationId", "101");
-			String invalid = mvc.perform(request).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			if (parameter.equals("wishlistId"))
+				request.param("accommodationId", "101");
+			String invalid = mvc.perform(request).andExpect(status().isBadRequest()).andReturn().getResponse()
+				.getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C004", invalid);
 		}
 		WishlistService service = context.getBean(WishlistService.class);
@@ -1801,7 +2032,9 @@ class ApiDocumentationTest {
 		for (WishlistMembership membership : List.of(new WishlistMembership(true, true, true),
 			new WishlistMembership(true, false, true), new WishlistMembership(false, null, false))) {
 			when(service.findMembership(10L, 101L, 42L)).thenReturn(membership);
-			String response = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("wishlistId", "42").param("memberId", "999"))
+			String response = mvc
+				.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("wishlistId", "42")
+					.param("memberId", "999"))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path, "get", "200", response);
 			assertThat(mapper.readTree(response).path("data"))
@@ -1823,22 +2056,28 @@ class ApiDocumentationTest {
 		when(service.findWishlists(any(), eq(10L), isNull())).thenReturn(new WishlistSummaryPage(List.of(
 			new WishlistSummary(42L, "서울 여행", LocalDateTime.parse("2027-01-10T02:00:00.123456"), 2, null, null),
 			new WishlistSummary(43L, "옛 목록", null, 0, null, null)), new CursorResponse.PageInfo(false, null, 2)));
-		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
-		assertThat(mapper.readTree(response).at("/data/wishlists/0/created_at").asText()).isEqualTo("2027-01-10T02:00:00.123456Z");
+		assertThat(mapper.readTree(response).at("/data/wishlists/0/created_at").asText())
+			.isEqualTo("2027-01-10T02:00:00.123456Z");
 		assertThat(mapper.readTree(response).at("/data/wishlists/0/is_contained").isNull()).isTrue();
-		verify(service).findWishlists(argThat(request -> request.size() == 20 && request.lastId() == null), eq(10L), isNull());
+		verify(service).findWishlists(argThat(request -> request.size() == 20 && request.lastId() == null), eq(10L),
+			isNull());
 		when(service.findWishlists(any(), eq(10L), eq(101L))).thenReturn(new WishlistSummaryPage(List.of(
 			new WishlistSummary(42L, "서울 여행", LocalDateTime.parse("2027-01-10T02:00:00"), 2, null, 501L),
-			new WishlistSummary(43L, "다음 여행", LocalDateTime.parse("2027-01-09T02:00:00"), 0, null, null)), new CursorResponse.PageInfo(false, null, 2)));
+			new WishlistSummary(43L, "다음 여행", LocalDateTime.parse("2027-01-09T02:00:00"), 0, null, null)),
+			new CursorResponse.PageInfo(false, null, 2)));
 		String selection = mvc.perform(get(path).cookie(SESSION).param("accommodationId", "101").param("size", "50"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", selection);
-		assertThat(mapper.readTree(selection).at("/data/wishlists/0/wishlist_accommodation_id").asLong()).isEqualTo(501);
+		assertThat(mapper.readTree(selection).at("/data/wishlists/0/wishlist_accommodation_id").asLong())
+			.isEqualTo(501);
 		assertThat(mapper.readTree(selection).at("/data/wishlists/1/is_contained").asBoolean()).isFalse();
 		for (String paginated : List.of(path, path + "/accommodations/{id}")) {
 			for (String size : List.of("0", "51", "invalid")) {
-				String invalid = mvc.perform(get(paginated, 42).cookie(SESSION).param("size", size)).andExpect(status().isBadRequest())
+				String invalid = mvc.perform(get(paginated, 42).cookie(SESSION).param("size", size))
+					.andExpect(status().isBadRequest())
 					.andReturn().getResponse().getContentAsString();
 				assertDocumentedError(spec, paginated, "get", "400", "C006", invalid);
 			}
@@ -1856,22 +2095,28 @@ class ApiDocumentationTest {
 		var item = new WishlistAccommodationItem(501, null, 101, "서울 하우스", null, "대한민국", null, "서울", null,
 			null, null, LocalDateTime.parse("2027-01-10T02:00:00.123456"));
 		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
-			.thenReturn(new WishlistAccommodationPage("서울 여행", List.of(item), new CursorResponse.PageInfo(false, null, 1)));
-		String response = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			.thenReturn(
+				new WishlistAccommodationPage("서울 여행", List.of(item), new CursorResponse.PageInfo(false, null, 1)));
+		String response = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn()
+			.getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
-		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/review_summary/total_count").asInt()).isZero();
+		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/review_summary/total_count").asInt())
+			.isZero();
 		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/is_in_wishlist").asBoolean()).isTrue();
 		assertThat(mapper.readTree(response).at("/data/wishlist_accommodations/0/memo").isNull()).isTrue();
 		when(service.findWishlistAccommodations(eq(42L), any(), eq(10L)))
 			.thenReturn(new WishlistAccommodationPage("서울 여행", List.of(), new CursorResponse.PageInfo(false, null, 0)));
-		String empty = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String empty = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/wishlist_name").asText()).isEqualTo("서울 여행");
 		assertThat(mapper.readTree(empty).at("/data/wishlist_accommodations").isEmpty()).isTrue();
 		for (BaseException error : List.of(new WishlistNotFoundException(), new WishlistAccessDeniedException())) {
 			doThrow(error).when(service).findWishlistAccommodations(eq(42L), any(), eq(10L));
-			var failed = mvc.perform(get(path, 42).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, path, "get", Integer.toString(failed.getStatus()), error.getErrorCode().getCode(), failed.getContentAsString());
+			var failed = mvc.perform(get(path, 42).cookie(SESSION))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, path, "get", Integer.toString(failed.getStatus()),
+				error.getErrorCode().getCode(), failed.getContentAsString());
 		}
 	}
 
@@ -1882,36 +2127,50 @@ class ApiDocumentationTest {
 		String items = lists + "/accommodations/{id}", item = lists + "/accommodations/{id}";
 		WishlistService service = context.getBean(WishlistService.class);
 		for (String path : List.of(list, item)) {
-			String response = mvc.perform(delete(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			String response = mvc.perform(delete(path, 42).cookie(SESSION)).andExpect(status().isOk()).andReturn()
+				.getResponse().getContentAsString();
 			validateResponse(spec, path, "delete", "200", response);
 			assertThat(mapper.readTree(response)).isEqualTo(mapper.readTree("{\"success\":true}"));
 		}
 		for (BaseException error : List.of(new WishlistNotFoundException(), new WishlistAccessDeniedException())) {
 			doThrow(error).when(service).deleteWishlist(42L, 10L);
 			doThrow(error).when(service).updateWishlist(eq(42L), any(), eq(10L));
-			var removed = mvc.perform(delete(list, 42).cookie(SESSION)).andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, list, "delete", Integer.toString(removed.getStatus()), error.getErrorCode().getCode(), removed.getContentAsString());
-			var renamed = mvc.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"여행\"}"))
+			var removed = mvc.perform(delete(list, 42).cookie(SESSION))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, list, "patch", Integer.toString(renamed.getStatus()), error.getErrorCode().getCode(), renamed.getContentAsString());
+			assertDocumentedError(spec, list, "delete", Integer.toString(removed.getStatus()),
+				error.getErrorCode().getCode(), removed.getContentAsString());
+			var renamed = mvc
+				.perform(patch(list, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+					.content("{\"name\":\"여행\"}"))
+				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
+			assertDocumentedError(spec, list, "patch", Integer.toString(renamed.getStatus()),
+				error.getErrorCode().getCode(), renamed.getContentAsString());
 		}
 		for (BaseException error : List.of(new WishlistNotFoundException(), new WishlistAccessDeniedException(),
 			new WishlistAccommodationDuplicateException(), new AccommodationNotFoundException())) {
 			doThrow(error).when(service).createWishlistAccommodation(eq(42L), any(), eq(10L));
-			var failed = mvc.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"accommodation_id\":101}"))
+			var failed = mvc
+				.perform(post(items, 42).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+					.content("{\"accommodation_id\":101}"))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
-			assertDocumentedError(spec, items, "post", Integer.toString(failed.getStatus()), error.getErrorCode().getCode(), failed.getContentAsString());
+			assertDocumentedError(spec, items, "post", Integer.toString(failed.getStatus()),
+				error.getErrorCode().getCode(), failed.getContentAsString());
 		}
 		doThrow(new WishlistAccommodationAccessDeniedException()).when(service).deleteWishlistAccommodation(501L, 10L);
-		doThrow(new WishlistAccommodationAccessDeniedException()).when(service).updateWishlistAccommodation(eq(501L), any(), eq(10L));
-		String removed = mvc.perform(delete(item, 501).cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+		doThrow(new WishlistAccommodationAccessDeniedException()).when(service).updateWishlistAccommodation(eq(501L),
+			any(), eq(10L));
+		String removed = mvc.perform(delete(item, 501).cookie(SESSION)).andExpect(status().isForbidden()).andReturn()
+			.getResponse().getContentAsString();
 		assertDocumentedError(spec, item, "delete", "403", "W005", removed);
-		String memo = mvc.perform(patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"memo\":\"메모\"}"))
+		String memo = mvc
+			.perform(
+				patch(item, 501).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"memo\":\"메모\"}"))
 			.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, item, "patch", "403", "W005", memo);
 		assertThat(spec.path("paths").path(item).path("delete").path("responses").has("404")).isFalse();
 		doThrow(new MemberNotFoundException()).when(service).createWishlist(any(), eq(10L));
-		String inactive = mvc.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"여행\"}"))
+		String inactive = mvc
+			.perform(post(lists).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"여행\"}"))
 			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, lists, "post", "404", "M001", inactive);
 	}
@@ -1922,26 +2181,29 @@ class ApiDocumentationTest {
 		JsonNode path = spec.path("paths").path("/api/v1/members/wishlists/accommodations/{id}");
 		assertThat(path.size()).isEqualTo(4);
 		for (String method : List.of("get", "post", "patch", "delete")) {
-			JsonNode parameter = java.util.stream.StreamSupport.stream(path.path(method).path("parameters").spliterator(), false)
+			JsonNode parameter = java.util.stream.StreamSupport
+				.stream(path.path(method).path("parameters").spliterator(), false)
 				.filter(value -> value.path("in").asText().equals("path")).findFirst().orElseThrow();
 			assertThat(parameter.path("name").asText()).isEqualTo("id");
 			assertThat(parameter.path("description").asText()).contains(
 				List.of("get", "post").contains(method) ? "위시리스트 ID" : "연결 ID");
 		}
 		Set<String> shapes = new HashSet<>();
-		spec.path("paths").fieldNames().forEachRemaining(value ->
-			assertThat(shapes.add(value.replaceAll("\\{[^}]+}", "{}"))).as(value).isTrue());
+		spec.path("paths").fieldNames()
+			.forEachRemaining(value -> assertThat(shapes.add(value.replaceAll("\\{[^}]+}", "{}"))).as(value).isTrue());
 	}
 
 	@Test
 	void wishlistJsonRequestsRejectUnsupportedContentTypes() throws Exception {
 		JsonNode spec = specification("client");
-		String lists = "/api/v1/members/wishlists", list = lists + "/{wishlistId}", items = lists + "/accommodations/{id}";
+		String lists = "/api/v1/members/wishlists", list = lists + "/{wishlistId}",
+			items = lists + "/accommodations/{id}";
 		var requests = List.of(post(lists), patch(list, 42), post(items, 42), patch(items, 501));
 		String[] paths = {lists, list, items, items};
 		String[] methods = {"post", "patch", "post", "patch"};
 		for (int index = 0; index < requests.size(); index++) {
-			String body = mvc.perform(requests.get(index).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content("{}"))
+			String body = mvc
+				.perform(requests.get(index).cookie(SESSION).contentType(MediaType.TEXT_PLAIN).content("{}"))
 				.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 			assertDocumentedError(spec, paths[index], methods[index], "415", "C011", body);
 		}
@@ -1956,7 +2218,8 @@ class ApiDocumentationTest {
 		String[] paths = {list, item, item};
 		String[] methods = {"get", "post", "delete"};
 		for (int index = 0; index < requests.size(); index++) {
-			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			String body = mvc.perform(requests.get(index)).andExpect(status().isUnauthorized()).andReturn()
+				.getResponse().getContentAsString();
 			assertDocumentedError(spec, paths[index], methods[index], "401", "M004", body);
 			JsonNode operation = spec.path("paths").path(paths[index]).path(methods[index]);
 			assertThat(operation.has("requestBody")).isFalse();
@@ -1982,7 +2245,8 @@ class ApiDocumentationTest {
 			assertThat(mapper.readTree(body)).isEqualTo(mapper.readTree("{\"success\":true}"));
 			for (String id : List.of("invalid", "9223372036854775808")) {
 				var invalid = method.equals("post") ? post(path, id) : delete(path, id);
-				String failed = mvc.perform(invalid.cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+				String failed = mvc.perform(invalid.cookie(SESSION)).andExpect(status().isBadRequest()).andReturn()
+					.getResponse().getContentAsString();
 				assertDocumentedError(spec, path, method, "400", "C004", failed);
 			}
 		}
@@ -1998,11 +2262,14 @@ class ApiDocumentationTest {
 		var cards = List.of(
 			new RecentlyViewedAccommodation(Instant.parse("2027-01-10T02:00:00.123Z"),
 				new RecentlyViewedAccommodationProjection(101L, "서울 하우스", "https://example.invalid/stay.jpg",
-					"대한민국", null, "서울", null, 2, new BigDecimal("4.50")), true),
+					"대한민국", null, "서울", null, 2, new BigDecimal("4.50")),
+				true),
 			new RecentlyViewedAccommodation(Instant.parse("2027-01-09T00:00:00Z"),
-				new RecentlyViewedAccommodationProjection(102L, null, null, null, null, null, null, null, null), false));
+				new RecentlyViewedAccommodationProjection(102L, null, null, null, null, null, null, null, null),
+				false));
 		when(service.getRecentlyViewed(10L)).thenReturn(cards);
-		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String response = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		JsonNode data = mapper.readTree(response).path("data");
 		assertThat(data.path("total_count").asInt()).isEqualTo(2);
@@ -2018,11 +2285,12 @@ class ApiDocumentationTest {
 		assertThat(fields.toString()).contains("viewed_at", "accommodation_id", "accommodation_name", "thumbnail_url",
 			"address_summary", "review_summary", "is_in_wishlist");
 		when(service.getRecentlyViewed(10L)).thenReturn(List.of());
-		String empty = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String empty = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
-		assertThat(mapper.readTree(empty)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"accommodations\":[],\"total_count\":0}}"));
+		assertThat(mapper.readTree(empty))
+			.isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"accommodations\":[],\"total_count\":0}}"));
 	}
-
 
 	@Test
 	void searchBindsCamelCaseFiltersIsoDatesAndOptionalSessionIdentity() throws Exception {
@@ -2031,16 +2299,19 @@ class ApiDocumentationTest {
 			.thenReturn(AccommodationSearchPage.empty(org.springframework.data.domain.PageRequest.of(0, 18)));
 		String path = "/api/v1/search/accommodations";
 		mvc.perform(get(path).param("destination", "서울").param("checkIn", "2027-01-10").param("checkOut", "2027-01-12")
-			.param("minPrice", "0").param("maxPrice", "200000").param("adultOccupancy", "2").param("childOccupancy", "1")
+			.param("minPrice", "0").param("maxPrice", "200000").param("adultOccupancy", "2")
+			.param("childOccupancy", "1")
 			.param("infantOccupancy", "1").param("petOccupancy", "1").param("amenityTypes", "WIFI", "PARKING")
 			.param("accommodationTypes", "APT").param("topLeftLat", "38").param("topLeftLng", "126")
 			.param("bottomRightLat", "37").param("bottomRightLng", "128").param("memberId", "999"))
 			.andExpect(status().isOk());
 		verify(service).searchAccommodations(argThat(condition -> condition.destination().equals("서울")
-			&& condition.checkIn().equals(LocalDate.parse("2027-01-10")) && condition.checkOut().equals(LocalDate.parse("2027-01-12"))
+			&& condition.checkIn().equals(LocalDate.parse("2027-01-10"))
+			&& condition.checkOut().equals(LocalDate.parse("2027-01-12"))
 			&& condition.minPrice() == 0 && condition.maxPrice() == 200000 && condition.adultOccupancy() == 2
 			&& condition.childOccupancy() == 1 && condition.infantOccupancy() == 1 && condition.petOccupancy() == 1
-			&& condition.amenityTypes().equals(List.of("WIFI", "PARKING")) && condition.accommodationTypes().equals(List.of("APT"))
+			&& condition.amenityTypes().equals(List.of("WIFI", "PARKING"))
+			&& condition.accommodationTypes().equals(List.of("APT"))
 			&& condition.mapArea().topLeftLat() == 38 && condition.mapArea().topLeftLng() == 126
 			&& condition.mapArea().bottomRightLat() == 37 && condition.mapArea().bottomRightLng() == 128),
 			argThat(page -> page.getPageNumber() == 0 && page.getPageSize() == 18), isNull());
@@ -2064,7 +2335,8 @@ class ApiDocumentationTest {
 				.andExpect(status().isOk());
 		}
 		var pages = org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
-		verify(service, org.mockito.Mockito.times(values.length)).searchAccommodations(any(), pages.capture(), isNull());
+		verify(service, org.mockito.Mockito.times(values.length)).searchAccommodations(any(), pages.capture(),
+			isNull());
 		assertThat(pages.getAllValues()).extracting(page -> page.getPageNumber()).containsExactly(0, 0, 14, 14, 2);
 		assertThat(pages.getAllValues()).allSatisfy(page -> assertThat(page.getPageSize()).isEqualTo(18));
 	}
@@ -2082,24 +2354,29 @@ class ApiDocumentationTest {
 			get(path).param("checkIn", "2027-01-12").param("checkOut", "2027-01-12"),
 			get(path).param("checkIn", "2027-02-30").param("checkOut", "2027-03-01"),
 			get(path).param("topLeftLat", "38"), get(path).param("topLeftLat", "not-a-number"),
-			get(path).param("topLeftLat", "91").param("topLeftLng", "126").param("bottomRightLat", "37").param("bottomRightLng", "128"),
-			get(path).param("topLeftLat", "38").param("topLeftLng", "NaN").param("bottomRightLat", "37").param("bottomRightLng", "128"),
-			get(path).param("topLeftLat", "36").param("topLeftLng", "126").param("bottomRightLat", "37").param("bottomRightLng", "128"));
+			get(path).param("topLeftLat", "91").param("topLeftLng", "126").param("bottomRightLat", "37")
+				.param("bottomRightLng", "128"),
+			get(path).param("topLeftLat", "38").param("topLeftLng", "NaN").param("bottomRightLat", "37")
+				.param("bottomRightLng", "128"),
+			get(path).param("topLeftLat", "36").param("topLeftLng", "126").param("bottomRightLat", "37")
+				.param("bottomRightLng", "128"));
 		for (var request : requests) {
-			String response = mvc.perform(request).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			String response = mvc.perform(request).andExpect(status().isBadRequest()).andReturn().getResponse()
+				.getContentAsString();
 			assertDocumentedError(spec, path, "get", "400", "C001", response);
 		}
 		verifyNoInteractions(context.getBean(AccommodationSearchService.class));
 	}
-
 
 	@Test
 	void searchDocumentsEveryFilterWithoutInternalOrRequiredCookieInputs() throws Exception {
 		JsonNode operation = specification("client").path("paths").path("/api/v1/search/accommodations").path("get");
 		assertThat(operation.has("requestBody")).isFalse();
 		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactlyInAnyOrder(
-			"destination", "minPrice", "maxPrice", "checkIn", "checkOut", "adultOccupancy", "childOccupancy", "infantOccupancy", "petOccupancy",
-			"amenityTypes", "accommodationTypes", "topLeftLat", "topLeftLng", "bottomRightLat", "bottomRightLng", "page", "size");
+			"destination", "minPrice", "maxPrice", "checkIn", "checkOut", "adultOccupancy", "childOccupancy",
+			"infantOccupancy", "petOccupancy",
+			"amenityTypes", "accommodationTypes", "topLeftLat", "topLeftLng", "bottomRightLat", "bottomRightLng",
+			"page", "size");
 		for (JsonNode parameter : operation.path("parameters")) {
 			assertThat(parameter.path("description").asText()).isNotBlank();
 			assertThat(parameter.path("required").asBoolean()).isFalse();
@@ -2110,7 +2387,8 @@ class ApiDocumentationTest {
 				assertThat(parameter.at("/schema/format").asText()).isEqualTo("date");
 			}
 		}
-		assertThat(operation.path("responses").properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder("200", "400", "503", "500");
+		assertThat(operation.path("responses").properties()).extracting(Map.Entry::getKey)
+			.containsExactlyInAnyOrder("200", "400", "503", "500");
 	}
 
 	@Test
@@ -2122,7 +2400,8 @@ class ApiDocumentationTest {
 		var page = new AccommodationSearchPage(List.of(card), 18, 0, 1, 1L, false);
 		when(service.searchAccommodations(any(), any(), isNull()))
 			.thenReturn(page);
-		String response = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String response = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isOk()).andReturn()
+			.getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		JsonNode item = mapper.readTree(response).at("/data/stay_search_result_listing/0");
 		for (String nullable : List.of("name", "accommodation_thumbnail_url", "type", "base_price", "currency")) {
@@ -2141,8 +2420,10 @@ class ApiDocumentationTest {
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/stay_search_result_listing").isEmpty()).isTrue();
 		assertThat(mapper.readTree(empty).at("/data/page_info/total_elements").asLong()).isZero();
-		when(service.searchAccommodations(any(), any(), isNull())).thenThrow(new SearchUnavailableException(new java.io.IOException("synthetic unavailable")));
-		var unavailable = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isServiceUnavailable()).andReturn().getResponse();
+		when(service.searchAccommodations(any(), any(), isNull()))
+			.thenThrow(new SearchUnavailableException(new java.io.IOException("synthetic unavailable")));
+		var unavailable = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isServiceUnavailable())
+			.andReturn().getResponse();
 		assertDocumentedError(spec, path, "get", "503", "SE001", unavailable.getContentAsString());
 		assertThat(unavailable.getHeader("Retry-After")).isNull();
 	}
@@ -2152,8 +2433,10 @@ class ApiDocumentationTest {
 		String path = "/api/v1/common-codes/{group}";
 		JsonNode spec = specification("client");
 		var service = context.getBean(CommonCodeService.class);
-		when(service.getCodes("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeDetail("WIFI", "무선 인터넷", null, -1, true)));
-		String response = mvc.perform(get(path, "amenity_type")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		when(service.getCodes("AMENITY_TYPE"))
+			.thenReturn(List.of(new CommonCodeDetail("WIFI", "무선 인터넷", null, -1, true)));
+		String response = mvc.perform(get(path, "amenity_type")).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, path, "get", "200", response);
 		assertThat(mapper.readTree(response).at("/data/0/code").asText()).isEqualTo("WIFI");
 		assertThat(mapper.readTree(response).at("/data/0/sort_order").asInt()).isEqualTo(-1);
@@ -2165,7 +2448,8 @@ class ApiDocumentationTest {
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":[]}"));
 		when(service.getCodes("MISSING_GROUP")).thenThrow(new CommonCodeGroupNotFoundException());
-		String missing = mvc.perform(get(path, "missing_group")).andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		String missing = mvc.perform(get(path, "missing_group")).andExpect(status().isNotFound()).andReturn()
+			.getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "get", "404", "CC001", missing);
 	}
 
@@ -2180,13 +2464,16 @@ class ApiDocumentationTest {
 			get(codes, "AMENITY_TYPE"), post(codes, "AMENITY_TYPE"), patch(code, "AMENITY_TYPE", "WIFI"));
 		for (int i = 0; i < requests.size(); i++) {
 			var request = requests.get(i);
-			String absent = mvc.perform(request).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			String absent = mvc.perform(request).andExpect(status().isUnauthorized()).andReturn().getResponse()
+				.getContentAsString();
 			assertDocumentedError(spec, paths.get(i), methods.get(i), "401", "M004", absent);
-			String forbidden = mvc.perform(request.cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+			String forbidden = mvc.perform(request.cookie(SESSION)).andExpect(status().isForbidden()).andReturn()
+				.getResponse().getContentAsString();
 			assertDocumentedError(spec, paths.get(i), methods.get(i), "403", "M006", forbidden);
 			JsonNode operation = spec.path("paths").path(paths.get(i)).path(methods.get(i));
 			assertThat(operation.at("/security/0/sessionCookie").isArray()).isTrue();
-			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("SESSION_ID", "memberId", "member_id", "page", "size", "cursor");
+			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("SESSION_ID", "memberId",
+				"member_id", "page", "size", "cursor");
 		}
 		verifyNoInteractions(context.getBean(CommonCodeAdminService.class));
 	}
@@ -2198,9 +2485,12 @@ class ApiDocumentationTest {
 		var service = context.getBean(CommonCodeAdminService.class);
 		String groups = "/api/v1/admin/common-code-groups", codes = "/api/v1/admin/common-codes/{group}";
 		when(service.getGroups()).thenReturn(List.of(new CommonCodeGroupDetail("AMENITY_TYPE", "편의시설", null, false)));
-		when(service.getAll("AMENITY_TYPE")).thenReturn(List.of(new CommonCodeDetail("WIFI", "무선 인터넷", null, 0, false)));
-		String groupBody = mvc.perform(get(groups).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-		String codeBody = mvc.perform(get(codes, "amenity_type").cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		when(service.getAll("AMENITY_TYPE"))
+			.thenReturn(List.of(new CommonCodeDetail("WIFI", "무선 인터넷", null, 0, false)));
+		String groupBody = mvc.perform(get(groups).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
+		String codeBody = mvc.perform(get(codes, "amenity_type").cookie(SESSION)).andExpect(status().isOk()).andReturn()
+			.getResponse().getContentAsString();
 		validateResponse(spec, groups, "get", "200", groupBody);
 		validateResponse(spec, codes, "get", "200", codeBody);
 		for (String body : List.of(groupBody, codeBody)) {
@@ -2209,10 +2499,12 @@ class ApiDocumentationTest {
 			assertThat(mapper.readTree(body).at("/data/0").has("is_active")).isFalse();
 		}
 		when(service.getAll("EMPTY_GROUP")).thenReturn(List.of());
-		String empty = mvc.perform(get(codes, "empty_group").cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String empty = mvc.perform(get(codes, "empty_group").cookie(SESSION)).andExpect(status().isOk()).andReturn()
+			.getResponse().getContentAsString();
 		validateResponse(spec, codes, "get", "200", empty);
 		when(service.getAll("MISSING_GROUP")).thenThrow(new CommonCodeGroupNotFoundException());
-		String missing = mvc.perform(get(codes, "missing_group").cookie(SESSION)).andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
+		String missing = mvc.perform(get(codes, "missing_group").cookie(SESSION)).andExpect(status().isNotFound())
+			.andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, codes, "get", "404", "CC001", missing);
 	}
 
@@ -2229,21 +2521,27 @@ class ApiDocumentationTest {
 		validateResponse(spec, groups, "post", "201", created.getContentAsString());
 		assertThat(created.getHeader("Location")).isNull();
 		verify(service).createGroup(new NewCommonCodeGroup("example_group", "예시 그룹", null, false));
-		when(service.updateGroup(eq("EXAMPLE_GROUP"), any())).thenReturn(new CommonCodeGroupDetail("EXAMPLE_GROUP", "예시 그룹", "", false));
+		when(service.updateGroup(eq("EXAMPLE_GROUP"), any()))
+			.thenReturn(new CommonCodeGroupDetail("EXAMPLE_GROUP", "예시 그룹", "", false));
 		for (String request : List.of("{}", "{\"group_name\":null,\"description\":\"\",\"is_active\":false}")) {
-			String updated = mvc.perform(patch(group, "example_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+			String updated = mvc
+				.perform(patch(group, "example_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+					.content(request))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, group, "patch", "200", updated);
 		}
 		verify(service).updateGroup("EXAMPLE_GROUP", new CommonCodeGroupPatch(null, "", false));
-		validateInstance(spec, spec.at("/components/schemas/CommonCodeGroupRequestUpdate"), mapper.readTree("{\"group_name\":null,\"description\":null,\"is_active\":null}"));
+		validateInstance(spec, spec.at("/components/schemas/CommonCodeGroupRequestUpdate"),
+			mapper.readTree("{\"group_name\":null,\"description\":null,\"is_active\":null}"));
 		when(service.createGroup(any())).thenThrow(new CommonCodeGroupDuplicateException());
 		String duplicate = mvc.perform(post(groups).cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"group_code\":\"EXAMPLE_GROUP\",\"group_name\":\"예시 그룹\"}"))
 			.andExpect(status().isConflict()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, groups, "post", "409", "CC004", duplicate);
 		when(service.updateGroup(eq("EXAMPLE_GROUP"), any())).thenThrow(new CommonCodeGroupNotFoundException());
-		String missing = mvc.perform(patch(group, "example_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		String missing = mvc
+			.perform(
+				patch(group, "example_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, group, "patch", "404", "CC001", missing);
 	}
@@ -2254,34 +2552,49 @@ class ApiDocumentationTest {
 		JsonNode spec = specification("admin");
 		var service = context.getBean(CommonCodeAdminService.class);
 		String codes = "/api/v1/admin/common-codes/{group}", code = codes + "/{code}";
-		when(service.create(eq("AMENITY_TYPE"), any())).thenReturn(new CommonCodeDetail("WIFI", "무선 인터넷", null, -1, false));
+		when(service.create(eq("AMENITY_TYPE"), any()))
+			.thenReturn(new CommonCodeDetail("WIFI", "무선 인터넷", null, -1, false));
 		String request = "{\"code\":\"　wifi　\",\"name\":\"무선 인터넷\",\"sort_order\":-1,\"is_active\":false}";
-		var created = mvc.perform(post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		var created = mvc
+			.perform(
+				post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isCreated()).andReturn().getResponse();
 		validateResponse(spec, codes, "post", "201", created.getContentAsString());
 		assertThat(created.getHeader("Location")).isNull();
 		verify(service).create("AMENITY_TYPE", new NewCommonCode("wifi", "무선 인터넷", null, -1, false));
-		when(service.update(eq("AMENITY_TYPE"), eq("wifi"), any())).thenReturn(new CommonCodeDetail("WIFI", "무선 인터넷", "", 0, false));
-		for (String patchBody : List.of("{}", "{\"name\":null,\"description\":\"\",\"sort_order\":0,\"is_active\":false}")) {
-			String updated = mvc.perform(patch(code, "amenity_type", "wifi").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(patchBody))
+		when(service.update(eq("AMENITY_TYPE"), eq("wifi"), any()))
+			.thenReturn(new CommonCodeDetail("WIFI", "무선 인터넷", "", 0, false));
+		for (String patchBody : List.of("{}",
+			"{\"name\":null,\"description\":\"\",\"sort_order\":0,\"is_active\":false}")) {
+			String updated = mvc
+				.perform(patch(code, "amenity_type", "wifi").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+					.content(patchBody))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, code, "patch", "200", updated);
 		}
 		verify(service).update("AMENITY_TYPE", "wifi", new CommonCodePatch(null, "", 0, false));
-		validateInstance(spec, spec.at("/components/schemas/CommonCodeRequestUpdate"), mapper.readTree("{\"name\":null,\"description\":null,\"sort_order\":null,\"is_active\":null}"));
+		validateInstance(spec, spec.at("/components/schemas/CommonCodeRequestUpdate"),
+			mapper.readTree("{\"name\":null,\"description\":null,\"sort_order\":null,\"is_active\":null}"));
 		when(service.create(eq("AMENITY_TYPE"), any())).thenThrow(new CommonCodeDuplicateException());
-		String duplicate = mvc.perform(post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		String duplicate = mvc
+			.perform(
+				post(codes, "amenity_type").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isConflict()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, codes, "post", "409", "CC003", duplicate);
 		when(service.create(eq("MISSING_GROUP"), any())).thenThrow(new CommonCodeGroupNotFoundException());
-		String missingGroup = mvc.perform(post(codes, "missing_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
+		String missingGroup = mvc
+			.perform(
+				post(codes, "missing_group").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, codes, "post", "404", "CC001", missingGroup);
 		when(service.update(eq("MISSING_GROUP"), eq("wifi"), any())).thenThrow(new CommonCodeNotFoundException());
-		String missingCode = mvc.perform(patch(code, "missing_group", "wifi").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		String missingCode = mvc
+			.perform(patch(code, "missing_group", "wifi").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
 			.andExpect(status().isNotFound()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, code, "patch", "404", "CC002", missingCode);
-		assertThat(spec.path("paths").path(code).path("patch").at("/responses/404/content/application~1json/examples").properties())
+		assertThat(spec.path("paths").path(code).path("patch").at("/responses/404/content/application~1json/examples")
+			.properties())
 			.extracting(Map.Entry::getKey).containsExactly("CC002");
 	}
 
@@ -2293,13 +2606,17 @@ class ApiDocumentationTest {
 		String codes = "/api/v1/admin/common-codes/{group}", code = codes + "/{code}";
 		var paths = List.of(groups, group, codes, code);
 		var methods = List.of("post", "patch", "post", "patch");
-		var requests = List.of(post(groups), patch(group, "EXAMPLE_GROUP"), post(codes, "AMENITY_TYPE"), patch(code, "AMENITY_TYPE", "WIFI"));
+		var requests = List.of(post(groups), patch(group, "EXAMPLE_GROUP"), post(codes, "AMENITY_TYPE"),
+			patch(code, "AMENITY_TYPE", "WIFI"));
 		var bodies = List.of(
-			List.of("{}", "{\"group_code\":\"BAD-CODE\",\"group_name\":\"이름\"}", "{\"group_code\":\"EXAMPLE_GROUP\",\"group_name\":\"　\"}",
+			List.of("{}", "{\"group_code\":\"BAD-CODE\",\"group_name\":\"이름\"}",
+				"{\"group_code\":\"EXAMPLE_GROUP\",\"group_name\":\"　\"}",
 				mapper.writeValueAsString(Map.of("group_code", "A".repeat(51), "group_name", "이름")),
 				mapper.writeValueAsString(Map.of("group_code", "EXAMPLE_GROUP", "group_name", "이".repeat(101))),
-				mapper.writeValueAsString(Map.of("group_code", "EXAMPLE_GROUP", "group_name", "이름", "description", "설".repeat(256)))),
-			List.of("{\"group_name\":\"\"}", "{\"group_name\":\"　\"}", mapper.writeValueAsString(Map.of("group_name", "이".repeat(101))),
+				mapper.writeValueAsString(
+					Map.of("group_code", "EXAMPLE_GROUP", "group_name", "이름", "description", "설".repeat(256)))),
+			List.of("{\"group_name\":\"\"}", "{\"group_name\":\"　\"}",
+				mapper.writeValueAsString(Map.of("group_name", "이".repeat(101))),
 				mapper.writeValueAsString(Map.of("description", "설".repeat(256)))),
 			List.of("{}", "{\"code\":\"BAD-CODE\",\"name\":\"이름\"}", "{\"code\":\"WIFI\",\"name\":\"　\"}",
 				mapper.writeValueAsString(Map.of("code", "A".repeat(51), "name", "이름")),
@@ -2309,7 +2626,8 @@ class ApiDocumentationTest {
 				mapper.writeValueAsString(Map.of("description", "설".repeat(256))), "{\"sort_order\":2147483648}"));
 		for (int i = 0; i < requests.size(); i++) {
 			var request = requests.get(i).cookie(SESSION);
-			for (String body : java.util.stream.Stream.concat(bodies.get(i).stream(), java.util.stream.Stream.of("", "null", "{" , "{\"is_active\":\"invalid\"}")).toList()) {
+			for (String body : java.util.stream.Stream.concat(bodies.get(i).stream(),
+				java.util.stream.Stream.of("", "null", "{", "{\"is_active\":\"invalid\"}")).toList()) {
 				String invalid = mvc.perform(request.contentType(MediaType.APPLICATION_JSON).content(body))
 					.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 				assertDocumentedError(spec, paths.get(i), methods.get(i), "400", "C001", invalid);
@@ -2321,17 +2639,21 @@ class ApiDocumentationTest {
 		verifyNoInteractions(context.getBean(CommonCodeAdminService.class));
 	}
 
-
 	@Test
 	void settlementRejectsMalformedMonthsAndReversedBackfillBeforeInvokingServices() throws Exception {
 		allowDocumentationAdmin();
-		for (String month : List.of("2027-13", "2027-1", "2027-01-01", "", " 2027-01 ", "0000-01", "0999-12", "+10000-01")) {
-			mvc.perform(get("/api/v1/admin/settlements").cookie(SESSION).param("month", month)).andExpect(status().isBadRequest());
-			mvc.perform(post("/api/v1/admin/settlements/generate").cookie(SESSION).param("month", month)).andExpect(status().isBadRequest());
-			mvc.perform(post("/api/v1/admin/settlements/backfill").cookie(SESSION).param("from", month).param("to", "2027-02"))
+		for (String month : List.of("2027-13", "2027-1", "2027-01-01", "", " 2027-01 ", "0000-01", "0999-12",
+			"+10000-01")) {
+			mvc.perform(get("/api/v1/admin/settlements").cookie(SESSION).param("month", month))
+				.andExpect(status().isBadRequest());
+			mvc.perform(post("/api/v1/admin/settlements/generate").cookie(SESSION).param("month", month))
+				.andExpect(status().isBadRequest());
+			mvc.perform(
+				post("/api/v1/admin/settlements/backfill").cookie(SESSION).param("from", month).param("to", "2027-02"))
 				.andExpect(status().isBadRequest());
 		}
-		mvc.perform(post("/api/v1/admin/settlements/backfill").cookie(SESSION).param("from", "2027-02").param("to", "2027-01"))
+		mvc.perform(
+			post("/api/v1/admin/settlements/backfill").cookie(SESSION).param("from", "2027-02").param("to", "2027-01"))
 			.andExpect(status().isBadRequest());
 		verifyNoInteractions(context.getBean(SettlementService.class));
 	}
@@ -2348,21 +2670,26 @@ class ApiDocumentationTest {
 
 	@Test
 	void everySettlementOperationUsesSessionIdentityAndAdminActionsRequireAdmin() throws Exception {
-		var paths = List.of("/api/v1/profile/host/settlements", "/api/v1/profile/host/settlements/summary", "/api/v1/profile/host/settlements/{settlementId}",
-			"/api/v1/admin/settlements", "/api/v1/admin/settlements/generate", "/api/v1/admin/settlements/backfill", "/api/v1/admin/settlements/{settlementId}/pay");
+		var paths = List.of("/api/v1/profile/host/settlements", "/api/v1/profile/host/settlements/summary",
+			"/api/v1/profile/host/settlements/{settlementId}",
+			"/api/v1/admin/settlements", "/api/v1/admin/settlements/generate", "/api/v1/admin/settlements/backfill",
+			"/api/v1/admin/settlements/{settlementId}/pay");
 		var methods = List.of("get", "get", "get", "get", "post", "post", "post");
 		var requests = List.of(get(paths.get(0)), get(paths.get(1)), get(paths.get(2), 101), get(paths.get(3)),
 			post(paths.get(4)), post(paths.get(5)), post(paths.get(6), 101));
 		JsonNode client = specification("client"), admin = specification("admin");
 		for (int i = 0; i < requests.size(); i++) {
 			JsonNode spec = i < 3 ? client : admin;
-			String absent = mvc.perform(requests.get(i)).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			String absent = mvc.perform(requests.get(i)).andExpect(status().isUnauthorized()).andReturn().getResponse()
+				.getContentAsString();
 			assertDocumentedError(spec, paths.get(i), methods.get(i), "401", "M004", absent);
 			JsonNode operation = spec.path("paths").path(paths.get(i)).path(methods.get(i));
-			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("hostId", "memberId", "SESSION_ID", "page", "size", "cursor");
+			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("hostId", "memberId",
+				"SESSION_ID", "page", "size", "cursor");
 			assertThat(operation.has("requestBody")).isFalse();
 			if (i >= 3) {
-				String forbidden = mvc.perform(requests.get(i).cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+				String forbidden = mvc.perform(requests.get(i).cookie(SESSION)).andExpect(status().isForbidden())
+					.andReturn().getResponse().getContentAsString();
 				assertDocumentedError(spec, paths.get(i), methods.get(i), "403", "M006", forbidden);
 			}
 		}
@@ -2373,23 +2700,30 @@ class ApiDocumentationTest {
 	void settlementHostReadsMatchDatesNullableNamesAmountsAndSessionOwnership() throws Exception {
 		JsonNode spec = specification("client");
 		var service = context.getBean(SettlementService.class);
-		String list = "/api/v1/profile/host/settlements", summary = list + "/summary", detail = list + "/{settlementId}";
+		String list = "/api/v1/profile/host/settlements", summary = list + "/summary",
+			detail = list + "/{settlementId}";
 		var settlement = documentationSettlement();
 		when(service.getHostSettlements(eq(10L), any(), any())).thenReturn(List.of(SettlementSummary.from(settlement)));
-		String body = mvc.perform(get(list).cookie(SESSION).param("from", "2027-01-01").param("to", "2027-03-31").param("hostId", "999"))
+		String body = mvc
+			.perform(
+				get(list).cookie(SESSION).param("from", "2027-01-01").param("to", "2027-03-31").param("hostId", "999"))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, list, "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/0/settlement_month").asText()).isEqualTo("2027-01-01");
 		assertThat(mapper.readTree(body).at("/data/0/settled_at").isNull()).isTrue();
 		verify(service).getHostSettlements(10L, LocalDate.parse("2027-01-01"), LocalDate.parse("2027-03-31"));
 		when(service.getHostSummary(10L)).thenReturn(new HostSettlementTotals(0, 0, 0, 0));
-		String zero = mvc.perform(get(summary).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String zero = mvc.perform(get(summary).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString();
 		validateResponse(spec, summary, "get", "200", zero);
-		assertThat(mapper.readTree(zero).path("data")).isEqualTo(mapper.readTree("{\"pending_payout_total\":0,\"pending_count\":0,\"paid_payout_total\":0,\"paid_count\":0}"));
+		assertThat(mapper.readTree(zero).path("data")).isEqualTo(mapper
+			.readTree("{\"pending_payout_total\":0,\"pending_count\":0,\"paid_payout_total\":0,\"paid_count\":0}"));
 		settlement.markPaid(Instant.parse("2027-02-01T04:00:00Z"));
-		when(service.getSettlementDetail(101L, 10L)).thenReturn(new HostSettlementDetail(SettlementSummary.from(settlement),
-			List.of(new SettlementLine(201L, null, 150000L, 20000L, 130000L))));
-		String paid = mvc.perform(get(detail, 101).cookie(SESSION).param("hostId", "999")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		when(service.getSettlementDetail(101L, 10L))
+			.thenReturn(new HostSettlementDetail(SettlementSummary.from(settlement),
+				List.of(new SettlementLine(201L, null, 150000L, 20000L, 130000L))));
+		String paid = mvc.perform(get(detail, 101).cookie(SESSION).param("hostId", "999")).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString();
 		validateResponse(spec, detail, "get", "200", paid);
 		assertThat(mapper.readTree(paid).at("/data/settled_at").asText()).isEqualTo("2027-02-01T04:00:00Z");
 		assertThat(mapper.readTree(paid).at("/data/items/0/accommodation_name").isNull()).isTrue();
@@ -2405,7 +2739,8 @@ class ApiDocumentationTest {
 		allowDocumentationAdmin();
 		var service = context.getBean(SettlementService.class);
 		JsonNode spec = specification("admin");
-		String list = "/api/v1/admin/settlements", generate = list + "/generate", backfill = list + "/backfill", pay = list + "/{settlementId}/pay";
+		String list = "/api/v1/admin/settlements", generate = list + "/generate", backfill = list + "/backfill",
+			pay = list + "/{settlementId}/pay";
 		var negative = Settlement.createPending(10L, LocalDate.parse("2027-01-01"), 0, 50, new BigDecimal("0.03"));
 		org.springframework.test.util.ReflectionTestUtils.setField(negative, "id", 102L);
 		when(service.getSettlements(any(), any())).thenReturn(List.of(SettlementSummary.from(negative)));
@@ -2416,10 +2751,12 @@ class ApiDocumentationTest {
 		verify(service).getSettlements(java.time.YearMonth.of(2027, 1), SettlementStatus.PENDING);
 		mvc.perform(get(list).cookie(SESSION).param("month", "2027-01").param("status", "")).andExpect(status().isOk());
 		verify(service).getSettlements(java.time.YearMonth.of(2027, 1), null);
-		var requests = List.of(post(generate).param("month", "2027-01"), post(backfill).param("from", "2027-01").param("to", "2027-03"), post(pay, 101));
+		var requests = List.of(post(generate).param("month", "2027-01"),
+			post(backfill).param("from", "2027-01").param("to", "2027-03"), post(pay, 101));
 		var paths = List.of(generate, backfill, pay);
 		for (int i = 0; i < requests.size(); i++) {
-			String success = mvc.perform(requests.get(i).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			String success = mvc.perform(requests.get(i).cookie(SESSION)).andExpect(status().isOk()).andReturn()
+				.getResponse().getContentAsString();
 			validateResponse(spec, paths.get(i), "post", "200", success);
 			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
 		}
@@ -2434,43 +2771,56 @@ class ApiDocumentationTest {
 		var service = context.getBean(SettlementService.class);
 		JsonNode client = specification("client"), admin = specification("admin");
 		String host = "/api/v1/profile/host/settlements", detail = host + "/{settlementId}";
-		String list = "/api/v1/admin/settlements", generate = list + "/generate", backfill = list + "/backfill", pay = list + "/{settlementId}/pay";
-		var missingRequests = List.of(get(host).param("to", "2027-02-01"), get(list), post(generate), post(backfill).param("from", "2027-01"));
+		String list = "/api/v1/admin/settlements", generate = list + "/generate", backfill = list + "/backfill",
+			pay = list + "/{settlementId}/pay";
+		var missingRequests = List.of(get(host).param("to", "2027-02-01"), get(list), post(generate),
+			post(backfill).param("from", "2027-01"));
 		var missingPaths = List.of(host, list, generate, backfill);
 		for (int i = 0; i < missingRequests.size(); i++) {
-			String body = mvc.perform(missingRequests.get(i).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
-			assertDocumentedError(i == 0 ? client : admin, missingPaths.get(i), i < 2 ? "get" : "post", "400", "C001", body);
+			String body = mvc.perform(missingRequests.get(i).cookie(SESSION)).andExpect(status().isBadRequest())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(i == 0 ? client : admin, missingPaths.get(i), i < 2 ? "get" : "post", "400", "C001",
+				body);
 		}
-		var invalidRequests = List.of(get(host).param("from", "2027-02-30").param("to", "2027-03-01"), get(list).param("month", "2027-01").param("status", "pending"),
+		var invalidRequests = List.of(get(host).param("from", "2027-02-30").param("to", "2027-03-01"),
+			get(list).param("month", "2027-01").param("status", "pending"),
 			get(detail, "invalid"), post(pay, "invalid"));
 		var invalidPaths = List.of(host, list, detail, pay);
 		for (int i = 0; i < invalidRequests.size(); i++) {
-			String body = mvc.perform(invalidRequests.get(i).cookie(SESSION)).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
-			assertDocumentedError(i == 0 || i == 2 ? client : admin, invalidPaths.get(i), i == 3 ? "post" : "get", "400", "C004", body);
+			String body = mvc.perform(invalidRequests.get(i).cookie(SESSION)).andExpect(status().isBadRequest())
+				.andReturn().getResponse().getContentAsString();
+			assertDocumentedError(i == 0 || i == 2 ? client : admin, invalidPaths.get(i), i == 3 ? "post" : "get",
+				"400", "C004", body);
 		}
 		for (var exception : List.of(new SettlementNotFoundException(), new SettlementAccessDeniedException())) {
 			doThrow(exception).when(service).getSettlementDetail(101L, 10L);
-			String body = mvc.perform(get(detail, 101).cookie(SESSION)).andExpect(status().is(exception.getErrorCode().getStatus().value()))
+			String body = mvc.perform(get(detail, 101).cookie(SESSION))
+				.andExpect(status().is(exception.getErrorCode().getStatus().value()))
 				.andReturn().getResponse().getContentAsString();
-			assertDocumentedError(client, detail, "get", Integer.toString(exception.getErrorCode().getStatus().value()), exception.getErrorCode().getCode(), body);
+			assertDocumentedError(client, detail, "get", Integer.toString(exception.getErrorCode().getStatus().value()),
+				exception.getErrorCode().getCode(), body);
 		}
-		for (var exception : List.of(new SettlementNotFoundException(), new SettlementAlreadyPaidException(), new SettlementMonthNotClosedException())) {
+		for (var exception : List.of(new SettlementNotFoundException(), new SettlementAlreadyPaidException(),
+			new SettlementMonthNotClosedException())) {
 			doThrow(exception).when(service).markPaid(101L);
-			String body = mvc.perform(post(pay, 101).cookie(SESSION)).andExpect(status().is(exception.getErrorCode().getStatus().value()))
+			String body = mvc.perform(post(pay, 101).cookie(SESSION))
+				.andExpect(status().is(exception.getErrorCode().getStatus().value()))
 				.andReturn().getResponse().getContentAsString();
-			assertDocumentedError(admin, pay, "post", Integer.toString(exception.getErrorCode().getStatus().value()), exception.getErrorCode().getCode(), body);
+			assertDocumentedError(admin, pay, "post", Integer.toString(exception.getErrorCode().getStatus().value()),
+				exception.getErrorCode().getCode(), body);
 		}
 	}
-
 
 	@Test
 	void revenueStatsRejectsReversedAndUnsupportedDateRangesBeforeCallingServices() throws Exception {
 		allowDocumentationAdmin();
 		for (var range : List.of(List.of("2027-02-01", "2027-01-01"), List.of("0999-12-31", "2027-01-01"),
 			List.of("2027-01-01", "+10000-01-01"))) {
-			mvc.perform(get("/api/v1/admin/stats/revenue").cookie(SESSION).param("from", range.get(0)).param("to", range.get(1)))
+			mvc.perform(get("/api/v1/admin/stats/revenue").cookie(SESSION).param("from", range.get(0)).param("to",
+				range.get(1)))
 				.andExpect(status().isBadRequest());
-			mvc.perform(post("/api/v1/admin/stats/revenue/recompute").cookie(SESSION).param("from", range.get(0)).param("to", range.get(1)))
+			mvc.perform(post("/api/v1/admin/stats/revenue/recompute").cookie(SESSION).param("from", range.get(0))
+				.param("to", range.get(1)))
 				.andExpect(status().isBadRequest());
 		}
 		verifyNoInteractions(context.getBean(RevenueStatsService.class));
@@ -2484,9 +2834,11 @@ class ApiDocumentationTest {
 		var requests = List.of(get(paths.get(0)), post(paths.get(1)));
 		for (int i = 0; i < requests.size(); i++) {
 			var request = requests.get(i).param("from", "2027-01-01").param("to", "2027-01-31");
-			String absent = mvc.perform(request).andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+			String absent = mvc.perform(request).andExpect(status().isUnauthorized()).andReturn().getResponse()
+				.getContentAsString();
 			assertDocumentedError(spec, paths.get(i), methods.get(i), "401", "M004", absent);
-			String forbidden = mvc.perform(request.cookie(SESSION)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+			String forbidden = mvc.perform(request.cookie(SESSION)).andExpect(status().isForbidden()).andReturn()
+				.getResponse().getContentAsString();
 			assertDocumentedError(spec, paths.get(i), methods.get(i), "403", "M006", forbidden);
 			JsonNode operation = spec.path("paths").path(paths.get(i)).path(methods.get(i));
 			assertThat(operation.has("requestBody")).isFalse();
@@ -2514,19 +2866,22 @@ class ApiDocumentationTest {
 		String body = mvc.perform(get(path).cookie(SESSION).param("from", from.toString()).param("to", to.toString()))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", body);
-		assertThat(mapper.readTree(body).path("data")).isEqualTo(mapper.readTree("""
-			{"from":"2027-01-01","to":"2027-01-31","source":"stats","items":[
-			  {"date":"2027-01-01","gross_amount":150000,"refund_amount":20000,"net_amount":130000,"payment_count":2,"refund_count":1},
-			  {"date":"2027-01-03","gross_amount":0,"refund_amount":50,"net_amount":-50,"payment_count":0,"refund_count":2}]}
-			"""));
+		assertThat(mapper.readTree(body).path("data")).isEqualTo(mapper.readTree(
+			"""
+				{"from":"2027-01-01","to":"2027-01-31","source":"stats","items":[
+				  {"date":"2027-01-01","gross_amount":150000,"refund_amount":20000,"net_amount":130000,"payment_count":2,"refund_count":1},
+				  {"date":"2027-01-03","gross_amount":0,"refund_amount":50,"net_amount":-50,"payment_count":0,"refund_count":2}]}
+				"""));
 		verify(service).getDailyRevenue(from, to);
 		when(service.getDailyRevenue(from, from)).thenReturn(List.of());
-		String empty = mvc.perform(get(path).cookie(SESSION).param("from", from.toString()).param("to", from.toString()))
+		String empty = mvc
+			.perform(get(path).cookie(SESSION).param("from", from.toString()).param("to", from.toString()))
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty).at("/data/items").isEmpty()).isTrue();
 		for (String date : List.of("1000-01-01", "9999-12-31")) {
-			String success = mvc.perform(post(path + "/recompute").cookie(SESSION).param("from", date).param("to", date))
+			String success = mvc
+				.perform(post(path + "/recompute").cookie(SESSION).param("from", date).param("to", date))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 			validateResponse(spec, path + "/recompute", "post", "200", success);
 			assertThat(mapper.readTree(success)).isEqualTo(mapper.readTree("{\"success\":true}"));
@@ -2546,7 +2901,8 @@ class ApiDocumentationTest {
 				List.of("2027-02-30", "2027-03-01", "C004"), List.of("2027-1-1", "2027-03-01", "C004"),
 				List.of("", "2027-03-01", "C001"))) {
 				var request = method.equals("get") ? get(endpoint) : post(endpoint);
-				String body = mvc.perform(request.cookie(SESSION).param("from", values.get(0)).param("to", values.get(1)))
+				String body = mvc
+					.perform(request.cookie(SESSION).param("from", values.get(0)).param("to", values.get(1)))
 					.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 				assertDocumentedError(spec, endpoint, method, "400", values.get(2), body);
 			}
@@ -2576,15 +2932,18 @@ class ApiDocumentationTest {
 					}
 					String uri = documentationUri(path.getKey(), operation.getValue());
 					for (String json : List.of("", "{")) {
-						String body = mvc.perform(request(org.springframework.http.HttpMethod.valueOf(operation.getKey().toUpperCase()), uri)
-							.cookie(SESSION).header("Idempotency-Key", "documentation-checkout")
-							.contentType(MediaType.APPLICATION_JSON).content(json))
+						String body = mvc.perform(
+							request(org.springframework.http.HttpMethod.valueOf(operation.getKey().toUpperCase()), uri)
+								.cookie(SESSION).header("Idempotency-Key", "documentation-checkout")
+								.contentType(MediaType.APPLICATION_JSON).content(json))
 							.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
 						assertDocumentedError(spec, path.getKey(), operation.getKey(), "400", "C001", body);
 					}
-					String unsupported = mvc.perform(request(org.springframework.http.HttpMethod.valueOf(operation.getKey().toUpperCase()), uri)
-						.cookie(SESSION).header("Idempotency-Key", "documentation-checkout")
-						.contentType(MediaType.TEXT_PLAIN).content("{}"))
+					String unsupported = mvc
+						.perform(
+							request(org.springframework.http.HttpMethod.valueOf(operation.getKey().toUpperCase()), uri)
+								.cookie(SESSION).header("Idempotency-Key", "documentation-checkout")
+								.contentType(MediaType.TEXT_PLAIN).content("{}"))
 						.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 					assertDocumentedError(spec, path.getKey(), operation.getKey(), "415", "C011", unsupported);
 				}
@@ -2629,7 +2988,8 @@ class ApiDocumentationTest {
 			.thenThrow(new ReservationInventoryBusyException(new IllegalStateException("test contention")));
 		var response = mvc.perform(post("/api/v1/reservations").cookie(SESSION)
 			.header("Origin", "https://www.airbob.cloud").header("Idempotency-Key", "checkout-00000001")
-			.contentType(MediaType.APPLICATION_JSON).content("{\"quote_uid\":\"00000000-0000-0000-0000-000000000010\"}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"quote_uid\":\"00000000-0000-0000-0000-000000000010\"}"))
 			.andExpect(status().isServiceUnavailable()).andExpect(header().string("Retry-After", "1"))
 			.andExpect(header().string("Access-Control-Allow-Origin", "https://www.airbob.cloud"))
 			.andExpect(header().string("Access-Control-Allow-Credentials", "true"))
@@ -2665,7 +3025,8 @@ class ApiDocumentationTest {
 	private Reservation documentationPendingReservation(Instant expiresAt) {
 		Member member = Member.builder().id(10L).build();
 		Accommodation accommodation = Accommodation.builder().id(101L).name("숙소").member(member)
-			.status(AccommodationStatus.PUBLISHED).checkInTime(LocalTime.of(15, 0)).checkOutTime(LocalTime.of(11, 0)).build();
+			.status(AccommodationStatus.PUBLISHED).checkInTime(LocalTime.of(15, 0)).checkOutTime(LocalTime.of(11, 0))
+			.build();
 		return Reservation.builder().reservationUid(UUID.fromString("00000000-0000-0000-0000-000000000020"))
 			.reservationCode("AB12CD").guest(member).accommodation(accommodation)
 			.checkInDate(LocalDate.parse("2027-01-10")).checkOutDate(LocalDate.parse("2027-01-12"))
@@ -2679,7 +3040,8 @@ class ApiDocumentationTest {
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
 	}
 
-	private void assertDocumentedError(JsonNode spec, String path, String method, String status, String code, String body) throws Exception {
+	private void assertDocumentedError(JsonNode spec, String path, String method, String status, String code,
+		String body) throws Exception {
 		validateResponse(spec, path, method, status, body);
 		assertThat(mapper.readTree(body).at("/error/code").asText()).isEqualTo(code);
 		assertThat(spec.path("paths").path(path).path(method).path("responses").path(status)
@@ -2687,14 +3049,16 @@ class ApiDocumentationTest {
 	}
 
 	private void assertSecurityMatchesRealFilter(String path, String method, JsonNode operation) throws Exception {
-		MockHttpServletRequest request = new MockHttpServletRequest(method.toUpperCase(), path.replaceAll("\\{[^}]+}", "1"));
+		MockHttpServletRequest request = new MockHttpServletRequest(method.toUpperCase(),
+			path.replaceAll("\\{[^}]+}", "1"));
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		AtomicBoolean allowed = new AtomicBoolean();
 		authFilter.doFilter(request, response, (req, res) -> allowed.set(true));
 		assertThat(operation.path("security").isEmpty()).as(method + " " + path).isEqualTo(allowed.get());
 	}
 
-	private void validateResponse(JsonNode spec, String path, String method, String status, String body) throws Exception {
+	private void validateResponse(JsonNode spec, String path, String method, String status, String body)
+		throws Exception {
 		JsonNode schema = spec.path("paths").path(path).path(method).path("responses").path(status)
 			.path("content").path("application/json").path("schema");
 		assertThat(schema.isMissingNode()).as(path + " " + status).isFalse();
@@ -2704,7 +3068,8 @@ class ApiDocumentationTest {
 	private void validateInstance(JsonNode spec, JsonNode schema, JsonNode body) {
 		ObjectNode root = ((ObjectNode)schema).deepCopy();
 		root.set("components", spec.path("components"));
-		assertThat(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(root).validate(body)).isEmpty();
+		assertThat(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(root).validate(body))
+			.isEmpty();
 	}
 
 	private void assertSchemaExamples(JsonNode spec, JsonNode node) {
@@ -2740,13 +3105,12 @@ class ApiDocumentationTest {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	@ComponentScan(basePackages = "kr.kro.airbob.core.api.controller.v1", useDefaultFilters = false,
-		includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = RestController.class),
-		excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*\\$.*"))
+	@ComponentScan(basePackages = "kr.kro.airbob.core.api.controller.v1", useDefaultFilters = false, includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = RestController.class), excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*\\$.*"))
 	@ImportAutoConfiguration({PropertyPlaceholderAutoConfiguration.class, WebMvcAutoConfiguration.class,
 		JacksonAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class, ValidationAutoConfiguration.class,
 		SpringDataWebAutoConfiguration.class, SpringDocConfiguration.class, SpringDocConfigProperties.class,
-		SpringDocSpecPropertiesConfiguration.class, SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class,
+		SpringDocSpecPropertiesConfiguration.class, SpringDocWebMvcConfiguration.class,
+		MultipleOpenApiSupportConfiguration.class,
 		SpringDocPageableConfiguration.class, SpringDocSortConfiguration.class, SwaggerConfig.class,
 		SwaggerUiConfigProperties.class, SwaggerUiOAuthProperties.class})
 	@Import({OpenApiConfiguration.class, WebMvcConfig.class, GlobalExceptionHandler.class, SessionAuthFilter.class,
@@ -2754,5 +3118,5 @@ class ApiDocumentationTest {
 		AdminAuthInterceptor.class, QueryCountInterceptor.class, CurrentMemberIdArgumentResolver.class,
 		CursorDecoder.class, CursorParamArgumentResolver.class, CouponCampaignCursorParamArgumentResolver.class,
 		ReviewCursorParamArgumentResolver.class})
-	static class MvcApplication { }
+	static class MvcApplication {}
 }

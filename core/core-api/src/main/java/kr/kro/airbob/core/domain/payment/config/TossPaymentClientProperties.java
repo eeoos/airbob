@@ -9,6 +9,5 @@ public record TossPaymentClientProperties(
 	String secretKey,
 	String baseUrl,
 	Duration connectTimeout,
-	Duration readTimeout
-) {
+	Duration readTimeout) {
 }

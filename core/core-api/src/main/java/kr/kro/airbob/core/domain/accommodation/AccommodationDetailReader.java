@@ -48,12 +48,13 @@ public class AccommodationDetailReader {
 			new AccommodationDetailSnapshot.AddressSummary(
 				projection.country(), projection.state(), projection.city(), projection.district()),
 			new AccommodationDetailSnapshot.Coordinate(projection.latitude(), projection.longitude()),
-			new AccommodationDetailSnapshot.Host(projection.hostId(), projection.hostNickname(), projection.hostThumbnailImageUrl()),
-			new AccommodationDetailSnapshot.Policy(projection.maxOccupancy(), projection.infantOccupancy(), projection.petOccupancy()),
+			new AccommodationDetailSnapshot.Host(projection.hostId(), projection.hostNickname(),
+				projection.hostThumbnailImageUrl()),
+			new AccommodationDetailSnapshot.Policy(projection.maxOccupancy(), projection.infantOccupancy(),
+				projection.petOccupancy()),
 			amenities,
 			images,
-			AccommodationDetailSnapshot.ReviewSummary.of(projection.totalReviewCount(), projection.averageRating())
-		);
+			AccommodationDetailSnapshot.ReviewSummary.of(projection.totalReviewCount(), projection.averageRating()));
 	}
 
 	@Transactional(readOnly = true)

@@ -21,9 +21,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import jakarta.servlet.http.Cookie;
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
-import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.domain.auth.SessionAuthenticationService;
 import kr.kro.airbob.core.domain.auth.SessionReader;
 import kr.kro.airbob.core.domain.auth.repository.SessionRedisRepository;
@@ -35,9 +35,12 @@ class WishlistMembershipApiTest {
 
 	private static final String PATH = "/api/v1/members/wishlists/membership";
 
-	@Mock private WishlistService service;
-	@Mock private RedisTemplate<String, Object> redisTemplate;
-	@Mock private ValueOperations<String, Object> valueOperations;
+	@Mock
+	private WishlistService service;
+	@Mock
+	private RedisTemplate<String, Object> redisTemplate;
+	@Mock
+	private ValueOperations<String, Object> valueOperations;
 	private MockMvc mockMvc;
 
 	@BeforeEach
@@ -48,7 +51,9 @@ class WishlistMembershipApiTest {
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
-			.addFilters(new SessionAuthFilter(new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))), objectMapper))
+			.addFilters(new SessionAuthFilter(
+				new SessionAuthenticationService(new SessionReader(new SessionRedisRepository(redisTemplate))),
+				objectMapper))
 			.build();
 	}
 
@@ -68,7 +73,7 @@ class WishlistMembershipApiTest {
 		given(service.findMembership(1L, 31L, 42L))
 			.willReturn(new WishlistMembership(true, false, true));
 		mockMvc.perform(get(PATH).cookie(new Cookie("SESSION_ID", "wishlist-test-session"))
-				.param("accommodationId", "31").param("wishlistId", "42").param("memberId", "999"))
+			.param("accommodationId", "31").param("wishlistId", "42").param("memberId", "999"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.is_in_any_wishlist").value(true))
 			.andExpect(jsonPath("$.data.target_wishlist_contains").value(false))
@@ -84,7 +89,7 @@ class WishlistMembershipApiTest {
 		given(service.findMembership(1L, 31L, null))
 			.willReturn(new WishlistMembership(true, null, false));
 		mockMvc.perform(get(PATH).cookie(new Cookie("SESSION_ID", "wishlist-test-session"))
-				.param("accommodationId", "31"))
+			.param("accommodationId", "31"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.is_in_any_wishlist").value(true))
 			.andExpect(jsonPath("$.data.target_wishlist_contains").value(nullValue()))

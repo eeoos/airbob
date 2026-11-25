@@ -19,17 +19,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -72,9 +72,8 @@ class AccommodationAmenityDeleteIntegrationTest {
 		.withDatabaseName("airbob_amenity_delete_test");
 
 	@Container
-	private static final GenericContainer<?> REDIS =
-		new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
-			.withExposedPorts(6379);
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -85,18 +84,28 @@ class AccommodationAmenityDeleteIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
 	}
 
-	@Autowired private AccommodationCommandService accommodationCommandService;
-	@Autowired private JdbcTemplate jdbcTemplate;
-	@Autowired private TransactionTemplate transactionTemplate;
-	@Autowired private EntityManager entityManager;
+	@Autowired
+	private AccommodationCommandService accommodationCommandService;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private TransactionTemplate transactionTemplate;
+	@Autowired
+	private EntityManager entityManager;
 
-	@MockitoSpyBean private AccommodationAmenityRepository accommodationAmenityRepository;
+	@MockitoSpyBean
+	private AccommodationAmenityRepository accommodationAmenityRepository;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
-	@MockitoBean private GeocodingGateway geocodingService;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
+	@MockitoBean
+	private GeocodingGateway geocodingService;
 
 	private long ownerId;
 
@@ -120,8 +129,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 		jdbcTemplate.update("DELETE FROM member");
 		jdbcTemplate.update(
 			"DELETE FROM common_code WHERE group_code = 'AMENITY_TYPE' AND code = ?",
-			INACTIVE_AMENITY_CODE
-		);
+			INACTIVE_AMENITY_CODE);
 	}
 
 	@Test
@@ -130,8 +138,8 @@ class AccommodationAmenityDeleteIntegrationTest {
 		Fixture fixture = createFixture(3);
 		Map<String, Object> parent = parentSnapshot(fixture.targetAccommodationId());
 		List<Map<String, Object>> history = historySnapshots(fixture.targetAccommodationId());
-		var queries = captureQueries(() -> transactionTemplate.executeWithoutResult(status ->
-			assertThat(accommodationAmenityRepository.deleteByAccommodationIdInBulk(
+		var queries = captureQueries(() -> transactionTemplate
+			.executeWithoutResult(status -> assertThat(accommodationAmenityRepository.deleteByAccommodationIdInBulk(
 				fixture.targetAccommodationId())).isEqualTo(3)));
 
 		assertThat(queries.countOf(SqlQueryType.DELETE)).isEqualTo(1);
@@ -145,8 +153,9 @@ class AccommodationAmenityDeleteIntegrationTest {
 	@Test
 	@DisplayName("삭제 대상이 없어도 영향 행 수 0으로 완료한다")
 	void deletesAbsentAmenities() {
-		transactionTemplate.executeWithoutResult(status ->
-			assertThat(accommodationAmenityRepository.deleteByAccommodationIdInBulk(Long.MAX_VALUE)).isZero());
+		transactionTemplate.executeWithoutResult(
+			status -> assertThat(accommodationAmenityRepository.deleteByAccommodationIdInBulk(Long.MAX_VALUE))
+				.isZero());
 	}
 
 	@Test
@@ -157,16 +166,14 @@ class AccommodationAmenityDeleteIntegrationTest {
 
 		accommodationCommandService.updateAccommodation(nullFixture.targetAccommodationId(),
 			update(null),
-			ownerId
-		);
+			ownerId);
 		assertThat(amenityMap(nullFixture.targetAccommodationId())).isEqualTo(oldMap);
 		assertControlPreserved(nullFixture);
 
 		Fixture emptyFixture = createFixture(3);
 		accommodationCommandService.updateAccommodation(emptyFixture.targetAccommodationId(),
 			update(List.of()),
-			ownerId
-		);
+			ownerId);
 		assertThat(amenityMap(emptyFixture.targetAccommodationId())).isEmpty();
 		assertControlPreserved(emptyFixture);
 
@@ -178,13 +185,11 @@ class AccommodationAmenityDeleteIntegrationTest {
 			new AmenityRequest.AmenityInfo(first, 2),
 			new AmenityRequest.AmenityInfo("NOT_A_REAL_AMENITY", 0),
 			new AmenityRequest.AmenityInfo(second, -1),
-			new AmenityRequest.AmenityInfo(second.toLowerCase(), 5)
-		);
+			new AmenityRequest.AmenityInfo(second.toLowerCase(), 5));
 
 		accommodationCommandService.updateAccommodation(populatedFixture.targetAccommodationId(),
 			update(request),
-			ownerId
-		);
+			ownerId);
 
 		assertThat(amenityMap(populatedFixture.targetAccommodationId()))
 			.containsExactlyInAnyOrderEntriesOf(Map.of(first, 3, second, 5));
@@ -196,8 +201,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 	void rejectsInactiveAmenityAndPreservesExistingState() {
 		jdbcTemplate.update(
 			"DELETE FROM common_code WHERE group_code = 'AMENITY_TYPE' AND code = ?",
-			INACTIVE_AMENITY_CODE
-		);
+			INACTIVE_AMENITY_CODE);
 		jdbcTemplate.update("""
 			INSERT INTO common_code (
 				group_code, code, name, sort_order, is_active, updated_at
@@ -219,13 +223,12 @@ class AccommodationAmenityDeleteIntegrationTest {
 			.name("변경되면 안 되는 이름")
 			.amenityInfos(List.of(
 				new AmenityRequest.AmenityInfo(fixture.activeAmenityCodes().getFirst(), 1),
-				new AmenityRequest.AmenityInfo(INACTIVE_AMENITY_CODE, 1)
-			))
+				new AmenityRequest.AmenityInfo(INACTIVE_AMENITY_CODE, 1)))
 			.build();
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
-			fixture.targetAccommodationId(), request.toUpdate(), ownerId
-		)).isInstanceOf(InvalidAccommodationAmenityException.class);
+			fixture.targetAccommodationId(), request.toUpdate(), ownerId))
+			.isInstanceOf(InvalidAccommodationAmenityException.class);
 
 		assertThat(amenityMap(fixture.targetAccommodationId())).isEqualTo(targetBefore);
 		assertThat(parentSnapshot(fixture.targetAccommodationId())).isEqualTo(parentBefore);
@@ -245,14 +248,12 @@ class AccommodationAmenityDeleteIntegrationTest {
 			null,
 			null,
 			new AddressRequest.AddressInfo(
-				"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"
-			),
+				"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"),
 			List.of(new AmenityRequest.AmenityInfo(fixture.activeAmenityCodes().getFirst(), 2)),
 			new PolicyRequest.OccupancyPolicyInfo(4, 1, 0),
 			null,
 			null,
-			null
-		);
+			null);
 
 		accommodationCommandService.updateAccommodation(fixture.targetAccommodationId(), request.toUpdate(), ownerId);
 
@@ -294,8 +295,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
 			fixture.targetAccommodationId(),
 			update(replacement),
-			ownerId
-		)).isInstanceOf(IntentionalAmenitySaveFailure.class);
+			ownerId)).isInstanceOf(IntentionalAmenitySaveFailure.class);
 
 		assertThat(amenityMap(fixture.targetAccommodationId())).isEqualTo(oldTarget);
 		assertThat(parentSnapshot(fixture.targetAccommodationId())).isEqualTo(parentBefore);
@@ -428,8 +428,7 @@ class AccommodationAmenityDeleteIntegrationTest {
 
 	private AccommodationUpdate update(List<AmenityRequest.AmenityInfo> amenities) {
 		return new AccommodationRequest.Update(
-			null, null, null, null, null, amenities, null, null, null, null
-		).toUpdate();
+			null, null, null, null, null, amenities, null, null, null, null).toUpdate();
 	}
 
 	private List<String> activeAmenityCodes() {
@@ -450,9 +449,8 @@ class AccommodationAmenityDeleteIntegrationTest {
 			GROUP BY amenity_code
 			ORDER BY amenity_code
 			""", (resultSet, rowNumber) -> Map.entry(
-				resultSet.getString("amenity_code"),
-				resultSet.getInt("total_count")
-			), accommodationId);
+			resultSet.getString("amenity_code"),
+			resultSet.getInt("total_count")), accommodationId);
 		rows.forEach(entry -> result.put(entry.getKey(), entry.getValue()));
 		return result;
 	}
@@ -504,6 +502,5 @@ class AccommodationAmenityDeleteIntegrationTest {
 		return keyHolder.getKey().longValue();
 	}
 
-	private static final class IntentionalAmenitySaveFailure extends RuntimeException {
-	}
+	private static final class IntentionalAmenitySaveFailure extends RuntimeException {}
 }

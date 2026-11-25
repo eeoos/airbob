@@ -66,8 +66,7 @@ class ExpiredReservationCleanupServiceTest {
 			couponUsageManager,
 			inventoryManager,
 			Clock.fixed(NOW, ZoneOffset.UTC),
-			CLEANUP_BATCH_SIZE
-		);
+			CLEANUP_BATCH_SIZE);
 		first = pendingReservation(1L, 11L, LocalDate.of(2026, 8, 1));
 		second = pendingReservation(2L, 12L, LocalDate.of(2026, 8, 3));
 	}
@@ -77,8 +76,7 @@ class ExpiredReservationCleanupServiceTest {
 	void restoresCouponsForEveryExpiredReservation() {
 		given(reservationRepository.findExpiredPendingBatchForCleanup(
 			NOW,
-			CLEANUP_BATCH_SIZE
-		)).willReturn(List.of(first, second));
+			CLEANUP_BATCH_SIZE)).willReturn(List.of(first, second));
 
 		service.cleanupExpiredPendingReservations();
 
@@ -96,16 +94,14 @@ class ExpiredReservationCleanupServiceTest {
 	void expiresReservationAtExactBoundary() {
 		given(reservationRepository.findExpiredPendingBatchForCleanup(
 			NOW,
-			CLEANUP_BATCH_SIZE
-		)).willReturn(List.of(first));
+			CLEANUP_BATCH_SIZE)).willReturn(List.of(first));
 
 		int cleaned = service.cleanupExpiredPendingReservations();
 
 		assertThat(cleaned).isEqualTo(1);
 		then(reservationRepository).should().findExpiredPendingBatchForCleanup(
 			NOW,
-			CLEANUP_BATCH_SIZE
-		);
+			CLEANUP_BATCH_SIZE);
 	}
 
 	@Test
@@ -113,8 +109,7 @@ class ExpiredReservationCleanupServiceTest {
 	void writesExpiredHistoriesWithTheSameCutoff() {
 		given(reservationRepository.findExpiredPendingBatchForCleanup(
 			any(Instant.class),
-			eq(CLEANUP_BATCH_SIZE)
-		)).willReturn(List.of(first, second));
+			eq(CLEANUP_BATCH_SIZE))).willReturn(List.of(first, second));
 
 		int cleaned = service.cleanupExpiredPendingReservations();
 
@@ -127,8 +122,7 @@ class ExpiredReservationCleanupServiceTest {
 		ArgumentCaptor<Instant> cutoff = ArgumentCaptor.forClass(Instant.class);
 		then(reservationRepository).should().findExpiredPendingBatchForCleanup(
 			cutoff.capture(),
-			eq(CLEANUP_BATCH_SIZE)
-		);
+			eq(CLEANUP_BATCH_SIZE));
 		assertThat(historyCreatedAt.getValue()).isEqualTo(cutoff.getValue());
 	}
 

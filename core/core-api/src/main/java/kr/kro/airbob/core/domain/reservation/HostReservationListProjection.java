@@ -23,8 +23,7 @@ public record HostReservationListProjection(
 	String guestThumbnailImageUrl,
 	Long accommodationId,
 	String accommodationName,
-	String accommodationThumbnailUrl
-) {
+	String accommodationThumbnailUrl) {
 	@QueryProjection
 	public HostReservationListProjection {
 	}

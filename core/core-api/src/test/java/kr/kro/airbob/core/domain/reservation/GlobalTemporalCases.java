@@ -8,8 +8,7 @@ import java.util.stream.Stream;
 /** Fixed independent expectations; never derive the expected UTC values with the generator or ZoneId. */
 public final class GlobalTemporalCases {
 
-	private GlobalTemporalCases() {
-	}
+	private GlobalTemporalCases() {}
 
 	public static Stream<Stay> stays() {
 		return Stream.of(
@@ -45,8 +44,7 @@ public final class GlobalTemporalCases {
 				"2026-04-29T06:00:00Z", "2026-04-30T02:00:00Z", 1, 20),
 			stay("leap-year-three-month-boundary", "Asia/Seoul", "2023-11-30T00:00:00Z",
 				"2023-11-30", "2024-02-29", "2024-03-07", "2024-02-28", "15:00", "2024-02-29", "11:00",
-				"2024-02-28T06:00:00Z", "2024-02-29T02:00:00Z", 1, 20)
-		);
+				"2024-02-28T06:00:00Z", "2024-02-29T02:00:00Z", 1, 20));
 	}
 
 	private static Stay stay(String label, String zone, String now, String today, String bookingEnd,

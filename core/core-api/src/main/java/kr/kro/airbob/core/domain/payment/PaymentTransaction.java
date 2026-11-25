@@ -81,8 +81,7 @@ public class PaymentTransaction extends BaseEntity {
 		ConfirmedPayment confirmed,
 		Reservation reservation,
 		Payment payment,
-		Long paymentOperationId
-	) {
+		Long paymentOperationId) {
 		ConfirmedPayment.VirtualAccountDetails virtualAccount = confirmed.virtualAccount();
 		return PaymentTransaction.builder()
 			.reservationId(reservation.getId())
@@ -105,8 +104,7 @@ public class PaymentTransaction extends BaseEntity {
 		PaymentOperation operation,
 		Reservation reservation,
 		String failureCode,
-		String failureMessage
-	) {
+		String failureMessage) {
 		return PaymentTransaction.builder()
 			.reservationId(reservation.getId())
 			.paymentOperationId(operation.getId())
@@ -125,8 +123,7 @@ public class PaymentTransaction extends BaseEntity {
 		CancelledPayment cancelled,
 		Reservation reservation,
 		Payment payment,
-		Long paymentOperationId
-	) {
+		Long paymentOperationId) {
 		return PaymentTransaction.builder()
 			.reservationId(reservation.getId())
 			.paymentId(payment.getId())
@@ -149,8 +146,7 @@ public class PaymentTransaction extends BaseEntity {
 		Reservation reservation,
 		Payment payment,
 		String failureCode,
-		String failureMessage
-	) {
+		String failureMessage) {
 		return PaymentTransaction.builder()
 			.reservationId(reservation.getId())
 			.paymentId(payment.getId())

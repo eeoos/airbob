@@ -36,14 +36,15 @@ class SettlementResponseJsonTest {
 			LocalDate.of(2026, 7, 1),
 			100_000L,
 			0L,
-			new BigDecimal("0.03")
-		);
+			new BigDecimal("0.03"));
 		settlement.markPaid(SETTLED_AT);
 
-		SettlementResponse.HostSettlement host = SettlementResponse.HostSettlement.from(SettlementSummary.from(settlement));
+		SettlementResponse.HostSettlement host = SettlementResponse.HostSettlement
+			.from(SettlementSummary.from(settlement));
 		SettlementResponse.SettlementDetail detail = SettlementResponse.SettlementDetail.from(
 			new HostSettlementDetail(SettlementSummary.from(settlement), List.of()));
-		SettlementResponse.AdminSettlement admin = SettlementResponse.AdminSettlement.from(SettlementSummary.from(settlement));
+		SettlementResponse.AdminSettlement admin = SettlementResponse.AdminSettlement
+			.from(SettlementSummary.from(settlement));
 
 		Instant hostSettledAt = host.settledAt();
 		Instant detailSettledAt = detail.settledAt();

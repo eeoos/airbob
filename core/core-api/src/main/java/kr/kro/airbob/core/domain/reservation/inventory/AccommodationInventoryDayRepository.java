@@ -83,7 +83,7 @@ public class AccommodationInventoryDayRepository {
 	public void seedMissingDays(Long accommodationId, List<LocalDate> missingDays) {
 		for (int offset = 0; offset < missingDays.size(); offset += MAX_SEED_INSERT_ROWS) {
 			seedMissingDayBatch(missingDays.subList(
-					offset, Math.min(offset + MAX_SEED_INSERT_ROWS, missingDays.size()))
+				offset, Math.min(offset + MAX_SEED_INSERT_ROWS, missingDays.size()))
 				.stream().map(date -> new SeedDay(accommodationId, date)).toList());
 		}
 	}
@@ -105,8 +105,7 @@ public class AccommodationInventoryDayRepository {
 			INSERT_MISSING_FREE_DAYS
 				+ String.join(",", Collections.nCopies(missingDays.size(), "(?, ?, 'FREE', NULL, NULL)"))
 				+ " ON DUPLICATE KEY UPDATE stay_date = accommodation_inventory_day.stay_date",
-			arguments.toArray()
-		);
+			arguments.toArray());
 	}
 
 	/**
@@ -114,8 +113,7 @@ public class AccommodationInventoryDayRepository {
 	 * occur at most once. No owner/state rows need to cross the network for complete calendars.
 	 */
 	public Map<Long, Integer> countSeedDays(
-		List<Long> accommodationIds, LocalDate startInclusive, LocalDate endExclusive
-	) {
+		List<Long> accommodationIds, LocalDate startInclusive, LocalDate endExclusive) {
 		if (accommodationIds.isEmpty()) {
 			return Map.of();
 		}
@@ -127,14 +125,12 @@ public class AccommodationInventoryDayRepository {
 			resultSet -> {
 				counts.put(resultSet.getLong("accommodation_id"), resultSet.getInt("day_count"));
 			},
-			seedRangeArguments(accommodationIds, startInclusive, endExclusive)
-		);
+			seedRangeArguments(accommodationIds, startInclusive, endExclusive));
 		return counts;
 	}
 
 	public List<SeedDay> findSeedDays(
-		List<Long> accommodationIds, LocalDate startInclusive, LocalDate endExclusive
-	) {
+		List<Long> accommodationIds, LocalDate startInclusive, LocalDate endExclusive) {
 		if (accommodationIds.isEmpty()) {
 			return List.of();
 		}
@@ -144,8 +140,7 @@ public class AccommodationInventoryDayRepository {
 				+ " ORDER BY accommodation_id, stay_date",
 			(resultSet, rowNumber) -> new SeedDay(
 				resultSet.getLong("accommodation_id"), resultSet.getObject("stay_date", LocalDate.class)),
-			seedRangeArguments(accommodationIds, startInclusive, endExclusive)
-		);
+			seedRangeArguments(accommodationIds, startInclusive, endExclusive));
 	}
 
 	private String seedRangeSql(List<Long> accommodationIds) {
@@ -158,8 +153,7 @@ public class AccommodationInventoryDayRepository {
 	}
 
 	private Object[] seedRangeArguments(
-		List<Long> accommodationIds, LocalDate startInclusive, LocalDate endExclusive
-	) {
+		List<Long> accommodationIds, LocalDate startInclusive, LocalDate endExclusive) {
 		List<Object> arguments = new ArrayList<>(accommodationIds);
 		arguments.add(Date.valueOf(startInclusive));
 		arguments.add(Date.valueOf(endExclusive));
@@ -170,30 +164,26 @@ public class AccommodationInventoryDayRepository {
 		return jdbcTemplate.update(
 			DELETE_PAST_FREE_DAYS,
 			Date.valueOf(cutoffExclusive),
-			limit
-		);
+			limit);
 	}
 
 	public List<AccommodationInventoryDay> findSnapshot(
 		Long accommodationId,
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 		return queryRange(SELECT_COLUMNS, accommodationId, startInclusive, endExclusive);
 	}
 
 	public List<AccommodationInventoryDay> lockRangeNowait(
 		Long accommodationId,
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 		try {
 			return queryRange(
 				SELECT_COLUMNS + " FOR UPDATE NOWAIT",
 				accommodationId,
 				startInclusive,
-				endExclusive
-			);
+				endExclusive);
 		} catch (DataAccessException exception) {
 			if (MysqlNowaitFailureClassifier.isNowait(exception)) {
 				throw new ReservationInventoryBusyException(exception);
@@ -205,14 +195,12 @@ public class AccommodationInventoryDayRepository {
 	public List<AccommodationInventoryDay> lockRange(
 		Long accommodationId,
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 		return queryRange(
 			SELECT_COLUMNS + " FOR UPDATE",
 			accommodationId,
 			startInclusive,
-			endExclusive
-		);
+			endExclusive);
 	}
 
 	public int claimAvailableRange(
@@ -222,8 +210,7 @@ public class AccommodationInventoryDayRepository {
 		Instant decisionAt,
 		Long reservationId,
 		AccommodationInventoryState targetState,
-		Instant holdExpiresAt
-	) {
+		Instant holdExpiresAt) {
 		return jdbcTemplate.update(
 			CLAIM_AVAILABLE_RANGE,
 			targetState.name(),
@@ -232,8 +219,7 @@ public class AccommodationInventoryDayRepository {
 			accommodationId,
 			Date.valueOf(startInclusive),
 			Date.valueOf(endExclusive),
-			Timestamp.from(decisionAt)
-		);
+			Timestamp.from(decisionAt));
 	}
 
 	public int transitionExactOwner(
@@ -242,8 +228,7 @@ public class AccommodationInventoryDayRepository {
 		LocalDate endExclusive,
 		Long reservationId,
 		AccommodationInventoryState expectedState,
-		AccommodationInventoryState targetState
-	) {
+		AccommodationInventoryState targetState) {
 		return jdbcTemplate.update(
 			TRANSITION_EXACT_OWNER,
 			targetState.name(),
@@ -251,8 +236,7 @@ public class AccommodationInventoryDayRepository {
 			Date.valueOf(startInclusive),
 			Date.valueOf(endExclusive),
 			reservationId,
-			expectedState.name()
-		);
+			expectedState.name());
 	}
 
 	public int releaseExactOwner(
@@ -260,24 +244,21 @@ public class AccommodationInventoryDayRepository {
 		LocalDate startInclusive,
 		LocalDate endExclusive,
 		Long reservationId,
-		AccommodationInventoryState expectedState
-	) {
+		AccommodationInventoryState expectedState) {
 		return jdbcTemplate.update(
 			RELEASE_EXACT_OWNER,
 			accommodationId,
 			Date.valueOf(startInclusive),
 			Date.valueOf(endExclusive),
 			reservationId,
-			expectedState.name()
-		);
+			expectedState.name());
 	}
 
 	private List<AccommodationInventoryDay> queryRange(
 		String sql,
 		Long accommodationId,
 		LocalDate startInclusive,
-		LocalDate endExclusive
-	) {
+		LocalDate endExclusive) {
 		return jdbcTemplate.query(
 			sql,
 			(resultSet, rowNumber) -> new AccommodationInventoryDay(
@@ -285,12 +266,10 @@ public class AccommodationInventoryDayRepository {
 				resultSet.getObject("stay_date", LocalDate.class),
 				AccommodationInventoryState.valueOf(resultSet.getString("state")),
 				resultSet.getObject("reservation_id", Long.class),
-				instant(resultSet.getTimestamp("hold_expires_at"))
-			),
+				instant(resultSet.getTimestamp("hold_expires_at"))),
 			accommodationId,
 			Date.valueOf(startInclusive),
-			Date.valueOf(endExclusive)
-		);
+			Date.valueOf(endExclusive));
 	}
 
 	private static Timestamp timestamp(Instant instant) {

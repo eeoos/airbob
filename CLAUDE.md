@@ -7,6 +7,11 @@ state. The README, `docs/` and `scripts/README.md` are written in Korean.
 ## Commands
 
 - Run `./gradlew compileJava` after entity changes to regenerate QueryDSL Q-classes.
+- Java code follows the Naver convention through Spotless. The edit hook formats each edited file.
+  `spotlessCheck`, part of `./gradlew build`, fails on unformatted code or a non-static wildcard import.
+  Fix formatting with `./gradlew spotlessApply`. `spotlessApply` cannot fix a non-static wildcard
+  import; replace it with class imports by hand. The Stop hook runs `spotlessCheck`; the edit hook
+  does not. Do not change the formatter XML; see `docs/development/coding-convention.md`.
 - `./gradlew test` needs Docker running (Testcontainers).
 - Datasource and AWS credentials come from environment variables (`SPRING_DATASOURCE_*`, `AWS_*`,
   `CLOUDFRONT_DOMAIN`) supplied by `.env`.
@@ -76,12 +81,17 @@ directly, even if you have not opened a matching file yet.
   `core/core-api/src/test/resources/application-test.yaml`.
 - Do not weaken `test`-profile Kafka/scheduling isolation to make a focused test pass.
 
+## Pull requests
+
+Write PR titles and bodies with the `pr-description` skill; the format is `.github/pull_request_template.md`.
+
 ## AI code review
 
 Before pushing a branch whose PR changes code (not only `docs/` or `*.md`; agent policy in `CLAUDE.md`,
 `AGENTS.md`, `.claude/`, and the review criteria `docs/development/code-review.md` count as code),
-follow the `pr-ai-review` skill: a Codex review of the branch diff, then verify, fix, and record each
-finding. After the PR's Claude review comment arrives, follow part B of the same skill.
+follow the `pr-ai-review` skill: a Codex review of the branch diff, then verify each finding, show the
+verdicts to the user and wait for their confirmation before fixing, then fix and record. After the PR's
+Claude review comment arrives, follow part B of the same skill.
 
 ## Behavioral guidelines
 

@@ -35,7 +35,8 @@ class ReservationInventoryManagerTest {
 	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 9, 12);
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@Mock private AccommodationInventoryDayRepository repository;
+	@Mock
+	private AccommodationInventoryDayRepository repository;
 
 	private ReservationInventoryManager service;
 
@@ -49,8 +50,7 @@ class ReservationInventoryManagerTest {
 	void completeCoverageReturnsWithoutWritesOrASecondRead() {
 		List<AccommodationInventoryDay> days = List.of(
 			free(CHECK_IN),
-			occupied(CHECK_IN.plusDays(1), 99L)
-		);
+			occupied(CHECK_IN.plusDays(1), 99L));
 		given(repository.findSnapshot(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(days);
 
 		service.seed(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT);
@@ -77,8 +77,7 @@ class ReservationInventoryManagerTest {
 	void seedsOnlyMissingDates() {
 		List<AccommodationInventoryDay> complete = List.of(
 			free(CHECK_IN),
-			occupied(CHECK_IN.plusDays(1), 99L)
-		);
+			occupied(CHECK_IN.plusDays(1), 99L));
 		given(repository.findSnapshot(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT))
 			.willReturn(List.of(free(CHECK_IN)), complete);
 
@@ -117,8 +116,7 @@ class ReservationInventoryManagerTest {
 	void snapshotTreatsExpiredHoldAsAvailable() {
 		given(repository.findSnapshot(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(List.of(
 			free(CHECK_IN),
-			hold(CHECK_IN.plusDays(1), 99L, NOW)
-		));
+			hold(CHECK_IN.plusDays(1), 99L, NOW)));
 
 		assertThat(service.isRangeAvailableSnapshot(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, NOW)).isTrue();
@@ -129,8 +127,7 @@ class ReservationInventoryManagerTest {
 	void snapshotReportsOccupancy() {
 		given(repository.findSnapshot(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(List.of(
 			free(CHECK_IN),
-			hold(CHECK_IN.plusDays(1), 99L, NOW.plusSeconds(1))
-		));
+			hold(CHECK_IN.plusDays(1), 99L, NOW.plusSeconds(1))));
 
 		assertThat(service.isRangeAvailableSnapshot(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, NOW)).isFalse();
@@ -146,19 +143,16 @@ class ReservationInventoryManagerTest {
 			hold(CHECK_IN.plusDays(2), 99L, NOW.plus(1, ChronoUnit.MICROS)),
 			occupied(CHECK_IN.plusDays(3), 100L),
 			free(CHECK_IN.plusDays(4)),
-			occupied(CHECK_IN.plusDays(5), 101L)
-		));
+			occupied(CHECK_IN.plusDays(5), 101L)));
 
-		List<ReservationInventoryManager.UnavailableRange> ranges =
-			service.findUnavailableRangesSnapshot(
-				ACCOMMODATION_ID, CHECK_IN, endExclusive, NOW);
+		List<ReservationInventoryManager.UnavailableRange> ranges = service.findUnavailableRangesSnapshot(
+			ACCOMMODATION_ID, CHECK_IN, endExclusive, NOW);
 
 		assertThat(ranges).containsExactly(
 			new ReservationInventoryManager.UnavailableRange(
 				CHECK_IN.plusDays(2), CHECK_IN.plusDays(4)),
 			new ReservationInventoryManager.UnavailableRange(
-				CHECK_IN.plusDays(5), endExclusive)
-		);
+				CHECK_IN.plusDays(5), endExclusive));
 	}
 
 	@Test
@@ -166,8 +160,7 @@ class ReservationInventoryManagerTest {
 	void lockAvailableRangeRejectsConflict() {
 		given(repository.lockRangeNowait(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(List.of(
 			free(CHECK_IN),
-			occupied(CHECK_IN.plusDays(1), 99L)
-		));
+			occupied(CHECK_IN.plusDays(1), 99L)));
 
 		assertThatThrownBy(() -> service.lockAvailableRangeNowait(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, NOW))
@@ -179,8 +172,7 @@ class ReservationInventoryManagerTest {
 	void claimsLockedRangeForPendingReservation() {
 		List<AccommodationInventoryDay> days = List.of(
 			free(CHECK_IN),
-			hold(CHECK_IN.plusDays(1), 99L, NOW)
-		);
+			hold(CHECK_IN.plusDays(1), 99L, NOW));
 		given(repository.lockRangeNowait(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(days);
 		given(repository.claimAvailableRange(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, NOW,
@@ -237,8 +229,7 @@ class ReservationInventoryManagerTest {
 	void transitionsHeldOwnerToOccupied() {
 		given(repository.lockRange(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(List.of(
 			hold(CHECK_IN, RESERVATION_ID, NOW.plusSeconds(900)),
-			hold(CHECK_IN.plusDays(1), RESERVATION_ID, NOW.plusSeconds(900))
-		));
+			hold(CHECK_IN.plusDays(1), RESERVATION_ID, NOW.plusSeconds(900))));
 		given(repository.transitionExactOwner(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, RESERVATION_ID,
 			AccommodationInventoryState.HOLD, AccommodationInventoryState.OCCUPIED))
@@ -257,8 +248,7 @@ class ReservationInventoryManagerTest {
 	void transitionRejectsExactExpiryAtMicrosecondPrecision() {
 		given(repository.lockRange(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(List.of(
 			hold(CHECK_IN, RESERVATION_ID, NOW.plusNanos(999)),
-			hold(CHECK_IN.plusDays(1), RESERVATION_ID, NOW.plusSeconds(1))
-		));
+			hold(CHECK_IN.plusDays(1), RESERVATION_ID, NOW.plusSeconds(1))));
 
 		assertThatThrownBy(() -> service.transitionHeldToOccupied(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, RESERVATION_ID, NOW))
@@ -270,8 +260,7 @@ class ReservationInventoryManagerTest {
 	void occupiedReleaseRequiresExactOwnerAndState() {
 		given(repository.lockRange(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(List.of(
 			occupied(CHECK_IN, RESERVATION_ID),
-			occupied(CHECK_IN.plusDays(1), 99L)
-		));
+			occupied(CHECK_IN.plusDays(1), 99L)));
 
 		assertThatThrownBy(() -> service.releaseOccupied(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, RESERVATION_ID))
@@ -283,8 +272,7 @@ class ReservationInventoryManagerTest {
 	void heldReleaseIsTakeoverSafe() {
 		given(repository.lockRange(ACCOMMODATION_ID, CHECK_IN, CHECK_OUT)).willReturn(List.of(
 			hold(CHECK_IN, 99L, NOW.plusSeconds(900)),
-			hold(CHECK_IN.plusDays(1), RESERVATION_ID, NOW)
-		));
+			hold(CHECK_IN.plusDays(1), RESERVATION_ID, NOW)));
 		given(repository.releaseExactOwner(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, RESERVATION_ID,
 			AccommodationInventoryState.HOLD)).willReturn(1);

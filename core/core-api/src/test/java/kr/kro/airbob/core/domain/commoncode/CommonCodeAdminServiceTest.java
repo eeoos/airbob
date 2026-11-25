@@ -22,8 +22,10 @@ import kr.kro.airbob.core.domain.commoncode.repository.CommonCodeRepository;
 @DisplayName("공통 코드 관리 서비스 단위 테스트")
 class CommonCodeAdminServiceTest {
 
-	@Mock private CommonCodeGroupRepository groupRepository;
-	@Mock private CommonCodeRepository commonCodeRepository;
+	@Mock
+	private CommonCodeGroupRepository groupRepository;
+	@Mock
+	private CommonCodeRepository commonCodeRepository;
 	private CommonCodeAdminService adminService;
 
 	@BeforeEach
@@ -50,8 +52,7 @@ class CommonCodeAdminServiceTest {
 	void translateDuplicateKeyOnCreateCode() {
 		given(groupRepository.existsById("AMENITY_TYPE")).willReturn(true);
 		given(commonCodeRepository.existsById(any())).willReturn(false);
-		DataIntegrityViolationException duplicateKey =
-			new DataIntegrityViolationException("duplicate key");
+		DataIntegrityViolationException duplicateKey = new DataIntegrityViolationException("duplicate key");
 		willThrow(duplicateKey)
 			.given(commonCodeRepository).insert(any());
 
@@ -73,8 +74,7 @@ class CommonCodeAdminServiceTest {
 
 			CommonCodeDetail detail = adminService.create(
 				"AMENITY_TYPE",
-				new NewCommonCode("wifi", "무선 인터넷", null, 1, true)
-			);
+				new NewCommonCode("wifi", "무선 인터넷", null, 1, true));
 
 			assertThat(detail.code()).isEqualTo("WIFI");
 		} finally {
@@ -101,8 +101,7 @@ class CommonCodeAdminServiceTest {
 			CommonCodeDetail detail = adminService.update(
 				"AMENITY_TYPE",
 				"wifi",
-				new CommonCodePatch("와이파이", null, null, null)
-			);
+				new CommonCodePatch("와이파이", null, null, null));
 
 			assertThat(detail.code()).isEqualTo("WIFI");
 			assertThat(detail.name()).isEqualTo("와이파이");

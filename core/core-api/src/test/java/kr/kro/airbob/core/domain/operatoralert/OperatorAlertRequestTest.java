@@ -13,10 +13,8 @@ import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSummaryCode;
 
 class OperatorAlertRequestTest {
 
-	private static final UUID OPERATION_UID =
-		UUID.fromString("53f2e8da-eb31-40f3-a768-6827048c347c");
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("46b24f9f-5d74-4ca2-af06-e1f49766276a");
+	private static final UUID OPERATION_UID = UUID.fromString("53f2e8da-eb31-40f3-a768-6827048c347c");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("46b24f9f-5d74-4ca2-af06-e1f49766276a");
 
 	@Test
 	void manualReviewOccurrenceIsStablePerOperationAndReviewCycle() {
@@ -41,15 +39,11 @@ class OperatorAlertRequestTest {
 
 	@Test
 	void quarantineOccurrenceIsTheCanonicalCoordinateAndPoisonSubjectIsDeterministic() {
-		OperatorAlertSourcePosition source =
-			new OperatorAlertSourcePosition("PAYMENT_OPERATION.events", 2, 41L);
+		OperatorAlertSourcePosition source = new OperatorAlertSourcePosition("PAYMENT_OPERATION.events", 2, 41L);
 
-		OperatorAlertRequest valid =
-			OperatorAlertRequest.paymentOperationQuarantined(OPERATION_UID, source);
-		OperatorAlertRequest poison =
-			OperatorAlertRequest.paymentOperationQuarantined(null, source);
-		OperatorAlertRequest poisonDuplicate =
-			OperatorAlertRequest.paymentOperationQuarantined(null, source);
+		OperatorAlertRequest valid = OperatorAlertRequest.paymentOperationQuarantined(OPERATION_UID, source);
+		OperatorAlertRequest poison = OperatorAlertRequest.paymentOperationQuarantined(null, source);
+		OperatorAlertRequest poisonDuplicate = OperatorAlertRequest.paymentOperationQuarantined(null, source);
 
 		assertThat(valid.kind()).isEqualTo(OperatorAlertKind.PAYMENT_OPERATION_QUARANTINED);
 		assertThat(valid.subjectUid()).isEqualTo(OPERATION_UID);
@@ -62,11 +56,9 @@ class OperatorAlertRequestTest {
 
 	@Test
 	void searchQuarantineUsesTheAccommodationWhenThePayloadIsValid() {
-		OperatorAlertSourcePosition source =
-			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 0, 7L);
+		OperatorAlertSourcePosition source = new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 0, 7L);
 
-		OperatorAlertRequest request =
-			OperatorAlertRequest.accommodationIndexQuarantined(ACCOMMODATION_UID, source);
+		OperatorAlertRequest request = OperatorAlertRequest.accommodationIndexQuarantined(ACCOMMODATION_UID, source);
 
 		assertThat(request.kind()).isEqualTo(OperatorAlertKind.ACCOMMODATION_INDEX_QUARANTINED);
 		assertThat(request.subjectUid()).isEqualTo(ACCOMMODATION_UID);
@@ -92,14 +84,10 @@ class OperatorAlertRequestTest {
 
 	@Test
 	void manualResolutionAlertsAreIdentifierOnlyAndStablePerGenerationAndAction() {
-		OperatorAlertRequest requested =
-			OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 7);
-		OperatorAlertRequest duplicate =
-			OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 7);
-		OperatorAlertRequest nextGeneration =
-			OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 8);
-		OperatorAlertRequest applied =
-			OperatorAlertRequest.paymentReconciliationApplied(OPERATION_UID, 7);
+		OperatorAlertRequest requested = OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 7);
+		OperatorAlertRequest duplicate = OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 7);
+		OperatorAlertRequest nextGeneration = OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 8);
+		OperatorAlertRequest applied = OperatorAlertRequest.paymentReconciliationApplied(OPERATION_UID, 7);
 
 		assertThat(requested).isEqualTo(duplicate);
 		assertThat(requested.kind()).isEqualTo(OperatorAlertKind.PAYMENT_MANUAL_RESOLUTION);

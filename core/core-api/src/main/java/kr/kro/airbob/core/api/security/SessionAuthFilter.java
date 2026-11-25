@@ -1,10 +1,14 @@
 package kr.kro.airbob.core.api.security;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Set;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -16,110 +20,102 @@ import kr.kro.airbob.core.support.context.UserInfo;
 import kr.kro.airbob.core.support.error.ErrorCode;
 import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.support.response.ErrorResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.Arrays;
-import java.util.Set;
-import java.util.regex.Pattern;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component
 @Slf4j
 public class SessionAuthFilter extends OncePerRequestFilter {
 
-    private final SessionAuthenticationService sessionAuthenticationService;
-    private final ObjectMapper objectMapper;
-    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+	private final SessionAuthenticationService sessionAuthenticationService;
+	private final ObjectMapper objectMapper;
+	private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
+	// 인증이 필요 없는 경로 목록 (메서드 무관)
+	private static final Set<String> PUBLIC_PATHS = Set.of(
+		"/api/v1/auth/login", // 로그인
+		"/api/v1/members" // 회원가입
+	);
 
-    // 인증이 필요 없는 경로 목록 (메서드 무관)
-    private static final Set<String> PUBLIC_PATHS = Set.of(
-        "/api/v1/auth/login",  // 로그인
-        "/api/v1/members"      // 회원가입
-    );
+	// GET 메서드일 때만 인증이 필요 없는 경로 목록
+	private static final String[] PUBLIC_GET_PATHS = {
+		"/api/v1/accommodations/*", // 숙소 상세
+		"/api/v1/accommodations/*/availability", // 숙소 예약 가능 정보
+		"/api/v1/accommodations/*/reviews", // 리뷰 목록
+		"/api/v1/search/accommodations", // 검색
+		"/api/v1/common-codes/*", // 공통 코드 조회(공개 상세/검색의 라벨·셀렉트박스). 관리 API(/admin/**)는 별도 보호
+		// "/api/v1/search/recommendations"     // 인기 여행지 추천
+	};
 
-    // GET 메서드일 때만 인증이 필요 없는 경로 목록
-    private static final String[] PUBLIC_GET_PATHS = {
-        "/api/v1/accommodations/*",          // 숙소 상세
-        "/api/v1/accommodations/*/availability", // 숙소 예약 가능 정보
-        "/api/v1/accommodations/*/reviews",  // 리뷰 목록
-        "/api/v1/search/accommodations",     // 검색
-        "/api/v1/common-codes/*",            // 공통 코드 조회(공개 상세/검색의 라벨·셀렉트박스). 관리 API(/admin/**)는 별도 보호
-        // "/api/v1/search/recommendations"     // 인기 여행지 추천
-    };
+	public SessionAuthFilter(SessionAuthenticationService sessionAuthenticationService, ObjectMapper objectMapper) {
+		this.sessionAuthenticationService = sessionAuthenticationService;
+		this.objectMapper = objectMapper;
+	}
 
-    public SessionAuthFilter(SessionAuthenticationService sessionAuthenticationService, ObjectMapper objectMapper) {
-        this.sessionAuthenticationService = sessionAuthenticationService;
-        this.objectMapper = objectMapper;
-    }
+	@Override
+	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+		throws ServletException, IOException {
 
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-        throws ServletException, IOException {
+		String path = request.getRequestURI();
+		String method = request.getMethod();
 
-        String path = request.getRequestURI();
-        String method = request.getMethod();
+		// HTTP 메서드와 무관하게 항상 공개되는 경로
+		boolean isPublicPath = PUBLIC_PATHS.stream()
+			.anyMatch(p -> pathMatcher.match(p, path));
 
-        // HTTP 메서드와 무관하게 항상 공개되는 경로
-        boolean isPublicPath = PUBLIC_PATHS.stream()
-            .anyMatch(p -> pathMatcher.match(p, path));
+		// GET 메서드일 때만 공개되는 경로
+		boolean isPublicGet = "GET".equals(method) &&
+			Arrays.stream(PUBLIC_GET_PATHS)
+				.anyMatch(p -> pathMatcher.match(p, path));
 
-        // GET 메서드일 때만 공개되는 경로
-        boolean isPublicGet = "GET".equals(method) &&
-            Arrays.stream(PUBLIC_GET_PATHS)
-                .anyMatch(p -> pathMatcher.match(p, path));
+		String sessionId = SessionCookie.read(request);
+		Long memberId = sessionId == null ? null
+			: sessionAuthenticationService.authenticate(sessionId).orElse(null);
 
-        String sessionId = SessionCookie.read(request);
-        Long memberId = sessionId == null ? null
-            : sessionAuthenticationService.authenticate(sessionId).orElse(null);
+		// 인증 검사 로직
+		// 공개 경로도 아니고, 공개 GET 경로도 아닌데 memberId(인증)가 없으면 401
+		if (!isPublicPath && !isPublicGet && memberId == null) {
+			log.warn("[SessionAuthFilter] 필수 인증 실패 (401): {} {}", method, path);
+			sendUnauthorizedError(response);
+			return;
+		}
 
-        // 인증 검사 로직
-        // 공개 경로도 아니고, 공개 GET 경로도 아닌데 memberId(인증)가 없으면 401
-        if (!isPublicPath && !isPublicGet && memberId == null) {
-            log.warn("[SessionAuthFilter] 필수 인증 실패 (401): {} {}", method, path);
-            sendUnauthorizedError(response);
-            return;
-        }
+		try {
+			if (memberId != null) {
+				UserContext.set(new UserInfo(memberId, resolveClientIp(request), resolveSourceSystem(request)));
+				log.info("[SessionAuthFilter] 인증된 요청 (User: {}): {} {}", memberId, method, path);
+			} else {
+				log.info("[SessionAuthFilter] 비인증 요청 (Public): {} {}", method, path);
+			}
+			filterChain.doFilter(request, response);
+		} finally {
+			UserContext.clear();
+		}
+	}
 
-        try {
-            if (memberId != null) {
-                UserContext.set(new UserInfo(memberId, resolveClientIp(request), resolveSourceSystem(request)));
-                log.info("[SessionAuthFilter] 인증된 요청 (User: {}): {} {}", memberId, method, path);
-            } else {
-                log.info("[SessionAuthFilter] 비인증 요청 (Public): {} {}", method, path);
-            }
-            filterChain.doFilter(request, response);
-        } finally {
-            UserContext.clear();
-        }
-    }
+	private void sendUnauthorizedError(HttpServletResponse response) throws IOException {
+		ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.UNAUTHORIZED_ACCESS);
+		ApiResponse<?> apiResponse = ApiResponse.error(errorResponse);
 
-    private void sendUnauthorizedError(HttpServletResponse response) throws IOException {
-        ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.UNAUTHORIZED_ACCESS);
-        ApiResponse<?> apiResponse = ApiResponse.error(errorResponse);
+		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+		response.setCharacterEncoding("UTF-8");
+		response.setContentType("application/json;charset=UTF-8");
 
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json;charset=UTF-8");
+		String jsonResponse = objectMapper.writeValueAsString(apiResponse);
+		response.getWriter().write(jsonResponse);
+	}
 
-        String jsonResponse = objectMapper.writeValueAsString(apiResponse);
-        response.getWriter().write(jsonResponse);
-    }
+	// 이력 기록용: 프록시 뒤 실제 클라이언트 IP (X-Forwarded-For 첫 홉) 우선, 없으면 remoteAddr
+	private String resolveClientIp(HttpServletRequest request) {
+		String forwarded = request.getHeader("X-Forwarded-For");
+		if (forwarded != null && !forwarded.isBlank()) {
+			return forwarded.split(",")[0].trim();
+		}
+		return request.getRemoteAddr();
+	}
 
-    // 이력 기록용: 프록시 뒤 실제 클라이언트 IP (X-Forwarded-For 첫 홉) 우선, 없으면 remoteAddr
-    private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
-
-    // 이력 기록용: 요청 출처 시스템. 클라이언트가 헤더로 알려주면 사용, 없으면 API 기본
-    private String resolveSourceSystem(HttpServletRequest request) {
-        String source = request.getHeader("X-Source-System");
-        return (source != null && !source.isBlank()) ? source : "API";
-    }
+	// 이력 기록용: 요청 출처 시스템. 클라이언트가 헤더로 알려주면 사용, 없으면 API 기본
+	private String resolveSourceSystem(HttpServletRequest request) {
+		String source = request.getHeader("X-Source-System");
+		return (source != null && !source.isBlank()) ? source : "API";
+	}
 }

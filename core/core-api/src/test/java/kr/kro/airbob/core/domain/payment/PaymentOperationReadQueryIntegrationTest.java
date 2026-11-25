@@ -55,7 +55,8 @@ import kr.kro.airbob.core.domain.payment.repository.PaymentOperationRepository;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({JpaAuditingConfig.class, QueryDslConfig.class, PaymentOperationQueryService.class, PaymentOperationReader.class,
+@Import({JpaAuditingConfig.class, QueryDslConfig.class, PaymentOperationQueryService.class,
+	PaymentOperationReader.class,
 	PaymentOperationReadQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PaymentOperationReadQueryIntegrationTest {
@@ -79,13 +80,20 @@ class PaymentOperationReadQueryIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private PaymentOperationQueryService service;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@Autowired private PaymentOperationRepository repository;
-	@Autowired private ObjectMapper objectMapper;
+	@Autowired
+	private PaymentOperationQueryService service;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@Autowired
+	private PaymentOperationRepository repository;
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	@BeforeEach
 	void fixture() {
@@ -140,8 +148,7 @@ class PaymentOperationReadQueryIntegrationTest {
 	@ParameterizedTest
 	@MethodSource("operationStates")
 	void preservesAllConfirmationAndCancellationStateResponses(
-		PaymentOperationStatus status, PaymentOperationType type
-	) {
+		PaymentOperationStatus status, PaymentOperationType type) {
 		setState(status, type);
 		prepareMeasurement();
 		var previous = readThroughEntities();
@@ -162,8 +169,9 @@ class PaymentOperationReadQueryIntegrationTest {
 		jdbc.update("UPDATE reservation SET status = 'PAYMENT_PENDING', expires_at = ? WHERE id = 40",
 			Timestamp.from(NOW.plusNanos(offsetMicros * 1000)));
 		Statistics statistics = prepareMeasurement();
-		assertThat(PaymentOperationResponse.Detail.from(service.find(OPERATION_UID, OWNER_ID)).nextAction()).isEqualTo(offsetMicros > 0
-			? PaymentOperationResponse.NextAction.NONE : PaymentOperationResponse.NextAction.START_NEW_CHECKOUT);
+		assertThat(PaymentOperationResponse.Detail.from(service.find(OPERATION_UID, OWNER_ID)).nextAction())
+			.isEqualTo(offsetMicros > 0
+				? PaymentOperationResponse.NextAction.NONE : PaymentOperationResponse.NextAction.START_NEW_CHECKOUT);
 		assertSingleProjection(statistics);
 		assertThat(jdbc.queryForObject("SELECT status FROM reservation WHERE id = 40", String.class))
 			.isEqualTo("PAYMENT_PENDING");
@@ -176,9 +184,10 @@ class PaymentOperationReadQueryIntegrationTest {
 		jdbc.update("UPDATE reservation SET check_in_at = ? WHERE id = 40",
 			Timestamp.from(NOW.plusNanos(offsetMicros * 1000)));
 		Statistics statistics = prepareMeasurement();
-		assertThat(PaymentOperationResponse.Detail.from(service.find(OPERATION_UID, OWNER_ID)).nextAction()).isEqualTo(offsetMicros > 0
-			? PaymentOperationResponse.NextAction.RETRY_CANCELLATION
-			: PaymentOperationResponse.NextAction.CONTACT_SUPPORT);
+		assertThat(PaymentOperationResponse.Detail.from(service.find(OPERATION_UID, OWNER_ID)).nextAction())
+			.isEqualTo(offsetMicros > 0
+				? PaymentOperationResponse.NextAction.RETRY_CANCELLATION
+				: PaymentOperationResponse.NextAction.CONTACT_SUPPORT);
 		assertSingleProjection(statistics);
 	}
 
@@ -187,7 +196,8 @@ class PaymentOperationReadQueryIntegrationTest {
 		setState(PaymentOperationStatus.WAITING_RETRY, PaymentOperationType.CONFIRM);
 		jdbc.update("UPDATE payment_operation SET next_attempt_at = NULL WHERE id = 50");
 		Statistics statistics = prepareMeasurement();
-		assertThat(PaymentOperationResponse.Detail.from(service.find(OPERATION_UID, OWNER_ID)).retryAfterSeconds()).isEqualTo(2L);
+		assertThat(PaymentOperationResponse.Detail.from(service.find(OPERATION_UID, OWNER_ID)).retryAfterSeconds())
+			.isEqualTo(2L);
 		assertSingleProjection(statistics);
 	}
 
@@ -237,8 +247,8 @@ class PaymentOperationReadQueryIntegrationTest {
 		return PaymentOperationResponse.Detail.from(PaymentOperationDetail.of(new PaymentOperationDetailRow(
 			operation.getOperationUid(), operation.getRequesterMemberId(), operation.getOperationType(),
 			operation.getStatus(), operation.getFailureCode(), operation.getUpdatedAt(), operation.getNextAttemptAt(),
-			reservation.getReservationUid(), reservation.getStatus(), reservation.getCheckInAt(), reservation.getExpiresAt()
-		), NOW));
+			reservation.getReservationUid(), reservation.getStatus(), reservation.getCheckInAt(),
+			reservation.getExpiresAt()), NOW));
 	}
 
 	private void assertSingleProjection(Statistics statistics) {

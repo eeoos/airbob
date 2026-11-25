@@ -12,10 +12,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 class AwsMonitoringBundleConfigurationTest {
 
@@ -27,10 +28,8 @@ class AwsMonitoringBundleConfigurationTest {
 		"monitoring", "grafana", "provisioning", "datasources", "prometheus.yml");
 	private static final Path CLOUDWATCH_DATASOURCE = Path.of(
 		"monitoring", "grafana", "provisioning", "datasources", "cloudwatch.aws.yml");
-	private static final String SYNTHETIC_PASSWORD =
-		"  ${TASK6_COLLISION} \"double quoted\" 'single quoted' # literal suffix  ";
-	private static final String CANONICAL_SYNTHETIC_PASSWORD =
-		"  $${TASK6_COLLISION} \"double quoted\" 'single quoted' # literal suffix  ";
+	private static final String SYNTHETIC_PASSWORD = "  ${TASK6_COLLISION} \"double quoted\" 'single quoted' # literal suffix  ";
+	private static final String CANONICAL_SYNTHETIC_PASSWORD = "  $${TASK6_COLLISION} \"double quoted\" 'single quoted' # literal suffix  ";
 	private static final List<String> STATIC_TARGETS = List.of(
 		"redis-general.lab.airbob.internal:9121",
 		"redis-cache.lab.airbob.internal:9122",
@@ -227,8 +226,7 @@ class AwsMonitoringBundleConfigurationTest {
 			assertThat(effectivePassword.equals(CANONICAL_SYNTHETIC_PASSWORD))
 				.withFailMessage("Effective Grafana password did not preserve the runtime env bytes")
 				.isTrue();
-		}
-		finally {
+		} finally {
 			deleteRecursively(tempDirectory);
 		}
 	}

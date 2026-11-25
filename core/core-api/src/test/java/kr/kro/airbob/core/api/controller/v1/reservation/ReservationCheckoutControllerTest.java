@@ -30,7 +30,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.reservation.request.ReservationRequest;
-import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.payment.PaymentCancellationCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationCheckoutService;
@@ -50,10 +49,14 @@ class ReservationCheckoutControllerTest {
 	private static final String QUOTE_UID = "fa1e54c6-201c-4d09-98b8-68eedfa921ae";
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@Mock private ReservationQuoteService quoteService;
-	@Mock private ReservationCheckoutService checkoutService;
-	@Mock private ReservationHoldCommandService holdCommandService;
-	@Mock private PaymentCancellationCommandService cancellationCommandService;
+	@Mock
+	private ReservationQuoteService quoteService;
+	@Mock
+	private ReservationCheckoutService checkoutService;
+	@Mock
+	private ReservationHoldCommandService holdCommandService;
+	@Mock
+	private PaymentCancellationCommandService cancellationCommandService;
 
 	private MockMvc mockMvc;
 
@@ -86,8 +89,7 @@ class ReservationCheckoutControllerTest {
 			LocalDate.of(2026, 9, 10),
 			LocalDate.of(2026, 9, 13),
 			2,
-			55L
-		);
+			55L);
 		ReservationQuoteDetail response = new ReservationQuoteDetail(
 			UUID.fromString(QUOTE_UID),
 			31L,
@@ -102,16 +104,15 @@ class ReservationCheckoutControllerTest {
 			330_000L,
 			"KRW",
 			true,
-			NOW
-		);
+			NOW);
 		given(quoteService.createQuote(request.toNewQuote(), MEMBER_ID)).willReturn(response);
 
 		mockMvc.perform(post("/api/v1/reservation-quotes")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"accommodation_id":31,"check_in_date":"2026-09-10",\
-					 "check_out_date":"2026-09-13","guest_count":2,"coupon_id":55}
-					"""))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"accommodation_id":31,"check_in_date":"2026-09-10",\
+				 "check_out_date":"2026-09-13","guest_count":2,"coupon_id":55}
+				"""))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.quote_uid").value(QUOTE_UID))
@@ -135,8 +136,7 @@ class ReservationCheckoutControllerTest {
 		String idempotencyKey = "quote-checkout-key-2026";
 		ReservationRequest.Checkout request = new ReservationRequest.Checkout(
 			UUID.fromString(QUOTE_UID),
-			"늦은 체크인 예정입니다"
-		);
+			"늦은 체크인 예정입니다");
 		ReservationReady ready = new ReservationReady(
 			UUID.fromString("8ff131af-946c-4fe1-889d-e7cd7deaeec0"),
 			"한강 전망 숙소",
@@ -158,12 +158,12 @@ class ReservationCheckoutControllerTest {
 			.willReturn(ready);
 
 		var result = mockMvc.perform(post("/api/v1/reservations")
-				.header("Idempotency-Key", idempotencyKey)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"quote_uid":"fa1e54c6-201c-4d09-98b8-68eedfa921ae",\
-					 "request_message":"늦은 체크인 예정입니다"}
-					"""))
+			.header("Idempotency-Key", idempotencyKey)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"quote_uid":"fa1e54c6-201c-4d09-98b8-68eedfa921ae",\
+				 "request_message":"늦은 체크인 예정입니다"}
+				"""))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.reservation_uid")
@@ -189,10 +189,10 @@ class ReservationCheckoutControllerTest {
 	@DisplayName("checkout은 Idempotency-Key가 없으면 400으로 거절한다")
 	void rejectsMissingIdempotencyKey() throws Exception {
 		mockMvc.perform(post("/api/v1/reservations")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"quote_uid":"fa1e54c6-201c-4d09-98b8-68eedfa921ae"}
-					"""))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"quote_uid":"fa1e54c6-201c-4d09-98b8-68eedfa921ae"}
+				"""))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.error.code").value("C001"));
@@ -204,11 +204,11 @@ class ReservationCheckoutControllerTest {
 	@DisplayName("checkout은 UUID가 아닌 quote 식별자를 400으로 거절한다")
 	void rejectsMalformedQuoteUid() throws Exception {
 		mockMvc.perform(post("/api/v1/reservations")
-				.header("Idempotency-Key", "malformed-quote-key")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"quote_uid":"not-a-uuid"}
-					"""))
+			.header("Idempotency-Key", "malformed-quote-key")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"quote_uid":"not-a-uuid"}
+				"""))
 			.andExpect(status().isBadRequest());
 
 		then(checkoutService).shouldHaveNoInteractions();
@@ -218,12 +218,12 @@ class ReservationCheckoutControllerTest {
 	@DisplayName("기존 직접 생성 body는 V1 checkout 계약에서 400으로 거절한다")
 	void rejectsLegacyDirectCreateBody() throws Exception {
 		mockMvc.perform(post("/api/v1/reservations")
-				.header("Idempotency-Key", "legacy-direct-create")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"accommodation_id":31,"check_in_date":"2026-09-10",\
-					 "check_out_date":"2026-09-13","guest_count":2}
-					"""))
+			.header("Idempotency-Key", "legacy-direct-create")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"accommodation_id":31,"check_in_date":"2026-09-10",\
+				 "check_out_date":"2026-09-13","guest_count":2}
+				"""))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false));
 
@@ -234,13 +234,13 @@ class ReservationCheckoutControllerTest {
 	@DisplayName("예약 V2 견적과 checkout 경로는 존재하지 않는다")
 	void reservationV2RoutesDoNotExist() throws Exception {
 		mockMvc.perform(post("/api/v2/reservation-quotes")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{}"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
 			.andExpect(status().isNotFound());
 		mockMvc.perform(post("/api/v2/reservations")
-				.header("Idempotency-Key", "removed-v2-checkout")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("{}"))
+			.header("Idempotency-Key", "removed-v2-checkout")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
 			.andExpect(status().isNotFound());
 
 		then(quoteService).shouldHaveNoInteractions();

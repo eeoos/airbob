@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentResponse;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.payment.repository.PaymentRepository;
@@ -89,7 +90,8 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.of(payment));
 
 			// when
-			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo.from(paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId));
+			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo
+				.from(paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId));
 
 			// then
 			assertThat(result).isNotNull();
@@ -135,7 +137,8 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.of(payment));
 
 			// when
-			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo.from(paymentQueryService.findPaymentByOrderId(orderId, memberId));
+			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo
+				.from(paymentQueryService.findPaymentByOrderId(orderId, memberId));
 
 			// then
 			assertThat(result).isNotNull();

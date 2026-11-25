@@ -20,25 +20,26 @@ class SqlQueryTypeTest {
 	@Test
 	@DisplayName("공백과 선행 주석을 제거한 뒤 실행 SQL 타입을 분류한다")
 	void classifyStatementsAfterLeadingComments() {
-		assertThat(SqlQueryType.from("/* Hibernate */ select a.id from accommodation a")).isEqualTo(SqlQueryType.SELECT);
-		assertThat(SqlQueryType.from("-- generated query\nselect a.id from accommodation a")).isEqualTo(SqlQueryType.SELECT);
+		assertThat(SqlQueryType.from("/* Hibernate */ select a.id from accommodation a"))
+			.isEqualTo(SqlQueryType.SELECT);
+		assertThat(SqlQueryType.from("-- generated query\nselect a.id from accommodation a"))
+			.isEqualTo(SqlQueryType.SELECT);
 	}
 
 	@Test
 	@DisplayName("CTE 본문이 아니라 CTE 뒤의 최종 연산으로 쿼리 타입을 분류한다")
 	void classifyCteStatementsByOuterOperation() {
 		assertThat(SqlQueryType.from(
-			"with available as (select id from accommodation) select * from available"
-		)).isEqualTo(SqlQueryType.SELECT);
+			"with available as (select id from accommodation) select * from available")).isEqualTo(SqlQueryType.SELECT);
 		assertThat(SqlQueryType.from(
-			"with changed as (select id from accommodation) update accommodation set name = ? where id in (select id from changed)"
-		)).isEqualTo(SqlQueryType.UPDATE);
+			"with changed as (select id from accommodation) update accommodation set name = ? where id in (select id from changed)"))
+			.isEqualTo(SqlQueryType.UPDATE);
 		assertThat(SqlQueryType.from(
-			"with obsolete as (select id from accommodation) delete from accommodation where id in (select id from obsolete)"
-		)).isEqualTo(SqlQueryType.DELETE);
+			"with obsolete as (select id from accommodation) delete from accommodation where id in (select id from obsolete)"))
+			.isEqualTo(SqlQueryType.DELETE);
 		assertThat(SqlQueryType.from(
-			"with source as (select id from accommodation) insert into history(id) select id from source"
-		)).isEqualTo(SqlQueryType.INSERT);
+			"with source as (select id from accommodation) insert into history(id) select id from source"))
+			.isEqualTo(SqlQueryType.INSERT);
 	}
 
 	@Test

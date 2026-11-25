@@ -8,6 +8,5 @@ import kr.kro.airbob.core.domain.accommodation.RecentlyViewedAccommodationProjec
 public record RecentlyViewedAccommodation(
 	Instant viewedAt,
 	RecentlyViewedAccommodationProjection accommodation,
-	boolean wishlisted
-) {
+	boolean wishlisted) {
 }

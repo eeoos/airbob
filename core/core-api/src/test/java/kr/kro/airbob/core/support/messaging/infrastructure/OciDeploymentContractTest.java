@@ -17,8 +17,7 @@ class OciDeploymentContractTest {
 
 	private static final List<String> DEPLOYMENT_SCRIPTS = List.of(
 		"deploy-oci.sh", "sync-oci-deployment-assets.sh", "preflight-reservation-inventory-cutover.sh",
-		"reindex-accommodations.sh", "init-ssl.sh"
-	);
+		"reindex-accommodations.sh", "init-ssl.sh");
 
 	@TempDir
 	Path tempDir;
@@ -79,8 +78,7 @@ class OciDeploymentContractTest {
 			"docker/mysql/init",
 			"docker/logstash",
 			"monitoring",
-			"docker/nginx"
-		)) {
+			"docker/nginx")) {
 			Path assetDirectory = source.resolve(directory);
 			Files.createDirectories(assetDirectory);
 			Files.writeString(assetDirectory.resolve("reviewed"), directory);
@@ -106,8 +104,7 @@ class OciDeploymentContractTest {
 			"/bin/sh",
 			Path.of("scripts/sync-oci-deployment-assets.sh").toAbsolutePath().toString(),
 			source.toString(),
-			target.toString()
-		).redirectErrorStream(true).start();
+			target.toString()).redirectErrorStream(true).start();
 		boolean completed = process.waitFor(5, TimeUnit.SECONDS);
 		if (!completed) {
 			process.descendants().forEach(ProcessHandle::destroyForcibly);
@@ -144,8 +141,7 @@ class OciDeploymentContractTest {
 		Files.writeString(target.resolve("docker-compose.oci.yml"), "existing\n");
 		Process process = new ProcessBuilder(
 			"/bin/sh", Path.of("scripts/sync-oci-deployment-assets.sh").toAbsolutePath().toString(),
-			source.toString(), target.toString()
-		).redirectErrorStream(true).start();
+			source.toString(), target.toString()).redirectErrorStream(true).start();
 		assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
 		assertThat(process.exitValue()).isNotZero();
 		assertThat(target.resolve("docker-compose.oci.yml")).hasContent("existing\n");
@@ -281,8 +277,7 @@ class OciDeploymentContractTest {
 
 		ProcessBuilder processBuilder = new ProcessBuilder(
 			"/bin/sh",
-			Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()
-		).redirectErrorStream(true);
+			Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()).redirectErrorStream(true);
 		processBuilder.environment().put("DEPLOY_DIR", deployment.toString());
 		processBuilder.environment().put("DOCKER_BIN", fakeDocker.toString());
 		processBuilder.environment().put("IMAGE_TAG", "reviewed-sha");
@@ -350,8 +345,7 @@ class OciDeploymentContractTest {
 
 		ProcessBuilder processBuilder = new ProcessBuilder(
 			"/bin/sh",
-			Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()
-		).redirectErrorStream(true);
+			Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()).redirectErrorStream(true);
 		processBuilder.environment().put("DEPLOY_DIR", deployment.toString());
 		processBuilder.environment().put("DOCKER_BIN", fakeDocker.toString());
 		processBuilder.environment().put("IMAGE_TAG", "reviewed-sha");
@@ -439,8 +433,8 @@ class OciDeploymentContractTest {
 
 		ProcessBuilder processBuilder = new ProcessBuilder(
 			"/bin/sh",
-			Path.of("scripts/preflight-reservation-inventory-cutover.sh").toAbsolutePath().toString()
-		).redirectErrorStream(true);
+			Path.of("scripts/preflight-reservation-inventory-cutover.sh").toAbsolutePath().toString())
+			.redirectErrorStream(true);
 		processBuilder.environment().put("PATH", fakeBin + ":" + System.getenv("PATH"));
 		processBuilder.environment().put("MYSQL_USER", "airbob");
 		processBuilder.environment().put("MYSQL_PASSWORD", "not-logged-test-password");
@@ -482,8 +476,8 @@ class OciDeploymentContractTest {
 
 		ProcessBuilder processBuilder = new ProcessBuilder(
 			"/bin/sh",
-			Path.of("scripts/preflight-reservation-inventory-cutover.sh").toAbsolutePath().toString()
-		).redirectErrorStream(true);
+			Path.of("scripts/preflight-reservation-inventory-cutover.sh").toAbsolutePath().toString())
+			.redirectErrorStream(true);
 		processBuilder.environment().put("PATH", fakeBin + ":" + System.getenv("PATH"));
 		processBuilder.environment().put("MYSQL_USER", "airbob");
 		processBuilder.environment().put("MYSQL_PASSWORD", "not-logged-test-password");
@@ -503,8 +497,7 @@ class OciDeploymentContractTest {
 	@Test
 	@DisplayName("timezone preflight는 CET 같은 유효한 single-segment ZoneId 형식을 허용한다")
 	void acceptsPlausibleSingleSegmentZoneIdsBeforeJavaValidation() throws IOException {
-		String plausibleZoneIdPattern =
-			"time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'";
+		String plausibleZoneIdPattern = "time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'";
 
 		assertThat(read("scripts/preflight-reservation-inventory-cutover.sh"))
 			.contains(plausibleZoneIdPattern)
@@ -565,8 +558,7 @@ class OciDeploymentContractTest {
 			""");
 		assertThat(fakeDocker.toFile().setExecutable(true)).isTrue();
 		ProcessBuilder builder = new ProcessBuilder(
-			"/bin/sh", Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()
-		).redirectErrorStream(true);
+			"/bin/sh", Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()).redirectErrorStream(true);
 		builder.environment().put("DEPLOY_DIR", deployment.toString());
 		builder.environment().put("DOCKER_BIN", fakeDocker.toString());
 		builder.environment().put("IMAGE_REPO", "ghcr.io/eeoos/airbob");
@@ -585,7 +577,8 @@ class OciDeploymentContractTest {
 		}
 		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 		assertThat(completed).withFailMessage(output).isTrue();
-		return new DeploymentAttempt(process.exitValue(), Files.exists(dockerLog) ? Files.readString(dockerLog) : "", output);
+		return new DeploymentAttempt(process.exitValue(), Files.exists(dockerLog) ? Files.readString(dockerLog) : "",
+			output);
 	}
 
 	private record DeploymentAttempt(int exitCode, String commands, String output) {

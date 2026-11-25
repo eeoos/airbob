@@ -35,10 +35,10 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import kr.kro.airbob.core.domain.payment.gateway.CancelledPayment;
 import kr.kro.airbob.core.domain.payment.gateway.ConfirmedPayment;
@@ -48,10 +48,8 @@ import kr.kro.airbob.core.domain.payment.gateway.PaymentProviderGateway;
 @SpringJUnitConfig(PaymentOperationExecutionServiceTest.TestConfiguration.class)
 class PaymentOperationExecutionServiceTest {
 
-	private static final UUID OPERATION_UID =
-		UUID.fromString("4dc96ec8-d45f-4688-bb75-560c71b88d5d");
-	private static final UUID RESERVATION_UID =
-		UUID.fromString("5250ea1b-df85-46f4-a266-d1f34d4f2de9");
+	private static final UUID OPERATION_UID = UUID.fromString("4dc96ec8-d45f-4688-bb75-560c71b88d5d");
+	private static final UUID RESERVATION_UID = UUID.fromString("5250ea1b-df85-46f4-a266-d1f34d4f2de9");
 	private static final String PAYMENT_KEY = "pk_test";
 	private static final long AMOUNT = 100_000L;
 	private static final String LEASE_OWNER = "lease-owner";
@@ -337,8 +335,7 @@ class PaymentOperationExecutionServiceTest {
 		then(leaseManager).should().markManualReview(
 			execution,
 			"INVALID_MANUAL_RECONCILIATION_MODE",
-			"Manual reconciliation must use a provider inquiry."
-		);
+			"Manual reconciliation must use a provider inquiry.");
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
@@ -361,8 +358,7 @@ class PaymentOperationExecutionServiceTest {
 	@MethodSource("mismatchedApprovals")
 	void approvedResponseMismatchBecomesDurableUnknown(
 		String ignoredDescription,
-		ConfirmedPayment mismatched
-	) {
+		ConfirmedPayment mismatched) {
 		PaymentExecution execution = execution(PaymentExecutionMode.CONFIRM);
 		given(leaseManager.claim(OPERATION_UID, 1))
 			.willReturn(Optional.of(execution));
@@ -374,8 +370,7 @@ class PaymentOperationExecutionServiceTest {
 		then(leaseManager).should().markOutcomeUnknown(
 			execution,
 			"PROVIDER_RESPONSE_MISMATCH",
-			"Provider approval did not match the payment operation."
-		);
+			"Provider approval did not match the payment operation.");
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
@@ -392,8 +387,7 @@ class PaymentOperationExecutionServiceTest {
 		then(leaseManager).should().markOutcomeUnknown(
 			execution,
 			"UNCLASSIFIED_GATEWAY_FAILURE",
-			"Unexpected payment gateway failure."
-		);
+			"Unexpected payment gateway failure.");
 		then(finalizer).shouldHaveNoInteractions();
 	}
 
@@ -503,8 +497,7 @@ class PaymentOperationExecutionServiceTest {
 				valid.method(), PaymentStatus.ABORTED, valid.approvedAt(), valid.virtualAccount())),
 			Arguments.of("approved timestamp", new ConfirmedPayment(
 				valid.paymentKey(), valid.orderId(), valid.totalAmount(), valid.balanceAmount(),
-				valid.method(), valid.status(), null, valid.virtualAccount()))
-		);
+				valid.method(), valid.status(), null, valid.virtualAccount())));
 	}
 
 	private static PaymentExecution execution(PaymentExecutionMode mode) {
@@ -518,8 +511,7 @@ class PaymentOperationExecutionServiceTest {
 			null,
 			LEASE_OWNER,
 			1,
-			mode
-		);
+			mode);
 	}
 
 	private static PaymentExecution cancellationExecution(PaymentExecutionMode mode) {
@@ -533,8 +525,7 @@ class PaymentOperationExecutionServiceTest {
 			"사용자 요청",
 			LEASE_OWNER,
 			1,
-			mode
-		);
+			mode);
 	}
 
 	private static PaymentExecution manualExecution(PaymentExecutionMode mode) {
@@ -549,8 +540,7 @@ class PaymentOperationExecutionServiceTest {
 			LEASE_OWNER,
 			1,
 			mode,
-			true
-		);
+			true);
 	}
 
 	private static PaymentExecution manualCancellationExecution(PaymentExecutionMode mode) {
@@ -565,8 +555,7 @@ class PaymentOperationExecutionServiceTest {
 			LEASE_OWNER,
 			1,
 			mode,
-			true
-		);
+			true);
 	}
 
 	private static CancelledPayment cancelledPayment() {
@@ -579,8 +568,7 @@ class PaymentOperationExecutionServiceTest {
 			AMOUNT,
 			"사용자 요청",
 			"cancel-transaction-key",
-			Instant.parse("2026-08-17T01:02:03Z")
-		);
+			Instant.parse("2026-08-17T01:02:03Z"));
 	}
 
 	private static ConfirmedPayment confirmedPayment() {
@@ -592,8 +580,7 @@ class PaymentOperationExecutionServiceTest {
 			PaymentMethod.CARD,
 			PaymentStatus.DONE,
 			Instant.parse("2026-08-14T03:34:56Z"),
-			null
-		);
+			null);
 	}
 
 	@Configuration(proxyBeanMethods = false)
@@ -620,8 +607,7 @@ class PaymentOperationExecutionServiceTest {
 			PaymentOperationLeaseManager leaseManager,
 			PaymentProviderGateway gateway,
 			PaymentOperationFinalizer finalizer,
-			PaymentOperationExecutionFence executionFence
-		) {
+			PaymentOperationExecutionFence executionFence) {
 			return new PaymentOperationExecutionService(leaseManager, gateway, finalizer, executionFence);
 		}
 
@@ -644,16 +630,13 @@ class PaymentOperationExecutionServiceTest {
 		}
 
 		@Override
-		protected void doBegin(Object transaction, TransactionDefinition definition) {
-		}
+		protected void doBegin(Object transaction, TransactionDefinition definition) {}
 
 		@Override
-		protected void doCommit(DefaultTransactionStatus status) {
-		}
+		protected void doCommit(DefaultTransactionStatus status) {}
 
 		@Override
-		protected void doRollback(DefaultTransactionStatus status) {
-		}
+		protected void doRollback(DefaultTransactionStatus status) {}
 	}
 
 	private static final class ControllablePaymentOperationExecutionFence

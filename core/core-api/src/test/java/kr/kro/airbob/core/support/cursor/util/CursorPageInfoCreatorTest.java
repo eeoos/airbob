@@ -39,16 +39,14 @@ class CursorPageInfoCreatorTest {
 	void createsGenericNextCursorFromLastItem() {
 		List<Item> content = List.of(
 			item(1L, 10, 3),
-			item(2L, 20, 4)
-		);
+			item(2L, 20, 4));
 		when(cursorEncoder.encode(any())).thenReturn("next-cursor");
 
 		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
 			content,
 			true,
 			Item::id,
-			Item::createdAt
-		);
+			Item::createdAt);
 
 		ArgumentCaptor<CursorData> cursorCaptor = ArgumentCaptor.forClass(CursorData.class);
 		verify(cursorEncoder).encode(cursorCaptor.capture());
@@ -63,8 +61,7 @@ class CursorPageInfoCreatorTest {
 	void createsReviewNextCursorFromLastItem() {
 		List<Item> content = List.of(
 			item(1L, 10, 5),
-			item(2L, 20, 4)
-		);
+			item(2L, 20, 4));
 		when(cursorEncoder.encode(any())).thenReturn("review-next-cursor");
 
 		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
@@ -72,11 +69,9 @@ class CursorPageInfoCreatorTest {
 			true,
 			Item::id,
 			Item::createdAt,
-			Item::rating
-		);
+			Item::rating);
 
-		ArgumentCaptor<ReviewCursorData> cursorCaptor =
-			ArgumentCaptor.forClass(ReviewCursorData.class);
+		ArgumentCaptor<ReviewCursorData> cursorCaptor = ArgumentCaptor.forClass(ReviewCursorData.class);
 		verify(cursorEncoder).encode(cursorCaptor.capture());
 		assertThat(cursorCaptor.getValue())
 			.isEqualTo(new ReviewCursorData(2L, content.getLast().createdAt(), 4));
@@ -90,15 +85,13 @@ class CursorPageInfoCreatorTest {
 		LocalDateTime startAt = LocalDateTime.of(2026, 8, 13, 12, 30, 0, 123456000);
 		List<Campaign> content = List.of(
 			new Campaign(3L, startAt.plusDays(1)),
-			new Campaign(2L, startAt)
-		);
+			new Campaign(2L, startAt));
 		when(cursorEncoder.encode(any())).thenReturn("campaign-next-cursor");
 
 		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
 			content,
 			true,
-			campaign -> new CouponCampaignCursorData(campaign.id(), campaign.issueStartAt())
-		);
+			campaign -> new CouponCampaignCursorData(campaign.id(), campaign.issueStartAt()));
 
 		verify(cursorEncoder).encode(new CouponCampaignCursorData(2L, startAt));
 		assertThat(pageInfo)
@@ -113,8 +106,7 @@ class CursorPageInfoCreatorTest {
 			false,
 			campaign -> {
 				throw new AssertionError("마지막 페이지에는 커서가 필요하지 않습니다.");
-			}
-		);
+			});
 
 		assertThat(pageInfo)
 			.isEqualTo(new CursorResponse.PageInfo(false, null, 1));
@@ -128,8 +120,7 @@ class CursorPageInfoCreatorTest {
 			List.of(item(1L, 10, 3)),
 			false,
 			Item::id,
-			Item::createdAt
-		);
+			Item::createdAt);
 
 		assertThat(pageInfo)
 			.isEqualTo(new CursorResponse.PageInfo(false, null, 1));
@@ -143,8 +134,7 @@ class CursorPageInfoCreatorTest {
 			List.<Item>of(),
 			true,
 			Item::id,
-			Item::createdAt
-		);
+			Item::createdAt);
 
 		assertThat(pageInfo)
 			.isEqualTo(new CursorResponse.PageInfo(false, null, 0));
@@ -155,15 +145,13 @@ class CursorPageInfoCreatorTest {
 		return new Item(
 			id,
 			LocalDateTime.of(2026, 8, 13, 12, minute),
-			rating
-		);
+			rating);
 	}
 
 	private record Item(
 		Long id,
 		LocalDateTime createdAt,
-		Integer rating
-	) {
+		Integer rating) {
 	}
 
 	private record Campaign(Long id, LocalDateTime issueStartAt) {

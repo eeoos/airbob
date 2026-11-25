@@ -19,16 +19,14 @@ public record AccommodationSearchCondition(
 	Integer petOccupancy,
 	List<String> amenityTypes,
 	List<String> accommodationTypes,
-	MapArea mapArea
-) {
+	MapArea mapArea) {
 
 	/** 지도 영역. 네 좌표가 모두 있을 때만 만든다. */
 	public record MapArea(
 		double topLeftLat,
 		double topLeftLng,
 		double bottomRightLat,
-		double bottomRightLng
-	) {
+		double bottomRightLng) {
 	}
 
 	/** 성인이 1명 미만이면 성인 1명으로 보고, 비어 있는 다른 인원은 0으로 채운다. */

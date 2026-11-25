@@ -19,8 +19,7 @@ public class AccommodationSearchSnapshotReader {
 	@Transactional(readOnly = true)
 	public Optional<AccommodationDocument> readPublished(UUID accommodationUid) {
 		try {
-			AccommodationDocument document =
-				documentBuilder.buildAccommodationDocument(accommodationUid);
+			AccommodationDocument document = documentBuilder.buildAccommodationDocument(accommodationUid);
 			if (!AccommodationStatus.PUBLISHED.name().equals(document.status())) {
 				return Optional.empty();
 			}

@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
-
 import kr.kro.airbob.core.domain.review.Review;
 import kr.kro.airbob.core.domain.review.ReviewStatus;
 import kr.kro.airbob.core.domain.review.repository.querydsl.ReviewRepositoryCustom;
@@ -21,5 +20,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, ReviewRep
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select r from Review r where r.id = :reviewId and r.author.id = :memberId")
-	Optional<Review> findByIdAndAuthorIdForUpdate(@Param("reviewId") Long reviewId, @Param("memberId") Long memberId);
+	Optional<Review> findByIdAndAuthorIdForUpdate(
+		@Param("reviewId")
+		Long reviewId,
+		@Param("memberId")
+		Long memberId);
 }

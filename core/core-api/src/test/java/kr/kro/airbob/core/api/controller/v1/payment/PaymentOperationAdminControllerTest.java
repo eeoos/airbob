@@ -50,14 +50,15 @@ import kr.kro.airbob.core.support.context.UserInfo;
 class PaymentOperationAdminControllerTest {
 
 	private static final Long ADMIN_ID = 9L;
-	private static final UUID OPERATION_UID =
-		UUID.fromString("98283dcc-f24f-44b2-a877-d89983fb7e31");
-	private static final String INVALID_EVIDENCE_SECRET =
-		"https://provider.test/case?id=secret-validation-value";
+	private static final UUID OPERATION_UID = UUID.fromString("98283dcc-f24f-44b2-a877-d89983fb7e31");
+	private static final String INVALID_EVIDENCE_SECRET = "https://provider.test/case?id=secret-validation-value";
 
-	@Mock private PaymentOperationManualReviewQueryRepository queryRepository;
-	@Mock private PaymentOperationManualReviewCommandService commandService;
-	@Mock private MemberService memberService;
+	@Mock
+	private PaymentOperationManualReviewQueryRepository queryRepository;
+	@Mock
+	private PaymentOperationManualReviewCommandService commandService;
+	@Mock
+	private MemberService memberService;
 
 	private MockMvc mockMvc;
 
@@ -67,11 +68,11 @@ class PaymentOperationAdminControllerTest {
 			.findAndRegisterModules()
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-		PaymentOperationManualReviewQueryService queryService =
-			new PaymentOperationManualReviewQueryService(new PaymentOperationManualReviewReader(queryRepository));
+		PaymentOperationManualReviewQueryService queryService = new PaymentOperationManualReviewQueryService(
+			new PaymentOperationManualReviewReader(queryRepository));
 		AdminAuthInterceptor adminAuthInterceptor = new AdminAuthInterceptor(memberService);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-				new PaymentOperationAdminController(queryService, commandService))
+			new PaymentOperationAdminController(queryService, commandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
@@ -95,8 +96,7 @@ class PaymentOperationAdminControllerTest {
 			2,
 			Instant.parse("2026-08-17T00:00:00Z"),
 			7L,
-			true
-		);
+			true);
 		PaymentOperationManualReviewQueueItem extra = new PaymentOperationManualReviewQueueItem(
 			UUID.fromString("98283dcc-f24f-44b2-a877-d89983fb7e32"),
 			PaymentOperationType.CANCEL,
@@ -104,12 +104,11 @@ class PaymentOperationAdminControllerTest {
 			3,
 			Instant.parse("2026-08-17T00:01:00Z"),
 			8L,
-			false
-		);
+			false);
 		given(queryRepository.findOldest(2)).willReturn(List.of(first, extra));
 
 		MvcResult result = mockMvc.perform(get("/api/v1/admin/payment-operations/manual-review")
-				.param("limit", "1"))
+			.param("limit", "1"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.has_more").value(true))
@@ -164,11 +163,11 @@ class PaymentOperationAdminControllerTest {
 				OPERATION_UID, PaymentOperationStatus.QUEUED, 8L));
 
 		mockMvc.perform(post(
-				"/api/v1/admin/payment-operations/{operationId}/reconciliation", OPERATION_UID)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"expected_version":7}
-					"""))
+			"/api/v1/admin/payment-operations/{operationId}/reconciliation", OPERATION_UID)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"expected_version":7}
+				"""))
 			.andExpect(status().isAccepted())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.operation_uid").value(OPERATION_UID.toString()))
@@ -185,20 +184,19 @@ class PaymentOperationAdminControllerTest {
 			ADMIN_ID,
 			7L,
 			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
-			"toss-dashboard/case:ABC_123-4.5"
-		)).willReturn(new PaymentOperationManualReviewResult(
-			OPERATION_UID, PaymentOperationStatus.DECLINED, 8L));
+			"toss-dashboard/case:ABC_123-4.5")).willReturn(new PaymentOperationManualReviewResult(
+				OPERATION_UID, PaymentOperationStatus.DECLINED, 8L));
 
 		mockMvc.perform(post(
-				"/api/v1/admin/payment-operations/{operationId}/mark-not-paid", OPERATION_UID)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{
-					  "expected_version":7,
-					  "reason_code":"PROVIDER_PAYMENT_NOT_FOUND",
-					  "evidence_reference":"toss-dashboard/case:ABC_123-4.5"
-					}
-					"""))
+			"/api/v1/admin/payment-operations/{operationId}/mark-not-paid", OPERATION_UID)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{
+				  "expected_version":7,
+				  "reason_code":"PROVIDER_PAYMENT_NOT_FOUND",
+				  "evidence_reference":"toss-dashboard/case:ABC_123-4.5"
+				}
+				"""))
 			.andExpect(status().isAccepted())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.operation_uid").value(OPERATION_UID.toString()))
@@ -210,24 +208,22 @@ class PaymentOperationAdminControllerTest {
 			ADMIN_ID,
 			7L,
 			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
-			"toss-dashboard/case:ABC_123-4.5"
-		);
+			"toss-dashboard/case:ABC_123-4.5");
 	}
 
 	@Test
 	void rejectsUnsafeMarkNotPaidEvidenceBeforeCallingTheCommand(
-		CapturedOutput output
-	) throws Exception {
+		CapturedOutput output) throws Exception {
 		MvcResult result = mockMvc.perform(post(
-				"/api/v1/admin/payment-operations/{operationId}/mark-not-paid", OPERATION_UID)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{
-					  "expected_version":7,
-					  "reason_code":"PROVIDER_PAYMENT_NOT_FOUND",
-					  "evidence_reference":"%s"
-					}
-					""".formatted(INVALID_EVIDENCE_SECRET)))
+			"/api/v1/admin/payment-operations/{operationId}/mark-not-paid", OPERATION_UID)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{
+				  "expected_version":7,
+				  "reason_code":"PROVIDER_PAYMENT_NOT_FOUND",
+				  "evidence_reference":"%s"
+				}
+				""".formatted(INVALID_EVIDENCE_SECRET)))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"))
 			.andExpect(jsonPath("$.error.errors[0].field").value("evidenceReference"))
@@ -246,15 +242,15 @@ class PaymentOperationAdminControllerTest {
 	@Test
 	void rejectsAnUnknownMarkNotPaidReasonBeforeCallingTheCommand() throws Exception {
 		mockMvc.perform(post(
-				"/api/v1/admin/payment-operations/{operationId}/mark-not-paid", OPERATION_UID)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{
-					  "expected_version":7,
-					  "reason_code":"ADMIN_DECIDED_TO_MARK_PAID",
-					  "evidence_reference":"case/ABC-123"
-					}
-					"""))
+			"/api/v1/admin/payment-operations/{operationId}/mark-not-paid", OPERATION_UID)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{
+				  "expected_version":7,
+				  "reason_code":"ADMIN_DECIDED_TO_MARK_PAID",
+				  "evidence_reference":"case/ABC-123"
+				}
+				"""))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 

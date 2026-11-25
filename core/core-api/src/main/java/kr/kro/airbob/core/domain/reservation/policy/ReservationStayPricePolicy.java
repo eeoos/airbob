@@ -7,8 +7,7 @@ import kr.kro.airbob.core.domain.reservation.InvalidReservationDateException;
 
 public final class ReservationStayPricePolicy {
 
-	private ReservationStayPricePolicy() {
-	}
+	private ReservationStayPricePolicy() {}
 
 	public static StayPrice calculate(long nightlyPrice, LocalDate checkInDate, LocalDate checkOutDate) {
 		long nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
@@ -18,14 +17,12 @@ public final class ReservationStayPricePolicy {
 		return new StayPrice(
 			nightlyPrice,
 			nights,
-			Math.multiplyExact(nightlyPrice, nights)
-		);
+			Math.multiplyExact(nightlyPrice, nights));
 	}
 
 	public record StayPrice(
 		long nightlyPrice,
 		long nights,
-		long subtotal
-	) {
+		long subtotal) {
 	}
 }

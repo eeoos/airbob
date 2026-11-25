@@ -53,7 +53,6 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import kr.kro.airbob.core.domain.operatoralert.OperatorAlertGateway;
 import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertKind;
 import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertRequestedV1;
-import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.core.domain.operatoralert.event.OperatorAlertSummaryCode;
 import kr.kro.airbob.core.domain.operatoralert.monitoring.OperatorAlertMetrics;
 import kr.kro.airbob.core.support.messaging.event.EventEnvelope;
@@ -76,16 +75,11 @@ import kr.kro.airbob.core.support.messaging.kafka.SanitizingRetryKafkaTemplateFa
 	"operator-alert.kafka.attempts=2",
 	"operator-alert.kafka.backoff-ms=200"
 })
-@EmbeddedKafka(
-	partitions = 1,
-	topics = {
-		OperatorAlertKafkaIntegrationTest.ALERT_TOPIC,
-		OperatorAlertKafkaIntegrationTest.ALERT_RETRY_TOPIC,
-		OperatorAlertKafkaIntegrationTest.ALERT_DLT_TOPIC
-	},
-	bootstrapServersProperty = "spring.kafka.bootstrap-servers",
-	brokerProperties = "auto.create.topics.enable=false"
-)
+@EmbeddedKafka(partitions = 1, topics = {
+	OperatorAlertKafkaIntegrationTest.ALERT_TOPIC,
+	OperatorAlertKafkaIntegrationTest.ALERT_RETRY_TOPIC,
+	OperatorAlertKafkaIntegrationTest.ALERT_DLT_TOPIC
+}, bootstrapServersProperty = "spring.kafka.bootstrap-servers", brokerProperties = "auto.create.topics.enable=false")
 @ExtendWith(OutputCaptureExtension.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("operator alert Kafka isolation")
@@ -94,10 +88,8 @@ class OperatorAlertKafkaIntegrationTest {
 	static final String ALERT_TOPIC = "OPERATOR_ALERT.events";
 	static final String ALERT_RETRY_TOPIC = "OPERATOR_ALERT.events.RETRY";
 	static final String ALERT_DLT_TOPIC = "OPERATOR_ALERT.events.DLT";
-	private static final UUID SUBJECT_UID =
-		UUID.fromString("18dc773f-055d-4416-a7f0-995772f0fe91");
-	private static final UUID ALERT_UID =
-		UUID.fromString("37938505-8b78-316f-9162-1a5790b0cf88");
+	private static final UUID SUBJECT_UID = UUID.fromString("18dc773f-055d-4416-a7f0-995772f0fe91");
+	private static final UUID ALERT_UID = UUID.fromString("37938505-8b78-316f-9162-1a5790b0cf88");
 	private static final String RAW_SECRET = "raw-provider-key-operator-alert-secret";
 	private static final String CUSTOM_SECRET_HEADER = "x-provider-authorization";
 	private static final long FUTURE_ATTACKER_BACKOFF_MILLIS = 30_000L;
@@ -107,8 +99,7 @@ class OperatorAlertKafkaIntegrationTest {
 		RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
 		KafkaHeaders.ORIGINAL_TOPIC,
 		KafkaHeaders.ORIGINAL_PARTITION,
-		KafkaHeaders.ORIGINAL_OFFSET
-	);
+		KafkaHeaders.ORIGINAL_OFFSET);
 
 	private final EmbeddedKafkaBroker broker;
 	private final KafkaTemplate<String, String> template;
@@ -125,8 +116,7 @@ class OperatorAlertKafkaIntegrationTest {
 		KafkaTemplate<String, String> template,
 		OperatorAlertGateway gateway,
 		OperatorAlertMetrics metrics,
-		IntegrationEventCodec codec
-	) {
+		IntegrationEventCodec codec) {
 		this.broker = broker;
 		this.template = template;
 		this.gateway = gateway;
@@ -151,8 +141,7 @@ class OperatorAlertKafkaIntegrationTest {
 
 	@Test
 	void poisonTravelsOnlyMainToDedicatedRetryAndDltWithoutLeakingSecrets(
-		CapturedOutput output
-	) throws Exception {
+		CapturedOutput output) throws Exception {
 		String poisonValue = "not-json paymentKey=" + RAW_SECRET;
 		ProducerRecord<String, String> poison = new ProducerRecord<>(
 			ALERT_TOPIC, 0, "secret-key-" + RAW_SECRET, poisonValue);
@@ -220,8 +209,7 @@ class OperatorAlertKafkaIntegrationTest {
 			"PAYMENT_OPERATION.events",
 			0,
 			12L,
-			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED
-		);
+			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED);
 	}
 
 	private void assertSafePoison(ConsumerRecord<String, String> record) {
@@ -237,8 +225,7 @@ class OperatorAlertKafkaIntegrationTest {
 
 	private void addSpoofedRetryHeaders(
 		ProducerRecord<String, String> record,
-		long attackerBackoff
-	) {
+		long attackerBackoff) {
 		record.headers().add(
 			RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS, intBytes(999));
 		record.headers().add(

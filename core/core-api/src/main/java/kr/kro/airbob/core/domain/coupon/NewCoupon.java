@@ -15,6 +15,5 @@ public record NewCoupon(
 	Instant usableFrom,
 	Instant usableUntil,
 	Boolean isActive,
-	Integer totalQuantity
-) {
+	Integer totalQuantity) {
 }

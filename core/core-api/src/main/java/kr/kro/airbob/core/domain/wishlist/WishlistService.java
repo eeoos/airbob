@@ -61,16 +61,16 @@ public class WishlistService {
 
 	@Transactional
 	public Long updateWishlistAccommodation(Long wishlistAccommodationId, String memo, Long memberId) {
-		WishlistAccommodation wishlistAccommodation =
-			wishlistReader.readOwnedAccommodationForUpdate(wishlistAccommodationId, memberId);
+		WishlistAccommodation wishlistAccommodation = wishlistReader
+			.readOwnedAccommodationForUpdate(wishlistAccommodationId, memberId);
 		wishlistAccommodation.updateMemo(memo);
 		return wishlistAccommodation.getId();
 	}
 
 	@Transactional
 	public void deleteWishlistAccommodation(Long wishlistAccommodationId, Long memberId) {
-		WishlistAccommodation wishlistAccommodation =
-			wishlistReader.readOwnedAccommodationForUpdate(wishlistAccommodationId, memberId);
+		WishlistAccommodation wishlistAccommodation = wishlistReader
+			.readOwnedAccommodationForUpdate(wishlistAccommodationId, memberId);
 		wishlistWriter.removeAccommodation(wishlistAccommodation);
 	}
 

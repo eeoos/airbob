@@ -82,14 +82,12 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 		}
 
 		assertThat(repository.firstSnapshotReaderCount()).isEqualTo(2);
-		AccommodationInventoryDayRepository verifier =
-			new AccommodationInventoryDayRepository(jdbcTemplate);
+		AccommodationInventoryDayRepository verifier = new AccommodationInventoryDayRepository(jdbcTemplate);
 		assertThat(verifier.findSnapshot(ACCOMMODATION_ID, START, END_EXCLUSIVE))
 			.containsExactly(
 				free(START),
 				free(START.plusDays(1)),
-				free(START.plusDays(2))
-			);
+				free(START.plusDays(2)));
 	}
 
 	private TransactionTemplate readCommittedTransactionTemplate() {
@@ -102,8 +100,7 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 	private void seedAfterStart(
 		CountDownLatch start,
 		TransactionTemplate transactionTemplate,
-		ReservationInventoryManager inventoryManager
-	) {
+		ReservationInventoryManager inventoryManager) {
 		await(start);
 		transactionTemplate.executeWithoutResult(status -> inventoryManager.seed(
 			ACCOMMODATION_ID, START, END_EXCLUSIVE));
@@ -115,8 +112,7 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 			stayDate,
 			AccommodationInventoryState.FREE,
 			null,
-			null
-		);
+			null);
 	}
 
 	private static void insertAccommodationFixture() {
@@ -156,8 +152,7 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 
 		private FirstSnapshotBarrierRepository(
 			JdbcTemplate jdbcTemplate,
-			int expectedReaders
-		) {
+			int expectedReaders) {
 			super(jdbcTemplate);
 			this.firstSnapshots = new CountDownLatch(expectedReaders);
 		}
@@ -166,8 +161,7 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 		public List<AccommodationInventoryDay> findSnapshot(
 			Long accommodationId,
 			LocalDate startInclusive,
-			LocalDate endExclusive
-		) {
+			LocalDate endExclusive) {
 			List<AccommodationInventoryDay> snapshot = super.findSnapshot(
 				accommodationId, startInclusive, endExclusive);
 			if (firstSnapshotReaders.add(Thread.currentThread())) {

@@ -12,8 +12,7 @@ public class AccommodationSearchKafkaRetryPublisherConfiguration {
 
 	@Bean
 	public KafkaTemplate<String, String> accommodationSearchRetryKafkaTemplate(
-		SanitizingRetryKafkaTemplateFactory templateFactory
-	) {
+		SanitizingRetryKafkaTemplateFactory templateFactory) {
 		return templateFactory.create(
 			AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
 			AccommodationSearchRefreshRequestedV1.class,

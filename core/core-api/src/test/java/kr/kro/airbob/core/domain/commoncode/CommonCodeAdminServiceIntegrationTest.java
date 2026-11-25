@@ -2,24 +2,23 @@ package kr.kro.airbob.core.domain.commoncode;
 
 import static org.assertj.core.api.Assertions.*;
 
-import java.util.List;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import kr.kro.airbob.core.support.error.BaseException;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -35,6 +34,7 @@ import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.core.domain.commoncode.repository.CommonCodeGroupRepository;
 import kr.kro.airbob.core.domain.commoncode.repository.CommonCodeRepository;
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
+import kr.kro.airbob.core.support.error.BaseException;
 
 /**
  * 공통 코드 관리 서비스 통합 테스트.
@@ -47,23 +47,33 @@ import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository
 @DisplayName("공통 코드 관리 서비스 통합 테스트")
 class CommonCodeAdminServiceIntegrationTest {
 
-	@Autowired private CommonCodeAdminService adminService;
-	@Autowired private CommonCodeService commonCodeService;
-	@Autowired private CommonCodeReader commonCodeReader;
-	@Autowired private CommonCodeGroupRepository groupRepository;
-	@Autowired private CommonCodeRepository commonCodeRepository;
+	@Autowired
+	private CommonCodeAdminService adminService;
+	@Autowired
+	private CommonCodeService commonCodeService;
+	@Autowired
+	private CommonCodeReader commonCodeReader;
+	@Autowired
+	private CommonCodeGroupRepository groupRepository;
+	@Autowired
+	private CommonCodeRepository commonCodeRepository;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -301,10 +311,12 @@ class CommonCodeAdminServiceIntegrationTest {
 
 	@Test
 	void concurrentCreatesKeepOneGroupAndOneCodeAndReturnDomainConflicts() throws Exception {
-		var groups = race(() -> adminService.createGroup(new NewCommonCodeGroup("DOC_RACE_GROUP", "동시 그룹", null, null)));
+		var groups = race(
+			() -> adminService.createGroup(new NewCommonCodeGroup("DOC_RACE_GROUP", "동시 그룹", null, null)));
 		assertThat(groups.stream().filter(CommonCodeGroupDetail.class::isInstance)).hasSize(1);
 		assertThat(groups.stream().filter(CommonCodeGroupDuplicateException.class::isInstance)).hasSize(7);
-		var codes = race(() -> adminService.create("DOC_RACE_GROUP", new NewCommonCode("RACE_CODE", "동시 코드", null, null, null)));
+		var codes = race(
+			() -> adminService.create("DOC_RACE_GROUP", new NewCommonCode("RACE_CODE", "동시 코드", null, null, null)));
 		assertThat(codes.stream().filter(CommonCodeDetail.class::isInstance)).hasSize(1);
 		assertThat(codes.stream().filter(CommonCodeDuplicateException.class::isInstance)).hasSize(7);
 		assertThat(adminService.getAll("DOC_RACE_GROUP")).hasSize(1);
@@ -314,18 +326,21 @@ class CommonCodeAdminServiceIntegrationTest {
 	void cacheRetainsMissingAndInactiveSnapshotsUntilOneMinuteThenReloadsMysql() {
 		AtomicLong nanos = new AtomicLong();
 		var cached = CommonCodeReader.withTicker(groupRepository, commonCodeRepository, nanos::get);
-		assertThatThrownBy(() -> cached.readActiveCodes("DOC_CACHE_GROUP")).isInstanceOf(CommonCodeGroupNotFoundException.class);
+		assertThatThrownBy(() -> cached.readActiveCodes("DOC_CACHE_GROUP"))
+			.isInstanceOf(CommonCodeGroupNotFoundException.class);
 		adminService.createGroup(new NewCommonCodeGroup("DOC_CACHE_GROUP", "캐시 그룹", null, false));
 		adminService.create("DOC_CACHE_GROUP", new NewCommonCode("WIFI", "와이파이", null, 0, true));
 		assertThat(adminService.getAll("DOC_CACHE_GROUP")).hasSize(1);
 		nanos.addAndGet(Duration.ofSeconds(59).toNanos());
-		assertThatThrownBy(() -> cached.readActiveCodes("DOC_CACHE_GROUP")).isInstanceOf(CommonCodeGroupNotFoundException.class);
+		assertThatThrownBy(() -> cached.readActiveCodes("DOC_CACHE_GROUP"))
+			.isInstanceOf(CommonCodeGroupNotFoundException.class);
 		nanos.addAndGet(Duration.ofSeconds(2).toNanos());
 		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).isEmpty();
 		adminService.updateGroup("DOC_CACHE_GROUP", new CommonCodeGroupPatch(null, null, true));
 		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).isEmpty();
 		nanos.addAndGet(Duration.ofSeconds(61).toNanos());
-		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).extracting(CommonCodeDetail::code).containsExactly("WIFI");
+		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).extracting(CommonCodeDetail::code)
+			.containsExactly("WIFI");
 		adminService.update("DOC_CACHE_GROUP", "WIFI", new CommonCodePatch(null, null, null, false));
 		assertThat(cached.readActiveCodes("DOC_CACHE_GROUP")).hasSize(1);
 		nanos.addAndGet(Duration.ofSeconds(61).toNanos());
@@ -340,15 +355,18 @@ class CommonCodeAdminServiceIntegrationTest {
 		assertThat(created.code()).isEqualTo("WIFI");
 		assertThat(created.sortOrder()).isZero();
 		assertThat(created.active()).isTrue();
-		assertThat(adminService.update("DOC_PATCH_GROUP", "wifi", new CommonCodePatch(null, null, null, null))).isEqualTo(created);
-		assertThat(adminService.updateGroup("DOC_PATCH_GROUP", new CommonCodeGroupPatch(null, null, null))).isEqualTo(group);
+		assertThat(adminService.update("DOC_PATCH_GROUP", "wifi", new CommonCodePatch(null, null, null, null)))
+			.isEqualTo(created);
+		assertThat(adminService.updateGroup("DOC_PATCH_GROUP", new CommonCodeGroupPatch(null, null, null)))
+			.isEqualTo(group);
 		var updated = adminService.update("DOC_PATCH_GROUP", "wifi", new CommonCodePatch(null, "", -1, false));
 		assertThat(updated.description()).isEmpty();
 		assertThat(updated.name()).isEqualTo("와이파이");
 		assertThat(updated.sortOrder()).isEqualTo(-1);
 		assertThat(updated.active()).isFalse();
 		assertThat(adminService.getAll("DOC_PATCH_GROUP")).containsExactly(updated);
-		assertThatThrownBy(() -> adminService.update("DOC_MISSING_GROUP", "WIFI", new CommonCodePatch(null, null, null, null)))
+		assertThatThrownBy(
+			() -> adminService.update("DOC_MISSING_GROUP", "WIFI", new CommonCodePatch(null, null, null, null)))
 			.isInstanceOf(CommonCodeNotFoundException.class);
 	}
 
@@ -379,8 +397,10 @@ class CommonCodeAdminServiceIntegrationTest {
 		assertThat(group.description()).isEqualTo(description);
 		adminService.create(groupCode, new NewCommonCode("A".repeat(50), name, description, Integer.MAX_VALUE, true));
 		adminService.create(groupCode, new NewCommonCode("FIRST", "첫 코드", null, Integer.MIN_VALUE, true));
-		assertThat(adminService.getAll(groupCode)).extracting(CommonCodeDetail::code).containsExactly("FIRST", "A".repeat(50));
-		assertThat(commonCodeService.getCodes(groupCode)).extracting(CommonCodeDetail::sortOrder).containsExactly(Integer.MIN_VALUE, Integer.MAX_VALUE);
+		assertThat(adminService.getAll(groupCode)).extracting(CommonCodeDetail::code).containsExactly("FIRST",
+			"A".repeat(50));
+		assertThat(commonCodeService.getCodes(groupCode)).extracting(CommonCodeDetail::sortOrder)
+			.containsExactly(Integer.MIN_VALUE, Integer.MAX_VALUE);
 	}
 
 	private List<Object> race(Supplier<?> action) throws Exception {
@@ -392,14 +412,20 @@ class CommonCodeAdminServiceIntegrationTest {
 			for (int i = 0; i < workers; i++) {
 				futures.add(executor.submit(() -> {
 					ready.countDown();
-					if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("race start timeout");
-					try { return action.get(); } catch (BaseException exception) { return exception; }
+					if (!start.await(10, TimeUnit.SECONDS))
+						throw new IllegalStateException("race start timeout");
+					try {
+						return action.get();
+					} catch (BaseException exception) {
+						return exception;
+					}
 				}));
 			}
 			assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
 			start.countDown();
 			List<Object> results = new ArrayList<>();
-			for (var future : futures) results.add(future.get(20, TimeUnit.SECONDS));
+			for (var future : futures)
+				results.add(future.get(20, TimeUnit.SECONDS));
 			return results;
 		}
 	}

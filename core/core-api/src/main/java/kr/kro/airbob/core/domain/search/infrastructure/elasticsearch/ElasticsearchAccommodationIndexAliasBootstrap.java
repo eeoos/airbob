@@ -89,14 +89,13 @@ public class ElasticsearchAccommodationIndexAliasBootstrap
 	private void verifyManagedWriteAlias() throws IOException {
 		GetAliasResponse response = elasticsearchClient.indices()
 			.getAlias(request -> request.name(ALIAS));
-		Map<String, co.elastic.clients.elasticsearch.indices.get_alias.IndexAliases> indices =
-			response.result();
+		Map<String, co.elastic.clients.elasticsearch.indices.get_alias.IndexAliases> indices = response.result();
 		if (indices.size() != 1) {
 			throw new IllegalStateException(
 				"Accommodation alias must point to exactly one version index.");
 		}
-		Map.Entry<String, co.elastic.clients.elasticsearch.indices.get_alias.IndexAliases> entry =
-			indices.entrySet().iterator().next();
+		Map.Entry<String, co.elastic.clients.elasticsearch.indices.get_alias.IndexAliases> entry = indices.entrySet()
+			.iterator().next();
 		if (!entry.getKey().startsWith(ALIAS + "-v")) {
 			throw new IllegalStateException(
 				"Accommodation alias must point to a versioned index.");

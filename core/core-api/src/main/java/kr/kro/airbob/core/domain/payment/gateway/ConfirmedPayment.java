@@ -13,13 +13,11 @@ public record ConfirmedPayment(
 	PaymentMethod method,
 	PaymentStatus status,
 	Instant approvedAt,
-	VirtualAccountDetails virtualAccount
-) {
+	VirtualAccountDetails virtualAccount) {
 	public record VirtualAccountDetails(
 		String bankCode,
 		String accountNumber,
 		String customerName,
-		Instant dueDate
-	) {
+		Instant dueDate) {
 	}
 }

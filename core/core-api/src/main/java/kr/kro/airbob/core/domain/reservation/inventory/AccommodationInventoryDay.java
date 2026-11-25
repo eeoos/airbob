@@ -10,8 +10,7 @@ public record AccommodationInventoryDay(
 	LocalDate stayDate,
 	AccommodationInventoryState state,
 	Long reservationId,
-	Instant holdExpiresAt
-) {
+	Instant holdExpiresAt) {
 
 	public AccommodationInventoryDay {
 		if (accommodationId == null || accommodationId <= 0) {
@@ -30,7 +29,7 @@ public record AccommodationInventoryDay(
 			decisionAt, "decisionAt must not be null").truncatedTo(ChronoUnit.MICROS);
 		return state == AccommodationInventoryState.FREE
 			|| state == AccommodationInventoryState.HOLD
-			&& !holdExpiresAt.isAfter(normalizedDecision);
+				&& !holdExpiresAt.isAfter(normalizedDecision);
 	}
 
 	public boolean isOwnedBy(Long expectedReservationId) {
@@ -40,8 +39,7 @@ public record AccommodationInventoryDay(
 	private static void validateOwnerTuple(
 		AccommodationInventoryState state,
 		Long reservationId,
-		Instant holdExpiresAt
-	) {
+		Instant holdExpiresAt) {
 		switch (state) {
 			case FREE -> {
 				if (reservationId != null || holdExpiresAt != null) {

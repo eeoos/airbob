@@ -39,8 +39,7 @@ class MessagingDeploymentContractTest {
 		"ACCOMMODATION_CACHE.events.DLT",
 		"OPERATOR_ALERT.events",
 		"OPERATOR_ALERT.events.RETRY",
-		"OPERATOR_ALERT.events.DLT"
-	);
+		"OPERATOR_ALERT.events.DLT");
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -148,9 +147,9 @@ class MessagingDeploymentContractTest {
 			PaymentOperationExecutionRequestedV1.TOPIC,
 			AccommodationSearchRefreshRequestedV1.TOPIC,
 			AccommodationDetailCacheInvalidationRequestedV1.TOPIC,
-			OperatorAlertRequestedV1.TOPIC
-		).forEach(topic -> assertThat(BUSINESS_TOPICS)
-			.contains(topic, topic + ".RETRY", topic + ".DLT"));
+			OperatorAlertRequestedV1.TOPIC).forEach(
+				topic -> assertThat(BUSINESS_TOPICS)
+					.contains(topic, topic + ".RETRY", topic + ".DLT"));
 	}
 
 	@Test

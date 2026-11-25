@@ -15,11 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(
-	name = "reservation.inventory.retention.enabled",
-	havingValue = "true",
-	matchIfMissing = true
-)
+@ConditionalOnProperty(name = "reservation.inventory.retention.enabled", havingValue = "true", matchIfMissing = true)
 public class AccommodationInventoryRetentionScheduler {
 
 	private final ReservationInventoryManager inventoryManager;
@@ -33,10 +29,10 @@ public class AccommodationInventoryRetentionScheduler {
 		Clock clock,
 		@Value("${reservation.inventory.retention.past-free-days-to-keep:30}")
 		int pastFreeDaysToKeep,
-		@Value("${reservation.inventory.retention.batch-size:5000}") int batchSize,
+		@Value("${reservation.inventory.retention.batch-size:5000}")
+		int batchSize,
 		@Value("${reservation.inventory.retention.max-batches-per-run:10}")
-		int maxBatchesPerRun
-	) {
+		int maxBatchesPerRun) {
 		if (pastFreeDaysToKeep < 1) {
 			throw new IllegalArgumentException(
 				"inventory retention must keep at least one past FREE day");
@@ -51,10 +47,7 @@ public class AccommodationInventoryRetentionScheduler {
 		this.maxBatchesPerRun = maxBatchesPerRun;
 	}
 
-	@Scheduled(
-		fixedDelayString = "${reservation.inventory.retention.interval:5m}",
-		scheduler = ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER
-	)
+	@Scheduled(fixedDelayString = "${reservation.inventory.retention.interval:5m}", scheduler = ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER)
 	public void deletePastFreeInventory() {
 		long startedAt = System.nanoTime();
 		LocalDate cutoffExclusive = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC)
@@ -74,7 +67,7 @@ public class AccommodationInventoryRetentionScheduler {
 		}
 		if (totalDeleted > 0) {
 			log.info("Inventory FREE retention complete: deletedRows={} batches={} elapsedMs={} "
-					+ "cutoffExclusive={} drained={}",
+				+ "cutoffExclusive={} drained={}",
 				totalDeleted, batches, (System.nanoTime() - startedAt) / 1_000_000,
 				cutoffExclusive, drained);
 		}

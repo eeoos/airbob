@@ -29,9 +29,7 @@ public class CursorPageInfoCreator {
 			hasNext,
 			lastEntity -> new CursorData(
 				idExtractor.apply(lastEntity),
-				createdAtExtractor.apply(lastEntity)
-			)
-		);
+				createdAtExtractor.apply(lastEntity)));
 	}
 
 	public <T> CursorResponse.PageInfo createPageInfo(
@@ -47,16 +45,13 @@ public class CursorPageInfoCreator {
 			lastEntity -> new ReviewCursorData(
 				idExtractor.apply(lastEntity),
 				createdAtExtractor.apply(lastEntity),
-				ratingExtractor.apply(lastEntity)
-			)
-		);
+				ratingExtractor.apply(lastEntity)));
 	}
 
 	public <T> CursorResponse.PageInfo createPageInfo(
 		List<T> content,
 		boolean hasNext,
-		Function<T, ? extends CursorPayload> cursorFactory
-	) {
+		Function<T, ? extends CursorPayload> cursorFactory) {
 		if (content.isEmpty()) {
 			return new CursorResponse.PageInfo(false, null, 0);
 		}

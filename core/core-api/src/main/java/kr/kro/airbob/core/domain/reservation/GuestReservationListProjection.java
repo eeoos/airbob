@@ -18,8 +18,7 @@ public record GuestReservationListProjection(
 	LocalDateTime createdAt,
 	Long accommodationId,
 	String accommodationName,
-	String accommodationThumbnailUrl
-) {
+	String accommodationThumbnailUrl) {
 	@QueryProjection
 	public GuestReservationListProjection {
 	}

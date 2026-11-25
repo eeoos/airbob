@@ -24,25 +24,22 @@ import kr.kro.airbob.core.domain.operatoralert.infrastructure.outbox.MysqlOperat
 @DisplayName("operator alert outbox publisher")
 class OperatorAlertPublishingTest {
 
-	private static final UUID SUBJECT_UID =
-		UUID.fromString("a02c5725-79dd-4511-bec2-cdc529a1d36e");
-	private static final UUID OCCURRENCE_UID =
-		UUID.fromString("e50bad19-a938-48ca-9c15-42633dc41f31");
+	private static final UUID SUBJECT_UID = UUID.fromString("a02c5725-79dd-4511-bec2-cdc529a1d36e");
+	private static final UUID OCCURRENCE_UID = UUID.fromString("e50bad19-a938-48ca-9c15-42633dc41f31");
 
-	@Mock private OperatorAlertOutboxAppender outboxAppender;
+	@Mock
+	private OperatorAlertOutboxAppender outboxAppender;
 
 	@Test
 	void appendsInsideTheCallersExistingTransactionWithoutOpeningANewOne() throws Exception {
 		org.mockito.BDDMockito.given(outboxAppender.appendIfAbsent(
 			org.mockito.ArgumentMatchers.any())).willReturn(true);
-		OperatorAlertOutboxPublisher publisher =
-			new OperatorAlertOutboxPublisher(outboxAppender);
+		OperatorAlertOutboxPublisher publisher = new OperatorAlertOutboxPublisher(outboxAppender);
 		OperatorAlertRequest request = request();
 
 		OperatorAlertPublication publication = publisher.append(request);
 
-		ArgumentCaptor<OperatorAlertRequestedV1> event =
-			ArgumentCaptor.forClass(OperatorAlertRequestedV1.class);
+		ArgumentCaptor<OperatorAlertRequestedV1> event = ArgumentCaptor.forClass(OperatorAlertRequestedV1.class);
 		then(outboxAppender).should().appendIfAbsent(event.capture());
 		assertThat(publication.appended()).isTrue();
 		assertThat(publication.alertUid()).isEqualTo(event.getValue().alertUid());
@@ -59,16 +56,15 @@ class OperatorAlertPublishingTest {
 			request.sourcePosition(), request.occurrenceUid());
 		org.mockito.BDDMockito.given(outboxAppender.appendIfAbsent(
 			org.mockito.ArgumentMatchers.any())).willReturn(false);
-		OperatorAlertOutboxPublisher publisher =
-			new OperatorAlertOutboxPublisher(outboxAppender);
+		OperatorAlertOutboxPublisher publisher = new OperatorAlertOutboxPublisher(outboxAppender);
 
 		OperatorAlertPublication replay = publisher.append(request);
 
 		assertThat(replay).isEqualTo(
 			new OperatorAlertPublication(expected.alertUid(), false));
 		then(outboxAppender).should().appendIfAbsent(
-			org.mockito.ArgumentMatchers.argThat(event ->
-				event.deduplicationKey().equals(expected.deduplicationKey())));
+			org.mockito.ArgumentMatchers
+				.argThat(event -> event.deduplicationKey().equals(expected.deduplicationKey())));
 	}
 
 	@Test
@@ -93,7 +89,6 @@ class OperatorAlertPublishingTest {
 			SUBJECT_UID,
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
 			new OperatorAlertSourcePosition("PAYMENT_OPERATION.events", 1, 7L),
-			OCCURRENCE_UID
-		);
+			OCCURRENCE_UID);
 	}
 }

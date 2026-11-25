@@ -39,8 +39,7 @@ class PaymentOperationAdminRequestValidationTest {
 		MarkNotPaid request = new MarkNotPaid(
 			3L,
 			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
-			"toss-dashboard/case:ABC_123-4.5,log"
-		);
+			"toss-dashboard/case:ABC_123-4.5,log");
 
 		assertThat(validator.validate(request)).isEmpty();
 	}
@@ -59,8 +58,7 @@ class PaymentOperationAdminRequestValidationTest {
 		Set<ConstraintViolation<MarkNotPaid>> violations = validator.validate(new MarkNotPaid(
 			3L,
 			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
-			evidenceReference
-		));
+			evidenceReference));
 
 		assertThat(violations)
 			.extracting(violation -> violation.getPropertyPath().toString())

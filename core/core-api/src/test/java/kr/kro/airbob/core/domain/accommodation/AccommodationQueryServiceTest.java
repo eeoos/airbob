@@ -35,13 +35,20 @@ class AccommodationQueryServiceTest {
 	private static final LocalDate BOOKING_WINDOW_START = LocalDate.of(2026, 8, 12);
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(BOOKING_WINDOW_START);
 
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
-	@Mock private BookingWindowProvider bookingWindowProvider;
-	@Mock private AccommodationDetailReader accommodationDetailReader;
-	@Mock private AccommodationDetailCache accommodationDetailCache;
-	@Mock private Clock clock;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private CursorPageInfoCreator cursorPageInfoCreator;
+	@Mock
+	private BookingWindowProvider bookingWindowProvider;
+	@Mock
+	private AccommodationDetailReader accommodationDetailReader;
+	@Mock
+	private AccommodationDetailCache accommodationDetailCache;
+	@Mock
+	private Clock clock;
 
 	private AccommodationQueryService accommodationQueryService;
 
@@ -57,7 +64,8 @@ class AccommodationQueryServiceTest {
 	void anonymousAccommodationDetailSkipsWishlistLookup() {
 		givenCachedAccommodation(1L);
 
-		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(1L, null));
+		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
+			.from(accommodationQueryService.findAccommodation(1L, null));
 
 		assertThat(response.isInWishlist()).isFalse();
 		verify(accommodationDetailReader, never()).isInWishlist(anyLong(), anyLong());
@@ -69,7 +77,8 @@ class AccommodationQueryServiceTest {
 		givenCachedAccommodation(1L);
 		when(accommodationDetailReader.isInWishlist(1L, 7L)).thenReturn(true);
 
-		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(1L, 7L));
+		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
+			.from(accommodationQueryService.findAccommodation(1L, 7L));
 
 		assertThat(response.isInWishlist()).isTrue();
 		verify(accommodationDetailReader).isInWishlist(1L, 7L);
@@ -81,8 +90,8 @@ class AccommodationQueryServiceTest {
 		BookingWindow newYorkWindow = BookingWindow.startingOn(LocalDate.of(2026, 8, 11));
 		givenPublishedAccommodationAvailability(1L, "America/New_York", newYorkWindow);
 
-		AccommodationResponse.Availability response =
-			AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(1L));
+		AccommodationResponse.Availability response = AccommodationResponse.Availability
+			.from(accommodationQueryService.findAccommodationAvailability(1L));
 
 		assertThat(response.bookingWindowStartInclusive()).isEqualTo(LocalDate.of(2026, 8, 11));
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(LocalDate.of(2026, 11, 11));
@@ -105,8 +114,8 @@ class AccommodationQueryServiceTest {
 	void accommodationAvailabilityUsesAccommodationIdForInventory() {
 		givenPublishedAccommodationAvailability(1L);
 
-		AccommodationResponse.Availability response =
-			AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(1L));
+		AccommodationResponse.Availability response = AccommodationResponse.Availability
+			.from(accommodationQueryService.findAccommodationAvailability(1L));
 		ArgumentCaptor<LocalDate> windowStartCaptor = ArgumentCaptor.forClass(LocalDate.class);
 		ArgumentCaptor<LocalDate> windowEndCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
@@ -130,16 +139,14 @@ class AccommodationQueryServiceTest {
 			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 			.thenReturn(List.of(new ReservationInventoryManager.UnavailableRange(
 				today.plusDays(1),
-				today.plusDays(4)
-			)));
+				today.plusDays(4))));
 
-		AccommodationResponse.Availability response =
-			AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(accommodationId));
+		AccommodationResponse.Availability response = AccommodationResponse.Availability
+			.from(accommodationQueryService.findAccommodationAvailability(accommodationId));
 
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(today.plusMonths(3));
 		assertThat(response.unavailableRanges()).containsExactly(
-			new AccommodationResponse.UnavailableDateRange(today.plusDays(1), today.plusDays(4))
-		);
+			new AccommodationResponse.UnavailableDateRange(today.plusDays(1), today.plusDays(4)));
 	}
 
 	@Test
@@ -157,17 +164,15 @@ class AccommodationQueryServiceTest {
 					windowStart.plusDays(6)),
 				new ReservationInventoryManager.UnavailableRange(
 					windowEndExclusive.minusDays(1),
-					windowEndExclusive)
-			));
+					windowEndExclusive)));
 
-		AccommodationResponse.Availability response =
-			AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(accommodationId));
+		AccommodationResponse.Availability response = AccommodationResponse.Availability
+			.from(accommodationQueryService.findAccommodationAvailability(accommodationId));
 
 		assertThat(response.unavailableRanges()).containsExactly(
 			new AccommodationResponse.UnavailableDateRange(windowStart, windowStart.plusDays(6)),
 			new AccommodationResponse.UnavailableDateRange(
-				windowEndExclusive.minusDays(1), windowEndExclusive)
-		);
+				windowEndExclusive.minusDays(1), windowEndExclusive));
 	}
 
 	@Test
@@ -176,7 +181,8 @@ class AccommodationQueryServiceTest {
 		when(accommodationRepository.findBookingProjectionByIdAndStatus(
 			1L, AccommodationStatus.PUBLISHED)).thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(1L)))
+		assertThatThrownBy(
+			() -> AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(1L)))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		verifyNoInteractions(bookingWindowProvider, inventoryManager);
 	}
@@ -209,8 +215,7 @@ class AccommodationQueryServiceTest {
 	private void givenPublishedAccommodationAvailability(
 		Long accommodationId,
 		String timeZoneId,
-		BookingWindow bookingWindow
-	) {
+		BookingWindow bookingWindow) {
 		when(accommodationRepository.findBookingProjectionByIdAndStatus(
 			accommodationId, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(new AccommodationBookingProjection(timeZoneId)));

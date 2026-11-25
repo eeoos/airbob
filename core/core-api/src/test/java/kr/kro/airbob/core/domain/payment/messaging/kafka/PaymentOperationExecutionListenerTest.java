@@ -55,9 +55,12 @@ class PaymentOperationExecutionListenerTest {
 		}
 		""";
 
-	@Mock private PaymentOperationExecutionService executor;
-	@Mock private PaymentOperationDltIncidentService dltIncidentService;
-	@Mock private Acknowledgment acknowledgment;
+	@Mock
+	private PaymentOperationExecutionService executor;
+	@Mock
+	private PaymentOperationDltIncidentService dltIncidentService;
+	@Mock
+	private Acknowledgment acknowledgment;
 
 	private PaymentOperationExecutionListener listener;
 
@@ -267,8 +270,7 @@ class PaymentOperationExecutionListenerTest {
 		String value,
 		String originalTopic,
 		int partition,
-		long offset
-	) {
+		long offset) {
 		ConsumerRecord<String, String> record = new ConsumerRecord<>(
 			PaymentOperationExecutionRequestedV1.TOPIC + ".DLT", 0, 99L, null, value);
 		record.headers().add(

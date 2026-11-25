@@ -87,8 +87,7 @@ public class CouponUsageManager {
 	private long calculateApplicableDiscount(
 		Coupon coupon,
 		long originalAmount,
-		java.time.LocalDateTime now
-	) {
+		java.time.LocalDateTime now) {
 		if (!coupon.isUsable(now)) {
 			throw new CouponNotApplicableException();
 		}

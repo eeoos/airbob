@@ -3,7 +3,6 @@ package kr.kro.airbob.core.domain.search;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
@@ -19,11 +18,12 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
 @DisplayName("숙소 검색 스냅샷 리더")
 class AccommodationSearchSnapshotReaderTest {
 
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
 
-	@Mock private AccommodationDocumentBuilder documentBuilder;
-	@InjectMocks private AccommodationSearchSnapshotReader reader;
+	@Mock
+	private AccommodationDocumentBuilder documentBuilder;
+	@InjectMocks
+	private AccommodationSearchSnapshotReader reader;
 
 	@Test
 	@DisplayName("현재 DB 상태가 공개일 때만 전체 문서를 반환한다")

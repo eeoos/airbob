@@ -14,9 +14,10 @@ public class AccommodationIndexAliasReadiness implements InitializingBean {
 
 	public AccommodationIndexAliasReadiness(
 		AccommodationIndexAliasBootstrap bootstrap,
-		@Value("${accommodation.indexing.bootstrap.enabled:true}") boolean bootstrapEnabled,
-		@Value("${accommodation.indexing.kafka.auto-startup:true}") boolean listenerEnabled
-	) {
+		@Value("${accommodation.indexing.bootstrap.enabled:true}")
+		boolean bootstrapEnabled,
+		@Value("${accommodation.indexing.kafka.auto-startup:true}")
+		boolean listenerEnabled) {
 		if (listenerEnabled && !bootstrapEnabled) {
 			throw new IllegalArgumentException(
 				"Accommodation indexing listener requires alias bootstrap readiness.");

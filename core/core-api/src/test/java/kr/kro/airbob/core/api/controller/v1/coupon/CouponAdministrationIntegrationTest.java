@@ -73,10 +73,14 @@ class CouponAdministrationIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired CouponService service;
-	@Autowired CouponStockPreparationService preparation;
-	@Autowired CouponIssueUnitStore units;
-	@Autowired JdbcTemplate jdbc;
+	@Autowired
+	CouponService service;
+	@Autowired
+	CouponStockPreparationService preparation;
+	@Autowired
+	CouponIssueUnitStore units;
+	@Autowired
+	JdbcTemplate jdbc;
 	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules()
 		.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
 		.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -96,12 +100,14 @@ class CouponAdministrationIntegrationTest {
 
 	@Test
 	void creationReturnsTheIdentityNeededToPrepareStock() throws Exception {
-		String body = mvc.perform(post("/api/v1/admin/coupons").contentType(MediaType.APPLICATION_JSON).content(valid().toString()))
+		String body = mvc
+			.perform(post("/api/v1/admin/coupons").contentType(MediaType.APPLICATION_JSON).content(valid().toString()))
 			.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 		long id = mapper.readTree(body).at("/data/id").asLong();
 		assertThat(id).isPositive();
 		assertThat(jdbc.queryForObject("SELECT id FROM coupon", Long.class)).isEqualTo(id);
-		assertThat(jdbc.queryForObject("SELECT stock_prepared_at FROM coupon WHERE id = ?", LocalDateTime.class, id)).isNull();
+		assertThat(jdbc.queryForObject("SELECT stock_prepared_at FROM coupon WHERE id = ?", LocalDateTime.class, id))
+			.isNull();
 		mvc.perform(post("/api/v1/admin/coupons/{id}/stock/prepare", id)).andExpect(status().isOk());
 		assertThat(units.count(id)).isEqualTo(2);
 	}
@@ -119,7 +125,8 @@ class CouponAdministrationIntegrationTest {
 		long id = create();
 		preparation.prepare(id);
 		ObjectNode patch = mapper.createObjectNode().put(field, "가".repeat(256)).put("total_quantity", 5);
-		mvc.perform(patch("/api/v1/admin/coupons/{id}", id).contentType(MediaType.APPLICATION_JSON).content(patch.toString()))
+		mvc.perform(
+			patch("/api/v1/admin/coupons/{id}", id).contentType(MediaType.APPLICATION_JSON).content(patch.toString()))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("CP013"));
 		assertThat(jdbc.queryForMap("SELECT name,description,total_quantity FROM coupon WHERE id = ?", id))
 			.containsEntry("name", "쿠폰").containsEntry("description", "안내").containsEntry("total_quantity", 2);
@@ -127,7 +134,8 @@ class CouponAdministrationIntegrationTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"0999-12-31T23:59:59Z", "+10000-01-01T00:00:00Z", "+1000000000-12-31T23:59:59.999999999Z", "9999-12-31T23:59:59.999999500Z"})
+	@ValueSource(strings = {"0999-12-31T23:59:59Z", "+10000-01-01T00:00:00Z", "+1000000000-12-31T23:59:59.999999999Z",
+		"9999-12-31T23:59:59.999999500Z"})
 	void rejectsDatesOutsideMysqlRangeBeforePersistence(String time) throws Exception {
 		String field = time.startsWith("0999") ? "usable_from" : "usable_until";
 		assertInvalidCreate(valid().put(field, time));
@@ -152,7 +160,8 @@ class CouponAdministrationIntegrationTest {
 		mvc.perform(post("/api/v1/admin/coupons").contentType(MediaType.APPLICATION_JSON).content(request.toString()))
 			.andExpect(status().isCreated());
 		assertThat(jdbc.queryForObject("SELECT CHAR_LENGTH(name) FROM coupon", Integer.class)).isEqualTo(255);
-		assertThat(jdbc.queryForObject("SELECT issue_start_at FROM coupon", LocalDateTime.class)).isEqualTo(start.plusNanos(1000));
+		assertThat(jdbc.queryForObject("SELECT issue_start_at FROM coupon", LocalDateTime.class))
+			.isEqualTo(start.plusNanos(1000));
 	}
 
 	@Test
@@ -171,14 +180,17 @@ class CouponAdministrationIntegrationTest {
 		assertThat(jdbc.queryForMap("SELECT name,description,discount_value FROM coupon WHERE id = ?", id))
 			.containsEntry("name", "수정 이름").containsEntry("description", "").containsEntry("discount_value", 2000);
 		mvc.perform(patch("/api/v1/admin/coupons/{id}", id).contentType(MediaType.APPLICATION_JSON)
-			.content(mapper.createObjectNode().put("issue_end_at", start.plusDays(1).plusNanos(100).toInstant(ZoneOffset.UTC).toString()).toString()))
+			.content(mapper.createObjectNode()
+				.put("issue_end_at", start.plusDays(1).plusNanos(100).toInstant(ZoneOffset.UTC).toString()).toString()))
 			.andExpect(status().isOk());
 		for (String request : List.of("{\"total_quantity\":3}", "{\"is_active\":false}",
 			"{\"issue_end_at\":\"" + start.plusDays(2).toInstant(ZoneOffset.UTC) + "\"}")) {
-			mvc.perform(patch("/api/v1/admin/coupons/{id}", id).contentType(MediaType.APPLICATION_JSON).content(request))
+			mvc.perform(
+				patch("/api/v1/admin/coupons/{id}", id).contentType(MediaType.APPLICATION_JSON).content(request))
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("CP014"));
 		}
-		mvc.perform(patch("/api/v1/admin/coupons/{id}/quantity", id).contentType(MediaType.APPLICATION_JSON).content("{\"total_quantity\":2}"))
+		mvc.perform(patch("/api/v1/admin/coupons/{id}/quantity", id).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"total_quantity\":2}"))
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("CP014"));
 		assertThat(units.count(id)).isEqualTo(2);
 	}

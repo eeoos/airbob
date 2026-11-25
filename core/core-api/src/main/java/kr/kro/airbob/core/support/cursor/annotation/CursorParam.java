@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface CursorParam {
+public @interface CursorParam{
 
 	int defaultSize() default 20;
 

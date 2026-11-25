@@ -23,89 +23,89 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AccommodationHostController implements AccommodationHostApi {
 
-    private final AccommodationCommandService accommodationCommandService;
-    private final AccommodationImageService accommodationImageService;
-    private final AccommodationQueryService accommodationQueryService;
+	private final AccommodationCommandService accommodationCommandService;
+	private final AccommodationImageService accommodationImageService;
+	private final AccommodationQueryService accommodationQueryService;
 
-    @Override
-    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(
-        Long memberId) {
-        AccommodationResponse.Create response = new AccommodationResponse.Create(
-            accommodationCommandService.createAccommodation(memberId));
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(ApiResponse.success(response));
-    }
+	@Override
+	public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(
+		Long memberId) {
+		AccommodationResponse.Create response = new AccommodationResponse.Create(
+			accommodationCommandService.createAccommodation(memberId));
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(ApiResponse.success(response));
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> updateAccommodation(Long accommodationId,
-        AccommodationRequest.Update request,
-        Long memberId) {
-        accommodationCommandService.updateAccommodation(accommodationId, request.toUpdate(), memberId);
-        return ResponseEntity.ok(ApiResponse.success());
-    }
+	@Override
+	public ResponseEntity<ApiResponse<Void>> updateAccommodation(Long accommodationId,
+		AccommodationRequest.Update request,
+		Long memberId) {
+		accommodationCommandService.updateAccommodation(accommodationId, request.toUpdate(), memberId);
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> publishAccommodation(Long accommodationId,
-        Long memberId) {
-        accommodationCommandService.publishAccommodation(accommodationId, memberId);
+	@Override
+	public ResponseEntity<ApiResponse<Void>> publishAccommodation(Long accommodationId,
+		Long memberId) {
+		accommodationCommandService.publishAccommodation(accommodationId, memberId);
 
-        return ResponseEntity.ok(ApiResponse.success());
-    }
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> unpublishAccommodation(Long accommodationId,
-        Long memberId) {
-        accommodationCommandService.unpublishAccommodation(accommodationId, memberId);
+	@Override
+	public ResponseEntity<ApiResponse<Void>> unpublishAccommodation(Long accommodationId,
+		Long memberId) {
+		accommodationCommandService.unpublishAccommodation(accommodationId, memberId);
 
-        return ResponseEntity.ok(ApiResponse.success());
-    }
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> deleteAccommodation(Long accommodationId,
-        Long memberId) {
-        accommodationCommandService.deleteAccommodation(accommodationId, memberId);
-        return ResponseEntity.ok(ApiResponse.success());
-    }
+	@Override
+	public ResponseEntity<ApiResponse<Void>> deleteAccommodation(Long accommodationId,
+		Long memberId) {
+		accommodationCommandService.deleteAccommodation(accommodationId, memberId);
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<ImageResponse.ImageUploadResult>> uploadAccommodationImages(
-        Long accommodationId,
-        List<MultipartFile> images,
-        Long memberId) {
-        List<StoredImage> uploaded = accommodationImageService.uploadImages(accommodationId, images, memberId);
-        ImageResponse.ImageUploadResult response = ImageResponse.ImageUploadResult.from(
-            uploaded.stream().map(ImageResponse.ImageInfo::from).toList());
+	@Override
+	public ResponseEntity<ApiResponse<ImageResponse.ImageUploadResult>> uploadAccommodationImages(
+		Long accommodationId,
+		List<MultipartFile> images,
+		Long memberId) {
+		List<StoredImage> uploaded = accommodationImageService.uploadImages(accommodationId, images, memberId);
+		ImageResponse.ImageUploadResult response = ImageResponse.ImageUploadResult.from(
+			uploaded.stream().map(ImageResponse.ImageInfo::from).toList());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
-    }
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> deleteAccommodationImage(
-        Long accommodationId,
-        Long imageId,
-        Long memberId) {
-        accommodationImageService.deleteImage(accommodationId, imageId, memberId);
+	@Override
+	public ResponseEntity<ApiResponse<Void>> deleteAccommodationImage(
+		Long accommodationId,
+		Long imageId,
+		Long memberId) {
+		accommodationImageService.deleteImage(accommodationId, imageId, memberId);
 
-        return ResponseEntity.ok(ApiResponse.success());
-    }
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<AccommodationResponse.HostAccommodationInfos>> getHostAccommodations(
-        CursorRequest.CursorPageRequest request,
-        AccommodationStatus status,
-        Long memberId) {
-        AccommodationResponse.HostAccommodationInfos response = AccommodationResponse.HostAccommodationInfos.from(
-            accommodationQueryService.findMyAccommodations(memberId, request, status));
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
+	@Override
+	public ResponseEntity<ApiResponse<AccommodationResponse.HostAccommodationInfos>> getHostAccommodations(
+		CursorRequest.CursorPageRequest request,
+		AccommodationStatus status,
+		Long memberId) {
+		AccommodationResponse.HostAccommodationInfos response = AccommodationResponse.HostAccommodationInfos.from(
+			accommodationQueryService.findMyAccommodations(memberId, request, status));
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
 
-    @Override
-    public ResponseEntity<ApiResponse<AccommodationResponse.HostDetail>> getHostAccommodationDetail(
-        Long accommodationId,
-        Long hostId) {
-        AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
-            accommodationQueryService.findHostAccommodationDetail(accommodationId, hostId));
+	@Override
+	public ResponseEntity<ApiResponse<AccommodationResponse.HostDetail>> getHostAccommodationDetail(
+		Long accommodationId,
+		Long hostId) {
+		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
+			accommodationQueryService.findHostAccommodationDetail(accommodationId, hostId));
 
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
 }

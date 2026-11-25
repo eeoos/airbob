@@ -10,6 +10,5 @@ public record AccommodationPatch(
 	String currency,
 	String type,
 	LocalTime checkInTime,
-	LocalTime checkOutTime
-) {
+	LocalTime checkOutTime) {
 }

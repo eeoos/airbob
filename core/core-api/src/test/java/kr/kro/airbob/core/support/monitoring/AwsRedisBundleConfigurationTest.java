@@ -64,8 +64,7 @@ class AwsRedisBundleConfigurationTest {
 		String command,
 		String port,
 		String volume,
-		String memoryLimit
-	) {
+		String memoryLimit) {
 		assertThat(redis)
 			.containsEntry("image", "${REDIS_IMAGE:?REDIS_IMAGE is required}")
 			.containsEntry("platform", "linux/amd64")

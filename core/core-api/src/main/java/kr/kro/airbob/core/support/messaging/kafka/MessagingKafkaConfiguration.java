@@ -37,8 +37,7 @@ public class MessagingKafkaConfiguration {
 
 	@Bean(name = PRODUCER_FACTORY)
 	public ProducerFactory<String, String> integrationEventProducerFactory(
-		KafkaProperties kafkaProperties
-	) {
+		KafkaProperties kafkaProperties) {
 		Map<String, Object> properties = new HashMap<>(kafkaProperties.buildProducerProperties());
 		properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
 		properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -47,26 +46,24 @@ public class MessagingKafkaConfiguration {
 
 	@Bean(name = KAFKA_TEMPLATE)
 	public KafkaTemplate<String, String> integrationEventKafkaTemplate(
-		@Qualifier(PRODUCER_FACTORY) ProducerFactory<String, String> producerFactory
-	) {
+		@Qualifier(PRODUCER_FACTORY)
+		ProducerFactory<String, String> producerFactory) {
 		return new KafkaTemplate<>(producerFactory);
 	}
 
 	@Bean
-	public IntegrationEventKafkaListenerContainerFactoryBuilder
-		integrationEventKafkaListenerContainerFactoryBuilder(
-			ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
-			KafkaProperties kafkaProperties
-		) {
+	public IntegrationEventKafkaListenerContainerFactoryBuilder integrationEventKafkaListenerContainerFactoryBuilder(
+		ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
+		KafkaProperties kafkaProperties) {
 		return new IntegrationEventKafkaListenerContainerFactoryBuilder(
 			configurer, kafkaProperties);
 	}
 
 	@Bean
 	public SanitizingRetryKafkaTemplateFactory sanitizingRetryKafkaTemplateFactory(
-		@Qualifier(PRODUCER_FACTORY) ProducerFactory<String, String> producerFactory,
-		IntegrationEventCodec codec
-	) {
+		@Qualifier(PRODUCER_FACTORY)
+		ProducerFactory<String, String> producerFactory,
+		IntegrationEventCodec codec) {
 		return new SanitizingRetryKafkaTemplateFactory(producerFactory, codec);
 	}
 }

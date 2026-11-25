@@ -12,9 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -38,20 +38,27 @@ import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository
 @DisplayName("일일 매출 사전집계(daily_revenue_stats) 통합 테스트")
 class DailyRevenueStatsIntegrationTest {
 
-	@Autowired private RevenueStatsService revenueStatsService;
-	@Autowired private JdbcTemplate jdbc;
+	@Autowired
+	private RevenueStatsService revenueStatsService;
+	@Autowired
+	private JdbcTemplate jdbc;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -138,8 +145,7 @@ class DailyRevenueStatsIntegrationTest {
 		// 일자 롤업 값 검증: D1 net 80000(pay 3), D2 net 2000(gross 7000 - refund 5000)
 		assertThat(stats).containsExactly(
 			new DailyRevenueTotal(D1, 80000, 0, 80000, 3, 0),
-			new DailyRevenueTotal(D2, 7000, 5000, 2000, 1, 1)
-		);
+			new DailyRevenueTotal(D2, 7000, 5000, 2000, 1, 1));
 	}
 
 	@Test
@@ -150,7 +156,8 @@ class DailyRevenueStatsIntegrationTest {
 		assertThat(revenueStatsService.getDailyRevenue(D1.minusDays(1), D2.plusDays(1)))
 			.extracting(DailyRevenueTotal::date).containsExactly(D1, D2);
 
-		long reservation = insertReservation("LATE", acc1, jdbc.queryForObject("SELECT member_id FROM accommodation WHERE id = ?", Long.class, acc1));
+		long reservation = insertReservation("LATE", acc1,
+			jdbc.queryForObject("SELECT member_id FROM accommodation WHERE id = ?", Long.class, acc1));
 		insertConfirm(reservation, 123, D1);
 		assertThat(revenueStatsService.getDailyRevenue(D1, D1).getFirst().grossAmount()).isEqualTo(80000);
 		revenueStatsService.recompute(D1);
@@ -168,17 +175,19 @@ class DailyRevenueStatsIntegrationTest {
 	void utcBoundariesRefundFallbackAndLedgerCountsMatchTheContract() {
 		LocalDate d3 = D2.plusDays(1);
 		long reservation = jdbc.queryForObject("SELECT id FROM reservation WHERE reservation_code = 'R1'", Long.class);
-		jdbc.update("""
-			INSERT INTO payment_transaction (reservation_id, transaction_type, amount, cancel_amount, canceled_at, created_at, updated_at)
-			VALUES (?, 'CONFIRM', 100, NULL, NULL, ?, NOW(6)),
-			       (?, 'CONFIRM', NULL, NULL, NULL, ?, NOW(6)),
-			       (?, 'PARTIAL_CANCEL', NULL, 20, ?, ?, NOW(6)),
-			       (?, 'CANCEL', NULL, 30, NULL, ?, NOW(6)),
-			       (?, 'CANCEL', NULL, NULL, NULL, ?, NOW(6)),
-			       (?, 'FAIL', 900000, NULL, NULL, ?, NOW(6)),
-			       (?, 'CANCEL_FAIL', NULL, 800000, NULL, ?, NOW(6)),
-			       (?, 'VIRTUAL_ISSUED', 700000, NULL, NULL, ?, NOW(6))
-			""", reservation, D2.atTime(23, 59, 59, 999_999_000),
+		jdbc.update(
+			"""
+				INSERT INTO payment_transaction (reservation_id, transaction_type, amount, cancel_amount, canceled_at, created_at, updated_at)
+				VALUES (?, 'CONFIRM', 100, NULL, NULL, ?, NOW(6)),
+				       (?, 'CONFIRM', NULL, NULL, NULL, ?, NOW(6)),
+				       (?, 'PARTIAL_CANCEL', NULL, 20, ?, ?, NOW(6)),
+				       (?, 'CANCEL', NULL, 30, NULL, ?, NOW(6)),
+				       (?, 'CANCEL', NULL, NULL, NULL, ?, NOW(6)),
+				       (?, 'FAIL', 900000, NULL, NULL, ?, NOW(6)),
+				       (?, 'CANCEL_FAIL', NULL, 800000, NULL, ?, NOW(6)),
+				       (?, 'VIRTUAL_ISSUED', 700000, NULL, NULL, ?, NOW(6))
+				""",
+			reservation, D2.atTime(23, 59, 59, 999_999_000),
 			reservation, d3.atStartOfDay(),
 			reservation, d3.atStartOfDay(), d3.plusDays(2).atTime(9, 0),
 			reservation, d3.atStartOfDay(), reservation, d3.atStartOfDay(),
@@ -220,7 +229,8 @@ class DailyRevenueStatsIntegrationTest {
 	private void assertRow(LocalDate d, long accId, long gross, long refund, long net, int payCnt, int refundCnt) {
 		var row = jdbc.queryForMap(
 			"SELECT gross_amount, refund_amount, net_amount, payment_count, refund_count "
-				+ "FROM daily_revenue_stats WHERE stat_date = ? AND accommodation_id = ?", d, accId);
+				+ "FROM daily_revenue_stats WHERE stat_date = ? AND accommodation_id = ?",
+			d, accId);
 		assertThat(((Number)row.get("gross_amount")).longValue()).isEqualTo(gross);
 		assertThat(((Number)row.get("refund_amount")).longValue()).isEqualTo(refund);
 		assertThat(((Number)row.get("net_amount")).longValue()).isEqualTo(net);

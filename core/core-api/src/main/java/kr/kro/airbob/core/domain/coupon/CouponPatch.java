@@ -15,6 +15,5 @@ public record CouponPatch(
 	Instant usableFrom,
 	Instant usableUntil,
 	Boolean isActive,
-	Integer totalQuantity
-) {
+	Integer totalQuantity) {
 }

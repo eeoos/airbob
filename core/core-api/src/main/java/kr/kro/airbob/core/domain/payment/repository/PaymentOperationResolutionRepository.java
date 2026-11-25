@@ -4,5 +4,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import kr.kro.airbob.core.domain.payment.PaymentOperationResolution;
 
-public interface PaymentOperationResolutionRepository extends JpaRepository<PaymentOperationResolution, Long> {
-}
+public interface PaymentOperationResolutionRepository extends JpaRepository<PaymentOperationResolution, Long> {}

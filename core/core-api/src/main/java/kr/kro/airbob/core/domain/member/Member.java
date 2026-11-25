@@ -53,12 +53,12 @@ public class Member extends BaseEntity {
 	/** 가입할 회원. 비밀번호는 hashPassword로 만든 해시를 받는다. */
 	public static Member create(NewMember newMember, String passwordHash) {
 		return Member.builder()
-				.nickname(newMember.nickname())
-				.email(newMember.email())
-				.password(passwordHash)
-				.thumbnailImageUrl(newMember.thumbnailImageUrl())
-				.role(MemberRole.MEMBER)
-				.build();
+			.nickname(newMember.nickname())
+			.email(newMember.email())
+			.password(passwordHash)
+			.thumbnailImageUrl(newMember.thumbnailImageUrl())
+			.role(MemberRole.MEMBER)
+			.build();
 	}
 
 	/** 저장할 비밀번호 해시(BCrypt). 검증은 matchesPassword가 같은 방식으로 한다. */

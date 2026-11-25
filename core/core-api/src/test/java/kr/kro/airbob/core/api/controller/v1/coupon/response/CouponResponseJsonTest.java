@@ -27,7 +27,8 @@ class CouponResponseJsonTest {
 
 	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 8, 3, 0); // UTC = Seoul 12:00
 
-	@Autowired private ObjectMapper objectMapper;
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	@Test
 	@DisplayName("캠페인은 발급 상태와 발급·사용 기간을 구분하여 반환한다")
@@ -38,7 +39,9 @@ class CouponResponseJsonTest {
 			coupon(12, "매진 쿠폰").build());
 
 		assertContract("coupon-campaigns.json", new CouponResponse.CouponInfos(campaigns.stream()
-			.map(coupon -> CouponResponse.CouponInfo.from(CouponCampaignPage.Item.of(campaign(coupon, coupon.getId() != 12), NOW))).toList(),
+			.map(coupon -> CouponResponse.CouponInfo
+				.from(CouponCampaignPage.Item.of(campaign(coupon, coupon.getId() != 12), NOW)))
+			.toList(),
 			new CursorResponse.PageInfo(false, null, campaigns.size())));
 	}
 
@@ -54,7 +57,8 @@ class CouponResponseJsonTest {
 			owned(coupon(17, "발급 종료 보유 쿠폰").issueEndAt(NOW).build(), false));
 
 		assertContract("member-coupons.json", new CouponResponse.MemberCouponInfos(owned.stream()
-			.map(memberCoupon -> CouponResponse.MemberCouponInfo.from(MemberCouponPage.Item.of(memberCoupon, NOW))).toList(),
+			.map(memberCoupon -> CouponResponse.MemberCouponInfo.from(MemberCouponPage.Item.of(memberCoupon, NOW)))
+			.toList(),
 			new CursorResponse.PageInfo(false, null, owned.size())));
 	}
 

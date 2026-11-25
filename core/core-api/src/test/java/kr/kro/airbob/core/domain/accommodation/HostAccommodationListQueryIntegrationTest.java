@@ -63,7 +63,8 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
-	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class, ReservationAvailabilityReader.class, AccommodationReader.class,
+	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class,
+	ReservationAvailabilityReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
 	HostAccommodationListQueryIntegrationTest.SqlCaptureConfig.class
 })
@@ -87,17 +88,28 @@ class HostAccommodationListQueryIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private AccommodationQueryService service;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private CursorDecoder cursorDecoder;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@MockitoBean private ReservationInventoryManager inventoryManager;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
-	@MockitoBean private AccommodationDetailReader detailReader;
-	@MockitoBean private AccommodationDetailCache detailCache;
+	@Autowired
+	private AccommodationQueryService service;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private CursorDecoder cursorDecoder;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@MockitoBean
+	private ReservationInventoryManager inventoryManager;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private AccommodationDetailReader detailReader;
+	@MockitoBean
+	private AccommodationDetailCache detailCache;
 
 	@BeforeEach
 	void setUp() {
@@ -185,7 +197,8 @@ class HostAccommodationListQueryIntegrationTest {
 		HostAccommodationInfos result = HostAccommodationInfos.from(service.findMyAccommodations(hostId,
 			CursorPageRequest.builder().size(size)
 				.lastId(cursor == null ? null : cursor.id())
-				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), status));
+				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(),
+			status));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		return result;
 	}

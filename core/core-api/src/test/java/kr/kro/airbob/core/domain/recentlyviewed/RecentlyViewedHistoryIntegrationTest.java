@@ -1,14 +1,14 @@
 package kr.kro.airbob.core.domain.recentlyviewed;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -63,7 +63,8 @@ class RecentlyViewedHistoryIntegrationTest {
 
 	@AfterAll
 	static void disconnect() {
-		if (connections != null) connections.destroy();
+		if (connections != null)
+			connections.destroy();
 	}
 
 	@BeforeEach
@@ -72,7 +73,8 @@ class RecentlyViewedHistoryIntegrationTest {
 		accommodations = mock(AccommodationRepository.class);
 		wishlists = mock(WishlistReader.class);
 		service = new RecentlyViewedService(
-			new RecentlyViewedReader(redis), new RecentlyViewedWriter(redis), new AccommodationReader(accommodations), wishlists);
+			new RecentlyViewedReader(redis), new RecentlyViewedWriter(redis), new AccommodationReader(accommodations),
+			wishlists);
 	}
 
 	@Test
@@ -124,7 +126,8 @@ class RecentlyViewedHistoryIntegrationTest {
 		try (var executor = Executors.newFixedThreadPool(8)) {
 			var futures = IntStream.rangeClosed(101, 108)
 				.mapToObj(id -> executor.submit(() -> concurrentService.addRecentlyViewed((long)id, 7L))).toList();
-			for (var future : futures) future.get(20, TimeUnit.SECONDS);
+			for (var future : futures)
+				future.get(20, TimeUnit.SECONDS);
 		}
 		assertThat(redis.opsForZSet().range(KEY, 0, -1))
 			.containsExactlyInAnyOrderElementsOf(IntStream.rangeClosed(9, 108).mapToObj(String::valueOf).toList());
@@ -153,7 +156,8 @@ class RecentlyViewedHistoryIntegrationTest {
 	void addingAnUnknownIdSucceedsAndReadRemovesItWithoutInventingAnAccommodation() {
 		service.addRecentlyViewed(999L, 7L);
 		verifyNoInteractions(accommodations, wishlists);
-		when(accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
+		when(
+			accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
 			.thenReturn(List.of());
 
 		var result = RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(7L));
@@ -166,9 +170,11 @@ class RecentlyViewedHistoryIntegrationTest {
 	@Test
 	void readKeepsRedisTieOrderAndDoesNotRefreshExpiry() {
 		long score = Instant.parse("2027-01-10T02:00:00.123Z").toEpochMilli();
-		for (String id : List.of("9", "10", "31")) redis.opsForZSet().add(KEY, id, score);
+		for (String id : List.of("9", "10", "31"))
+			redis.opsForZSet().add(KEY, id, score);
 		redis.expire(KEY, Duration.ofHours(1));
-		when(accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
+		when(
+			accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
 			.thenReturn(List.of(card(10L), card(31L), card(9L)));
 		when(wishlists.findWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(10L));
 
@@ -187,7 +193,9 @@ class RecentlyViewedHistoryIntegrationTest {
 	void expiredHistoryReturnsAnEmptyListWithoutReadingMySql() {
 		service.addRecentlyViewed(31L, 7L);
 		redis.expire(KEY, Duration.ZERO);
-		assertThat(RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(7L)).totalCount()).isZero();
+		assertThat(
+			RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(7L)).totalCount())
+			.isZero();
 		verifyNoInteractions(accommodations, wishlists);
 	}
 

@@ -17,19 +17,18 @@ import kr.kro.airbob.core.domain.accommodation.RecentlyViewedAccommodationProjec
 import kr.kro.airbob.core.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
 
 public interface AccommodationRepositoryCustom {
-    Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid);
-    Optional<PublicAccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
-        Long accommodationId,
-        AccommodationStatus status
-    );
+	Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid);
 
-    Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(
-        Long hostId,
-        Long lastId,
-        LocalDateTime lastCreatedAt,
-        AccommodationStatus status,
-        Pageable pageable
-    );
+	Optional<PublicAccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
+		Long accommodationId,
+		AccommodationStatus status);
+
+	Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(
+		Long hostId,
+		Long lastId,
+		LocalDateTime lastCreatedAt,
+		AccommodationStatus status,
+		Pageable pageable);
 
 	List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
 		List<Long> accommodationIds, AccommodationStatus status);

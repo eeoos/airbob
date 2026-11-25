@@ -23,8 +23,7 @@ final class ArchitectureSlices {
 	private static final String SCHEDULED = "org.springframework.scheduling.annotation.Scheduled";
 	private static final String KAFKA_LISTENER = "org.springframework.kafka.annotation.KafkaListener";
 
-	private ArchitectureSlices() {
-	}
+	private ArchitectureSlices() {}
 
 	/** The domain slice of a class, or empty for shared packages (core.support, core.api.config, clients, ...). */
 	static Optional<String> domainOf(JavaClass javaClass) {
@@ -52,9 +51,9 @@ final class ArchitectureSlices {
 	static boolean isRepository(JavaClass javaClass) {
 		return isApplicationClass(javaClass)
 			&& (REPOSITORY_PACKAGE.matcher(javaClass.getPackageName()).matches()
-			|| javaClass.getSimpleName().endsWith("Repository")
-			|| javaClass.getRawInterfaces().stream()
-				.anyMatch(type -> type.getName().startsWith("org.springframework.data.")));
+				|| javaClass.getSimpleName().endsWith("Repository")
+				|| javaClass.getRawInterfaces().stream()
+					.anyMatch(type -> type.getName().startsWith("org.springframework.data.")));
 	}
 
 	/** QueryDSL Q-types mirror entity associations; they are skipped as dependency origins. */
@@ -76,11 +75,12 @@ final class ArchitectureSlices {
 	 */
 	static boolean isEntryPoint(JavaClass javaClass) {
 		return javaClass.isAnnotatedWith(KAFKA_LISTENER)
-			|| javaClass.getMethods().stream().anyMatch(method ->
-				method.isAnnotatedWith(SCHEDULED) || method.isAnnotatedWith(KAFKA_LISTENER));
+			|| javaClass.getMethods().stream()
+				.anyMatch(method -> method.isAnnotatedWith(SCHEDULED) || method.isAnnotatedWith(KAFKA_LISTENER));
 	}
 
 	static DescribedPredicate<JavaClass> entryPoints() {
-		return DescribedPredicate.describe("entry points (@Scheduled or @KafkaListener)", ArchitectureSlices::isEntryPoint);
+		return DescribedPredicate.describe("entry points (@Scheduled or @KafkaListener)",
+			ArchitectureSlices::isEntryPoint);
 	}
 }

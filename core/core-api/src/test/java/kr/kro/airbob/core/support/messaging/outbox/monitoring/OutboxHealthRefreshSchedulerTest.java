@@ -23,8 +23,10 @@ class OutboxHealthRefreshSchedulerTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-17T00:00:00Z");
 
-	@Mock private OutboxHealthSnapshotRepository repository;
-	@Mock private OutboxHealthMetrics metrics;
+	@Mock
+	private OutboxHealthSnapshotRepository repository;
+	@Mock
+	private OutboxHealthMetrics metrics;
 
 	@Test
 	void refreshesHealthEvenWhenCleanupIsNotPartOfTheDependencyGraph() {
@@ -66,7 +68,6 @@ class OutboxHealthRefreshSchedulerTest {
 		return new OutboxHealthRefreshScheduler(
 			repository,
 			metrics,
-			Clock.fixed(NOW, ZoneOffset.UTC)
-		);
+			Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 }

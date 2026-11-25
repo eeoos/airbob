@@ -12,7 +12,9 @@ import kr.kro.airbob.client.s3.S3StorageClient;
 public class S3StorageConfiguration {
 
 	@Bean
-	public S3StorageClient s3StorageClient(S3Template s3Template, @Value("${cloud.aws.s3.bucket}") String bucket) {
+	public S3StorageClient s3StorageClient(S3Template s3Template,
+		@Value("${cloud.aws.s3.bucket}")
+		String bucket) {
 		return new S3StorageClient(s3Template, bucket);
 	}
 }

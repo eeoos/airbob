@@ -20,7 +20,7 @@ class S3ImageUploaderGuardTest {
 	@Test
 	void disabledUploaderRejectsUploadBeforeTouchingS3() {
 		S3ImageUploader uploader = new S3ImageUploader(s3StorageClient, false);
-		MockMultipartFile file = new MockMultipartFile("file", "image.png", "image/png", new byte[] { 1 });
+		MockMultipartFile file = new MockMultipartFile("file", "image.png", "image/png", new byte[] {1});
 
 		assertThatThrownBy(() -> uploader.upload(file, "lab"))
 			.isInstanceOf(IllegalStateException.class)

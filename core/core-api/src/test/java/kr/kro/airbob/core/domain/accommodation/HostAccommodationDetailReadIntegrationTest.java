@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
@@ -31,6 +30,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -57,8 +57,10 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationDetailReader.class, WishlistReader.class, AccommodationQueryService.class,
-	ReservationAvailabilityReader.class, AccommodationReader.class, HostAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationDetailReader.class,
+	WishlistReader.class, AccommodationQueryService.class,
+	ReservationAvailabilityReader.class, AccommodationReader.class,
+	HostAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class HostAccommodationDetailReadIntegrationTest {
 
@@ -76,16 +78,26 @@ class HostAccommodationDetailReadIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@Autowired private AccommodationQueryService service;
-	@MockitoBean private CursorPageInfoCreator cursorPageInfoCreator;
-	@MockitoBean private ReservationInventoryManager inventoryManager;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
-	@MockitoBean private AccommodationDetailCache detailCache;
-	@Autowired private ObjectMapper objectMapper;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@Autowired
+	private AccommodationQueryService service;
+	@MockitoBean
+	private CursorPageInfoCreator cursorPageInfoCreator;
+	@MockitoBean
+	private ReservationInventoryManager inventoryManager;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private AccommodationDetailCache detailCache;
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	@BeforeEach
 	void fixture() {
@@ -104,14 +116,15 @@ class HostAccommodationDetailReadIntegrationTest {
 			INSERT INTO occupancy_policy (id, max_occupancy, infant_occupancy, pet_occupancy, updated_at)
 			VALUES (50, 4, 1, 0, NOW(6))
 			""");
-		jdbc.update("""
-			INSERT INTO accommodation (id, member_id, accommodation_uid, name, description, type, base_price,
-				currency, address_id, occupancy_policy_id, status, check_in_time, check_out_time, time_zone_id, updated_at)
-			VALUES (31, 202, UUID_TO_BIN(UUID()), '합정 테스트 숙소', '조용한 숙소', 'APARTMENT',
-				125000, 'KRW', 40, 50, 'DRAFT', '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6)),
-			       (32, 203, UUID_TO_BIN(UUID()), '다른 숙소', '다른 내용', 'HOUSE', 90000,
-				'KRW', null, null, 'PUBLISHED', '16:00:00', '12:00:00', 'Asia/Seoul', NOW(6))
-			""");
+		jdbc.update(
+			"""
+				INSERT INTO accommodation (id, member_id, accommodation_uid, name, description, type, base_price,
+					currency, address_id, occupancy_policy_id, status, check_in_time, check_out_time, time_zone_id, updated_at)
+				VALUES (31, 202, UUID_TO_BIN(UUID()), '합정 테스트 숙소', '조용한 숙소', 'APARTMENT',
+					125000, 'KRW', 40, 50, 'DRAFT', '15:00:00', '11:00:00', 'Asia/Seoul', NOW(6)),
+				       (32, 203, UUID_TO_BIN(UUID()), '다른 숙소', '다른 내용', 'HOUSE', 90000,
+					'KRW', null, null, 'PUBLISHED', '16:00:00', '12:00:00', 'Asia/Seoul', NOW(6))
+				""");
 		jdbc.update("""
 			INSERT INTO accommodation_image (id, accommodation_id, image_url, updated_at)
 			VALUES (301, 31, '/room-301.png', NOW(6)), (400, 32, '/other-room.png', NOW(6))
@@ -166,7 +179,8 @@ class HostAccommodationDetailReadIntegrationTest {
 	@Test
 	void preservesPartialPolicyZeroValuesLocalTimesAndImageOrder() {
 		jdbc.update("UPDATE occupancy_policy SET infant_occupancy = null, pet_occupancy = 0 WHERE id = 50");
-		jdbc.update("UPDATE accommodation SET base_price = 0, check_in_time = '00:00:00', time_zone_id = 'America/New_York' WHERE id = 31");
+		jdbc.update(
+			"UPDATE accommodation SET base_price = 0, check_in_time = '00:00:00', time_zone_id = 'America/New_York' WHERE id = 31");
 		jdbc.update("UPDATE address SET state = null, district = null, detail = '' WHERE id = 40");
 		jdbc.update("UPDATE accommodation_amenity SET count = 0 WHERE id = 70");
 		jdbc.update("""
@@ -212,7 +226,8 @@ class HostAccommodationDetailReadIntegrationTest {
 	@ValueSource(longs = {203L, 999L})
 	void rejectsOtherMembersBeforeLoadingCollections(long memberId) {
 		Statistics statistics = prepareMeasurement();
-		assertThatThrownBy(() -> AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, memberId)))
+		assertThatThrownBy(
+			() -> AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, memberId)))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		assertRejectedQuery(statistics);
 	}
@@ -229,7 +244,8 @@ class HostAccommodationDetailReadIntegrationTest {
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
 		assertThat(sqlCapture.statements).hasSize(3);
 		assertThat(sqlCapture.statements.getFirst()).doesNotContain("accommodation_image", "accommodation_amenity");
-		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("review") || sql.contains("wishlist") || sql.contains(" join member "));
+		assertThat(sqlCapture.statements)
+			.noneMatch(sql -> sql.contains("review") || sql.contains("wishlist") || sql.contains(" join member "));
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(sqlCapture.statements.stream()
 			.map(sql -> sql.substring("select ".length(), sql.indexOf(" from ")).split(",").length))

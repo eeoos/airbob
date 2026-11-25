@@ -21,10 +21,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -135,8 +135,8 @@ class AccommodationDetailQueryCountTest {
 			.thenReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 12)));
 		when(accommodationDetailCache.getOrLoad(anyLong(), any()))
 			.thenAnswer(invocation -> {
-				@SuppressWarnings("unchecked")
-				java.util.function.Supplier<AccommodationDetailSnapshot> loader = invocation.getArgument(1);
+				@SuppressWarnings("unchecked") java.util.function.Supplier<AccommodationDetailSnapshot> loader = invocation
+					.getArgument(1);
 				return loader.get();
 			});
 	}
@@ -149,14 +149,16 @@ class AccommodationDetailQueryCountTest {
 		saveReviewSummary(accommodation, 4, 18L, "4.50");
 		entityManager.persist(AccommodationAmenity.createAccommodationAmenity(accommodation, "WIFI", 1));
 		entityManager.persist(AccommodationAmenity.createAccommodationAmenity(accommodation, "TV", 2));
-		AccommodationImage first = AccommodationImage.builder().accommodation(accommodation).imageUrl("/first.jpg").build();
-		AccommodationImage second = AccommodationImage.builder().accommodation(accommodation).imageUrl("/second.jpg").build();
+		AccommodationImage first = AccommodationImage.builder().accommodation(accommodation).imageUrl("/first.jpg")
+			.build();
+		AccommodationImage second = AccommodationImage.builder().accommodation(accommodation).imageUrl("/second.jpg")
+			.build();
 		entityManager.persist(first);
 		entityManager.persist(second);
 		Statistics statistics = prepareQueryMeasurement();
 
-		AccommodationResponse.HostDetail response =
-			AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
+		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail
+			.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
 
 		assertThat(response.name()).isEqualTo("host-editor-accommodation");
 		assertThat(response.policy().maxOccupancy()).isEqualTo(4);
@@ -179,8 +181,8 @@ class AccommodationDetailQueryCountTest {
 		Accommodation accommodation = accommodationRepository.save(Accommodation.createAccommodation(host));
 		Statistics statistics = prepareQueryMeasurement();
 
-		AccommodationResponse.HostDetail response =
-			AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
+		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail
+			.from(accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId()));
 
 		assertThat(response.id()).isEqualTo(accommodation.getId());
 		assertThat(response.address().city()).isNull();
@@ -200,8 +202,9 @@ class AccommodationDetailQueryCountTest {
 		Accommodation accommodation = savePublishedAccommodation(host, "owned-accommodation");
 		Statistics statistics = prepareQueryMeasurement();
 
-		assertThatThrownBy(() -> AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(
-			missing ? Long.MAX_VALUE : accommodation.getId(), other.getId())))
+		assertThatThrownBy(
+			() -> AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(
+				missing ? Long.MAX_VALUE : accommodation.getId(), other.getId())))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isOne();
 	}
@@ -214,8 +217,8 @@ class AccommodationDetailQueryCountTest {
 		saveReviewSummary(accommodation, 4, 18L, "4.50");
 		Statistics statistics = prepareQueryMeasurement();
 
-		AccommodationResponse.DetailInfo response =
-			AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
+		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
+			.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(response.reviewSummary().totalCount()).isEqualTo(4);
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
@@ -235,8 +238,8 @@ class AccommodationDetailQueryCountTest {
 		saveReviewSummary(otherAccommodation, 9, 45L, "5.00");
 		Statistics statistics = prepareQueryMeasurement();
 
-		AccommodationResponse.DetailInfo response =
-			AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
+		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
+			.from(accommodationQueryService.findAccommodation(accommodation.getId(), null));
 
 		assertThat(response.reviewSummary().totalCount()).isZero();
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -251,8 +254,8 @@ class AccommodationDetailQueryCountTest {
 		saveReviewSummary(accommodation, 2, 9L, "4.50");
 		Statistics statistics = prepareQueryMeasurement();
 
-		AccommodationResponse.DetailInfo response =
-			AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(accommodation.getId(), host.getId()));
+		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
+			.from(accommodationQueryService.findAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(response.isInWishlist()).isFalse();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
@@ -270,8 +273,8 @@ class AccommodationDetailQueryCountTest {
 			accommodation.getId(), windowStart.datesUntil(windowEndExclusive).toList());
 		Statistics statistics = prepareQueryMeasurement();
 
-		AccommodationResponse.Availability response =
-			AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(accommodation.getId()));
+		AccommodationResponse.Availability response = AccommodationResponse.Availability
+			.from(accommodationQueryService.findAccommodationAvailability(accommodation.getId()));
 
 		assertThat(response.bookingWindowStartInclusive()).isEqualTo(windowStart);
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(windowEndExclusive);
@@ -312,8 +315,7 @@ class AccommodationDetailQueryCountTest {
 		Accommodation accommodation,
 		int totalReviewCount,
 		long ratingSum,
-		String averageRating
-	) {
+		String averageRating) {
 		reviewSummaryRepository.save(AccommodationReviewSummary.builder()
 			.accommodation(accommodation)
 			.totalReviewCount(totalReviewCount)

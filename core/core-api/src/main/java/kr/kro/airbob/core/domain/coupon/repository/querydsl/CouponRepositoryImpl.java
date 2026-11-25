@@ -28,8 +28,7 @@ public class CouponRepositoryImpl implements CouponRepositoryCustom {
 		LocalDateTime now,
 		Long lastId,
 		LocalDateTime lastIssueStartAt,
-		Pageable pageable
-	) {
+		Pageable pageable) {
 		List<CouponCampaignProjection> content = queryFactory
 			.select(new QCouponCampaignProjection(
 				coupon.id, coupon.name, coupon.description, coupon.discountType, coupon.discountValue,

@@ -22,6 +22,9 @@ import org.springframework.data.domain.SliceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
+import kr.kro.airbob.core.api.controller.v1.coupon.response.CouponResponse;
+import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
+import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorData;
 import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
@@ -29,10 +32,6 @@ import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
-
-import kr.kro.airbob.core.api.controller.v1.coupon.response.CouponResponse;
-import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
-import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 
 @ExtendWith(MockitoExtension.class)
 class CouponQueryServiceTest {
@@ -120,7 +119,8 @@ class CouponQueryServiceTest {
 		when(couponRepository.findCampaignsWithCursor(NOW, 19L, boundary, PageRequest.of(0, 2)))
 			.thenReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
 
-		var result = CouponResponse.CouponInfos.from(service.findCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(2, 19L, boundary)));
+		var result = CouponResponse.CouponInfos
+			.from(service.findCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(2, 19L, boundary)));
 
 		assertThat(result.pageInfo().hasNext()).isTrue();
 		assertThat(result.pageInfo().currentSize()).isEqualTo(2);
@@ -138,7 +138,8 @@ class CouponQueryServiceTest {
 		when(memberCouponRepository.findByMemberIdWithCursor(10L, 500L, NOW.plusHours(1), PageRequest.of(0, 2)))
 			.thenReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
 
-		var result = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(10L, new CursorRequest.CursorPageRequest(2, 500L, NOW.plusHours(1))));
+		var result = CouponResponse.MemberCouponInfos
+			.from(service.findMyCoupons(10L, new CursorRequest.CursorPageRequest(2, 500L, NOW.plusHours(1))));
 
 		assertThat(result.infos()).extracting(CouponResponse.MemberCouponInfo::couponId).containsExactly(2L, 1L);
 		assertThat(result.pageInfo().hasNext()).isTrue();
@@ -158,8 +159,10 @@ class CouponQueryServiceTest {
 		when(memberCouponRepository.findByMemberIdWithCursor(10L, null, null, PageRequest.of(0, 20)))
 			.thenReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
 
-		var campaigns = CouponResponse.CouponInfos.from(service.findCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(20, null, null)));
-		var owned = CouponResponse.MemberCouponInfos.from(service.findMyCoupons(10L, new CursorRequest.CursorPageRequest(20, null, null)));
+		var campaigns = CouponResponse.CouponInfos
+			.from(service.findCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(20, null, null)));
+		var owned = CouponResponse.MemberCouponInfos
+			.from(service.findMyCoupons(10L, new CursorRequest.CursorPageRequest(20, null, null)));
 
 		assertThat(campaigns.infos()).isEmpty();
 		assertThat(owned.infos()).isEmpty();

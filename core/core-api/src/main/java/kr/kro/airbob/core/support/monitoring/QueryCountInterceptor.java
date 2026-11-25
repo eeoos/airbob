@@ -27,7 +27,7 @@ public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
 		RequestState state = requestState(request);
 		if (state == null || state.isCompleted()) {
-			String bestMatchPath = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+			String bestMatchPath = (String)request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
 			if (bestMatchPath == null) {
 				bestMatchPath = UNKNOWN_PATH;
 			}
@@ -45,8 +45,7 @@ public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 		HttpServletRequest request,
 		HttpServletResponse response,
 		Object handler,
-		Exception ex
-	) {
+		Exception ex) {
 		completeRequest(request, requestState(request), QueryCountContextHolder.getContext());
 	}
 
@@ -54,8 +53,7 @@ public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 	public void afterConcurrentHandlingStarted(
 		HttpServletRequest request,
 		HttpServletResponse response,
-		Object handler
-	) {
+		Object handler) {
 		QueryCountContext context = QueryCountContextHolder.getContext();
 		try {
 			if (context == null) {
@@ -76,8 +74,7 @@ public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 	private void registerCompletionListener(
 		HttpServletRequest request,
 		HttpServletResponse response,
-		RequestState state
-	) {
+		RequestState state) {
 		if (!request.isAsyncStarted() || !state.tryRegisterListener()) {
 			return;
 		}
@@ -86,8 +83,7 @@ public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 			request.getAsyncContext().addListener(
 				new QueryCountAsyncListener(request, response, state),
 				request,
-				response
-			);
+				response);
 		} catch (IllegalStateException ex) {
 			state.allowListenerRetry();
 		}
@@ -96,8 +92,7 @@ public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 	private void completeRequest(
 		HttpServletRequest request,
 		RequestState state,
-		QueryCountContext fallbackContext
-	) {
+		QueryCountContext fallbackContext) {
 		RequestState completionState = state;
 		if (completionState == null && fallbackContext != null) {
 			completionState = new RequestState(fallbackContext);
@@ -129,8 +124,7 @@ public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 		private QueryCountAsyncListener(
 			HttpServletRequest request,
 			HttpServletResponse response,
-			RequestState state
-		) {
+			RequestState state) {
 			this.request = request;
 			this.response = response;
 			this.state = state;

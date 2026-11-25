@@ -8,13 +8,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
-import kr.kro.airbob.core.api.security.CurrentMemberId;
-import kr.kro.airbob.core.domain.auth.AuthService;
-import kr.kro.airbob.core.domain.member.MemberProfile;
-import kr.kro.airbob.core.domain.member.MemberService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,96 +25,104 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+
+import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
+import kr.kro.airbob.core.api.security.CurrentMemberId;
+import kr.kro.airbob.core.domain.auth.AuthService;
+import kr.kro.airbob.core.domain.member.MemberProfile;
+import kr.kro.airbob.core.domain.member.MemberService;
+
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
 
-    @Mock
-    private AuthService authService;
-    @Mock
-    private MemberService memberService;
-    private MockMvc mockMvc;
+	@Mock
+	private AuthService authService;
+	@Mock
+	private MemberService memberService;
+	private MockMvc mockMvc;
 
-    @BeforeEach
-    void setUp() {
-        ObjectMapper objectMapper = new ObjectMapper()
-            .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
-        mockMvc = MockMvcBuilders
-            .standaloneSetup(new AuthController(authService, memberService))
-            .setControllerAdvice(new GlobalExceptionHandler())
-            .setCustomArgumentResolvers(new FixedCurrentMemberIdArgumentResolver())
-            .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
-            .build();
-    }
+	@BeforeEach
+	void setUp() {
+		ObjectMapper objectMapper = new ObjectMapper()
+			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+		mockMvc = MockMvcBuilders
+			.standaloneSetup(new AuthController(authService, memberService))
+			.setControllerAdvice(new GlobalExceptionHandler())
+			.setCustomArgumentResolvers(new FixedCurrentMemberIdArgumentResolver())
+			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+			.build();
+	}
 
-    @ParameterizedTest
-    @ValueSource(strings = {
-        "{}",
-        "{\"email\":null,\"password\":\"example-password\"}",
-        "{\"email\":\"\",\"password\":\"example-password\"}",
-        "{\"email\":\"   \",\"password\":\"example-password\"}",
-        "{\"email\":\"docs@example.invalid\"}",
-        "{\"email\":\"docs@example.invalid\",\"password\":null}",
-        "{\"email\":\"docs@example.invalid\",\"password\":\"\"}",
-        "{\"email\":\"docs@example.invalid\",\"password\":\"   \"}"
-    })
-    void loginRejectsMissingOrBlankCredentialsBeforeIssuingSession(String body) throws Exception {
-        var response = mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON).content(body))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.success").value(false))
-            .andExpect(jsonPath("$.error.code").value("C001"))
-            .andReturn().getResponse();
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"{}",
+		"{\"email\":null,\"password\":\"example-password\"}",
+		"{\"email\":\"\",\"password\":\"example-password\"}",
+		"{\"email\":\"   \",\"password\":\"example-password\"}",
+		"{\"email\":\"docs@example.invalid\"}",
+		"{\"email\":\"docs@example.invalid\",\"password\":null}",
+		"{\"email\":\"docs@example.invalid\",\"password\":\"\"}",
+		"{\"email\":\"docs@example.invalid\",\"password\":\"   \"}"
+	})
+	void loginRejectsMissingOrBlankCredentialsBeforeIssuingSession(String body) throws Exception {
+		var response = mockMvc.perform(post("/api/v1/auth/login")
+			.contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.error.code").value("C001"))
+			.andReturn().getResponse();
 
-        assertThat(response.getCookie("SESSION_ID")).isNull();
-        then(authService).shouldHaveNoInteractions();
-    }
+		assertThat(response.getCookie("SESSION_ID")).isNull();
+		then(authService).shouldHaveNoInteractions();
+	}
 
-    @Test
-    void loginValidationMasksPasswordAndMalformedJsonDoesNotIssueSession() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"docs@example.invalid\",\"password\":\"   \"}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.error.errors[0].field").value("password"))
-            .andExpect(jsonPath("$.error.errors[0].value").value("[REDACTED]"));
-        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("{"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.error.code").value("C001"));
-        then(authService).shouldHaveNoInteractions();
-    }
+	@Test
+	void loginValidationMasksPasswordAndMalformedJsonDoesNotIssueSession() throws Exception {
+		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"email\":\"docs@example.invalid\",\"password\":\"   \"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.errors[0].field").value("password"))
+			.andExpect(jsonPath("$.error.errors[0].value").value("[REDACTED]"));
+		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("{"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("C001"));
+		then(authService).shouldHaveNoInteractions();
+	}
 
-    @Test
-    void getMyInfoUsesCurrentMemberAndExposesOnlyViewerFields() throws Exception {
-        MemberProfile me = new MemberProfile(
-            10L, "guest@airbob.test", "guest");
-        given(memberService.getMemberInfo(10L)).willReturn(me);
+	@Test
+	void getMyInfoUsesCurrentMemberAndExposesOnlyViewerFields() throws Exception {
+		MemberProfile me = new MemberProfile(
+			10L, "guest@airbob.test", "guest");
+		given(memberService.getMemberInfo(10L)).willReturn(me);
 
-        mockMvc.perform(get("/api/v1/auth/me"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.id").value(10))
-            .andExpect(jsonPath("$.data.email").value("guest@airbob.test"))
-            .andExpect(jsonPath("$.data.nickname").value("guest"))
-            .andExpect(jsonPath("$.data.thumbnail_image_url").doesNotExist());
+		mockMvc.perform(get("/api/v1/auth/me"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.id").value(10))
+			.andExpect(jsonPath("$.data.email").value("guest@airbob.test"))
+			.andExpect(jsonPath("$.data.nickname").value("guest"))
+			.andExpect(jsonPath("$.data.thumbnail_image_url").doesNotExist());
 
-        then(memberService).should().getMemberInfo(10L);
-        then(authService).shouldHaveNoInteractions();
-    }
+		then(memberService).should().getMemberInfo(10L);
+		then(authService).shouldHaveNoInteractions();
+	}
 
-    private static class FixedCurrentMemberIdArgumentResolver implements HandlerMethodArgumentResolver {
+	private static class FixedCurrentMemberIdArgumentResolver implements HandlerMethodArgumentResolver {
 
-        @Override
-        public boolean supportsParameter(MethodParameter parameter) {
-            return parameter.hasParameterAnnotation(CurrentMemberId.class)
-                && Long.class.equals(parameter.getParameterType());
-        }
+		@Override
+		public boolean supportsParameter(MethodParameter parameter) {
+			return parameter.hasParameterAnnotation(CurrentMemberId.class)
+				&& Long.class.equals(parameter.getParameterType());
+		}
 
-        @Override
-        public Object resolveArgument(
-            MethodParameter parameter,
-            ModelAndViewContainer mavContainer,
-            NativeWebRequest webRequest,
-            WebDataBinderFactory binderFactory
-        ) {
-            return 10L;
-        }
-    }
+		@Override
+		public Object resolveArgument(
+			MethodParameter parameter,
+			ModelAndViewContainer mavContainer,
+			NativeWebRequest webRequest,
+			WebDataBinderFactory binderFactory) {
+			return 10L;
+		}
+	}
 }

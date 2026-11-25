@@ -11,13 +11,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
-
 import kr.kro.airbob.core.domain.reservation.Reservation;
 
-public interface ReservationRepository extends JpaRepository<Reservation, Long>, ReservationRepositoryCustom{
+public interface ReservationRepository extends JpaRepository<Reservation, Long>, ReservationRepositoryCustom {
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select reservation from Reservation reservation where reservation.id = :reservationId")
-	Optional<Reservation> findByIdWithLock(@Param("reservationId") Long reservationId);
+	Optional<Reservation> findByIdWithLock(
+		@Param("reservationId")
+		Long reservationId);
 
 	@Query(value = """
 		select * from reservation
@@ -28,9 +29,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 		for update skip locked
 		""", nativeQuery = true)
 	List<Reservation> findExpiredPendingBatchForCleanup(
-		@Param("cutoff") Instant cutoff,
-		@Param("batchSize") int batchSize
-	);
+		@Param("cutoff")
+		Instant cutoff,
+		@Param("batchSize")
+		int batchSize);
 
 	Optional<Reservation> findByReservationUid(UUID reservationUid);
 
@@ -43,16 +45,21 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 		  and reservation.guest.id = :guestId
 		""")
 	Optional<Reservation> findCheckoutReplayByIdAndGuestId(
-		@Param("reservationId") Long reservationId,
-		@Param("guestId") Long guestId
-	);
+		@Param("reservationId")
+		Long reservationId,
+		@Param("guestId")
+		Long guestId);
 
 	@Query("select reservation.accommodation.id from Reservation reservation where reservation.reservationUid = :reservationUid")
-	Optional<Long> findAccommodationIdByReservationUid(@Param("reservationUid") UUID reservationUid);
+	Optional<Long> findAccommodationIdByReservationUid(
+		@Param("reservationUid")
+		UUID reservationUid);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select reservation from Reservation reservation where reservation.reservationUid = :reservationUid")
-	Optional<Reservation> findByReservationUidWithLock(@Param("reservationUid") UUID reservationUid);
+	Optional<Reservation> findByReservationUidWithLock(
+		@Param("reservationUid")
+		UUID reservationUid);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("""
@@ -62,9 +69,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 		  and reservation.guest.id = :guestId
 		""")
 	Optional<Reservation> findByReservationUidAndGuestIdWithLock(
-		@Param("reservationUid") UUID reservationUid,
-		@Param("guestId") Long guestId
-	);
+		@Param("reservationUid")
+		UUID reservationUid,
+		@Param("guestId")
+		Long guestId);
 
 	boolean existsByReservationCode(String reservationCode);
 }

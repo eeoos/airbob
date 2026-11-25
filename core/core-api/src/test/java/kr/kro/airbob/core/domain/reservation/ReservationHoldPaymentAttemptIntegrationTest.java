@@ -52,8 +52,8 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
-import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
+import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.core.api.controller.v1.reservation.request.ReservationRequest;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
@@ -111,9 +111,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		.withCommand("--log-bin-trust-function-creators=1");
 
 	@Container
-	private static final GenericContainer<?> REDIS =
-		new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
-			.withExposedPorts(6379);
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -127,36 +126,65 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private AdjustableClock clock;
-	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ReservationCheckoutService checkoutService;
-	@Autowired private ReservationHoldCommandService holdCommandService;
-	@Autowired private ExpiredReservationCleanupService cleanupService;
-	@Autowired private PaymentOperationCommandService paymentCommandService;
-	@Autowired private PaymentOperationExecutionService paymentOperationExecutor;
-	@Autowired private PaymentOperationQueryService paymentOperationQueryService;
-	@Autowired private ReservationQuoteRepository quoteRepository;
-	@Autowired private ReservationInventoryManager inventoryManager;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private PaymentOperationRepository paymentOperationRepository;
-	@Autowired private PaymentTransactionRepository paymentTransactionRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private AddressRepository addressRepository;
-	@Autowired private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Autowired private CouponRepository couponRepository;
-	@Autowired private MemberCouponRepository memberCouponRepository;
-	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private AdjustableClock clock;
+	@Autowired
+	private ReservationQuoteService quoteService;
+	@Autowired
+	private ReservationCheckoutService checkoutService;
+	@Autowired
+	private ReservationHoldCommandService holdCommandService;
+	@Autowired
+	private ExpiredReservationCleanupService cleanupService;
+	@Autowired
+	private PaymentOperationCommandService paymentCommandService;
+	@Autowired
+	private PaymentOperationExecutionService paymentOperationExecutor;
+	@Autowired
+	private PaymentOperationQueryService paymentOperationQueryService;
+	@Autowired
+	private ReservationQuoteRepository quoteRepository;
+	@Autowired
+	private ReservationInventoryManager inventoryManager;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private PaymentOperationRepository paymentOperationRepository;
+	@Autowired
+	private PaymentTransactionRepository paymentTransactionRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AddressRepository addressRepository;
+	@Autowired
+	private OccupancyPolicyRepository occupancyPolicyRepository;
+	@Autowired
+	private CouponRepository couponRepository;
+	@Autowired
+	private MemberCouponRepository memberCouponRepository;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private io.awspring.cloud.s3.S3Template s3Template;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
-	@MockitoBean private TossPaymentsAdapter paymentGateway;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private TossPaymentsAdapter paymentGateway;
 
 	private TransactionTemplate transactionTemplate;
 	private Member guest;
@@ -190,18 +218,20 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		CountDownLatch allowReleaseCommit = new CountDownLatch(1);
 
 		try {
-			Future<ReservationResponse.HoldRelease> release = executor.submit(() ->
-				transactionTemplate.execute(status -> {
-					ReservationResponse.HoldRelease response = ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(
-						ready.reservationUid(), guest.getId()));
+			Future<ReservationResponse.HoldRelease> release = executor
+				.submit(() -> transactionTemplate.execute(status -> {
+					ReservationResponse.HoldRelease response = ReservationResponse.HoldRelease
+						.from(holdCommandService.releaseHold(
+							ready.reservationUid(), guest.getId()));
 					releasePrepared.countDown();
 					awaitRelease(allowReleaseCommit);
 					return response;
 				}));
 			awaitPrepared(releasePrepared, release);
 
-			Future<Accepted> confirmation = executor.submit(() ->
-				PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(confirmRequest(attempt, "release-wins-key").toConfirmation(), guest.getId())));
+			Future<Accepted> confirmation = executor
+				.submit(() -> PaymentOperationResponse.Accepted.from(paymentCommandService
+					.requestConfirmation(confirmRequest(attempt, "release-wins-key").toConfirmation(), guest.getId())));
 			try {
 				assertBlocked(confirmation);
 			} finally {
@@ -235,18 +265,17 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		CountDownLatch allowConfirmationCommit = new CountDownLatch(1);
 
 		try {
-			Future<Accepted> confirmation = executor.submit(() ->
-				transactionTemplate.execute(status -> {
-					Accepted accepted = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(
-						confirmRequest(attempt, "confirmation-wins-key").toConfirmation(), guest.getId()));
-					confirmationPrepared.countDown();
-					awaitRelease(allowConfirmationCommit);
-					return accepted;
-				}));
+			Future<Accepted> confirmation = executor.submit(() -> transactionTemplate.execute(status -> {
+				Accepted accepted = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(
+					confirmRequest(attempt, "confirmation-wins-key").toConfirmation(), guest.getId()));
+				confirmationPrepared.countDown();
+				awaitRelease(allowConfirmationCommit);
+				return accepted;
+			}));
 			awaitPrepared(confirmationPrepared, confirmation);
 
-			Future<ReservationResponse.HoldRelease> release = executor.submit(() ->
-				ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(ready.reservationUid(), guest.getId())));
+			Future<ReservationResponse.HoldRelease> release = executor.submit(() -> ReservationResponse.HoldRelease
+				.from(holdCommandService.releaseHold(ready.reservationUid(), guest.getId())));
 			try {
 				assertBlocked(release);
 			} finally {
@@ -288,8 +317,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			}));
 			awaitPrepared(cleanupPrepared, cleanup);
 
-			Future<ReservationResponse.HoldRelease> release = executor.submit(() ->
-				ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(ready.reservationUid(), guest.getId())));
+			Future<ReservationResponse.HoldRelease> release = executor.submit(() -> ReservationResponse.HoldRelease
+				.from(holdCommandService.releaseHold(ready.reservationUid(), guest.getId())));
 			try {
 				assertBlocked(release);
 			} finally {
@@ -392,7 +421,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			""");
 
 		try {
-			assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(request.toConfirmation(), guest.getId())))
+			assertThatThrownBy(() -> PaymentOperationResponse.Accepted
+				.from(paymentCommandService.requestConfirmation(request.toConfirmation(), guest.getId())))
 				.isInstanceOf(DataAccessException.class);
 		} finally {
 			jdbcTemplate.execute("DROP TRIGGER IF EXISTS " + FAILURE_TRIGGER);
@@ -405,7 +435,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		assertThat(paymentOperationRepository.count()).isZero();
 		assertThat(outboxRepository.count()).isZero();
 
-		Accepted retried = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(request.toConfirmation(), guest.getId()));
+		Accepted retried = PaymentOperationResponse.Accepted
+			.from(paymentCommandService.requestConfirmation(request.toConfirmation(), guest.getId()));
 
 		assertThat(retried.operationId()).isNotNull();
 		Reservation succeeded = reservation(ready.reservationUid());
@@ -421,13 +452,17 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		ReservationResponse.Ready ready = createHold(0, null, "privacy-hold");
 		String unknownUid = UUID.randomUUID().toString();
 
-		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(ready.reservationUid(), outsider.getId())))
+		assertThatThrownBy(() -> ReservationResponse.HoldRelease
+			.from(holdCommandService.releaseHold(ready.reservationUid(), outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
-		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(unknownUid, outsider.getId())))
+		assertThatThrownBy(
+			() -> ReservationResponse.HoldRelease.from(holdCommandService.releaseHold(unknownUid, outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
-		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(holdCommandService.beginPaymentAttempt(ready.reservationUid(), outsider.getId())))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady
+			.from(holdCommandService.beginPaymentAttempt(ready.reservationUid(), outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
-		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady.from(holdCommandService.beginPaymentAttempt(unknownUid, outsider.getId())))
+		assertThatThrownBy(() -> ReservationResponse.PaymentAttemptReady
+			.from(holdCommandService.beginPaymentAttempt(unknownUid, outsider.getId())))
 			.isInstanceOf(ReservationNotFoundException.class);
 
 		Reservation persisted = reservation(ready.reservationUid());
@@ -444,8 +479,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			FIRST_CHECK_IN,
 			FIRST_CHECK_IN.plusDays(3),
 			2,
-			coupon.getId()
-		);
+			coupon.getId());
 		String preservedRequestMessage = "유아용 침대를 준비해 주세요";
 		String oldCheckoutKey = "declined-checkout-old";
 		ReservationResponse.Quote oldQuote = createQuote(preservedQuoteRequest);
@@ -457,8 +491,9 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		PaymentOperation declinedOperation = paymentOperationRepository
 			.findByOperationUid(declinedPayment.accepted().operationId())
 			.orElseThrow();
-		PaymentOperationResponse.Detail polling = PaymentOperationResponse.Detail.from(paymentOperationQueryService.find(
-			declinedPayment.accepted().operationId(), guest.getId()));
+		PaymentOperationResponse.Detail polling = PaymentOperationResponse.Detail
+			.from(paymentOperationQueryService.find(
+				declinedPayment.accepted().operationId(), guest.getId()));
 		MemberCoupon restoredCoupon = memberCoupon(coupon);
 
 		assertThat(declinedOperation.getStatus()).isEqualTo(PaymentOperationStatus.DECLINED);
@@ -534,8 +569,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			"fresh-payment-with-old-token",
 			freshAttempt.orderId(),
 			Math.toIntExact(freshAttempt.amount()),
-			declinedPayment.attempt().paymentAttemptId()
-		);
+			declinedPayment.attempt().paymentAttemptId());
 
 		assertThat(freshAttempt.paymentAttemptId())
 			.isNotEqualTo(declinedPayment.attempt().paymentAttemptId());
@@ -561,11 +595,13 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		long outboxCount = outboxRepository.count();
 
 		clock.set(declinedReservation.getCheckInAt());
-		PaymentOperationResponse.Detail atCheckIn = PaymentOperationResponse.Detail.from(paymentOperationQueryService.find(
-			declinedPayment.accepted().operationId(), guest.getId()));
+		PaymentOperationResponse.Detail atCheckIn = PaymentOperationResponse.Detail
+			.from(paymentOperationQueryService.find(
+				declinedPayment.accepted().operationId(), guest.getId()));
 		clock.set(declinedReservation.getCheckInAt().plusNanos(1));
-		PaymentOperationResponse.Detail afterCheckIn = PaymentOperationResponse.Detail.from(paymentOperationQueryService.find(
-			declinedPayment.accepted().operationId(), guest.getId()));
+		PaymentOperationResponse.Detail afterCheckIn = PaymentOperationResponse.Detail
+			.from(paymentOperationQueryService.find(
+				declinedPayment.accepted().operationId(), guest.getId()));
 
 		assertThat(atCheckIn.status()).isEqualTo(PaymentOperationResponse.Status.FAILED);
 		assertThat(atCheckIn.nextAction()).isEqualTo(PaymentOperationResponse.NextAction.NONE);
@@ -623,8 +659,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			checkIn,
 			checkIn.plusDays(3),
 			2,
-			couponId
-		));
+			couponId));
 		return checkout(quote, idempotencyKey, null);
 	}
 
@@ -635,8 +670,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	private ReservationResponse.Ready checkout(
 		ReservationResponse.Quote quote,
 		String idempotencyKey,
-		String requestMessage
-	) {
+		String requestMessage) {
 		return ReservationResponse.Ready.from(checkoutService.checkout(
 			new ReservationRequest.Checkout(quote.quoteUid(), requestMessage).toCheckout(),
 			guest.getId(),
@@ -644,25 +678,25 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	}
 
 	private ReservationResponse.PaymentAttemptReady beginAttempt(ReservationResponse.Ready ready) {
-		return ReservationResponse.PaymentAttemptReady.from(holdCommandService.beginPaymentAttempt(ready.reservationUid(), guest.getId()));
+		return ReservationResponse.PaymentAttemptReady
+			.from(holdCommandService.beginPaymentAttempt(ready.reservationUid(), guest.getId()));
 	}
 
 	private PaymentRequest.Confirm confirmRequest(
 		ReservationResponse.PaymentAttemptReady attempt,
-		String paymentKey
-	) {
+		String paymentKey) {
 		return new PaymentRequest.Confirm(
 			paymentKey,
 			attempt.orderId(),
 			Math.toIntExact(attempt.amount()),
-			attempt.paymentAttemptId()
-		);
+			attempt.paymentAttemptId());
 	}
 
 	private DeclinedPayment decline(ReservationResponse.Ready ready, String paymentKey) {
 		ReservationResponse.PaymentAttemptReady attempt = beginAttempt(ready);
 		PaymentRequest.Confirm confirmRequest = confirmRequest(attempt, paymentKey);
-		Accepted accepted = PaymentOperationResponse.Accepted.from(paymentCommandService.requestConfirmation(confirmRequest.toConfirmation(), guest.getId()));
+		Accepted accepted = PaymentOperationResponse.Accepted
+			.from(paymentCommandService.requestConfirmation(confirmRequest.toConfirmation(), guest.getId()));
 		PaymentOperation queued = paymentOperationRepository.findByOperationUid(accepted.operationId())
 			.orElseThrow();
 		given(paymentGateway.confirm(any())).willReturn(new PaymentGatewayResult.Declined(
@@ -686,8 +720,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		return jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM reservation_history WHERE reservation_id = ? AND status = 'EXPIRED'",
 			Long.class,
-			reservationId
-		);
+			reservationId);
 	}
 
 	private void clearRows() {
@@ -726,8 +759,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 
 	private void assertFutureFailedWith(
 		Future<?> future,
-		Class<? extends Throwable> expectedCause
-	) {
+		Class<? extends Throwable> expectedCause) {
 		assertThatThrownBy(() -> future.get(10, TimeUnit.SECONDS))
 			.isInstanceOf(ExecutionException.class)
 			.hasCauseInstanceOf(expectedCause);
@@ -747,8 +779,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	private record DeclinedPayment(
 		Accepted accepted,
 		ReservationResponse.PaymentAttemptReady attempt,
-		PaymentRequest.Confirm confirmRequest
-	) {
+		PaymentRequest.Confirm confirmRequest) {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)

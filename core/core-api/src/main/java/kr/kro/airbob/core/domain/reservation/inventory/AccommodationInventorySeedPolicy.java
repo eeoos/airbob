@@ -14,8 +14,7 @@ public class AccommodationInventorySeedPolicy {
 
 	public AccommodationInventorySeedPolicy(
 		BookingWindowProvider bookingWindowProvider,
-		int safetyBufferDays
-	) {
+		int safetyBufferDays) {
 		this.bookingWindowProvider = Objects.requireNonNull(bookingWindowProvider);
 		if (safetyBufferDays < 0) {
 			throw new IllegalArgumentException("inventory seed safety buffer must not be negative");
@@ -31,8 +30,7 @@ public class AccommodationInventorySeedPolicy {
 			timeZoneId, Objects.requireNonNull(decisionAt));
 		return new SeedRange(
 			bookingWindow.startInclusive(),
-			bookingWindow.endExclusive().plusDays(safetyBufferDays)
-		);
+			bookingWindow.endExclusive().plusDays(safetyBufferDays));
 	}
 
 	public record SeedRange(LocalDate startInclusive, LocalDate endExclusive) {

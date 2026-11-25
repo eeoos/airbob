@@ -12,17 +12,14 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 @EnableScheduling
 public class SchedulingConfig {
 	public static final String DEFAULT_TASK_SCHEDULER = "taskScheduler";
-	public static final String RESERVATION_CLEANUP_TASK_SCHEDULER =
-		"reservationCleanupTaskScheduler";
-	public static final String RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER =
-		"reservationQuoteCleanupTaskScheduler";
-	public static final String ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER =
-		"accommodationInventorySeedTaskScheduler";
+	public static final String RESERVATION_CLEANUP_TASK_SCHEDULER = "reservationCleanupTaskScheduler";
+	public static final String RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER = "reservationQuoteCleanupTaskScheduler";
+	public static final String ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER = "accommodationInventorySeedTaskScheduler";
 
 	@Bean(name = DEFAULT_TASK_SCHEDULER, destroyMethod = "shutdown")
 	ThreadPoolTaskScheduler taskScheduler(
-		@Value("${spring.task.scheduling.pool.size:4}") int poolSize
-	) {
+		@Value("${spring.task.scheduling.pool.size:4}")
+		int poolSize) {
 		if (poolSize < 1) {
 			throw new IllegalArgumentException("task scheduler pool size must be positive");
 		}

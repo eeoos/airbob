@@ -41,7 +41,6 @@ import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryBatchW
 import kr.kro.airbob.core.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.core.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.core.domain.review.ReviewReader;
 import kr.kro.airbob.core.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPublisher;
 import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
@@ -57,18 +56,30 @@ class ReservationCheckInCutoffContractTest {
 	private static final Instant CHECK_IN_AT = Instant.parse("2026-08-26T06:00:00Z");
 	private static final String ACCOMMODATION_TIME_ZONE = "Asia/Seoul";
 
-	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
-	@Mock private MemberRepository memberRepository;
-	@Mock private ReviewRepository reviewRepository;
-	@Mock private ReservationRepository reservationRepository;
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageManager couponUsageManager;
-	@Mock private BookingWindowProvider bookingWindowProvider;
-	@Mock private ReservationCheckoutRequestStore checkoutRequestStore;
-	@Mock private ReservationQuoteRepository quoteRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Mock
+	private CursorPageInfoCreator cursorPageInfoCreator;
+	@Mock
+	private MemberRepository memberRepository;
+	@Mock
+	private ReviewRepository reviewRepository;
+	@Mock
+	private ReservationRepository reservationRepository;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private ReservationHistoryRepository historyRepository;
+	@Mock
+	private CouponUsageManager couponUsageManager;
+	@Mock
+	private BookingWindowProvider bookingWindowProvider;
+	@Mock
+	private ReservationCheckoutRequestStore checkoutRequestStore;
+	@Mock
+	private ReservationQuoteRepository quoteRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
 
 	@Test
 	void rejectsANewReservationAtTheAccommodationLocalCheckInInstant() {
@@ -142,8 +153,7 @@ class ReservationCheckInCutoffContractTest {
 			ReservationHoldPolicy.defaultPolicy(),
 			new ReservationQuoteReader(quoteRepository),
 			inventoryManager,
-			Clock.fixed(now, ZoneOffset.UTC)
-		);
+			Clock.fixed(now, ZoneOffset.UTC));
 	}
 
 	private void stubValidMemberAccommodationAndWindow(ReservationCreateCommand request) {
@@ -162,8 +172,7 @@ class ReservationCheckInCutoffContractTest {
 			ACCOMMODATION_ID,
 			CHECK_IN_DATE,
 			CHECK_OUT_DATE,
-			2
-		);
+			2);
 	}
 
 	private Accommodation accommodation() {

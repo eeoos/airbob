@@ -16,8 +16,7 @@ public class IntegrationEventKafkaListenerContainerFactoryBuilder {
 
 	public IntegrationEventKafkaListenerContainerFactoryBuilder(
 		ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
-		KafkaProperties kafkaProperties
-	) {
+		KafkaProperties kafkaProperties) {
 		this.configurer = configurer;
 		this.kafkaProperties = kafkaProperties;
 	}
@@ -29,10 +28,8 @@ public class IntegrationEventKafkaListenerContainerFactoryBuilder {
 			PrimaryTopicHeaderSanitizingInterceptor.class.getName());
 		properties.put(PrimaryTopicHeaderSanitizingInterceptor.PRIMARY_TOPIC_CONFIG, primaryTopic);
 
-		DefaultKafkaConsumerFactory<Object, Object> consumerFactory =
-			new DefaultKafkaConsumerFactory<>(properties);
-		ConcurrentKafkaListenerContainerFactory<Object, Object> containerFactory =
-			new ConcurrentKafkaListenerContainerFactory<>();
+		DefaultKafkaConsumerFactory<Object, Object> consumerFactory = new DefaultKafkaConsumerFactory<>(properties);
+		ConcurrentKafkaListenerContainerFactory<Object, Object> containerFactory = new ConcurrentKafkaListenerContainerFactory<>();
 		configurer.configure(containerFactory, consumerFactory);
 		return containerFactory;
 	}

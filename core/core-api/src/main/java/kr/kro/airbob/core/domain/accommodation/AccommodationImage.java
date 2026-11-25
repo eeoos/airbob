@@ -7,7 +7,6 @@ import jakarta.persistence.ManyToOne;
 import kr.kro.airbob.core.domain.image.Image;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;

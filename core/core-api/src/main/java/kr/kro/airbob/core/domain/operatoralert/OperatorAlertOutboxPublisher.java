@@ -26,7 +26,6 @@ public class OperatorAlertOutboxPublisher {
 			request.subjectUid(),
 			request.summaryCode(),
 			request.sourcePosition(),
-			request.occurrenceUid()
-		);
+			request.occurrenceUid());
 	}
 }

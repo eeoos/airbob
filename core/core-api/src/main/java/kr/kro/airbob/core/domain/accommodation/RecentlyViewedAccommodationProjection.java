@@ -13,8 +13,7 @@ public record RecentlyViewedAccommodationProjection(
 	String city,
 	String district,
 	Integer totalReviewCount,
-	BigDecimal averageRating
-) {
+	BigDecimal averageRating) {
 	@QueryProjection
 	public RecentlyViewedAccommodationProjection {
 	}

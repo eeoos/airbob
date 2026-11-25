@@ -13,9 +13,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -38,20 +38,27 @@ import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository
 @DisplayName("호스트 정산 서비스 통합 테스트")
 class SettlementServiceIntegrationTest {
 
-	@Autowired private SettlementService settlementService;
-	@Autowired private JdbcTemplate jdbc;
+	@Autowired
+	private SettlementService settlementService;
+	@Autowired
+	private JdbcTemplate jdbc;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -228,19 +235,20 @@ class SettlementServiceIntegrationTest {
 			VALUES (?, '2026-04-01', 60000, 0, 60000, 0.0300, 1800, 58200, 'PENDING', NOW(6))
 			""", host1);
 
-		SettlementResponse.HostSummary host1Summary = SettlementResponse.HostSummary.from(settlementService.getHostSummary(host1));
+		SettlementResponse.HostSummary host1Summary = SettlementResponse.HostSummary
+			.from(settlementService.getHostSummary(host1));
 		assertThat(host1Summary.paidPayoutTotal()).isEqualTo(126100);
 		assertThat(host1Summary.paidCount()).isEqualTo(1);
 		assertThat(host1Summary.pendingPayoutTotal()).isEqualTo(58200);
 		assertThat(host1Summary.pendingCount()).isEqualTo(1);
 
-		SettlementResponse.HostSummary host2Summary = SettlementResponse.HostSummary.from(settlementService.getHostSummary(host2));
+		SettlementResponse.HostSummary host2Summary = SettlementResponse.HostSummary
+			.from(settlementService.getHostSummary(host2));
 		assertThat(host2Summary.pendingPayoutTotal()).isEqualTo(77600);
 		assertThat(host2Summary.pendingCount()).isEqualTo(1);
 		assertThat(host2Summary.paidPayoutTotal()).isZero();
 		assertThat(host2Summary.paidCount()).isZero();
 	}
-
 
 	@Test
 	void hostDateRangeIncludesMonthStartRatherThanAnyOverlappingDayAndEmptySummaryIsZero() {
@@ -259,7 +267,8 @@ class SettlementServiceIntegrationTest {
 		jdbc.update("UPDATE payment_transaction SET created_at = '2026-07-01 00:00:00' WHERE cancel_amount = 50");
 		settlementService.backfill(MAY, YearMonth.of(2026, 6));
 		var rows = settlementService.getHostSettlements(host1, MAY_1, LocalDate.of(2026, 6, 1));
-		assertThat(rows).extracting(SettlementSummary::settlementMonth).containsExactly(MAY_1, LocalDate.of(2026, 6, 1));
+		assertThat(rows).extracting(SettlementSummary::settlementMonth).containsExactly(MAY_1,
+			LocalDate.of(2026, 6, 1));
 		var june = rows.get(1);
 		assertThat(june.grossAmount()).isZero();
 		assertThat(june.refundAmount()).isEqualTo(50);

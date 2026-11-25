@@ -17,9 +17,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -43,21 +43,29 @@ import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository
 @DisplayName("리뷰 요약 원자적 갱신(낙관적 락 → upsert) 테스트")
 class ReviewSummaryAtomicUpdateTest {
 
-	@Autowired private AccommodationReviewSummaryRepository summaryRepository;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PlatformTransactionManager txManager;
+	@Autowired
+	private AccommodationReviewSummaryRepository summaryRepository;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PlatformTransactionManager txManager;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -159,7 +167,8 @@ class ReviewSummaryAtomicUpdateTest {
 	private void assertSummary(int expectedCount, long expectedSum, String expectedAvg) {
 		Map<String, Object> row = jdbc.queryForMap(
 			"SELECT total_review_count, rating_sum, average_rating "
-				+ "FROM accommodation_review_summary WHERE accommodation_id = ?", accId);
+				+ "FROM accommodation_review_summary WHERE accommodation_id = ?",
+			accId);
 		assertThat(((Number)row.get("total_review_count")).intValue()).isEqualTo(expectedCount);
 		assertThat(((Number)row.get("rating_sum")).longValue()).isEqualTo(expectedSum);
 		assertThat((java.math.BigDecimal)row.get("average_rating")).isEqualByComparingTo(expectedAvg);

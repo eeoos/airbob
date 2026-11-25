@@ -173,7 +173,8 @@ def area_of(path):
     match = re.match(r'support/([a-z0-9-]+)/', path)
     if match:
         return 'support-module:' + match.group(1)
-    if scope.is_build_file(path) or path.startswith('gradle/') or path in ('gradlew', 'gradlew.bat'):
+    if (scope.is_build_file(path) or path.startswith(('gradle/', scope.FORMATTER_CONFIG))
+            or path in ('gradlew', 'gradlew.bat')):
         return 'build'
     if path.startswith(('.github/', 'scripts/ci/')):
         return 'ci'

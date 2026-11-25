@@ -93,8 +93,8 @@ class SslInitializationScriptTest {
 		Files.writeString(docker, FAKE_DOCKER);
 		assertThat(docker.toFile().setExecutable(true)).isTrue();
 		ProcessBuilder builder = new ProcessBuilder(
-			"bash", project.resolve("scripts/init-ssl.sh").toString(), "ssl-test@example.invalid"
-		).directory(tempDir.toFile()).redirectErrorStream(true);
+			"bash", project.resolve("scripts/init-ssl.sh").toString(), "ssl-test@example.invalid")
+			.directory(tempDir.toFile()).redirectErrorStream(true);
 		builder.environment().put("DOCKER_BIN", docker.toString());
 		builder.environment().put("FAKE_DOCKER_LOG", log.toString());
 		builder.environment().put("FAKE_SCENARIO", scenario);

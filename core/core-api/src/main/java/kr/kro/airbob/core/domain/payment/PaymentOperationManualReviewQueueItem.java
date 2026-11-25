@@ -10,6 +10,5 @@ public record PaymentOperationManualReviewQueueItem(
 	int manualReviewCount,
 	Instant reviewRequiredAt,
 	long version,
-	boolean notPaidResolutionEligible
-) {
+	boolean notPaidResolutionEligible) {
 }

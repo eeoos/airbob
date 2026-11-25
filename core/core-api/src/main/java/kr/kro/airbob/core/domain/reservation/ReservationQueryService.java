@@ -42,8 +42,7 @@ public class ReservationQueryService {
 			reservationSlice.getContent(),
 			reservationSlice.hasNext(),
 			GuestReservationListProjection::id,
-			GuestReservationListProjection::createdAt
-		);
+			GuestReservationListProjection::createdAt);
 
 		return new GuestReservationPage(reservations, pageInfo);
 	}
@@ -72,8 +71,7 @@ public class ReservationQueryService {
 			reservations,
 			reservationSlice.hasNext(),
 			HostReservationListProjection::id,
-			HostReservationListProjection::createdAt
-		);
+			HostReservationListProjection::createdAt);
 
 		return new HostReservationPage(reservations, pageInfo);
 	}

@@ -11,10 +11,11 @@ public final class CouponTime {
 	private static final Instant MIN_DATABASE_INSTANT = Instant.parse("1000-01-01T00:00:00Z");
 	private static final Instant MAX_DATABASE_INSTANT_EXCLUSIVE = Instant.parse("+10000-01-01T00:00:00Z");
 
-	private CouponTime() { }
+	private CouponTime() {}
 
 	public static LocalDateTime toUtc(Instant value) {
-		if (value == null) return null;
+		if (value == null)
+			return null;
 		if (value.isBefore(MIN_DATABASE_INSTANT) || !value.isBefore(MAX_DATABASE_INSTANT_EXCLUSIVE)) {
 			throw new CouponInvalidConfigurationException();
 		}

@@ -29,8 +29,7 @@ public record AccommodationDetailCacheProperties(
 	Duration localLoadWait,
 	Duration loadPermitTtl,
 	Duration redisConnectTimeout,
-	Duration redisCommandTimeout
-) {
+	Duration redisCommandTimeout) {
 	public AccommodationDetailCacheProperties {
 		Assert.notNull(ttl, "accommodation.detail-cache.ttl must not be null");
 		Assert.notNull(ttlJitter, "accommodation.detail-cache.ttl-jitter must not be null");

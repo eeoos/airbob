@@ -4,6 +4,7 @@ plugins {
 	id 'base'
 	alias(libs.plugins.spring.boot) apply false
 	alias(libs.plugins.spring.dependency.management) apply false
+	alias(libs.plugins.spotless) apply false
 }
 
 allprojects {
@@ -35,5 +36,22 @@ configure(subprojects.findAll { it.subprojects.isEmpty() }) {
 	tasks.withType(Test).configureEach {
 		useJUnitPlatform()
 		systemProperty 'user.timezone', 'UTC'
+	}
+
+	// Naver coding convention. spotlessCheck runs in check, so ./gradlew build fails on unformatted code;
+	// ./gradlew spotlessApply fixes it. See docs/development/coding-convention.md.
+	apply plugin: 'com.diffplug.spotless'
+	spotless {
+		java {
+			// Hand-written sources only; generated QueryDSL Q-classes live under build/.
+			target 'src/*/java/**/*.java'
+			removeUnusedImports()
+			// Trailing dots keep package boundaries: 'java' alone would also match javassist.
+			importOrder('\\#', 'java.', 'javax.', 'org.', 'net.', 'com.', '')
+			// The Naver convention allows wildcards only in static imports; forbidWildcardImports() rejects both.
+			forbidRegex('Non-static wildcard import', '(?m)^import (?!static\\s)[\\w.]+\\.\\*;',
+				'Import each class by name; only static imports may use *')
+			eclipse().configFile(rootProject.file('config/formatter/naver-eclipse-formatter.xml'))
+		}
 	}
 }

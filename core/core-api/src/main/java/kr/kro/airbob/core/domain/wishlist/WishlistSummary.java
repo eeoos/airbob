@@ -17,8 +17,7 @@ public record WishlistSummary(
 	LocalDateTime createdAt,
 	Integer accommodationCount,
 	String thumbnailImageUrl,
-	Long wishlistAccommodationId
-) {
+	Long wishlistAccommodationId) {
 	@QueryProjection
 	public WishlistSummary {
 	}

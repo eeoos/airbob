@@ -33,8 +33,7 @@ public class MysqlOperatorAlertOutboxAppender implements OperatorAlertOutboxAppe
 		  ELSE NULL
 		END
 		""";
-	private static final String EVENT_ID_EXISTS =
-		"SELECT EXISTS(SELECT 1 FROM outbox WHERE event_id = ?)";
+	private static final String EVENT_ID_EXISTS = "SELECT EXISTS(SELECT 1 FROM outbox WHERE event_id = ?)";
 
 	private final JdbcTemplate jdbcTemplate;
 	private final IntegrationEventCodec codec;
@@ -45,8 +44,7 @@ public class MysqlOperatorAlertOutboxAppender implements OperatorAlertOutboxAppe
 	public MysqlOperatorAlertOutboxAppender(
 		JdbcTemplate jdbcTemplate,
 		IntegrationEventCodec codec,
-		Clock clock
-	) {
+		Clock clock) {
 		this(jdbcTemplate, codec, clock, UUID::randomUUID);
 	}
 
@@ -54,8 +52,7 @@ public class MysqlOperatorAlertOutboxAppender implements OperatorAlertOutboxAppe
 		JdbcTemplate jdbcTemplate,
 		IntegrationEventCodec codec,
 		Clock clock,
-		Supplier<UUID> eventIdSupplier
-	) {
+		Supplier<UUID> eventIdSupplier) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.codec = codec;
 		this.clock = clock;
@@ -82,8 +79,7 @@ public class MysqlOperatorAlertOutboxAppender implements OperatorAlertOutboxAppe
 			Timestamp.from(occurredAt),
 			event.deduplicationKey(),
 			Timestamp.from(occurredAt),
-			Timestamp.from(occurredAt)
-		);
+			Timestamp.from(occurredAt));
 		if (affected == 0) {
 			return false;
 		}

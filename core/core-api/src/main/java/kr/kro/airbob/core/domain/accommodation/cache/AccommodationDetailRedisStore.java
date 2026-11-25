@@ -77,8 +77,7 @@ final class AccommodationDetailRedisStore {
 		ObjectMapper objectMapper,
 		AccommodationDetailCacheMetricRecorder metricRecorder,
 		AccommodationDetailCacheJitter jitter,
-		AccommodationDetailCacheProperties properties
-	) {
+		AccommodationDetailCacheProperties properties) {
 		this.redisClient = redisClient;
 		this.objectMapper = objectMapper;
 		this.metricRecorder = metricRecorder;
@@ -99,7 +98,7 @@ final class AccommodationDetailRedisStore {
 			if (value.status() == null
 				|| value.status() == AccommodationDetailCacheValue.Status.FOUND && value.snapshot() == null
 				|| value.status() == AccommodationDetailCacheValue.Status.NOT_FOUND && value.snapshot() != null) {
-				throw new JsonProcessingException("invalid accommodation detail cache state") { };
+				throw new JsonProcessingException("invalid accommodation detail cache state") {};
 			}
 			metricRecorder.recordRedis(GET, SUCCESS);
 			return switch (value.status()) {
@@ -128,8 +127,7 @@ final class AccommodationDetailRedisStore {
 				ACQUIRE_LOAD_PERMIT_SCRIPT,
 				List.of(loadPermitKey(accommodationId)),
 				permit,
-				Long.toString(properties.loadPermitTtl().toMillis())
-			);
+				Long.toString(properties.loadPermitTtl().toMillis()));
 			return acquired != null && acquired == 1L ? permit : null;
 		} catch (RuntimeException exception) {
 			log.warn("숙소 상세 캐시 쓰기 허가 발급 실패. accommodationId={}", accommodationId, exception);
@@ -140,8 +138,7 @@ final class AccommodationDetailRedisStore {
 	void writeFound(
 		Long accommodationId,
 		String loadPermit,
-		AccommodationDetailSnapshot snapshot
-	) {
+		AccommodationDetailSnapshot snapshot) {
 		write(accommodationId, loadPermit, AccommodationDetailCacheValue.found(snapshot), ttlWithJitter());
 	}
 
@@ -154,8 +151,7 @@ final class AccommodationDetailRedisStore {
 			redisClient.execute(
 				RELEASE_LOAD_PERMIT_SCRIPT,
 				List.of(loadPermitKey(accommodationId)),
-				permit
-			);
+				permit);
 		} catch (RuntimeException exception) {
 			log.warn("숙소 상세 캐시 쓰기 허가 정리 실패. accommodationId={}", accommodationId, exception);
 		}
@@ -166,8 +162,7 @@ final class AccommodationDetailRedisStore {
 			// Lua로 쓰기 허가와 캐시 값을 원자적으로 삭제해 stale refill을 막음
 			Long invalidated = redisClient.execute(
 				INVALIDATE_SCRIPT,
-				List.of(loadPermitKey(accommodationId), cacheKey(accommodationId))
-			);
+				List.of(loadPermitKey(accommodationId), cacheKey(accommodationId)));
 			if (invalidated == null) {
 				throw new IllegalStateException("캐시 무효화 스크립트가 결과를 반환하지 않음");
 			}
@@ -182,8 +177,7 @@ final class AccommodationDetailRedisStore {
 		Long accommodationId,
 		String loadPermit,
 		AccommodationDetailCacheValue value,
-		Duration ttl
-	) {
+		Duration ttl) {
 		// 캐시는 보조 저장소이므로 직렬화나 Redis 쓰기 실패가 DB에서 읽은 원본 응답을 실패시키지 않음
 		try {
 			String json = objectMapper.writeValueAsString(value);
@@ -192,8 +186,7 @@ final class AccommodationDetailRedisStore {
 				List.of(loadPermitKey(accommodationId), cacheKey(accommodationId)),
 				loadPermit,
 				Long.toString(ttl.toMillis()),
-				json
-			);
+				json);
 			if (written == null) {
 				throw new IllegalStateException("캐시 저장 스크립트가 결과를 반환하지 않음");
 			}

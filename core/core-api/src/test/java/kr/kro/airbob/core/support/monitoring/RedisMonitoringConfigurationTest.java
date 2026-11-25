@@ -95,8 +95,7 @@ class RedisMonitoringConfigurationTest {
 		List<Map<String, Object>> jobs,
 		String jobName,
 		String target,
-		String namespace
-	) {
+		String namespace) {
 		Map<String, Object> job = jobs.stream()
 			.filter(candidate -> jobName.equals(candidate.get("job_name")))
 			.findFirst()

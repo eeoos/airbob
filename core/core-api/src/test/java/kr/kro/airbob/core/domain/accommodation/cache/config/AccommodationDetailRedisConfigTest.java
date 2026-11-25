@@ -93,14 +93,11 @@ class AccommodationDetailRedisConfigTest {
 
 	@Test
 	void dedicatedRedisPropertiesRejectInvalidEndpoints() {
-		assertThatThrownBy(() ->
-			new AccommodationDetailRedisProperties(" ", 6379, 0, "", ""))
+		assertThatThrownBy(() -> new AccommodationDetailRedisProperties(" ", 6379, 0, "", ""))
 			.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() ->
-			new AccommodationDetailRedisProperties("redis-cache", 0, 0, "", ""))
+		assertThatThrownBy(() -> new AccommodationDetailRedisProperties("redis-cache", 0, 0, "", ""))
 			.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() ->
-			new AccommodationDetailRedisProperties("redis-cache", 6379, -1, "", ""))
+		assertThatThrownBy(() -> new AccommodationDetailRedisProperties("redis-cache", 6379, -1, "", ""))
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 

@@ -1,7 +1,10 @@
 #!/bin/bash
-# PostToolUse (Edit|Write): compile the source set of an edited Java file in its Gradle module.
+# PostToolUse (Edit|Write): format an edited Java file with Spotless (Naver convention), then compile
+# the source set it belongs to in its Gradle module. One Gradle run does both.
 # Modules live at <group>/<module>/ (core/core-api, clients/*, support/*, ...).
-# Exits 2 with the compiler output on stderr when compilation fails.
+# Exits 2 with the Gradle output on stderr when formatting or compilation fails.
+# Spotless's IDE-hook mode skips lints (a non-static wildcard import); the Stop hook's spotlessCheck
+# reports them.
 
 file=$(jq -r '.tool_input.file_path // empty')
 root=${CLAUDE_PROJECT_DIR:?}
@@ -14,9 +17,9 @@ if [ "${BASH_REMATCH[3]}" = main ]; then task="$module:compileJava"; else task="
 [ -f "$root/$module_dir/build.gradle" ] || exit 0
 
 cd "$root" || exit 0
-if ! out=$(./gradlew -q "$task" 2>&1); then
+if ! out=$(./gradlew -q spotlessApply -PspotlessIdeHook="$file" "$task" 2>&1); then
   {
-    echo "$task failed after editing $relative:"
+    echo "spotlessApply or $task failed after editing $relative:"
     echo "$out" | grep -v '^Picked up JAVA_TOOL_OPTIONS' | tail -40
   } >&2
   exit 2

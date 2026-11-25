@@ -43,12 +43,14 @@ import kr.kro.airbob.core.support.messaging.event.InvalidIntegrationEventExcepti
 @DisplayName("숙소 검색 refresh Kafka listener")
 class AccommodationSearchRefreshListenerTest {
 
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
 
-	@Mock private AccommodationIndexingService indexingService;
-	@Mock private OperatorAlertEnqueueService alertEnqueueService;
-	@Mock private Acknowledgment acknowledgment;
+	@Mock
+	private AccommodationIndexingService indexingService;
+	@Mock
+	private OperatorAlertEnqueueService alertEnqueueService;
+	@Mock
+	private Acknowledgment acknowledgment;
 
 	private IntegrationEventCodec eventCodec;
 	private AccommodationSearchRefreshListener listener;
@@ -138,12 +140,11 @@ class AccommodationSearchRefreshListenerTest {
 	@DisplayName("poison DLT는 원문 없이 좌표 기반 subject로 durable alert를 만든다")
 	void poisonDltUsesDeterministicCoordinateSubject() {
 		ConsumerRecord<String, String> record = dltRecord("not-json paymentKey=secret", 0, 7L);
-		OperatorAlertSourcePosition source =
-			OperatorAlertSourcePosition.from(
-				AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
-				AccommodationSearchRefreshRequestedV1.TOPIC,
-				0,
-				7L);
+		OperatorAlertSourcePosition source = OperatorAlertSourcePosition.from(
+			AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
+			AccommodationSearchRefreshRequestedV1.TOPIC,
+			0,
+			7L);
 
 		listener.handleDlt(record, acknowledgment);
 
@@ -219,8 +220,7 @@ class AccommodationSearchRefreshListenerTest {
 		return eventCodec.encode(EventEnvelope.of(
 			UUID.fromString("a479d1bb-6cc6-4ad4-864d-01bd8b4dc63a"),
 			Instant.parse("2026-08-17T08:00:00Z"),
-			new AccommodationSearchRefreshRequestedV1(ACCOMMODATION_UID)
-		));
+			new AccommodationSearchRefreshRequestedV1(ACCOMMODATION_UID)));
 	}
 
 	private ConsumerRecord<String, String> dltRecord(String value, int partition, long offset) {
@@ -232,8 +232,7 @@ class AccommodationSearchRefreshListenerTest {
 		String value,
 		String originalTopic,
 		int partition,
-		long offset
-	) {
+		long offset) {
 		ConsumerRecord<String, String> record = new ConsumerRecord<>(
 			AccommodationSearchRefreshRequestedV1.TOPIC + ".DLT", 0, 99L, null, value);
 		record.headers().add(

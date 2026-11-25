@@ -11,8 +11,7 @@ public record ReservationPaymentAttempt(
 	String currency,
 	Instant holdExpiresAt,
 	long remainingSeconds,
-	Instant serverTime
-) {
+	Instant serverTime) {
 
 	public static ReservationPaymentAttempt of(Reservation reservation, long remainingSeconds, Instant serverTime) {
 		return new ReservationPaymentAttempt(

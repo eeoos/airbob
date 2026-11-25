@@ -13,6 +13,5 @@ public record CancelledPayment(
 	long cancelAmount,
 	String cancelReason,
 	String transactionKey,
-	Instant cancelledAt
-) {
+	Instant cancelledAt) {
 }

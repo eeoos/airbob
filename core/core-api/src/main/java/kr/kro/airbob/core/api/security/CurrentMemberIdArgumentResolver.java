@@ -27,8 +27,7 @@ public class CurrentMemberIdArgumentResolver implements HandlerMethodArgumentRes
 
 		if (!Long.class.equals(parameter.getParameterType())) {
 			throw new IllegalStateException(
-				"@CurrentMemberId는 Long 타입만 사용할 수 있습니다."
-			);
+				"@CurrentMemberId는 Long 타입만 사용할 수 있습니다.");
 		}
 
 		CurrentMemberId annotation = parameter.getParameterAnnotation(CurrentMemberId.class);

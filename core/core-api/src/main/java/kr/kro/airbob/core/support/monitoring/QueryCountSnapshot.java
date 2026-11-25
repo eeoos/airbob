@@ -5,8 +5,7 @@ import java.util.Map;
 public record QueryCountSnapshot(
 	String httpMethod,
 	String bestMatchPath,
-	Map<SqlQueryType, Integer> queryCountByType
-) {
+	Map<SqlQueryType, Integer> queryCountByType) {
 
 	public QueryCountSnapshot {
 		queryCountByType = Map.copyOf(queryCountByType);

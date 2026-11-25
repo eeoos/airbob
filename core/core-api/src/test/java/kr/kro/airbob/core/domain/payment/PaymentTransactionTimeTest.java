@@ -23,8 +23,7 @@ class PaymentTransactionTimeTest {
 		Reservation reservation = reservation();
 		ZonedDateTime dueDate = ZonedDateTime.of(
 			2026, 8, 13, 23, 30, 0, 123_456_000,
-			ZoneId.of("Asia/Seoul")
-		);
+			ZoneId.of("Asia/Seoul"));
 		ConfirmedPayment confirmed = new ConfirmedPayment(
 			"payment-key", reservation.getReservationUid().toString(), 100_000L, 100_000L,
 			PaymentMethod.VIRTUAL_ACCOUNT, PaymentStatus.DONE, Instant.parse("2026-08-12T00:00:00Z"),
@@ -50,8 +49,7 @@ class PaymentTransactionTimeTest {
 			.build();
 		ZonedDateTime canceledAt = ZonedDateTime.of(
 			2026, 11, 1, 1, 30, 0, 654_321_000,
-			ZoneId.of("America/New_York")
-		);
+			ZoneId.of("America/New_York"));
 		CancelledPayment cancel = new CancelledPayment(
 			"payment-key",
 			reservation.getReservationUid().toString(),
@@ -61,8 +59,7 @@ class PaymentTransactionTimeTest {
 			100_000L,
 			"사용자 요청",
 			"cancel-transaction-key",
-			canceledAt.toInstant()
-		);
+			canceledAt.toInstant());
 
 		PaymentTransaction transaction = PaymentTransaction.cancel(
 			cancel, reservation, payment, 3L);

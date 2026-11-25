@@ -36,30 +36,15 @@ public class AccommodationSearchRefreshListener {
 	private final AccommodationIndexingService indexingService;
 	private final OperatorAlertEnqueueService alertEnqueueService;
 
-	@RetryableTopic(
-		attempts = "${accommodation.indexing.kafka.attempts:4}",
-		backoff = @Backoff(delayExpression = "${accommodation.indexing.kafka.backoff-ms:30000}"),
-		kafkaTemplate = "accommodationSearchRetryKafkaTemplate",
-		listenerContainerFactory = AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY,
-		retryTopicSuffix = ".RETRY",
-		dltTopicSuffix = ".DLT",
-		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
-		dltStrategy = DltStrategy.FAIL_ON_ERROR,
-		autoCreateTopics = "false"
-	)
-	@KafkaListener(
-		id = LISTENER_ID,
-		topics = AccommodationSearchRefreshRequestedV1.TOPIC,
-		groupId = "${accommodation.indexing.kafka.group:accommodation-indexing-group}",
-		containerFactory = AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY,
-		autoStartup = "#{@accommodationIndexAliasReadiness.shouldAutoStart()}"
-	)
-	public void handle(@Payload String message, Acknowledgment acknowledgment) {
+	@RetryableTopic(attempts = "${accommodation.indexing.kafka.attempts:4}", backoff = @Backoff(delayExpression = "${accommodation.indexing.kafka.backoff-ms:30000}"), kafkaTemplate = "accommodationSearchRetryKafkaTemplate", listenerContainerFactory = AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY, retryTopicSuffix = ".RETRY", dltTopicSuffix = ".DLT", sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC, dltStrategy = DltStrategy.FAIL_ON_ERROR, autoCreateTopics = "false")
+	@KafkaListener(id = LISTENER_ID, topics = AccommodationSearchRefreshRequestedV1.TOPIC, groupId = "${accommodation.indexing.kafka.group:accommodation-indexing-group}", containerFactory = AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY, autoStartup = "#{@accommodationIndexAliasReadiness.shouldAutoStart()}")
+	public void handle(
+		@Payload
+		String message, Acknowledgment acknowledgment) {
 		EventEnvelope<AccommodationSearchRefreshRequestedV1> envelope = eventCodec.decode(
 			message,
 			AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
-			AccommodationSearchRefreshRequestedV1.class
-		);
+			AccommodationSearchRefreshRequestedV1.class);
 		indexingService.refreshAccommodationIndex(envelope.payload().accommodationUid());
 		acknowledgment.acknowledge();
 	}
@@ -77,8 +62,7 @@ public class AccommodationSearchRefreshListener {
 			return Optional.of(eventCodec.decode(
 				message,
 				AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
-				AccommodationSearchRefreshRequestedV1.class
-			).payload().accommodationUid());
+				AccommodationSearchRefreshRequestedV1.class).payload().accommodationUid());
 		} catch (InvalidIntegrationEventException ignored) {
 			return Optional.empty();
 		}
@@ -88,9 +72,8 @@ public class AccommodationSearchRefreshListener {
 		String trustedTopic = AccommodationSearchRefreshRequestedV1.DESCRIPTOR.destination();
 		String observedOriginalTopic = KafkaRetryHeaders.readStringHeader(
 			record.headers(), KafkaHeaders.ORIGINAL_TOPIC).orElse(null);
-		KafkaRetryHeaders.RecordCoordinates coordinates =
-			KafkaRetryHeaders.canonicalSourceCoordinates(
-				record, trustedTopic);
+		KafkaRetryHeaders.RecordCoordinates coordinates = KafkaRetryHeaders.canonicalSourceCoordinates(
+			record, trustedTopic);
 		return OperatorAlertSourcePosition.from(
 			AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
 			observedOriginalTopic,

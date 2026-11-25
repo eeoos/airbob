@@ -9,8 +9,7 @@ public record OperatorAlertSlackProperties(
 	boolean enabled,
 	String webhookUrl,
 	Duration connectTimeout,
-	Duration readTimeout
-) {
+	Duration readTimeout) {
 	public OperatorAlertSlackProperties {
 		webhookUrl = webhookUrl == null ? "" : webhookUrl.trim();
 		requirePositive(connectTimeout, "connectTimeout");

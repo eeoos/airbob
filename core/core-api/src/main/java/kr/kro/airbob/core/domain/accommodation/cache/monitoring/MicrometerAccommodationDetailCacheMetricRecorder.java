@@ -34,8 +34,7 @@ public class MicrometerAccommodationDetailCacheMetricRecorder
 	private final Map<LockResult, Timer> lockTimers;
 	private final Map<LoadResult, Timer> loadTimers;
 	private final Map<RedisOperation, Map<OperationResult, Counter>> redisCounters;
-	private final Map<EvictionSource,
-		Map<AccommodationDetailCacheInvalidationReason, Map<OperationResult, Counter>>> evictionCounters;
+	private final Map<EvictionSource, Map<AccommodationDetailCacheInvalidationReason, Map<OperationResult, Counter>>> evictionCounters;
 
 	public MicrometerAccommodationDetailCacheMetricRecorder(MeterRegistry meterRegistry) {
 		requestCounters = enumMap(RequestResult.class, result -> counter(
@@ -47,10 +46,9 @@ public class MicrometerAccommodationDetailCacheMetricRecorder
 		loadTimers = enumMap(LoadResult.class, result -> timer(
 			meterRegistry, LOAD_DURATION, "Accommodation detail database load duration",
 			LOAD_SLOS, "result", result.tagValue()));
-		redisCounters = enumMap(RedisOperation.class, operation ->
-			enumMap(OperationResult.class, result -> counter(
-				meterRegistry, REDIS_OPERATION_TOTAL, "Accommodation detail cache Redis operations",
-				"operation", operation.tagValue(), "result", result.tagValue())));
+		redisCounters = enumMap(RedisOperation.class, operation -> enumMap(OperationResult.class, result -> counter(
+			meterRegistry, REDIS_OPERATION_TOTAL, "Accommodation detail cache Redis operations",
+			"operation", operation.tagValue(), "result", result.tagValue())));
 		evictionCounters = evictionCounters(meterRegistry);
 	}
 
@@ -78,25 +76,21 @@ public class MicrometerAccommodationDetailCacheMetricRecorder
 	public void recordEviction(
 		EvictionSource source,
 		AccommodationDetailCacheInvalidationReason reason,
-		OperationResult result
-	) {
+		OperationResult result) {
 		evictionCounters.get(source).get(reason).get(result).increment();
 	}
 
-	private Map<EvictionSource,
-		Map<AccommodationDetailCacheInvalidationReason, Map<OperationResult, Counter>>> evictionCounters(
-		MeterRegistry meterRegistry
-	) {
-		return enumMap(EvictionSource.class, source ->
-			enumMap(AccommodationDetailCacheInvalidationReason.class, reason ->
-				enumMap(OperationResult.class, result -> counter(
-						meterRegistry,
-						EVICTION_TOTAL,
-						"Accommodation detail cache eviction outcomes",
-						"source", source.tagValue(),
-						"reason", reason.tagValue(),
-						"result", result.tagValue()
-					))));
+	private Map<EvictionSource, Map<AccommodationDetailCacheInvalidationReason, Map<OperationResult, Counter>>> evictionCounters(
+		MeterRegistry meterRegistry) {
+		return enumMap(EvictionSource.class,
+			source -> enumMap(AccommodationDetailCacheInvalidationReason.class,
+				reason -> enumMap(OperationResult.class, result -> counter(
+					meterRegistry,
+					EVICTION_TOTAL,
+					"Accommodation detail cache eviction outcomes",
+					"source", source.tagValue(),
+					"reason", reason.tagValue(),
+					"result", result.tagValue()))));
 	}
 
 	private Counter counter(MeterRegistry meterRegistry, String name, String description, String... tags) {
@@ -108,8 +102,7 @@ public class MicrometerAccommodationDetailCacheMetricRecorder
 		String name,
 		String description,
 		Duration[] slos,
-		String... tags
-	) {
+		String... tags) {
 		return Timer.builder(name)
 			.description(description)
 			.tags(tags)
@@ -120,8 +113,7 @@ public class MicrometerAccommodationDetailCacheMetricRecorder
 
 	private <E extends Enum<E>, V> Map<E, V> enumMap(
 		Class<E> enumType,
-		Function<E, V> valueFactory
-	) {
+		Function<E, V> valueFactory) {
 		Map<E, V> result = new EnumMap<>(enumType);
 		for (E value : enumType.getEnumConstants()) {
 			result.put(value, valueFactory.apply(value));

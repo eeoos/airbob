@@ -28,8 +28,7 @@ public class AccommodationQueryService {
 	public PublicAccommodationDetail findAccommodation(Long accommodationId, Long viewerId) {
 		AccommodationDetailSnapshot snapshot = accommodationDetailCache.getOrLoad(
 			accommodationId,
-			() -> accommodationDetailReader.load(accommodationId)
-		);
+			() -> accommodationDetailReader.load(accommodationId));
 		boolean isInWishlist = viewerId != null
 			&& accommodationDetailReader.isInWishlist(accommodationId, viewerId);
 
@@ -46,16 +45,14 @@ public class AccommodationQueryService {
 	public HostAccommodationPage findMyAccommodations(
 		Long hostId,
 		CursorRequest.CursorPageRequest cursorRequest,
-		AccommodationStatus status
-	) {
-		Slice<HostAccommodationProjection> accommodationSlice =
-			accommodationReader.readHostPage(hostId, cursorRequest, status);
+		AccommodationStatus status) {
+		Slice<HostAccommodationProjection> accommodationSlice = accommodationReader.readHostPage(hostId, cursorRequest,
+			status);
 
 		List<HostAccommodationProjection> accommodations = accommodationSlice.getContent();
 		if (accommodations.isEmpty()) {
 			CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-				Collections.emptyList(), false, acc -> 0L, acc -> null
-			);
+				Collections.emptyList(), false, acc -> 0L, acc -> null);
 			return new HostAccommodationPage(Collections.emptyList(), pageInfo);
 		}
 
@@ -63,8 +60,7 @@ public class AccommodationQueryService {
 			accommodations,
 			accommodationSlice.hasNext(),
 			HostAccommodationProjection::id,
-			HostAccommodationProjection::createdAt
-		);
+			HostAccommodationProjection::createdAt);
 
 		return new HostAccommodationPage(accommodations, pageInfo);
 	}
@@ -76,8 +72,7 @@ public class AccommodationQueryService {
 		return new HostAccommodationDetail(
 			accommodation,
 			accommodationDetailReader.loadAmenities(accommodationId),
-			accommodationDetailReader.loadImages(accommodationId)
-		);
+			accommodationDetailReader.loadImages(accommodationId));
 	}
 
 }

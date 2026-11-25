@@ -8,10 +8,8 @@ import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 
 @Component
 public class CouponCampaignCursorParamArgumentResolver
-	extends AbstractCursorParamArgumentResolver<
-		CouponCampaignCursorData,
-		CursorRequest.CouponCampaignCursorPageRequest
-	> {
+	extends
+	AbstractCursorParamArgumentResolver<CouponCampaignCursorData, CursorRequest.CouponCampaignCursorPageRequest> {
 
 	public CouponCampaignCursorParamArgumentResolver(CursorDecoder cursorDecoder) {
 		super(cursorDecoder);
@@ -30,16 +28,14 @@ public class CouponCampaignCursorParamArgumentResolver
 	@Override
 	protected CursorRequest.CouponCampaignCursorPageRequest createRequest(
 		int size,
-		CouponCampaignCursorData cursorData
-	) {
+		CouponCampaignCursorData cursorData) {
 		return CursorRequest.CouponCampaignCursorPageRequest.builder()
 			.size(size)
 			.lastId(cursorData != null ? cursorData.id() : null)
 			.lastIssueStartAt(
 				cursorData != null
 					? cursorData.lastIssueStartAt()
-					: null
-			)
+					: null)
 			.build();
 	}
 }

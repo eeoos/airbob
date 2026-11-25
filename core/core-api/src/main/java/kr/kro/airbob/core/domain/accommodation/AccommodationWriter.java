@@ -102,8 +102,7 @@ public class AccommodationWriter {
 	public void recordHistory(Accommodation accommodation, ChangeType changeType, String reason) {
 		LocalDateTime changedAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		accommodationHistoryRepository.findByAccommodationIdAndValidTo(
-			accommodation.getId(), HistoryConstants.FOREVER
-		).ifPresent(current -> current.close(changedAt));
+			accommodation.getId(), HistoryConstants.FOREVER).ifPresent(current -> current.close(changedAt));
 		accommodationHistoryRepository.save(
 			AccommodationHistory.of(accommodation, changeType, reason, changedAt));
 	}

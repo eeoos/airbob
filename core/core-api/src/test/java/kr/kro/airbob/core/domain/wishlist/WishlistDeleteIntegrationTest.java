@@ -13,18 +13,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -34,7 +34,6 @@ import org.testcontainers.utility.DockerImageName;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import jakarta.persistence.EntityManager;
-
 import kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.core.support.context.UserContext;
 import kr.kro.airbob.core.support.context.UserInfo;
@@ -70,15 +69,23 @@ class WishlistDeleteIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
 	}
 
-	@Autowired private WishlistService wishlistService;
-	@Autowired private JdbcTemplate jdbcTemplate;
-	@Autowired private TransactionTemplate transactionTemplate;
-	@Autowired private EntityManager entityManager;
+	@Autowired
+	private WishlistService wishlistService;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private TransactionTemplate transactionTemplate;
+	@Autowired
+	private EntityManager entityManager;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private S3Template s3Template;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private S3Template s3Template;
 
 	private long ownerId;
 
@@ -97,7 +104,6 @@ class WishlistDeleteIntegrationTest {
 		jdbcTemplate.update("DELETE FROM accommodation");
 		jdbcTemplate.update("DELETE FROM member");
 	}
-
 
 	@ParameterizedTest
 	@ValueSource(ints = {0, 3, 1000})
@@ -119,7 +125,8 @@ class WishlistDeleteIntegrationTest {
 		Map<String, Object> deleted = wishlistSnapshot(fixture.targetWishlistId());
 		assertThat(deleted.get("status")).isEqualTo("DELETED");
 		assertThat(deleted.get("accommodation_count")).isEqualTo(target.get("accommodation_count"));
-		assertThat(deleted.get("representative_accommodation_id")).isEqualTo(target.get("representative_accommodation_id"));
+		assertThat(deleted.get("representative_accommodation_id"))
+			.isEqualTo(target.get("representative_accommodation_id"));
 		assertThat(deleted.get("updated_by")).isEqualTo(ownerId);
 		assertThat(membershipCount(fixture.targetWishlistId())).isZero();
 		assertThat(wishlistSnapshot(fixture.controlWishlistId())).isEqualTo(control);
@@ -157,8 +164,7 @@ class WishlistDeleteIntegrationTest {
 		assertThat(jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM wishlist_accommodation WHERE wishlist_id = ?",
 			Long.class,
-			fixture.targetWishlistId()
-		)).isEqualTo(1L);
+			fixture.targetWishlistId())).isEqualTo(1L);
 	}
 
 	private Fixture createFixture(int size) {
@@ -188,10 +194,12 @@ class WishlistDeleteIntegrationTest {
 	}
 
 	private void insertMembership(long wishlistId, long accommodationId) {
-		jdbcTemplate.update("""
-			INSERT INTO wishlist_accommodation (wishlist_id, accommodation_id, created_at, updated_at, created_by, updated_by)
-			VALUES (?, ?, NOW(6), NOW(6), ?, ?)
-			""", wishlistId, accommodationId, ownerId, ownerId);
+		jdbcTemplate.update(
+			"""
+				INSERT INTO wishlist_accommodation (wishlist_id, accommodation_id, created_at, updated_at, created_by, updated_by)
+				VALUES (?, ?, NOW(6), NOW(6), ?, ?)
+				""",
+			wishlistId, accommodationId, ownerId, ownerId);
 	}
 
 	private long insert(String sql, Object... values) {
@@ -223,11 +231,10 @@ class WishlistDeleteIntegrationTest {
 		jdbcTemplate.update(connection -> {
 			var statement = connection.prepareStatement(
 				"""
-				INSERT INTO member (email, nickname, role, status, created_at, updated_at)
-				VALUES (?, ?, 'MEMBER', 'ACTIVE', NOW(6), NOW(6))
-				""",
-				Statement.RETURN_GENERATED_KEYS
-			);
+					INSERT INTO member (email, nickname, role, status, created_at, updated_at)
+					VALUES (?, ?, 'MEMBER', 'ACTIVE', NOW(6), NOW(6))
+					""",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setString(1, "wishlist-test-owner@example.test");
 			statement.setString(2, "wishlist-test-owner");
 			return statement;
@@ -236,6 +243,5 @@ class WishlistDeleteIntegrationTest {
 		return keyHolder.getKey().longValue();
 	}
 
-	static class IntentionalRollbackException extends RuntimeException {
-	}
+	static class IntentionalRollbackException extends RuntimeException {}
 }

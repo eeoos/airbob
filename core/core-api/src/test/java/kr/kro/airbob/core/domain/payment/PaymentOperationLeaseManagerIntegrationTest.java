@@ -96,12 +96,18 @@ class PaymentOperationLeaseManagerIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PaymentOperationLeaseManager service;
-	@Autowired private HoldingClaimTransaction holdingClaimTransaction;
-	@Autowired private ControllableAlertOutboxAppender alertOutboxAppender;
-	@Autowired private IntegrationEventCodec codec;
-	@Autowired private PaymentOperationDltIncidentService dltIncidentService;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PaymentOperationLeaseManager service;
+	@Autowired
+	private HoldingClaimTransaction holdingClaimTransaction;
+	@Autowired
+	private ControllableAlertOutboxAppender alertOutboxAppender;
+	@Autowired
+	private IntegrationEventCodec codec;
+	@Autowired
+	private PaymentOperationDltIncidentService dltIncidentService;
 
 	@BeforeEach
 	void insertReadyOperation() {
@@ -112,7 +118,8 @@ class PaymentOperationLeaseManagerIntegrationTest {
 		jdbc.update("DELETE FROM reservation");
 		jdbc.update("DELETE FROM accommodation");
 		jdbc.update("DELETE FROM member");
-		jdbc.update("INSERT INTO member (email, nickname, role, status, updated_at) VALUES (?, ?, 'MEMBER', 'ACTIVE', NOW(6))",
+		jdbc.update(
+			"INSERT INTO member (email, nickname, role, status, updated_at) VALUES (?, ?, 'MEMBER', 'ACTIVE', NOW(6))",
 			"payment-lease@test.com", "payment-lease-member");
 		long memberId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
@@ -326,14 +333,12 @@ class PaymentOperationLeaseManagerIntegrationTest {
 
 	@Test
 	void mismatchedReservationUidDoesNotRedispatchButStillCommitsOneQuarantineAlert() {
-		UUID mismatchedReservationUid =
-			UUID.fromString("4052fe21-1bbf-48b9-b76d-25d373ff94f8");
+		UUID mismatchedReservationUid = UUID.fromString("4052fe21-1bbf-48b9-b76d-25d373ff94f8");
 		String mismatched = codec.encode(EventEnvelope.of(
 			UUID.fromString("908ed7b0-f1a2-4cd8-b2b8-83c96c676ea2"),
 			NOW,
 			new PaymentOperationExecutionRequestedV1(
-				OPERATION_UID, mismatchedReservationUid, 1)
-		));
+				OPERATION_UID, mismatchedReservationUid, 1)));
 
 		dltIncidentService.record(
 			mismatched,
@@ -405,8 +410,7 @@ class PaymentOperationLeaseManagerIntegrationTest {
 			UUID.fromString("908ed7b0-f1a2-4cd8-b2b8-83c96c676ea1"),
 			NOW,
 			new PaymentOperationExecutionRequestedV1(
-				OPERATION_UID, RESERVATION_UID, generation)
-		));
+				OPERATION_UID, RESERVATION_UID, generation)));
 	}
 
 	@Test
@@ -421,7 +425,8 @@ class PaymentOperationLeaseManagerIntegrationTest {
 		try {
 			CompletableFuture<Optional<PaymentExecution>> first = CompletableFuture.supplyAsync(
 				() -> holdingClaimTransaction.claimAndHold(
-					OPERATION_UID, firstClaimed, releaseFirstTransaction), executor);
+					OPERATION_UID, firstClaimed, releaseFirstTransaction),
+				executor);
 			assertThat(firstClaimed.await(5, TimeUnit.SECONDS)).isTrue();
 
 			CompletableFuture<Optional<PaymentExecution>> second = CompletableFuture.supplyAsync(() -> {
@@ -480,8 +485,7 @@ class PaymentOperationLeaseManagerIntegrationTest {
 		@Bean
 		@Primary
 		ControllableAlertOutboxAppender controllableAlertOutboxAppender(
-			MysqlOperatorAlertOutboxAppender delegate
-		) {
+			MysqlOperatorAlertOutboxAppender delegate) {
 			return new ControllableAlertOutboxAppender(delegate);
 		}
 
@@ -523,8 +527,7 @@ class PaymentOperationLeaseManagerIntegrationTest {
 		public Optional<PaymentExecution> claimAndHold(
 			UUID operationUid,
 			CountDownLatch claimed,
-			CountDownLatch release
-		) {
+			CountDownLatch release) {
 			Optional<PaymentExecution> result = service.claim(operationUid, 1);
 			claimed.countDown();
 			try {

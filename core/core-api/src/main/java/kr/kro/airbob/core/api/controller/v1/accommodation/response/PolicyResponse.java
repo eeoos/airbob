@@ -14,10 +14,10 @@ public class PolicyResponse {
 	public record PolicyInfo(
 		@Schema(nullable = true) Integer maxOccupancy,
 		@Schema(nullable = true) Integer infantOccupancy,
-		@Schema(nullable = true) Integer petOccupancy
-	) {
+		@Schema(nullable = true) Integer petOccupancy) {
 		public static PolicyResponse.PolicyInfo from(OccupancyPolicy policy) {
-			if(policy == null) return PolicyResponse.PolicyInfo.builder().build();
+			if (policy == null)
+				return PolicyResponse.PolicyInfo.builder().build();
 			return PolicyResponse.PolicyInfo.builder()
 				.maxOccupancy(policy.getMaxOccupancy())
 				.infantOccupancy(policy.getInfantOccupancy())

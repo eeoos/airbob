@@ -10,8 +10,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record OutboxCleanupProperties(
 	@DefaultValue("P30D") Duration retention,
 	@DefaultValue("PT1H") Duration fixedDelay,
-	@DefaultValue("1000") int batchSize
-) {
+	@DefaultValue("1000") int batchSize) {
 
 	static final Duration MINIMUM_RETENTION = Duration.ofDays(1);
 	static final Duration MINIMUM_FIXED_DELAY = Duration.ofMinutes(1);

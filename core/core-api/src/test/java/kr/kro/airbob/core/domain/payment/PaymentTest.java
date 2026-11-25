@@ -39,8 +39,7 @@ class PaymentTest {
 			PaymentMethod.CARD,
 			PaymentStatus.DONE,
 			APPROVED_AT,
-			null
-		);
+			null);
 
 		Payment payment = Payment.create(confirmed, reservation);
 
@@ -53,8 +52,7 @@ class PaymentTest {
 				Payment::getMethod,
 				Payment::getStatus,
 				Payment::getApprovedAt,
-				Payment::getReservation
-			)
+				Payment::getReservation)
 			.containsExactly(
 				"test_payment_key_123",
 				reservation.getReservationUid().toString(),
@@ -63,8 +61,7 @@ class PaymentTest {
 				PaymentMethod.CARD,
 				PaymentStatus.DONE,
 				APPROVED_AT,
-				reservation
-			);
+				reservation);
 	}
 
 	@Test
@@ -77,8 +74,7 @@ class PaymentTest {
 			PaymentMethod.CARD,
 			PaymentStatus.DONE,
 			APPROVED_AT,
-			null
-		), reservation);
+			null), reservation);
 		CancelledPayment cancelled = new CancelledPayment(
 			payment.getPaymentKey(),
 			payment.getOrderId(),
@@ -88,8 +84,7 @@ class PaymentTest {
 			100_000L,
 			"사용자 요청",
 			"cancel-transaction-key",
-			APPROVED_AT.plusSeconds(60)
-		);
+			APPROVED_AT.plusSeconds(60));
 
 		payment.applyFullCancellation(cancelled);
 

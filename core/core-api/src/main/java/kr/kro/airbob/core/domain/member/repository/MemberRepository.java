@@ -1,6 +1,5 @@
 package kr.kro.airbob.core.domain.member.repository;
 
-import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -10,39 +9,49 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.LockModeType;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberProfile;
 import kr.kro.airbob.core.domain.member.MemberRole;
 import kr.kro.airbob.core.domain.member.MemberStatus;
 
 public interface MemberRepository extends JpaRepository<Member, Long>, MemberRepositoryCustom {
-    boolean existsByEmail(String email);
+	boolean existsByEmail(String email);
 
-    Optional<Member> findByEmailAndStatus(String email, MemberStatus status);
+	Optional<Member> findByEmailAndStatus(String email, MemberStatus status);
 
-    Optional<Member> findByIdAndStatus(Long id, MemberStatus status);
+	Optional<Member> findByIdAndStatus(Long id, MemberStatus status);
 
-    @Query("""
-        select new kr.kro.airbob.core.domain.member.MemberProfile(m.id, m.email, m.nickname)
-        from Member m where m.id = :id and m.status = :status
-        """)
-    Optional<MemberProfile> findProfileByIdAndStatus(@Param("id") Long id, @Param("status") MemberStatus status);
+	@Query("""
+		select new kr.kro.airbob.core.domain.member.MemberProfile(m.id, m.email, m.nickname)
+		from Member m where m.id = :id and m.status = :status
+		""")
+	Optional<MemberProfile> findProfileByIdAndStatus(
+		@Param("id")
+		Long id,
+		@Param("status")
+		MemberStatus status);
 
-    boolean existsByIdAndStatusAndRole(Long id, MemberStatus status, MemberRole role);
+	boolean existsByIdAndStatusAndRole(Long id, MemberStatus status, MemberRole role);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT m FROM Member m WHERE m.id = :id AND m.status = :status")
-    Optional<Member> findByIdAndStatusForUpdate(
-        @Param("id") Long id,
-        @Param("status") MemberStatus status
-    );
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT m FROM Member m WHERE m.id = :id AND m.status = :status")
+	Optional<Member> findByIdAndStatusForUpdate(
+		@Param("id")
+		Long id,
+		@Param("status")
+		MemberStatus status);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT m FROM Member m WHERE m.id = :id")
-    Optional<Member> findByIdForUpdate(@Param("id") Long id);
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT m FROM Member m WHERE m.id = :id")
+	Optional<Member> findByIdForUpdate(
+		@Param("id")
+		Long id);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT m FROM Member m WHERE m.id IN :ids ORDER BY m.id")
-    List<Member> findAllByIdForUpdate(@Param("ids") Collection<Long> ids);
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT m FROM Member m WHERE m.id IN :ids ORDER BY m.id")
+	List<Member> findAllByIdForUpdate(
+		@Param("ids")
+		Collection<Long> ids);
 
 }

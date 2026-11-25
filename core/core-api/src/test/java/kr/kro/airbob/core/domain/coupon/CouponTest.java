@@ -145,7 +145,8 @@ class CouponTest {
 	void upcomingIssuanceStatus() {
 		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
 
-		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), false, ISSUE_START.minusNanos(1)))
+		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), false,
+			ISSUE_START.minusNanos(1)))
 			.isEqualTo(CouponIssuanceStatus.UPCOMING);
 	}
 
@@ -173,7 +174,8 @@ class CouponTest {
 			.totalQuantity(100)
 			.build();
 
-		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), false, ISSUE_START))
+		assertThat(
+			CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), false, ISSUE_START))
 			.isEqualTo(CouponIssuanceStatus.SOLD_OUT);
 	}
 

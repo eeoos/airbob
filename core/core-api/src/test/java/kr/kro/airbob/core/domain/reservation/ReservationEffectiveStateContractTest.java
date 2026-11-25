@@ -18,8 +18,7 @@ class ReservationEffectiveStateContractTest {
 		Reservation reservation = reservation(
 			ReservationStatus.PAYMENT_PENDING,
 			NOW,
-			100_000L
-		);
+			100_000L);
 
 		assertThat(reservation.effectiveStatus(NOW)).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -31,23 +30,19 @@ class ReservationEffectiveStateContractTest {
 		Reservation activePaidHold = reservation(
 			ReservationStatus.PAYMENT_PENDING,
 			NOW.plusSeconds(1),
-			100_000L
-		);
+			100_000L);
 		Reservation expiredPaidHold = reservation(
 			ReservationStatus.PAYMENT_PENDING,
 			NOW,
-			100_000L
-		);
+			100_000L);
 		Reservation complimentaryHold = reservation(
 			ReservationStatus.PAYMENT_PENDING,
 			NOW.plusSeconds(1),
-			0L
-		);
+			0L);
 		Reservation processing = reservation(
 			ReservationStatus.PAYMENT_PROCESSING,
 			NOW.minusSeconds(1),
-			100_000L
-		);
+			100_000L);
 
 		assertThat(activePaidHold.isPaymentAllowedAt(NOW)).isTrue();
 		assertThat(expiredPaidHold.isPaymentAllowedAt(NOW)).isFalse();
@@ -61,8 +56,7 @@ class ReservationEffectiveStateContractTest {
 		Reservation reservation = reservation(
 			ReservationStatus.PAYMENT_PROCESSING,
 			NOW.minusSeconds(1),
-			100_000L
-		);
+			100_000L);
 
 		assertThat(reservation.effectiveStatus(NOW))
 			.isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
@@ -71,8 +65,7 @@ class ReservationEffectiveStateContractTest {
 	private Reservation reservation(
 		ReservationStatus status,
 		Instant expiresAt,
-		long totalPrice
-	) {
+		long totalPrice) {
 		return Reservation.builder()
 			.status(status)
 			.expiresAt(expiresAt)

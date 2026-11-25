@@ -13,11 +13,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class MemberController implements MemberApi {
 
-    private final MemberService memberService;
+	private final MemberService memberService;
 
-    @Override
-    public ResponseEntity<ApiResponse<Void>> signup(MemberRequest.Signup request) {
-        memberService.createMember(request.toNewMember());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
-    }
+	@Override
+	public ResponseEntity<ApiResponse<Void>> signup(MemberRequest.Signup request) {
+		memberService.createMember(request.toNewMember());
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
+	}
 }

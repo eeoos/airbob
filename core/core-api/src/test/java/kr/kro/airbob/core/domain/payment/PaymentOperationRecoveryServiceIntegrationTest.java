@@ -75,10 +75,8 @@ import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMess
 class PaymentOperationRecoveryServiceIntegrationTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-14T00:00:00Z");
-	private static final UUID RESERVATION_UID =
-		UUID.fromString("7cc76484-37bb-4310-b3b6-b86247553c3a");
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("e2bf35c4-9ef4-4583-a3ae-b9f014177348");
+	private static final UUID RESERVATION_UID = UUID.fromString("7cc76484-37bb-4310-b3b6-b86247553c3a");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("e2bf35c4-9ef4-4583-a3ae-b9f014177348");
 
 	@Container
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
@@ -95,12 +93,18 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private PaymentOperationRecoveryService recoveryService;
-	@Autowired private PaymentOperationRepository operationRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
-	@Autowired private IntegrationEventCodec codec;
-	@Autowired private HoldingRecoveryTransaction holdingRecoveryTransaction;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private PaymentOperationRecoveryService recoveryService;
+	@Autowired
+	private PaymentOperationRepository operationRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private IntegrationEventCodec codec;
+	@Autowired
+	private HoldingRecoveryTransaction holdingRecoveryTransaction;
 
 	private long memberId;
 	private long reservationId;
@@ -125,7 +129,8 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 		insertOperation(retryUid, WAITING_RETRY, CONFIRM, 7, 2, NOW, NOW.minusSeconds(30), null, null);
 		insertOperation(notDueUid, WAITING_RETRY, CONFIRM, 3, 2, NOW.plusMillis(1), NOW.minusSeconds(30), null, null);
 		insertOperation(expiredLeaseUid, EXECUTING, CONFIRM, 9, 4, null, NOW.minusSeconds(30), "expired-owner", NOW);
-		insertOperation(validLeaseUid, EXECUTING, CONFIRM, 5, 1, null, NOW.minusSeconds(30), "active-owner", NOW.plusMillis(1));
+		insertOperation(validLeaseUid, EXECUTING, CONFIRM, 5, 1, null, NOW.minusSeconds(30), "active-owner",
+			NOW.plusMillis(1));
 		insertOperation(terminalUid, APPLIED, CONFIRM, 2, 1, null, NOW.minusSeconds(30), null, null);
 
 		RecoveryBatch batch = recoveryService.recoverDue();
@@ -228,8 +233,7 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 		EventEnvelope<PaymentOperationExecutionRequestedV1> envelope = codec.decode(
 			message.getPayload(),
 			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
-			PaymentOperationExecutionRequestedV1.class
-		);
+			PaymentOperationExecutionRequestedV1.class);
 		return envelope.payload();
 	}
 
@@ -268,8 +272,7 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 		Instant nextAttemptAt,
 		Instant queuedAt,
 		String leaseOwner,
-		Instant leaseExpiresAt
-	) {
+		Instant leaseExpiresAt) {
 		jdbc.update("""
 			INSERT INTO payment_operation (
 			  operation_uid, reservation_id, requester_member_id, operation_type, status, next_action,

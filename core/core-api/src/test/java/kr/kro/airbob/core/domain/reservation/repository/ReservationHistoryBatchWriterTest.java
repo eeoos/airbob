@@ -38,9 +38,12 @@ import kr.kro.airbob.core.support.persistence.history.ChangeType;
 class ReservationHistoryBatchWriterTest {
 	private static final Instant HISTORY_CREATED_AT = Instant.parse("2026-07-21T12:00:00Z");
 
-	@Mock private JdbcTemplate jdbcTemplate;
-	@Mock private PreparedStatement statement;
-	@Captor private ArgumentCaptor<BatchPreparedStatementSetter> batchSetterCaptor;
+	@Mock
+	private JdbcTemplate jdbcTemplate;
+	@Mock
+	private PreparedStatement statement;
+	@Captor
+	private ArgumentCaptor<BatchPreparedStatementSetter> batchSetterCaptor;
 
 	@Test
 	@DisplayName("0 이하 batch 크기를 거부한다")
@@ -133,8 +136,7 @@ class ReservationHistoryBatchWriterTest {
 		then(statement).should().setObject(
 			19,
 			LocalDateTime.ofInstant(HISTORY_CREATED_AT, ZoneOffset.UTC),
-			Types.TIMESTAMP
-		);
+			Types.TIMESTAMP);
 	}
 
 	private List<ReservationHistory> histories(int size) {
@@ -145,10 +147,9 @@ class ReservationHistoryBatchWriterTest {
 
 	private ReservationHistory history(int index) {
 		return ReservationHistory.builder()
-			.reservationId((long) index + 1)
+			.reservationId((long)index + 1)
 			.reservationUid(UUID.nameUUIDFromBytes(
-				("reservation-" + index).getBytes(StandardCharsets.UTF_8)
-			).toString())
+				("reservation-" + index).getBytes(StandardCharsets.UTF_8)).toString())
 			.reservationCode("R" + index)
 			.accommodationId(100L + index)
 			.guestId(200L + index)

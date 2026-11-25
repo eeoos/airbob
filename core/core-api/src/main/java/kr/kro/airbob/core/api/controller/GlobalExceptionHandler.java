@@ -4,16 +4,16 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.validation.BindingResult;
 import org.springframework.validation.BindException;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
-import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -58,7 +58,8 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(MissingServletRequestParameterException.class)
-	protected ResponseEntity<ApiResponse<?>> handleMissingRequestParameter(MissingServletRequestParameterException exception) {
+	protected ResponseEntity<ApiResponse<?>> handleMissingRequestParameter(
+		MissingServletRequestParameterException exception) {
 		log.warn("Missing required request parameter: {}", exception.getParameterName());
 		return ResponseEntity.badRequest().body(ApiResponse.error(ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE)));
 	}
@@ -94,8 +95,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
 	protected ResponseEntity<ApiResponse<?>> handleMethodArgumentTypeMismatchException(
-		MethodArgumentTypeMismatchException e
-	) {
+		MethodArgumentTypeMismatchException e) {
 		log.warn("handleMethodArgumentTypeMismatchException: Parameter '{}' requires type '{}' but value was '{}'",
 			e.getName(), e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "N/A", e.getValue());
 
@@ -119,8 +119,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(MissingRequestCookieException.class)
 	protected ResponseEntity<ApiResponse<?>> handleMissingRequestCookieException(
-		MissingRequestCookieException e
-	) {
+		MissingRequestCookieException e) {
 		log.warn("handleMissingRequestCookieException: {} - Required cookie '{}' is missing.",
 			e.getMessage(), e.getCookieName());
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
@@ -129,8 +128,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(MissingRequestHeaderException.class)
 	protected ResponseEntity<ApiResponse<?>> handleMissingRequestHeaderException(
-		MissingRequestHeaderException exception
-	) {
+		MissingRequestHeaderException exception) {
 		log.warn("handleMissingRequestHeaderException: required header '{}' is missing",
 			exception.getHeaderName());
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
@@ -138,7 +136,8 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(PublishingFieldRequiredException.class)
-	protected ResponseEntity<ApiResponse<?>> handlePublishingFieldRequiredException(PublishingFieldRequiredException e) {
+	protected ResponseEntity<ApiResponse<?>> handlePublishingFieldRequiredException(
+		PublishingFieldRequiredException e) {
 		log.warn("handlePublishingFieldRequiredException: field={}, reason={}", e.getFieldName(), e.getReason());
 		final ErrorResponse response = ErrorResponse.of(e.getErrorCode(), e.getFieldName(), e.getReason());
 		return new ResponseEntity<>(ApiResponse.error(response), e.getErrorCode().getStatus());
@@ -146,8 +145,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(ReservationInventoryBusyException.class)
 	protected ResponseEntity<ApiResponse<?>> handleReservationInventoryBusy(
-		ReservationInventoryBusyException exception
-	) {
+		ReservationInventoryBusyException exception) {
 		ErrorCode errorCode = exception.getErrorCode();
 		return ResponseEntity.status(errorCode.getStatus())
 			.header("Retry-After", "1")
@@ -167,8 +165,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(PaymentOperationInvariantViolationException.class)
 	protected ResponseEntity<ApiResponse<?>> handlePaymentOperationInvariantViolation(
-		PaymentOperationInvariantViolationException e
-	) {
+		PaymentOperationInvariantViolationException e) {
 		log.error("Payment operation invariant violation: type={}", e.getClass().getName());
 		return internalServerError();
 	}

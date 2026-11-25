@@ -35,8 +35,7 @@ public class AccommodationDocumentReader {
 	public AccommodationDocumentHits search(
 		AccommodationSearchCondition condition,
 		Set<String> eligibleTimeZones,
-		Pageable pageable
-	) {
+		Pageable pageable) {
 		SearchRequest searchReq = new SearchRequest.Builder()
 			.index(INDEX)
 			.query(buildQuery(condition, eligibleTimeZones))
@@ -68,8 +67,7 @@ public class AccommodationDocumentReader {
 
 		b.filter(f -> f.term(t -> t
 			.field("status")
-			.value(AccommodationStatus.PUBLISHED.name())
-		));
+			.value(AccommodationStatus.PUBLISHED.name())));
 
 		AccommodationSearchCondition.MapArea area = condition.mapArea();
 		if (area != null) {
@@ -77,17 +75,10 @@ public class AccommodationDocumentReader {
 				.field("location")
 				.boundingBox(bb -> bb
 					.tlbr(t -> t
-						.topLeft(GeoLocation.of(gl -> gl.latlon(ll ->
-							ll.lat(area.topLeftLat())
-								.lon(area.topLeftLng())
-						)))
-						.bottomRight(GeoLocation.of(gl -> gl.latlon(ll ->
-							ll.lat(area.bottomRightLat())
-								.lon(area.bottomRightLng())
-						)))
-					)
-				)
-			));
+						.topLeft(GeoLocation.of(gl -> gl.latlon(ll -> ll.lat(area.topLeftLat())
+							.lon(area.topLeftLng()))))
+						.bottomRight(GeoLocation.of(gl -> gl.latlon(ll -> ll.lat(area.bottomRightLat())
+							.lon(area.bottomRightLng()))))))));
 		}
 
 		if (condition.hasDestination()) {
@@ -100,9 +91,7 @@ public class AccommodationDocumentReader {
 					"addressDetail^1.5",
 					"country",
 					"name^2",
-					"description"
-				)
-			));
+					"description")));
 		}
 
 		if (condition.minPrice() != null || condition.maxPrice() != null) {
@@ -114,35 +103,28 @@ public class AccommodationDocumentReader {
 					if (condition.maxPrice() != null)
 						n.lte(condition.maxPrice().doubleValue());
 					return n;
-				})
-			));
+				})));
 		}
 
 		if (condition.totalGuests() > 0) {
 			b.filter(f -> f.range(r -> r
 				.number(n -> n
 					.field("maxGuests")
-					.gte(condition.totalGuests())
-				)
-			));
+					.gte(condition.totalGuests()))));
 		}
 
 		if (condition.infantOccupancy() != null && condition.infantOccupancy() > 0) {
 			b.filter(f -> f.range(r -> r
 				.number(n -> n
 					.field("maxInfants")
-					.gte(condition.infantOccupancy().doubleValue())
-				)
-			));
+					.gte(condition.infantOccupancy().doubleValue()))));
 		}
 
 		if (condition.hasPet()) {
 			b.filter(f -> f.range(r -> r
 				.number(n -> n
 					.field("maxPets")
-					.gte(condition.petOccupancy().doubleValue())
-				)
-			));
+					.gte(condition.petOccupancy().doubleValue()))));
 		}
 
 		if (condition.hasDateRange()) {
@@ -152,16 +134,13 @@ public class AccommodationDocumentReader {
 				.toList();
 			b.filter(f -> f.terms(t -> t
 				.field("timeZoneId")
-				.terms(values -> values.value(timeZoneValues))
-			));
+				.terms(values -> values.value(timeZoneValues))));
 			b.mustNot(mn -> mn.range(r -> r
 				.date(d -> d
 					.field("reservationRanges")
 					.gte(condition.checkIn().toString())
 					.lt(condition.checkOut().toString())
-					.relation(RangeRelation.Intersects)
-				)
-			));
+					.relation(RangeRelation.Intersects))));
 		}
 
 		return new Query.Builder()

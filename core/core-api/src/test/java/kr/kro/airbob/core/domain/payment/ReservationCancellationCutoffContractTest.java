@@ -42,24 +42,30 @@ import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 @ExtendWith(MockitoExtension.class)
 class ReservationCancellationCutoffContractTest {
 
-	private static final UUID RESERVATION_UID =
-		UUID.fromString("857369d8-a10a-4fe2-aa24-0ef1a67bd1be");
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("b9157c88-6e41-4264-b5f0-60f98cb15872");
+	private static final UUID RESERVATION_UID = UUID.fromString("857369d8-a10a-4fe2-aa24-0ef1a67bd1be");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("b9157c88-6e41-4264-b5f0-60f98cb15872");
 	private static final long GUEST_ID = 10L;
 	private static final long ACCOMMODATION_ID = 31L;
 	private static final Instant CHECK_IN_AT = Instant.parse("2026-08-26T06:00:00Z");
 	private static final LocalDate CHECK_IN_DATE = LocalDate.of(2026, 8, 26);
 	private static final LocalDate CHECK_OUT_DATE = LocalDate.of(2026, 8, 28);
 
-	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private PaymentRepository paymentRepository;
-	@Mock private PaymentOperationRepository operationRepository;
-	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageManager couponUsageManager;
-	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Mock private OutboxWriter outboxWriter;
+	@Mock
+	private ReservationRepository reservationRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private PaymentRepository paymentRepository;
+	@Mock
+	private PaymentOperationRepository operationRepository;
+	@Mock
+	private ReservationHistoryRepository historyRepository;
+	@Mock
+	private CouponUsageManager couponUsageManager;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Mock
+	private OutboxWriter outboxWriter;
 
 	@Test
 	void rejectsPaidCancellationAtTheCheckInInstant() {
@@ -143,8 +149,7 @@ class ReservationCancellationCutoffContractTest {
 			"payment-key",
 			100_000L,
 			"게스트 요청",
-			CHECK_IN_AT.minusSeconds(1)
-		);
+			CHECK_IN_AT.minusSeconds(1));
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 		given(operationRepository.findFirstByReservationIdAndOperationTypeOrderByIdDesc(
@@ -239,8 +244,7 @@ class ReservationCancellationCutoffContractTest {
 			ACCOMMODATION_ID,
 			CHECK_IN_DATE,
 			CHECK_OUT_DATE,
-			reservation.getId()
-		);
+			reservation.getId());
 	}
 
 	private PaymentCancellationCommandService serviceAt(Instant now) {
@@ -254,8 +258,7 @@ class ReservationCancellationCutoffContractTest {
 			couponUsageManager,
 			searchRefreshPublisher,
 			outboxWriter,
-			Clock.fixed(now, ZoneOffset.UTC)
-		);
+			Clock.fixed(now, ZoneOffset.UTC));
 	}
 
 	private Reservation reservation(long totalPrice) {

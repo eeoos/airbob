@@ -3,7 +3,6 @@ package kr.kro.airbob.core.domain.reservation.repository;
 import static org.assertj.core.api.Assertions.*;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -68,9 +67,12 @@ class ReservationHistoryBatchWriterIntegrationTest {
 		registry.add("spring.datasource.password", MYSQL::getPassword);
 	}
 
-	@Autowired private ReservationHistoryBatchWriter writer;
-	@Autowired private JdbcTemplate jdbcTemplate;
-	@Autowired private TransactionTemplate transactionTemplate;
+	@Autowired
+	private ReservationHistoryBatchWriter writer;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private TransactionTemplate transactionTemplate;
 
 	@ParameterizedTest
 	@ValueSource(ints = {0, 1, 2, 3, 5})
@@ -82,8 +84,7 @@ class ReservationHistoryBatchWriterIntegrationTest {
 
 		assertThat(jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM reservation_history",
-			Long.class
-		)).isEqualTo((long) size);
+			Long.class)).isEqualTo((long)size);
 	}
 
 	@Test
@@ -102,8 +103,7 @@ class ReservationHistoryBatchWriterIntegrationTest {
 
 		Map<String, Object> row = jdbcTemplate.queryForMap(
 			"SELECT * FROM reservation_history WHERE reservation_id = ?",
-			history.getReservationId()
-		);
+			history.getReservationId());
 		assertThat(row)
 			.containsEntry("reservation_id", history.getReservationId())
 			.containsEntry("reservation_uid", history.getReservationUid())
@@ -147,8 +147,7 @@ class ReservationHistoryBatchWriterIntegrationTest {
 
 		assertThat(jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM reservation_history",
-			Long.class
-		)).isZero();
+			Long.class)).isZero();
 	}
 
 	private List<ReservationHistory> histories(int size) {
@@ -159,10 +158,9 @@ class ReservationHistoryBatchWriterIntegrationTest {
 
 	private ReservationHistory history(int index) {
 		return ReservationHistory.builder()
-			.reservationId((long) index + 1)
+			.reservationId((long)index + 1)
 			.reservationUid(UUID.nameUUIDFromBytes(
-				("reservation-" + index).getBytes(StandardCharsets.UTF_8)
-			).toString())
+				("reservation-" + index).getBytes(StandardCharsets.UTF_8)).toString())
 			.reservationCode("R" + index)
 			.accommodationId(100L + index)
 			.guestId(200L + index)
@@ -190,17 +188,15 @@ class ReservationHistoryBatchWriterIntegrationTest {
 		if (value instanceof java.sql.Date date) {
 			return date.toLocalDate();
 		}
-		return (LocalDate) value;
+		return (LocalDate)value;
 	}
 
 	private LocalDateTime readDateTime(long reservationId, String column) {
 		return jdbcTemplate.queryForObject(
 			"SELECT " + column + " FROM reservation_history WHERE reservation_id = ?",
 			(resultSet, rowNumber) -> resultSet.getObject(column, LocalDateTime.class),
-			reservationId
-		);
+			reservationId);
 	}
 
-	private static class IntentionalRollback extends RuntimeException {
-	}
+	private static class IntentionalRollback extends RuntimeException {}
 }

@@ -35,10 +35,8 @@ public final class PrimaryTopicHeaderSanitizingInterceptor
 	}
 
 	@Override
-	public void onCommit(Map<TopicPartition, OffsetAndMetadata> offsets) {
-	}
+	public void onCommit(Map<TopicPartition, OffsetAndMetadata> offsets) {}
 
 	@Override
-	public void close() {
-	}
+	public void close() {}
 }

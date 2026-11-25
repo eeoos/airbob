@@ -16,8 +16,7 @@ public record ReviewItem(
 	long reviewerId,
 	String reviewerNickname,
 	String reviewerThumbnailImageUrl,
-	List<StoredImage> images
-) {
+	List<StoredImage> images) {
 
 	@QueryProjection
 	public ReviewItem(long id, int rating, String content, LocalDateTime reviewedAt,

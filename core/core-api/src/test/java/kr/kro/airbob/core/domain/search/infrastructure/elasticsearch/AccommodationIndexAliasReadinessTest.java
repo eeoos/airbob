@@ -16,13 +16,13 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 @DisplayName("숙소 색인 alias readiness")
 class AccommodationIndexAliasReadinessTest {
 
-	@Mock private AccommodationIndexAliasBootstrap bootstrap;
+	@Mock
+	private AccommodationIndexAliasBootstrap bootstrap;
 
 	@Test
 	@DisplayName("alias bootstrap이 성공한 뒤에만 Kafka listener 자동 시작을 허용한다")
 	void enablesListenerOnlyAfterAliasBootstrap() {
-		AccommodationIndexAliasReadiness readiness =
-			new AccommodationIndexAliasReadiness(bootstrap, true, true);
+		AccommodationIndexAliasReadiness readiness = new AccommodationIndexAliasReadiness(bootstrap, true, true);
 
 		assertThat(readiness.shouldAutoStart()).isFalse();
 		readiness.afterPropertiesSet();
@@ -34,8 +34,7 @@ class AccommodationIndexAliasReadinessTest {
 	@Test
 	@DisplayName("재색인 운영 설정으로 listener를 중지해도 alias는 준비한다")
 	void bootstrapsAliasWhileListenerIsPaused() {
-		AccommodationIndexAliasReadiness readiness =
-			new AccommodationIndexAliasReadiness(bootstrap, true, false);
+		AccommodationIndexAliasReadiness readiness = new AccommodationIndexAliasReadiness(bootstrap, true, false);
 
 		readiness.afterPropertiesSet();
 
@@ -46,8 +45,7 @@ class AccommodationIndexAliasReadinessTest {
 	@Test
 	@DisplayName("테스트 profile의 명시적 bootstrap off는 ES I/O 없이 listener를 중지한다")
 	void disabledBootstrapDoesNotContactElasticsearch() {
-		AccommodationIndexAliasBootstrap contextBootstrap =
-			mock(AccommodationIndexAliasBootstrap.class);
+		AccommodationIndexAliasBootstrap contextBootstrap = mock(AccommodationIndexAliasBootstrap.class);
 		new ApplicationContextRunner()
 			.withBean(AccommodationIndexAliasBootstrap.class, () -> contextBootstrap)
 			.withBean(AccommodationIndexAliasReadiness.class)

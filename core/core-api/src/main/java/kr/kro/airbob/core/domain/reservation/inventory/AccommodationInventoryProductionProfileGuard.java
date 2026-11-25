@@ -12,16 +12,16 @@ import org.springframework.stereotype.Component;
 @Profile({"aws", "oci"})
 public class AccommodationInventoryProductionProfileGuard implements InitializingBean {
 
-	private static final String ERROR_MESSAGE =
-		"AWS/OCI reservation deployments require inventory startup and rolling seed";
+	private static final String ERROR_MESSAGE = "AWS/OCI reservation deployments require inventory startup and rolling seed";
 
 	private final boolean startupEnabled;
 	private final boolean seedEnabled;
 
 	public AccommodationInventoryProductionProfileGuard(
-		@Value("${reservation.inventory.startup.enabled:true}") boolean startupEnabled,
-		@Value("${reservation.inventory.seed.enabled:true}") boolean seedEnabled
-	) {
+		@Value("${reservation.inventory.startup.enabled:true}")
+		boolean startupEnabled,
+		@Value("${reservation.inventory.seed.enabled:true}")
+		boolean seedEnabled) {
 		this.startupEnabled = startupEnabled;
 		this.seedEnabled = seedEnabled;
 	}

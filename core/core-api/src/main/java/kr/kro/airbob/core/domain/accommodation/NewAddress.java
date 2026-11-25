@@ -8,6 +8,5 @@ public record NewAddress(
 	String city,
 	String district,
 	String street,
-	String detail
-) {
+	String detail) {
 }

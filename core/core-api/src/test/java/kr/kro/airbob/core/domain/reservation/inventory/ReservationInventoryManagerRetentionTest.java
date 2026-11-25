@@ -17,15 +17,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @DisplayName("Accommodation inventory retention service")
 class ReservationInventoryManagerRetentionTest {
 
-	@Mock private AccommodationInventoryDayRepository repository;
+	@Mock
+	private AccommodationInventoryDayRepository repository;
 
 	@Test
 	@DisplayName("delegates one bounded FREE-only repository delete per transaction")
 	void deletesOneBatch() {
 		LocalDate cutoff = LocalDate.of(2026, 7, 26);
 		given(repository.deletePastFreeDays(cutoff, 1000)).willReturn(73);
-		ReservationInventoryManager service =
-			new ReservationInventoryManager(repository);
+		ReservationInventoryManager service = new ReservationInventoryManager(repository);
 
 		assertThat(service.deleteNextPastFreeBatch(cutoff, 1000)).isEqualTo(73);
 		then(repository).should().deletePastFreeDays(cutoff, 1000);
@@ -34,8 +34,7 @@ class ReservationInventoryManagerRetentionTest {
 	@Test
 	@DisplayName("rejects an unbounded or empty delete batch")
 	void rejectsInvalidBatchSize() {
-		ReservationInventoryManager service =
-			new ReservationInventoryManager(repository);
+		ReservationInventoryManager service = new ReservationInventoryManager(repository);
 
 		assertThatThrownBy(() -> service.deleteNextPastFreeBatch(LocalDate.now(), 0))
 			.isInstanceOf(IllegalArgumentException.class);

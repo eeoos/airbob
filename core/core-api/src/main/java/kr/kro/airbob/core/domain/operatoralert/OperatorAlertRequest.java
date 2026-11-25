@@ -13,8 +13,7 @@ public record OperatorAlertRequest(
 	UUID subjectUid,
 	OperatorAlertSummaryCode summaryCode,
 	OperatorAlertSourcePosition sourcePosition,
-	UUID occurrenceUid
-) {
+	UUID occurrenceUid) {
 	public OperatorAlertRequest {
 		Objects.requireNonNull(kind, "kind must not be null");
 		Objects.requireNonNull(subjectUid, "subjectUid must not be null");
@@ -33,46 +32,39 @@ public record OperatorAlertRequest(
 			operationUid,
 			OperatorAlertSummaryCode.PROVIDER_RESULT_UNKNOWN,
 			OperatorAlertSourcePosition.none(),
-			deterministicUid("PAYMENT_MANUAL_REVIEW:" + operationUid + ":" + manualReviewCount)
-		);
+			deterministicUid("PAYMENT_MANUAL_REVIEW:" + operationUid + ":" + manualReviewCount));
 	}
 
 	public static OperatorAlertRequest paymentOperationQuarantined(
 		UUID operationUid,
-		OperatorAlertSourcePosition sourcePosition
-	) {
+		OperatorAlertSourcePosition sourcePosition) {
 		return quarantined(
 			OperatorAlertKind.PAYMENT_OPERATION_QUARANTINED,
 			operationUid,
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
-			sourcePosition
-		);
+			sourcePosition);
 	}
 
 	public static OperatorAlertRequest paymentReconciliationRequested(
-		UUID operationUid, long dispatchGeneration
-	) {
+		UUID operationUid, long dispatchGeneration) {
 		return paymentManualResolution(
 			operationUid, dispatchGeneration, OperatorAlertSummaryCode.RECONCILIATION_REQUESTED);
 	}
 
 	public static OperatorAlertRequest paymentReconciliationApplied(
-		UUID operationUid, long dispatchGeneration
-	) {
+		UUID operationUid, long dispatchGeneration) {
 		return paymentManualResolution(
 			operationUid, dispatchGeneration, OperatorAlertSummaryCode.RECONCILIATION_APPLIED);
 	}
 
 	public static OperatorAlertRequest paymentReconciliationDeclined(
-		UUID operationUid, long dispatchGeneration
-	) {
+		UUID operationUid, long dispatchGeneration) {
 		return paymentManualResolution(
 			operationUid, dispatchGeneration, OperatorAlertSummaryCode.RECONCILIATION_DECLINED);
 	}
 
 	public static OperatorAlertRequest paymentReconciliationReturnedToReview(
-		UUID operationUid, long dispatchGeneration
-	) {
+		UUID operationUid, long dispatchGeneration) {
 		return paymentManualResolution(
 			operationUid,
 			dispatchGeneration,
@@ -80,41 +72,35 @@ public record OperatorAlertRequest(
 	}
 
 	public static OperatorAlertRequest paymentMarkedNotPaid(
-		UUID operationUid, long dispatchGeneration
-	) {
+		UUID operationUid, long dispatchGeneration) {
 		return paymentManualResolution(
 			operationUid, dispatchGeneration, OperatorAlertSummaryCode.PAYMENT_MARKED_NOT_PAID);
 	}
 
 	public static OperatorAlertRequest accommodationIndexQuarantined(
 		UUID accommodationUid,
-		OperatorAlertSourcePosition sourcePosition
-	) {
+		OperatorAlertSourcePosition sourcePosition) {
 		return quarantined(
 			OperatorAlertKind.ACCOMMODATION_INDEX_QUARANTINED,
 			accommodationUid,
 			OperatorAlertSummaryCode.INDEX_REFRESH_FAILED,
-			sourcePosition
-		);
+			sourcePosition);
 	}
 
 	public static OperatorAlertRequest accommodationCacheQuarantined(
-		OperatorAlertSourcePosition sourcePosition
-	) {
+		OperatorAlertSourcePosition sourcePosition) {
 		return quarantined(
 			OperatorAlertKind.ACCOMMODATION_CACHE_QUARANTINED,
 			null,
 			OperatorAlertSummaryCode.CACHE_INVALIDATION_FAILED,
-			sourcePosition
-		);
+			sourcePosition);
 	}
 
 	private static OperatorAlertRequest quarantined(
 		OperatorAlertKind kind,
 		UUID decodedSubjectUid,
 		OperatorAlertSummaryCode summaryCode,
-		OperatorAlertSourcePosition sourcePosition
-	) {
+		OperatorAlertSourcePosition sourcePosition) {
 		Objects.requireNonNull(sourcePosition, "sourcePosition must not be null");
 		if (!sourcePosition.present()) {
 			throw new IllegalArgumentException("quarantine source position must be present");
@@ -127,15 +113,13 @@ public record OperatorAlertRequest(
 			decodedSubjectUid != null ? decodedSubjectUid : coordinateUid,
 			summaryCode,
 			sourcePosition,
-			coordinateUid
-		);
+			coordinateUid);
 	}
 
 	private static OperatorAlertRequest paymentManualResolution(
 		UUID operationUid,
 		long dispatchGeneration,
-		OperatorAlertSummaryCode summaryCode
-	) {
+		OperatorAlertSummaryCode summaryCode) {
 		Objects.requireNonNull(operationUid, "operationUid must not be null");
 		if (dispatchGeneration <= 0) {
 			throw new IllegalArgumentException("dispatchGeneration must be positive");
@@ -147,8 +131,7 @@ public record OperatorAlertRequest(
 			OperatorAlertSourcePosition.none(),
 			deterministicUid(
 				"PAYMENT_MANUAL_RESOLUTION:" + operationUid + ":"
-					+ dispatchGeneration + ":" + summaryCode)
-		);
+					+ dispatchGeneration + ":" + summaryCode));
 	}
 
 	private static UUID deterministicUid(String identity) {

@@ -27,10 +27,14 @@ import kr.kro.airbob.core.domain.accommodation.repository.projection.PublicAccom
 @DisplayName("숙소 상세 원본 조회기 단위 테스트")
 class AccommodationDetailReaderTest {
 
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private AccommodationAmenityRepository accommodationAmenityRepository;
-	@Mock private AccommodationImageRepository accommodationImageRepository;
-	@Mock private AccommodationWishlistReader wishlistReader;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private AccommodationAmenityRepository accommodationAmenityRepository;
+	@Mock
+	private AccommodationImageRepository accommodationImageRepository;
+	@Mock
+	private AccommodationWishlistReader wishlistReader;
 
 	@InjectMocks
 	private AccommodationDetailReader reader;

@@ -6,7 +6,6 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -81,8 +80,7 @@ class AccommodationInventorySeedRepositoryIntegrationTest {
 					RESERVATION_ID, null),
 				new AccommodationInventoryDay(
 					ACCOMMODATION_ID, START.plusDays(2), AccommodationInventoryState.FREE,
-					null, null)
-			);
+					null, null));
 	}
 
 	@Test
@@ -118,8 +116,7 @@ class AccommodationInventorySeedRepositoryIntegrationTest {
 					AccommodationInventoryState.HOLD, RESERVATION_ID, HOLD_EXPIRES_AT),
 				new AccommodationInventoryDay(
 					ACCOMMODATION_ID, PAST_START.plusDays(3),
-					AccommodationInventoryState.OCCUPIED, RESERVATION_ID, null)
-			);
+					AccommodationInventoryState.OCCUPIED, RESERVATION_ID, null));
 	}
 
 	private static void insertOwnerFixture() {

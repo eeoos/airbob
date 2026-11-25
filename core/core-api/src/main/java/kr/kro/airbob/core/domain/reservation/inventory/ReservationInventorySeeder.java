@@ -40,8 +40,7 @@ public class ReservationInventorySeeder implements AccommodationInventorySeeder 
 		ReservationInventoryManager inventoryManager,
 		AccommodationInventoryDayRepository inventoryRepository,
 		AccommodationInventorySeedPolicy seedPolicy,
-		Clock clock
-	) {
+		Clock clock) {
 		this.accommodationReader = accommodationReader;
 		this.inventoryManager = inventoryManager;
 		this.inventoryRepository = inventoryRepository;
@@ -63,12 +62,10 @@ public class ReservationInventorySeeder implements AccommodationInventorySeeder 
 		if (batchSize < 1 || batchSize > AccommodationInventoryDayRepository.MAX_SEED_TARGETS) {
 			throw new IllegalArgumentException("inventory seed batch size must be between 1 and 1000");
 		}
-		List<InventorySeedTarget> targets =
-			accommodationReader.findInventorySeedTargets(
-				AccommodationStatus.PUBLISHED,
-				afterAccommodationId,
-				PageRequest.of(0, batchSize)
-			);
+		List<InventorySeedTarget> targets = accommodationReader.findInventorySeedTargets(
+			AccommodationStatus.PUBLISHED,
+			afterAccommodationId,
+			PageRequest.of(0, batchSize));
 		if (targets.isEmpty()) {
 			return new SeedBatch(0, afterAccommodationId);
 		}
@@ -106,8 +103,8 @@ public class ReservationInventorySeeder implements AccommodationInventorySeeder 
 			List<SeedDay> insertBatch = new ArrayList<>(
 				AccommodationInventoryDayRepository.MAX_SEED_INSERT_ROWS);
 			for (Long id : incompleteIds) {
-				for (LocalDate date = range.startInclusive(); date.isBefore(range.endExclusive());
-					date = date.plusDays(1)) {
+				for (LocalDate date = range.startInclusive(); date
+					.isBefore(range.endExclusive()); date = date.plusDays(1)) {
 					SeedDay candidate = new SeedDay(id, date);
 					if (existing.contains(candidate)) {
 						continue;
@@ -136,23 +133,20 @@ public class ReservationInventorySeeder implements AccommodationInventorySeeder 
 			targets.getLast().getAccommodationId(),
 			expectedDays,
 			missingDaysSubmitted,
-			insertStatements
-		);
+			insertStatements);
 	}
 
 	private void seed(Long accommodationId, String timeZoneId, Instant decisionAt) {
 		if (accommodationId == null || accommodationId <= 0) {
 			throw new IllegalArgumentException("inventory seed accommodationId must be positive");
 		}
-		AccommodationInventorySeedPolicy.SeedRange range =
-			seedPolicy.currentRange(timeZoneId, decisionAt);
+		AccommodationInventorySeedPolicy.SeedRange range = seedPolicy.currentRange(timeZoneId, decisionAt);
 		inventoryManager.seed(accommodationId, range.startInclusive(), range.endExclusive());
 	}
 
 	public record SeedBatch(
 		int processed, long lastAccommodationId, long expectedDays,
-		long missingDaysSubmitted, int insertStatements
-	) {
+		long missingDaysSubmitted, int insertStatements) {
 		public SeedBatch(int processed, long lastAccommodationId) {
 			this(processed, lastAccommodationId, 0, 0, 0);
 		}

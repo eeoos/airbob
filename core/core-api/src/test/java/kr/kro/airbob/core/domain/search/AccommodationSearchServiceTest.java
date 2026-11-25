@@ -2,10 +2,10 @@ package kr.kro.airbob.core.domain.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -26,15 +26,14 @@ import org.springframework.data.domain.PageRequest;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
-import co.elastic.clients.elasticsearch._types.query_dsl.RangeRelation;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import co.elastic.clients.elasticsearch._types.query_dsl.RangeRelation;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
 import co.elastic.clients.elasticsearch.core.search.TotalHits;
 import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
-
 import kr.kro.airbob.core.api.controller.v1.search.request.AccommodationSearchRequest;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.domain.search.port.SearchWishlistReader;
@@ -72,8 +71,7 @@ class AccommodationSearchServiceTest {
 		var result = accommodationSearchService.searchAccommodations(
 			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
-			null
-		);
+			null);
 
 		assertThat(result.items()).isEmpty();
 		assertThat(result.totalElements()).isZero();
@@ -87,7 +85,8 @@ class AccommodationSearchServiceTest {
 			LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 13));
 
 		Query query = new AccommodationDocumentReader(esClient).buildQuery(
-			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()), Set.of("Asia/Seoul", "Pacific/Auckland"));
+			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+			Set.of("Asia/Seoul", "Pacific/Auckland"));
 
 		assertThat(query.bool().filter())
 			.anySatisfy(filter -> {
@@ -110,8 +109,7 @@ class AccommodationSearchServiceTest {
 	@Test
 	@DisplayName("Elasticsearch 연결 실패를 정상적인 빈 검색 결과로 숨기지 않는다")
 	void throwsServiceUnavailableWhenElasticsearchCannotBeReached() throws IOException {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request =
-			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
 		request.setDestination("Seoul");
 		willThrow(new IOException("connection refused"))
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
@@ -119,8 +117,7 @@ class AccommodationSearchServiceTest {
 		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
 			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
-			null
-		))
+			null))
 			.isInstanceOf(SearchUnavailableException.class);
 		verifyNoInteractions(wishlistReader);
 	}
@@ -128,8 +125,7 @@ class AccommodationSearchServiceTest {
 	@Test
 	@DisplayName("Elasticsearch 오류 응답도 검색 서비스 장애로 명시한다")
 	void throwsServiceUnavailableWhenElasticsearchRejectsSearch() throws IOException {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request =
-			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
 		request.setDestination("Seoul");
 		willThrow(mock(ElasticsearchException.class))
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
@@ -137,8 +133,7 @@ class AccommodationSearchServiceTest {
 		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
 			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
-			null
-		))
+			null))
 			.isInstanceOf(SearchUnavailableException.class);
 		verifyNoInteractions(wishlistReader);
 	}
@@ -147,8 +142,7 @@ class AccommodationSearchServiceTest {
 	@DisplayName("1만 건을 넘는 검색은 Elasticsearch 기본 상한을 유지한다")
 	@SuppressWarnings("unchecked")
 	void keepsDefaultTotalHitsBoundBeyondElasticsearchThreshold() throws IOException {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request =
-			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
 		request.setDestination("Seoul");
 		AccommodationDocument document = AccommodationDocument.builder()
 			.id("accommodation-1")
@@ -176,8 +170,7 @@ class AccommodationSearchServiceTest {
 		var result = accommodationSearchService.searchAccommodations(
 			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
 			PageRequest.of(0, 18),
-			null
-		);
+			null);
 
 		ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(esClient).search(requestCaptor.capture(), eq(AccommodationDocument.class));
@@ -188,10 +181,8 @@ class AccommodationSearchServiceTest {
 
 	private AccommodationSearchRequest.AccommodationSearchRequestDto dateRequest(
 		LocalDate checkIn,
-		LocalDate checkOut
-	) {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request =
-			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		LocalDate checkOut) {
+		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
 		request.setCheckIn(checkIn);
 		request.setCheckOut(checkOut);
 		return request;

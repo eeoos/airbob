@@ -11,8 +11,7 @@ import kr.kro.airbob.core.domain.wishlist.WishlistAccommodationItem;
 
 public interface WishlistAccommodationRepositoryCustom {
 	Slice<WishlistAccommodationItem> findAccommodationsInWishlist(
-		Long wishlistId, Long lastId, LocalDateTime lastCreatedAt, Pageable pageable
-	);
+		Long wishlistId, Long lastId, LocalDateTime lastCreatedAt, Pageable pageable);
 
 	Set<Long> findAccommodationIdsByMemberIdAndAccommodationIds(Long memberId, List<Long> accommodationIds);
 

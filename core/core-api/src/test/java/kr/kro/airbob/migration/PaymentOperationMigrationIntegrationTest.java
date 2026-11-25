@@ -35,8 +35,10 @@ class PaymentOperationMigrationIntegrationTest {
 			assertThat(tableExists(connection, "payment_operation")).isTrue();
 			assertThat(columnNullable(connection, "payment_operation", "payment_key")).isFalse();
 			assertThat(indexIsUnique(connection, "payment_operation", "uk_payment_operation_uid")).isTrue();
-			assertThat(indexIsUnique(connection, "payment_operation", "uk_payment_operation_deduplication_key")).isTrue();
-			assertThat(indexIsUnique(connection, "payment_transaction", "uk_payment_transaction_operation_id")).isTrue();
+			assertThat(indexIsUnique(connection, "payment_operation", "uk_payment_operation_deduplication_key"))
+				.isTrue();
+			assertThat(indexIsUnique(connection, "payment_transaction", "uk_payment_transaction_operation_id"))
+				.isTrue();
 			assertThat(indexIsUnique(connection, "member_coupon", "uk_member_coupon_reservation_id")).isTrue();
 		}
 	}
@@ -59,7 +61,8 @@ class PaymentOperationMigrationIntegrationTest {
 	}
 
 	private boolean indexIsUnique(Connection connection, String table, String index) throws SQLException {
-		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false, false)) {
+		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false,
+			false)) {
 			while (indexes.next()) {
 				if (index.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
 					return !indexes.getBoolean("NON_UNIQUE");

@@ -10,14 +10,11 @@ import kr.kro.airbob.core.support.messaging.kafka.IntegrationEventKafkaListenerC
 @Configuration(proxyBeanMethods = false)
 public class OperatorAlertKafkaConsumerConfiguration {
 
-	public static final String CONTAINER_FACTORY =
-		"operatorAlertKafkaListenerContainerFactory";
+	public static final String CONTAINER_FACTORY = "operatorAlertKafkaListenerContainerFactory";
 
 	@Bean(name = CONTAINER_FACTORY)
-	public ConcurrentKafkaListenerContainerFactory<Object, Object>
-		operatorAlertKafkaListenerContainerFactory(
-			IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder
-		) {
+	public ConcurrentKafkaListenerContainerFactory<Object, Object> operatorAlertKafkaListenerContainerFactory(
+		IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder) {
 		return factoryBuilder.build(OperatorAlertRequestedV1.TOPIC);
 	}
 }

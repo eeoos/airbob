@@ -16,9 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,14 +36,14 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -99,9 +99,8 @@ class ReservationQuoteFlowIntegrationTest {
 		.withCommand("--log-bin-trust-function-creators=1");
 
 	@Container
-	private static final GenericContainer<?> REDIS =
-		new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
-			.withExposedPorts(6379);
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -115,29 +114,51 @@ class ReservationQuoteFlowIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private AdjustableClock clock;
-	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ReservationCheckoutService checkoutService;
-	@Autowired private ReservationQuoteRepository quoteRepository;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationInventoryManager inventoryManager;
-	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private AddressRepository addressRepository;
-	@Autowired private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Autowired private CouponRepository couponRepository;
-	@Autowired private MemberCouponRepository memberCouponRepository;
-	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private JdbcTemplate jdbcTemplate;
-	@Autowired private RequestMappingHandlerMapping requestMappingHandlerMapping;
+	@Autowired
+	private AdjustableClock clock;
+	@Autowired
+	private ReservationQuoteService quoteService;
+	@Autowired
+	private ReservationCheckoutService checkoutService;
+	@Autowired
+	private ReservationQuoteRepository quoteRepository;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationInventoryManager inventoryManager;
+	@Autowired
+	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AddressRepository addressRepository;
+	@Autowired
+	private OccupancyPolicyRepository occupancyPolicyRepository;
+	@Autowired
+	private CouponRepository couponRepository;
+	@Autowired
+	private MemberCouponRepository memberCouponRepository;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private RequestMappingHandlerMapping requestMappingHandlerMapping;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private io.awspring.cloud.s3.S3Template s3Template;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
 
 	private Member guest;
 	private Accommodation accommodation;
@@ -189,14 +210,12 @@ class ReservationQuoteFlowIntegrationTest {
 				"/api/v1/reservation-quotes",
 				"/api/v1/reservations",
 				"/api/v1/reservations/{reservationUid}/hold",
-				"/api/v1/reservations/{reservationUid}/payment-attempts"
-			)
+				"/api/v1/reservations/{reservationUid}/payment-attempts")
 			.doesNotContain(
 				"/api/v2/reservation-quotes",
 				"/api/v2/reservations",
 				"/api/v2/reservations/{reservationUid}/hold",
-				"/api/v2/reservations/{reservationUid}/payment-attempts"
-			);
+				"/api/v2/reservations/{reservationUid}/payment-attempts");
 	}
 
 	@Test
@@ -290,8 +309,8 @@ class ReservationQuoteFlowIntegrationTest {
 		}));
 		assertThat(lockAcquired.await(10, TimeUnit.SECONDS)).isTrue();
 
-		Future<ReservationResponse.Ready> checkout = executor.submit(() ->
-			checkout(quote, "quote-retry-after-contention", null));
+		Future<ReservationResponse.Ready> checkout = executor
+			.submit(() -> checkout(quote, "quote-retry-after-contention", null));
 		try {
 			assertThatThrownBy(() -> checkout.get(2, TimeUnit.SECONDS))
 				.isInstanceOf(ExecutionException.class)
@@ -342,8 +361,7 @@ class ReservationQuoteFlowIntegrationTest {
 		ReservationResponse.Ready.from(checkoutService.checkout(
 			new ReservationRequest.Checkout(competitorQuote.quoteUid(), null).toCheckout(),
 			competitor.getId(),
-			"competing-reservation"
-		));
+			"competing-reservation"));
 
 		assertThatThrownBy(() -> checkout(quote, "quote-inventory-conflict", null))
 			.isInstanceOf(ReservationConflictException.class);
@@ -432,7 +450,8 @@ class ReservationQuoteFlowIntegrationTest {
 
 		assertThat(failures).isEmpty();
 		assertThat(reservationUids).hasSize(threadCount).containsOnly(reservationUids.getFirst());
-		assertThat(ReservationResponse.Ready.from(checkoutService.checkout(request.toCheckout(), guest.getId(), idempotencyKey))
+		assertThat(ReservationResponse.Ready
+			.from(checkoutService.checkout(request.toCheckout(), guest.getId(), idempotencyKey))
 			.reservationUid()).isEqualTo(reservationUids.getFirst());
 		assertThat(reservationRepository.count()).isOne();
 		assertThat(historyRepository.count()).isOne();
@@ -567,33 +586,28 @@ class ReservationQuoteFlowIntegrationTest {
 		Member member,
 		LocalDate checkIn,
 		LocalDate checkOut,
-		Long couponId
-	) {
+		Long couponId) {
 		return ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(
 			accommodation.getId(),
 			checkIn,
 			checkOut,
 			2,
-			couponId
-		), member.getId()));
+			couponId), member.getId()));
 	}
 
 	private ReservationResponse.Ready checkout(
 		ReservationResponse.Quote quote,
 		String idempotencyKey,
-		String requestMessage
-	) {
+		String requestMessage) {
 		return ReservationResponse.Ready.from(checkoutService.checkout(
 			checkoutRequest(quote, requestMessage).toCheckout(),
 			guest.getId(),
-			idempotencyKey
-		));
+			idempotencyKey));
 	}
 
 	private ReservationRequest.Checkout checkoutRequest(
 		ReservationResponse.Quote quote,
-		String requestMessage
-	) {
+		String requestMessage) {
 		return new ReservationRequest.Checkout(quote.quoteUid(), requestMessage);
 	}
 

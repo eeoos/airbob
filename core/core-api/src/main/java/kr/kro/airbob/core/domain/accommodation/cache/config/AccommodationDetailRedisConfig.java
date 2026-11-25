@@ -33,8 +33,7 @@ public class AccommodationDetailRedisConfig {
 	@Bean(destroyMethod = "destroy")
 	AccommodationDetailRedisClient accommodationDetailRedisClient(
 		AccommodationDetailRedisProperties redisProperties,
-		AccommodationDetailCacheProperties properties
-	) {
+		AccommodationDetailCacheProperties properties) {
 		LettuceClientConfiguration clientConfiguration = lettuceClientConfiguration(properties);
 		RedisStandaloneConfiguration standalone = redisStandaloneConfiguration(redisProperties);
 		LettuceConnectionFactory factory = new LettuceConnectionFactory(standalone, clientConfiguration);
@@ -48,14 +47,12 @@ public class AccommodationDetailRedisConfig {
 	@Bean(name = "accommodationDetailRedissonClient", destroyMethod = "shutdown")
 	RedissonClient accommodationDetailRedissonClient(
 		AccommodationDetailRedisProperties redisProperties,
-		AccommodationDetailCacheProperties properties
-	) {
+		AccommodationDetailCacheProperties properties) {
 		return Redisson.create(accommodationDetailRedissonConfig(redisProperties, properties));
 	}
 
 	LettuceClientConfiguration lettuceClientConfiguration(
-		AccommodationDetailCacheProperties properties
-	) {
+		AccommodationDetailCacheProperties properties) {
 		SocketOptions socketOptions = SocketOptions.builder()
 			.connectTimeout(properties.redisConnectTimeout())
 			.build();
@@ -71,8 +68,7 @@ public class AccommodationDetailRedisConfig {
 	}
 
 	RedisStandaloneConfiguration redisStandaloneConfiguration(
-		AccommodationDetailRedisProperties redisProperties
-	) {
+		AccommodationDetailRedisProperties redisProperties) {
 		RedisStandaloneConfiguration standalone = new RedisStandaloneConfiguration(
 			redisProperties.host(), redisProperties.port());
 		standalone.setDatabase(redisProperties.database());
@@ -87,8 +83,7 @@ public class AccommodationDetailRedisConfig {
 
 	Config accommodationDetailRedissonConfig(
 		AccommodationDetailRedisProperties redisProperties,
-		AccommodationDetailCacheProperties properties
-	) {
+		AccommodationDetailCacheProperties properties) {
 		Config config = new Config();
 		config.setUseScriptCache(true);
 		// 캐시 Redis 장애가 애플리케이션 시작 자체를 막지 않도록 최초 사용 시 연결
@@ -102,8 +97,7 @@ public class AccommodationDetailRedisConfig {
 	SingleServerConfig configureSingleServer(
 		Config config,
 		AccommodationDetailRedisProperties redisProperties,
-		AccommodationDetailCacheProperties properties
-	) {
+		AccommodationDetailCacheProperties properties) {
 		var server = config.useSingleServer()
 			.setAddress("redis://" + redisProperties.host() + ":" + redisProperties.port())
 			.setDatabase(redisProperties.database())

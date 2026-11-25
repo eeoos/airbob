@@ -43,8 +43,7 @@ class ReservationQuoteCleanupServiceTest {
 			new ReservationQuoteWriter(quoteRepository),
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			RETENTION,
-			BATCH_SIZE
-		);
+			BATCH_SIZE);
 	}
 
 	@Test
@@ -95,10 +94,9 @@ class ReservationQuoteCleanupServiceTest {
 			new ReservationQuoteWriter(quoteRepository),
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			Duration.ZERO,
-			BATCH_SIZE
-		)).isInstanceOf(IllegalArgumentException.class);
+			BATCH_SIZE)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new ReservationQuoteCleanupService(
-			new ReservationQuoteWriter(quoteRepository), Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofSeconds(-1), BATCH_SIZE
-		)).isInstanceOf(IllegalArgumentException.class);
+			new ReservationQuoteWriter(quoteRepository), Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofSeconds(-1),
+			BATCH_SIZE)).isInstanceOf(IllegalArgumentException.class);
 	}
 }

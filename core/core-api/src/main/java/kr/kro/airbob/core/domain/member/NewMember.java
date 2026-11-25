@@ -5,6 +5,5 @@ public record NewMember(
 	String email,
 	String password,
 	String nickname,
-	String thumbnailImageUrl
-) {
+	String thumbnailImageUrl) {
 }

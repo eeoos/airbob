@@ -7,18 +7,15 @@ import java.util.Optional;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.auditing.DateTimeProvider;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 import kr.kro.airbob.core.support.context.UserContext;
 import kr.kro.airbob.core.support.context.UserInfo;
 
 @Configuration
-@EnableJpaAuditing(
-	auditorAwareRef = "auditorProvider",
-	dateTimeProviderRef = "utcDateTimeProvider"
-)
+@EnableJpaAuditing(auditorAwareRef = "auditorProvider", dateTimeProviderRef = "utcDateTimeProvider")
 public class JpaAuditingConfig {
 	// created_by / updated_by 자동 채움: 인증된 요청이면 member.id, 아니면 비움(NULL).
 	@Bean

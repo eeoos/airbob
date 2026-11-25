@@ -135,35 +135,36 @@ class AccommodationInventoryMigrationIntegrationTest {
 				  UUID_TO_BIN('86ebf8b6-d0ab-446b-b867-bcc69d78cbe4'), 'Asia/Seoul', NOW(6), 'PUBLISHED'
 				)
 				""");
-			statement.executeUpdate("""
-				INSERT INTO reservation (
-				  reservation_uid, accommodation_id, guest_id,
-				  check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
-				  guest_count, total_price, discount_amount, currency, status, reservation_code,
-				  expires_at, payment_attempt_required, created_at, updated_at
-				) VALUES (
-				  UUID_TO_BIN('3c61fc02-7ac9-4aea-b4ef-5ac363c76664'),
-				  (SELECT id FROM accommodation WHERE accommodation_uid = UUID_TO_BIN('86ebf8b6-d0ab-446b-b867-bcc69d78cbe4')),
-				  (SELECT id FROM member WHERE email = 'inventory-migration@test.com'),
-				  '2026-09-10', '2026-09-12', '2026-09-10 06:00:00', '2026-09-12 02:00:00', 'Asia/Seoul',
-				  2, 200000, 0, 'KRW', 'PAYMENT_PENDING', 'INV001',
-				  '2026-08-25 04:00:00', FALSE, NOW(6), NOW(6)
-				)
-				""");
+			statement.executeUpdate(
+				"""
+					INSERT INTO reservation (
+					  reservation_uid, accommodation_id, guest_id,
+					  check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
+					  guest_count, total_price, discount_amount, currency, status, reservation_code,
+					  expires_at, payment_attempt_required, created_at, updated_at
+					) VALUES (
+					  UUID_TO_BIN('3c61fc02-7ac9-4aea-b4ef-5ac363c76664'),
+					  (SELECT id FROM accommodation WHERE accommodation_uid = UUID_TO_BIN('86ebf8b6-d0ab-446b-b867-bcc69d78cbe4')),
+					  (SELECT id FROM member WHERE email = 'inventory-migration@test.com'),
+					  '2026-09-10', '2026-09-12', '2026-09-10 06:00:00', '2026-09-12 02:00:00', 'Asia/Seoul',
+					  2, 200000, 0, 'KRW', 'PAYMENT_PENDING', 'INV001',
+					  '2026-08-25 04:00:00', FALSE, NOW(6), NOW(6)
+					)
+					""");
 		}
 	}
 
 	private boolean tableExists(String table) throws SQLException {
 		try (Connection connection = connection();
-			 ResultSet tables = connection.getMetaData().getTables(
-				 connection.getCatalog(), null, table, new String[] {"TABLE"})) {
+			ResultSet tables = connection.getMetaData().getTables(
+				connection.getCatalog(), null, table, new String[] {"TABLE"})) {
 			return tables.next();
 		}
 	}
 
 	private List<String> primaryKeyColumns(String table) throws SQLException {
 		try (Connection connection = connection();
-			 ResultSet keys = connection.getMetaData().getPrimaryKeys(connection.getCatalog(), null, table)) {
+			ResultSet keys = connection.getMetaData().getPrimaryKeys(connection.getCatalog(), null, table)) {
 			List<OrderedColumn> columns = new ArrayList<>();
 			while (keys.next()) {
 				columns.add(new OrderedColumn(keys.getShort("KEY_SEQ"), keys.getString("COLUMN_NAME")));
@@ -174,21 +175,20 @@ class AccommodationInventoryMigrationIntegrationTest {
 
 	private ColumnDefinition columnDefinition(String table, String column) throws SQLException {
 		try (Connection connection = connection();
-			 ResultSet columns = connection.getMetaData().getColumns(
-				 connection.getCatalog(), null, table, column)) {
+			ResultSet columns = connection.getMetaData().getColumns(
+				connection.getCatalog(), null, table, column)) {
 			assertThat(columns.next()).isTrue();
 			return new ColumnDefinition(
 				columns.getString("TYPE_NAME"),
 				columns.getInt("COLUMN_SIZE"),
-				columns.getInt("NULLABLE") == DatabaseMetaData.columnNullable
-			);
+				columns.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
 		}
 	}
 
 	private List<String> indexColumns(String table, String indexName) throws SQLException {
 		try (Connection connection = connection();
-			 ResultSet indexes = connection.getMetaData().getIndexInfo(
-				 connection.getCatalog(), null, table, false, false)) {
+			ResultSet indexes = connection.getMetaData().getIndexInfo(
+				connection.getCatalog(), null, table, false, false)) {
 			List<OrderedColumn> columns = new ArrayList<>();
 			while (indexes.next()) {
 				if (indexName.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
@@ -202,7 +202,7 @@ class AccommodationInventoryMigrationIntegrationTest {
 
 	private List<String> foreignKeyColumns(String table, String foreignKeyName) throws SQLException {
 		try (Connection connection = connection();
-			 ResultSet keys = connection.getMetaData().getImportedKeys(connection.getCatalog(), null, table)) {
+			ResultSet keys = connection.getMetaData().getImportedKeys(connection.getCatalog(), null, table)) {
 			List<OrderedColumn> columns = new ArrayList<>();
 			while (keys.next()) {
 				if (foreignKeyName.equalsIgnoreCase(keys.getString("FK_NAME"))) {
@@ -215,7 +215,7 @@ class AccommodationInventoryMigrationIntegrationTest {
 
 	private String checkClause(String constraintName) throws SQLException {
 		try (Connection connection = connection();
-			 var statement = connection.prepareStatement("""
+			var statement = connection.prepareStatement("""
 				SELECT cc.check_clause
 				FROM information_schema.table_constraints tc
 				JOIN information_schema.check_constraints cc
@@ -236,7 +236,7 @@ class AccommodationInventoryMigrationIntegrationTest {
 
 	private int temporalPrecision(String table, String column) throws SQLException {
 		try (Connection connection = connection();
-			 var statement = connection.prepareStatement("""
+			var statement = connection.prepareStatement("""
 				SELECT datetime_precision
 				FROM information_schema.columns
 				WHERE table_schema = DATABASE()

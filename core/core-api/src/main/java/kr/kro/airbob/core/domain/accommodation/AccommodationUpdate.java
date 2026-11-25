@@ -10,6 +10,5 @@ public record AccommodationUpdate(
 	AccommodationPatch patch,
 	NewAddress address,
 	List<NewAmenity> amenities,
-	NewOccupancyPolicy occupancyPolicy
-) {
+	NewOccupancyPolicy occupancyPolicy) {
 }

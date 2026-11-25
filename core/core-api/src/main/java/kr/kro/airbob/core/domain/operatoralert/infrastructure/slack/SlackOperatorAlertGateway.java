@@ -14,8 +14,7 @@ public class SlackOperatorAlertGateway implements OperatorAlertGateway {
 
 	public SlackOperatorAlertGateway(
 		SlackWebhookClient slackWebhookClient,
-		OperatorAlertSlackProperties properties
-	) {
+		OperatorAlertSlackProperties properties) {
 		this.slackWebhookClient = slackWebhookClient;
 		this.properties = properties;
 	}

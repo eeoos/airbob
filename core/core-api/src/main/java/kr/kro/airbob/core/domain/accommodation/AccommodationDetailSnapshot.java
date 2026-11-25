@@ -26,8 +26,7 @@ public record AccommodationDetailSnapshot(
 	Policy policy,
 	List<Amenity> amenities,
 	List<StoredImage> images,
-	ReviewSummary reviewSummary
-) {
+	ReviewSummary reviewSummary) {
 	public AccommodationDetailSnapshot {
 		amenities = List.copyOf(amenities);
 		images = List.copyOf(images);
@@ -37,46 +36,39 @@ public record AccommodationDetailSnapshot(
 		String country,
 		String state,
 		String city,
-		String district
-	) {
+		String district) {
 	}
 
 	public record Coordinate(
 		Double latitude,
-		Double longitude
-	) {
+		Double longitude) {
 	}
 
 	public record Host(
 		long id,
 		String nickname,
-		String thumbnailImageUrl
-	) {
+		String thumbnailImageUrl) {
 	}
 
 	public record Policy(
 		Integer maxOccupancy,
 		Integer infantOccupancy,
-		Integer petOccupancy
-	) {
+		Integer petOccupancy) {
 	}
 
 	public record Amenity(
 		String type,
-		Integer count
-	) {
+		Integer count) {
 	}
 
 	/** 게시된 리뷰 수와 평균 평점. 리뷰가 없으면 0이다. */
 	public record ReviewSummary(
 		Integer totalCount,
-		BigDecimal averageRating
-	) {
+		BigDecimal averageRating) {
 		public static ReviewSummary of(Integer totalCount, BigDecimal averageRating) {
 			return new ReviewSummary(
 				totalCount == null ? 0 : totalCount,
-				averageRating == null ? BigDecimal.ZERO : averageRating
-			);
+				averageRating == null ? BigDecimal.ZERO : averageRating);
 		}
 	}
 }

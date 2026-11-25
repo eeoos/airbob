@@ -41,8 +41,7 @@ class RestClientConfigTest {
 			"test-secret",
 			"https://api.example.com",
 			Duration.ofSeconds(2),
-			Duration.ofSeconds(10)
-		);
+			Duration.ofSeconds(10));
 		TossPaymentsClient tossPaymentsClient = new PaymentOperationConfiguration().tossPaymentsClient(properties);
 		RestClient restClient = (RestClient)ReflectionTestUtils.getField(tossPaymentsClient, "restClient");
 

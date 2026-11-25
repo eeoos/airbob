@@ -22,7 +22,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -116,8 +115,7 @@ class ReservationCheckoutServiceTest {
 			holdPolicy,
 			new ReservationQuoteReader(quoteRepository),
 			inventoryManager,
-			Clock.fixed(NOW, ZoneOffset.UTC)
-		);
+			Clock.fixed(NOW, ZoneOffset.UTC));
 		queryService = new ReservationQueryService(new ReservationReader(reservationRepository),
 			new ReviewReader(reviewRepository), cursorPageInfoCreator, Clock.fixed(NOW, ZoneOffset.UTC));
 		memberId = 1L;
@@ -153,8 +151,7 @@ class ReservationCheckoutServiceTest {
 			LocalDate.of(2026, 8, 14),
 			2,
 			null,
-			"조용한 방으로 부탁드립니다"
-		);
+			"조용한 방으로 부탁드립니다");
 
 		lenient().when(bookingWindowProvider.currentFor(TIME_ZONE_ID, NOW))
 			.thenReturn(BookingWindow.startingOn(WINDOW_START));
@@ -272,8 +269,8 @@ class ReservationCheckoutServiceTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = ReservationStatus.class, names = {"CONFIRMED", "CANCELLATION_FAILED"},
-		mode = EnumSource.Mode.EXCLUDE)
+	@EnumSource(value = ReservationStatus.class, names = {"CONFIRMED",
+		"CANCELLATION_FAILED"}, mode = EnumSource.Mode.EXCLUDE)
 	@DisplayName("완료되지 않은 예약 상태는 체크아웃 후에도 후기 존재 조회 없이 차단한다")
 	void ineligibleStatusSkipsReviewLookup(ReservationStatus status) {
 		UUID reservationUid = UUID.randomUUID();
@@ -411,8 +408,7 @@ class ReservationCheckoutServiceTest {
 				accommodation.getId(),
 				LocalDate.of(2027, 3, 13),
 				LocalDate.of(2027, 3, 15),
-				2
-			);
+				2);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
 			given(accommodationRepository.findBookingSnapshotForShare(
@@ -480,8 +476,7 @@ class ReservationCheckoutServiceTest {
 				1L,
 				LocalDate.of(2026, 8, 12),
 				LocalDate.of(2026, 8, 12),
-				2
-			);
+				2);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
 			given(accommodationRepository.findBookingSnapshotForShare(
@@ -504,8 +499,7 @@ class ReservationCheckoutServiceTest {
 				1L,
 				WINDOW_START.plusMonths(3),
 				WINDOW_START.plusMonths(3).plusDays(1),
-				2
-			);
+				2);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
 			given(accommodationRepository.findBookingSnapshotForShare(
@@ -575,7 +569,6 @@ class ReservationCheckoutServiceTest {
 			then(reservationRepository).should(times(2)).existsByReservationCode(anyString());
 		}
 	}
-
 
 	private Reservation createReservationWithStatus(UUID reservationUid, ReservationStatus status) {
 		return createReservationWithStatus(reservationUid, status, Instant.parse("2025-01-28T16:00:00Z"));

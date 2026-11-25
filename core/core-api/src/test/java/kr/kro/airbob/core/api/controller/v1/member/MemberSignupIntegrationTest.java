@@ -87,12 +87,18 @@ class MemberSignupIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private MemberService memberService;
-	@Autowired private MemberHistoryRepository historyRepository;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper mapper;
-	@MockitoSpyBean private MemberRepository memberRepository;
-	@MockitoBean private SessionInvalidator sessionInvalidator;
+	@Autowired
+	private MemberService memberService;
+	@Autowired
+	private MemberHistoryRepository historyRepository;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper mapper;
+	@MockitoSpyBean
+	private MemberRepository memberRepository;
+	@MockitoBean
+	private SessionInvalidator sessionInvalidator;
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -161,7 +167,8 @@ class MemberSignupIntegrationTest {
 			assertThat(responses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(201, 409);
 			for (var response : responses) {
 				if (response.getStatus() == 409) {
-					assertThat(mapper.readTree(response.getContentAsString()).at("/error/code").asText()).isEqualTo("M002");
+					assertThat(mapper.readTree(response.getContentAsString()).at("/error/code").asText())
+						.isEqualTo("M002");
 				}
 			}
 		}

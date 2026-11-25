@@ -19,8 +19,7 @@ public record ReservationQuoteDetail(
 	Long amount,
 	String currency,
 	boolean paymentRequired,
-	Instant serverTime
-) {
+	Instant serverTime) {
 
 	public static ReservationQuoteDetail of(ReservationQuote quote, Instant serverTime) {
 		return new ReservationQuoteDetail(

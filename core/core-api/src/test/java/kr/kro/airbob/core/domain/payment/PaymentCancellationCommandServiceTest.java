@@ -7,8 +7,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -25,10 +25,9 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
+import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Status;
-import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.coupon.CouponUsageManager;
 import kr.kro.airbob.core.domain.member.Member;
@@ -51,24 +50,30 @@ import kr.kro.airbob.core.support.messaging.outbox.application.OutboxWriter;
 @ExtendWith(MockitoExtension.class)
 class PaymentCancellationCommandServiceTest {
 
-	private static final UUID RESERVATION_UID =
-		UUID.fromString("857369d8-a10a-4fe2-aa24-0ef1a67bd1be");
-	private static final UUID ACCOMMODATION_UID =
-		UUID.fromString("b9157c88-6e41-4264-b5f0-60f98cb15872");
+	private static final UUID RESERVATION_UID = UUID.fromString("857369d8-a10a-4fe2-aa24-0ef1a67bd1be");
+	private static final UUID ACCOMMODATION_UID = UUID.fromString("b9157c88-6e41-4264-b5f0-60f98cb15872");
 	private static final long GUEST_ID = 10L;
 	private static final Instant NOW = Instant.parse("2026-08-17T00:00:00Z");
 	private static final LocalDate CHECK_IN = LocalDate.of(2026, 8, 18);
 	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 20);
 	private static final long ACCOMMODATION_ID = 31L;
 
-	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private PaymentRepository paymentRepository;
-	@Mock private PaymentOperationRepository operationRepository;
-	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageManager couponUsageManager;
-	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
-	@Mock private OutboxWriter outboxWriter;
+	@Mock
+	private ReservationRepository reservationRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private PaymentRepository paymentRepository;
+	@Mock
+	private PaymentOperationRepository operationRepository;
+	@Mock
+	private ReservationHistoryRepository historyRepository;
+	@Mock
+	private CouponUsageManager couponUsageManager;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@Mock
+	private OutboxWriter outboxWriter;
 
 	private PaymentCancellationCommandService service;
 
@@ -84,8 +89,7 @@ class PaymentCancellationCommandServiceTest {
 			couponUsageManager,
 			searchRefreshPublisher,
 			outboxWriter,
-			Clock.fixed(NOW, ZoneOffset.UTC)
-		);
+			Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@Test
@@ -116,8 +120,8 @@ class PaymentCancellationCommandServiceTest {
 		assertThat(operation.getValue().getExpectedAmount()).isEqualTo(100_000L);
 		assertThat(operation.getValue().getCancellationReason()).isEqualTo("게스트 요청");
 
-		ArgumentCaptor<PaymentOperationExecutionRequestedV1> event =
-			ArgumentCaptor.forClass(PaymentOperationExecutionRequestedV1.class);
+		ArgumentCaptor<PaymentOperationExecutionRequestedV1> event = ArgumentCaptor
+			.forClass(PaymentOperationExecutionRequestedV1.class);
 		then(outboxWriter).should().append(event.capture());
 		assertThat(event.getValue().operationUid()).isEqualTo(response.operationId());
 		assertThat(event.getValue().reservationUid()).isEqualTo(RESERVATION_UID);
@@ -302,8 +306,7 @@ class PaymentCancellationCommandServiceTest {
 		Reservation reservation,
 		long amount,
 		long balanceAmount,
-		PaymentStatus status
-	) {
+		PaymentStatus status) {
 		return Payment.builder()
 			.id(2L)
 			.paymentKey("payment-key")

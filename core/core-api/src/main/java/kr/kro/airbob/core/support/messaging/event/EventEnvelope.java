@@ -9,8 +9,7 @@ public record EventEnvelope<T extends IntegrationEvent>(
 	String eventType,
 	String eventVersion,
 	Instant occurredAt,
-	T payload
-) {
+	T payload) {
 	public EventEnvelope {
 		Objects.requireNonNull(eventId, "eventId must not be null");
 		Objects.requireNonNull(eventType, "eventType must not be null");
@@ -22,8 +21,7 @@ public record EventEnvelope<T extends IntegrationEvent>(
 	public static <T extends IntegrationEvent> EventEnvelope<T> of(
 		UUID eventId,
 		Instant occurredAt,
-		T event
-	) {
+		T event) {
 		Objects.requireNonNull(event, "event must not be null");
 		EventDescriptor descriptor = Objects.requireNonNull(
 			event.descriptor(), "event descriptor must not be null");
@@ -32,7 +30,6 @@ public record EventEnvelope<T extends IntegrationEvent>(
 			descriptor.eventType(),
 			descriptor.eventVersion(),
 			occurredAt,
-			event
-		);
+			event);
 	}
 }

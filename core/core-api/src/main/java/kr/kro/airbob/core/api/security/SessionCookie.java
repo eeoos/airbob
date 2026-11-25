@@ -11,8 +11,7 @@ public final class SessionCookie {
 	// 서버의 세션 TTL(1시간)과 같다.
 	private static final int MAX_AGE_SECONDS = 3600;
 
-	private SessionCookie() {
-	}
+	private SessionCookie() {}
 
 	public static Cookie create(String sessionId) {
 		Cookie cookie = new Cookie(NAME, sessionId);

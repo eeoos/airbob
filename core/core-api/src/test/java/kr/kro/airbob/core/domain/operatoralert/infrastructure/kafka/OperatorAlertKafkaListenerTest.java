@@ -37,9 +37,12 @@ import kr.kro.airbob.core.support.messaging.event.InvalidIntegrationEventExcepti
 @DisplayName("operator alert Kafka listener")
 class OperatorAlertKafkaListenerTest {
 
-	@Mock private OperatorAlertGateway gateway;
-	@Mock private OperatorAlertMetrics metrics;
-	@Mock private Acknowledgment acknowledgment;
+	@Mock
+	private OperatorAlertGateway gateway;
+	@Mock
+	private OperatorAlertMetrics metrics;
+	@Mock
+	private Acknowledgment acknowledgment;
 	private IntegrationEventCodec codec;
 	private OperatorAlertKafkaListener listener;
 	private OperatorAlertRequestedV1 event;
@@ -55,8 +58,7 @@ class OperatorAlertKafkaListenerTest {
 			OperatorAlertSummaryCode.INDEX_REFRESH_FAILED,
 			new OperatorAlertSourcePosition(
 				AccommodationSearchRefreshRequestedV1.TOPIC, 1, 8L),
-			UUID.fromString("391a1782-a1ef-42dd-a1e0-9d940f45694b")
-		);
+			UUID.fromString("391a1782-a1ef-42dd-a1e0-9d940f45694b"));
 		message = codec.encode(EventEnvelope.of(
 			UUID.fromString("353482cb-aa4c-4c26-80ff-9fe1b9b35189"),
 			java.time.Instant.parse("2026-08-17T00:00:00Z"), event));

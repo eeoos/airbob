@@ -31,8 +31,7 @@ class ReservationPollingCorsTest {
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
-			mock(QueryCountInterceptor.class)
-		).corsFilter().getFilter();
+			mock(QueryCountInterceptor.class)).corsFilter().getFilter();
 		MockHttpServletRequest request = new MockHttpServletRequest(
 			"POST", "/api/v1/reservations/reservation-uid");
 		request.setRequestURI("/api/v1/reservations/reservation-uid");

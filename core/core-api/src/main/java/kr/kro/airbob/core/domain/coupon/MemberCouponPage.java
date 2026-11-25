@@ -8,8 +8,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorResponse;
 /** 회원이 보유한 쿠폰 목록 한 페이지. 보유 상태는 애플리케이션 시각으로 계산한다. */
 public record MemberCouponPage(
 	List<Item> coupons,
-	CursorResponse.PageInfo pageInfo
-) {
+	CursorResponse.PageInfo pageInfo) {
 
 	public record Item(MemberCouponProjection coupon, MemberCouponStatus status) {
 

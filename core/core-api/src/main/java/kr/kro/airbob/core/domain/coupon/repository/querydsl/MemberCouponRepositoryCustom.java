@@ -13,6 +13,5 @@ public interface MemberCouponRepositoryCustom {
 		Long memberId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
-		Pageable pageable
-	);
+		Pageable pageable);
 }

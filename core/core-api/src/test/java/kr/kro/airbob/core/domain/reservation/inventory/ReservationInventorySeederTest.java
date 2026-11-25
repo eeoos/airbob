@@ -38,10 +38,14 @@ class ReservationInventorySeederTest {
 	private static final LocalDate START = LocalDate.of(2026, 8, 25);
 	private static final LocalDate END_WITH_BUFFER = LocalDate.of(2026, 11, 27);
 
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private AccommodationInventoryDayRepository inventoryRepository;
-	@Mock private AccommodationInventorySeedPolicy seedPolicy;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private AccommodationInventoryDayRepository inventoryRepository;
+	@Mock
+	private AccommodationInventorySeedPolicy seedPolicy;
 
 	private ReservationInventorySeeder service;
 
@@ -52,8 +56,7 @@ class ReservationInventorySeederTest {
 			inventoryManager,
 			inventoryRepository,
 			seedPolicy,
-			Clock.fixed(NOW, ZoneOffset.UTC)
-		);
+			Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@Test
@@ -91,8 +94,7 @@ class ReservationInventorySeederTest {
 			List.of(19L), START.minusDays(1), END_WITH_BUFFER.minusDays(1)))
 			.willReturn(Map.of(19L, 94));
 
-		ReservationInventorySeeder.SeedBatch batch =
-			service.seedNextPublishedBatch(10L, 2);
+		ReservationInventorySeeder.SeedBatch batch = service.seedNextPublishedBatch(10L, 2);
 
 		assertThat(batch.processed()).isEqualTo(2);
 		assertThat(batch.lastAccommodationId()).isEqualTo(19L);
@@ -156,8 +158,7 @@ class ReservationInventorySeederTest {
 	}
 
 	private InventorySeedTarget target(Long id, String timeZoneId) {
-		InventorySeedTarget target =
-			mock(InventorySeedTarget.class);
+		InventorySeedTarget target = mock(InventorySeedTarget.class);
 		given(target.getAccommodationId()).willReturn(id);
 		given(target.getTimeZoneId()).willReturn(timeZoneId);
 		return target;

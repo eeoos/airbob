@@ -34,7 +34,11 @@ public interface AccommodationReviewSummaryRepository extends JpaRepository<Acco
 			rating_sum         = rating_sum + :rating,
 			updated_at         = NOW(6)
 		""", nativeQuery = true)
-	void applyNewReview(@Param("accommodationId") Long accommodationId, @Param("rating") int rating);
+	void applyNewReview(
+		@Param("accommodationId")
+		Long accommodationId,
+		@Param("rating")
+		int rating);
 
 	// 리뷰 삭제: 원자적 감소(0이 되면 average 0). 행 제거는 deleteIfEmpty 로.
 	@Modifying
@@ -47,13 +51,19 @@ public interface AccommodationReviewSummaryRepository extends JpaRepository<Acco
 			updated_at         = NOW(6)
 		WHERE accommodation_id = :accommodationId
 		""", nativeQuery = true)
-	void removeReview(@Param("accommodationId") Long accommodationId, @Param("rating") int rating);
+	void removeReview(
+		@Param("accommodationId")
+		Long accommodationId,
+		@Param("rating")
+		int rating);
 
 	// 리뷰가 0건이 된 요약 행 제거(기존 동작 유지)
 	@Modifying
 	@Query(value = "DELETE FROM accommodation_review_summary "
 		+ "WHERE accommodation_id = :accommodationId AND total_review_count <= 0", nativeQuery = true)
-	void deleteIfEmpty(@Param("accommodationId") Long accommodationId);
+	void deleteIfEmpty(
+		@Param("accommodationId")
+		Long accommodationId);
 
 	// 평점 수정: 개수 불변, rating_sum/average_rating 만 원자적 조정
 	@Modifying
@@ -64,6 +74,11 @@ public interface AccommodationReviewSummaryRepository extends JpaRepository<Acco
 			updated_at     = NOW(6)
 		WHERE accommodation_id = :accommodationId
 		""", nativeQuery = true)
-	void applyRatingChange(@Param("accommodationId") Long accommodationId,
-		@Param("oldRating") int oldRating, @Param("newRating") int newRating);
+	void applyRatingChange(
+		@Param("accommodationId")
+		Long accommodationId,
+		@Param("oldRating")
+		int oldRating,
+		@Param("newRating")
+		int newRating);
 }

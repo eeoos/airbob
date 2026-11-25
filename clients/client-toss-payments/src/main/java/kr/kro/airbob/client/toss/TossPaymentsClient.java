@@ -57,8 +57,7 @@ public class TossPaymentsClient {
 		String baseUrl,
 		String secretKey,
 		Duration connectTimeout,
-		Duration readTimeout
-	) {
+		Duration readTimeout) {
 		HttpClient httpClient = HttpClient.newBuilder()
 			.connectTimeout(connectTimeout)
 			.build();
@@ -95,8 +94,7 @@ public class TossPaymentsClient {
 		String paymentKey,
 		String cancelReason,
 		long cancelAmount,
-		String idempotencyKey
-	) {
+		String idempotencyKey) {
 		Map<String, Object> payload = new HashMap<>();
 		payload.put("cancelReason", cancelReason);
 		payload.put("cancelAmount", cancelAmount);

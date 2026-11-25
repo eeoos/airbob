@@ -96,9 +96,8 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		.withCommand("--log-bin-trust-function-creators=1");
 
 	@Container
-	private static final GenericContainer<?> REDIS =
-		new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
-			.withExposedPorts(6379);
+	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+		.withExposedPorts(6379);
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -112,26 +111,45 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 	}
 
-	@Autowired private ReservationCheckoutService checkoutService;
-	@Autowired private ReservationQuoteService quoteService;
-	@Autowired private ExpiredReservationCleanupService cleanupService;
-	@MockitoSpyBean private ReservationInventoryManager inventoryManager;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private OutboxMessageRepository outboxRepository;
-	@Autowired private MemberRepository memberRepository;
-	@Autowired private AccommodationRepository accommodationRepository;
-	@Autowired private AddressRepository addressRepository;
-	@Autowired private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Autowired private CouponRepository couponRepository;
-	@Autowired private MemberCouponRepository memberCouponRepository;
-	@Autowired private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private ReservationCheckoutService checkoutService;
+	@Autowired
+	private ReservationQuoteService quoteService;
+	@Autowired
+	private ExpiredReservationCleanupService cleanupService;
+	@MockitoSpyBean
+	private ReservationInventoryManager inventoryManager;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
+	@Autowired
+	private MemberRepository memberRepository;
+	@Autowired
+	private AccommodationRepository accommodationRepository;
+	@Autowired
+	private AddressRepository addressRepository;
+	@Autowired
+	private OccupancyPolicyRepository occupancyPolicyRepository;
+	@Autowired
+	private CouponRepository couponRepository;
+	@Autowired
+	private MemberCouponRepository memberCouponRepository;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
-	@MockitoBean private ElasticsearchClient elasticsearchClient;
-	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
-	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
-	@MockitoBean private io.awspring.cloud.s3.S3Template s3Template;
-	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
 
 	private Accommodation accommodation;
 	private List<Member> guests;
@@ -157,8 +175,7 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		CountDownLatch cleanupReachedInventoryRelease = new CountDownLatch(1);
 		CountDownLatch allowCleanupInventoryRelease = new CountDownLatch(1);
 		AtomicReference<String> cleanupIsolation = new AtomicReference<>();
-		ReservationInventoryManager inventoryTarget =
-			AopTestUtils.getUltimateTargetObject(inventoryManager);
+		ReservationInventoryManager inventoryTarget = AopTestUtils.getUltimateTargetObject(inventoryManager);
 		doAnswer(invocation -> {
 			cleanupIsolation.set(jdbcTemplate.queryForObject(
 				"SELECT @@transaction_isolation", String.class));
@@ -169,8 +186,7 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 			eq(accommodation.getId()),
 			eq(STAY_START),
 			eq(STAY_END),
-			eq(expired.reservationId())
-		);
+			eq(expired.reservationId()));
 
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		Future<Integer> cleanup = null;
@@ -228,15 +244,14 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 	private ReservationResponse.Ready checkout(
 		Member guest,
 		Long couponId,
-		String idempotencyKey
-	) {
-		ReservationResponse.Quote quote = ReservationResponse.Quote.from(quoteService.createQuote(new NewReservationQuote(
-			accommodation.getId(),
-			STAY_START,
-			STAY_END,
-			2,
-			couponId
-		), guest.getId()));
+		String idempotencyKey) {
+		ReservationResponse.Quote quote = ReservationResponse.Quote
+			.from(quoteService.createQuote(new NewReservationQuote(
+				accommodation.getId(),
+				STAY_START,
+				STAY_END,
+				2,
+				couponId), guest.getId()));
 		return ReservationResponse.Ready.from(checkoutService.checkout(
 			new ReservationRequest.Checkout(quote.quoteUid(), "inventory cleanup race").toCheckout(),
 			guest.getId(),
@@ -320,8 +335,7 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 			memberRepository.save(Member.builder()
 				.email("cleanup-race-old@test.com").nickname("cleanup-race-old").build()),
 			memberRepository.save(Member.builder()
-				.email("cleanup-race-new@test.com").nickname("cleanup-race-new").build())
-		);
+				.email("cleanup-race-new@test.com").nickname("cleanup-race-new").build()));
 		accommodation = accommodationRepository.save(Accommodation.builder()
 			.name("Inventory cleanup race accommodation")
 			.basePrice(100_000L)

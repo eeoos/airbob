@@ -17,6 +17,5 @@ public record PaymentOperationDetailRow(
 	UUID reservationUid,
 	ReservationStatus reservationStatus,
 	Instant checkInAt,
-	Instant expiresAt
-) {
+	Instant expiresAt) {
 }

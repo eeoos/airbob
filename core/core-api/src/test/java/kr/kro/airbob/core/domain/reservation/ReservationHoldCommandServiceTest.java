@@ -38,10 +38,14 @@ class ReservationHoldCommandServiceTest {
 	private static final long MEMBER_ID = 7L;
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private CouponUsageManager couponUsageManager;
-	@Mock private ReservationInventoryManager inventoryManager;
+	@Mock
+	private ReservationRepository reservationRepository;
+	@Mock
+	private ReservationHistoryRepository historyRepository;
+	@Mock
+	private CouponUsageManager couponUsageManager;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
 
 	private ReservationHoldCommandService service;
 
@@ -53,8 +57,7 @@ class ReservationHoldCommandServiceTest {
 			couponUsageManager,
 			new ReservationPaymentAttemptPolicy(Duration.ofSeconds(90)),
 			inventoryManager,
-			Clock.fixed(NOW, ZoneOffset.UTC)
-		);
+			Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@Test
@@ -63,7 +66,8 @@ class ReservationHoldCommandServiceTest {
 		Reservation reservation = reservation(ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(900), true);
 		givenLocked(reservation);
 
-		var response = ReservationResponse.HoldRelease.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID));
+		var response = ReservationResponse.HoldRelease
+			.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID));
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(response.releasedNow()).isTrue();
@@ -83,7 +87,8 @@ class ReservationHoldCommandServiceTest {
 		Reservation reservation = reservation(ReservationStatus.EXPIRED, NOW.minusSeconds(1), true);
 		givenLocked(reservation);
 
-		var response = ReservationResponse.HoldRelease.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID));
+		var response = ReservationResponse.HoldRelease
+			.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID));
 
 		assertThat(response.releasedNow()).isFalse();
 		then(inventoryManager).shouldHaveNoInteractions();
@@ -97,7 +102,8 @@ class ReservationHoldCommandServiceTest {
 		Reservation reservation = reservation(ReservationStatus.CONFIRMED, NOW.plusSeconds(900), true);
 		givenLocked(reservation);
 
-		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID)))
+		assertThatThrownBy(() -> ReservationResponse.HoldRelease
+			.from(service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID)))
 			.isInstanceOf(ReservationHoldReleaseNotAllowedException.class);
 		then(couponUsageManager).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
@@ -110,7 +116,8 @@ class ReservationHoldCommandServiceTest {
 		given(reservationRepository.findByReservationUidAndGuestIdWithLock(reservationUid, MEMBER_ID))
 			.willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> ReservationResponse.HoldRelease.from(service.releaseHold(reservationUid.toString(), MEMBER_ID)))
+		assertThatThrownBy(
+			() -> ReservationResponse.HoldRelease.from(service.releaseHold(reservationUid.toString(), MEMBER_ID)))
 			.isInstanceOf(ReservationNotFoundException.class);
 	}
 
@@ -193,8 +200,7 @@ class ReservationHoldCommandServiceTest {
 	private Reservation reservation(
 		ReservationStatus status,
 		Instant expiresAt,
-		boolean paymentAttemptRequired
-	) {
+		boolean paymentAttemptRequired) {
 		return Reservation.builder()
 			.id(41L)
 			.reservationUid(UUID.randomUUID())

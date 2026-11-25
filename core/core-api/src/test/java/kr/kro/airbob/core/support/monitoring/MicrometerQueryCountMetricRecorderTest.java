@@ -37,9 +37,7 @@ class MicrometerQueryCountMetricRecorderTest {
 			queryCounts(Map.of(
 				SqlQueryType.SELECT, 3,
 				SqlQueryType.INSERT, 1,
-				SqlQueryType.TOTAL, 4
-			))
-		);
+				SqlQueryType.TOTAL, 4)));
 
 		recorder.record(snapshot);
 
@@ -57,8 +55,7 @@ class MicrometerQueryCountMetricRecorderTest {
 		QueryCountSnapshot snapshot = new QueryCountSnapshot(
 			"GET",
 			"/api/v1/accommodations/{accommodationId}",
-			queryCounts(Map.of(SqlQueryType.SELECT, 12, SqlQueryType.TOTAL, 12))
-		);
+			queryCounts(Map.of(SqlQueryType.SELECT, 12, SqlQueryType.TOTAL, 12)));
 
 		recorder.record(snapshot);
 
@@ -66,21 +63,19 @@ class MicrometerQueryCountMetricRecorderTest {
 		assertThat(summary.takeSnapshot().percentileValues()).isEmpty();
 		assertThat(Arrays.stream(summary.takeSnapshot().histogramCounts())
 			.map(CountAtBucket::bucket)
-			.toList()
-		).contains(1.0, 3.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 250.0, 500.0, 1000.0);
+			.toList()).contains(1.0, 3.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 250.0, 500.0, 1000.0);
 	}
 
 	@Test
 	@DisplayName("201개 쿼리 표본을 +Inf가 아닌 유한한 Prometheus bucket에 기록한다")
 	void recordsLargeQueryCountInFinitePrometheusBucket() {
 		PrometheusMeterRegistry prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-		MicrometerQueryCountMetricRecorder prometheusRecorder =
-			new MicrometerQueryCountMetricRecorder(prometheusRegistry);
+		MicrometerQueryCountMetricRecorder prometheusRecorder = new MicrometerQueryCountMetricRecorder(
+			prometheusRegistry);
 		QueryCountSnapshot snapshot = new QueryCountSnapshot(
 			"GET",
 			"/api/v1/members/recently-viewed",
-			queryCounts(Map.of(SqlQueryType.SELECT, 201, SqlQueryType.TOTAL, 201))
-		);
+			queryCounts(Map.of(SqlQueryType.SELECT, 201, SqlQueryType.TOTAL, 201)));
 
 		prometheusRecorder.record(snapshot);
 

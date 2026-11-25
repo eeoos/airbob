@@ -32,9 +32,12 @@ class ImageStorageTransactionEventListenerTest {
 
 	private static final String IMAGE_URL = "https://cdn.example.com/image.jpg";
 
-	@Autowired private ApplicationEventPublisher applicationEventPublisher;
-	@Autowired private S3ImageUploader s3ImageUploader;
-	@Autowired private PlatformTransactionManager transactionManager;
+	@Autowired
+	private ApplicationEventPublisher applicationEventPublisher;
+	@Autowired
+	private S3ImageUploader s3ImageUploader;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
 
 	@BeforeEach
 	void resetUploader() {
@@ -75,8 +78,8 @@ class ImageStorageTransactionEventListenerTest {
 	void keepsUploadedImageAfterCommit() {
 		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 
-		transaction.executeWithoutResult(status ->
-			applicationEventPublisher.publishEvent(new ImageUploaded(IMAGE_URL)));
+		transaction
+			.executeWithoutResult(status -> applicationEventPublisher.publishEvent(new ImageUploaded(IMAGE_URL)));
 
 		verify(s3ImageUploader, never()).delete(IMAGE_URL);
 	}
@@ -88,8 +91,8 @@ class ImageStorageTransactionEventListenerTest {
 		doThrow(new IllegalStateException("S3 unavailable"))
 			.when(s3ImageUploader).delete(IMAGE_URL);
 
-		assertThatCode(() -> transaction.executeWithoutResult(status ->
-			applicationEventPublisher.publishEvent(new ImageDeletionRequested(IMAGE_URL))))
+		assertThatCode(() -> transaction.executeWithoutResult(
+			status -> applicationEventPublisher.publishEvent(new ImageDeletionRequested(IMAGE_URL))))
 			.doesNotThrowAnyException();
 	}
 
@@ -141,12 +144,10 @@ class ImageStorageTransactionEventListenerTest {
 		}
 
 		@Override
-		protected void doCommit(DefaultTransactionStatus status) {
-		}
+		protected void doCommit(DefaultTransactionStatus status) {}
 
 		@Override
-		protected void doRollback(DefaultTransactionStatus status) {
-		}
+		protected void doRollback(DefaultTransactionStatus status) {}
 
 		@Override
 		protected void doCleanupAfterCompletion(Object transaction) {

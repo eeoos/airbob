@@ -5,8 +5,7 @@ public record CommonCodeGroupDetail(
 	String groupCode,
 	String groupName,
 	String description,
-	boolean active
-) {
+	boolean active) {
 	public static CommonCodeGroupDetail from(CommonCodeGroup group) {
 		return new CommonCodeGroupDetail(
 			group.getGroupCode(),

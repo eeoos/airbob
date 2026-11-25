@@ -50,10 +50,10 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 
 	private static final int HOSTS = 1_000;
 	private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-09-11T03:00:00Z"), ZoneOffset.UTC);
-	private static final AccommodationInventorySeedPolicy POLICY =
-		new AccommodationInventorySeedPolicy(new BookingWindowProvider(CLOCK), 7);
-	private static final AccommodationInventorySeedPolicy.SeedRange RANGE =
-		POLICY.currentRange("Asia/Seoul", CLOCK.instant());
+	private static final AccommodationInventorySeedPolicy POLICY = new AccommodationInventorySeedPolicy(
+		new BookingWindowProvider(CLOCK), 7);
+	private static final AccommodationInventorySeedPolicy.SeedRange RANGE = POLICY.currentRange("Asia/Seoul",
+		CLOCK.instant());
 	private static final List<Long> IDS = LongStream.rangeClosed(1, HOSTS).boxed().toList();
 
 	@Container
@@ -224,16 +224,22 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 	}
 
 	private ReservationInventorySeeder service(
-		AccommodationInventoryDayRepository repository, List<Long> ids
-	) {
+		AccommodationInventoryDayRepository repository, List<Long> ids) {
 		AccommodationRepository accommodations = mock(AccommodationRepository.class);
 		given(accommodations.findInventorySeedTargets(any(AccommodationStatus.class), anyLong(), any(Pageable.class)))
 			.willAnswer(invocation -> ids.stream()
 				.filter(id -> id > invocation.<Long>getArgument(1))
 				.limit(invocation.<Pageable>getArgument(2).getPageSize())
 				.map(id -> new InventorySeedTarget() {
-					@Override public Long getAccommodationId() { return id; }
-					@Override public String getTimeZoneId() { return "Asia/Seoul"; }
+					@Override
+					public Long getAccommodationId() {
+						return id;
+					}
+
+					@Override
+					public String getTimeZoneId() {
+						return "Asia/Seoul";
+					}
 				}).toList());
 		return new ReservationInventorySeeder(new AccommodationReader(accommodations),
 			new ReservationInventoryManager(repository), repository, POLICY, CLOCK);
@@ -244,9 +250,15 @@ class AccommodationInventoryBatchSeedIntegrationTest {
 		private long returnedRows;
 		private int largestInsert;
 
-		CountingRepository(JdbcTemplate jdbcTemplate) { super(jdbcTemplate); }
+		CountingRepository(JdbcTemplate jdbcTemplate) {
+			super(jdbcTemplate);
+		}
 
-		void resetCounts() { queries = 0; returnedRows = 0; largestInsert = 0; }
+		void resetCounts() {
+			queries = 0;
+			returnedRows = 0;
+			largestInsert = 0;
+		}
 
 		@Override
 		public Map<Long, Integer> countSeedDays(List<Long> ids, LocalDate start, LocalDate end) {

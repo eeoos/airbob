@@ -49,12 +49,10 @@ class ReservationCheckoutIdempotencyMigrationIntegrationTest {
 				"key_hash",
 				"request_fingerprint",
 				"created_at",
-				"updated_at"
-			);
+				"updated_at");
 			assertThat(nullableColumns(connection, TABLE)).containsExactlyInAnyOrder(
 				"reservation_id",
-				"completed_at"
-			);
+				"completed_at");
 			assertThat(columnSize(connection, TABLE, "endpoint")).isEqualTo(50);
 			assertThat(columnSize(connection, TABLE, "key_hash")).isEqualTo(64);
 			assertThat(columnSize(connection, TABLE, "request_fingerprint")).isEqualTo(64);
@@ -138,8 +136,7 @@ class ReservationCheckoutIdempotencyMigrationIntegrationTest {
 				if (index.equalsIgnoreCase(result.getString("INDEX_NAME"))) {
 					columns.add(new OrderedColumn(
 						result.getInt("ORDINAL_POSITION"),
-						result.getString("COLUMN_NAME").toLowerCase()
-					));
+						result.getString("COLUMN_NAME").toLowerCase()));
 				}
 			}
 		}
@@ -168,8 +165,7 @@ class ReservationCheckoutIdempotencyMigrationIntegrationTest {
 					return new ForeignKey(
 						keys.getString("FKCOLUMN_NAME").toLowerCase(),
 						keys.getString("PKTABLE_NAME").toLowerCase(),
-						keys.getString("PKCOLUMN_NAME").toLowerCase()
-					);
+						keys.getString("PKCOLUMN_NAME").toLowerCase());
 				}
 			}
 		}

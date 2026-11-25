@@ -11,11 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(
-	name = "reservation.inventory.seed.enabled",
-	havingValue = "true",
-	matchIfMissing = true
-)
+@ConditionalOnProperty(name = "reservation.inventory.seed.enabled", havingValue = "true", matchIfMissing = true)
 public class AccommodationInventorySeedScheduler {
 
 	private final ReservationInventorySeeder inventorySeeder;
@@ -25,9 +21,10 @@ public class AccommodationInventorySeedScheduler {
 
 	public AccommodationInventorySeedScheduler(
 		ReservationInventorySeeder inventorySeeder,
-		@Value("${reservation.inventory.seed.batch-size:1000}") int batchSize,
-		@Value("${reservation.inventory.seed.max-batches-per-run:10}") int maxBatchesPerRun
-	) {
+		@Value("${reservation.inventory.seed.batch-size:1000}")
+		int batchSize,
+		@Value("${reservation.inventory.seed.max-batches-per-run:10}")
+		int maxBatchesPerRun) {
 		if (batchSize < 1 || batchSize > AccommodationInventoryDayRepository.MAX_SEED_TARGETS
 			|| maxBatchesPerRun < 1) {
 			throw new IllegalArgumentException("inventory seed batch size must be 1..1000 and count positive");
@@ -37,10 +34,7 @@ public class AccommodationInventorySeedScheduler {
 		this.maxBatchesPerRun = maxBatchesPerRun;
 	}
 
-	@Scheduled(
-		fixedDelayString = "${reservation.inventory.seed.interval:5m}",
-		scheduler = ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER
-	)
+	@Scheduled(fixedDelayString = "${reservation.inventory.seed.interval:5m}", scheduler = ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER)
 	public void seedPublishedInventory() {
 		long startedAt = System.nanoTime();
 		long cursor = nextAccommodationId;
@@ -49,8 +43,7 @@ public class AccommodationInventorySeedScheduler {
 		long missingDaysSubmitted = 0;
 		long insertStatements = 0;
 		for (int batchIndex = 0; batchIndex < maxBatchesPerRun; batchIndex++) {
-			ReservationInventorySeeder.SeedBatch batch =
-				inventorySeeder.seedNextPublishedBatch(cursor, batchSize);
+			ReservationInventorySeeder.SeedBatch batch = inventorySeeder.seedNextPublishedBatch(cursor, batchSize);
 			totalProcessed += batch.processed();
 			expectedDays += batch.expectedDays();
 			missingDaysSubmitted += batch.missingDaysSubmitted();
@@ -72,7 +65,7 @@ public class AccommodationInventorySeedScheduler {
 		nextAccommodationId = cursor;
 		if (totalProcessed > 0) {
 			log.info("Inventory rolling seed complete: accommodations={} expectedDays={} "
-					+ "missingDaysSubmitted={} insertStatements={} elapsedMs={} nextCursor={} cycleComplete={}",
+				+ "missingDaysSubmitted={} insertStatements={} elapsedMs={} nextCursor={} cycleComplete={}",
 				totalProcessed, expectedDays, missingDaysSubmitted, insertStatements,
 				(System.nanoTime() - startedAt) / 1_000_000, cursor, cursor == 0);
 		}

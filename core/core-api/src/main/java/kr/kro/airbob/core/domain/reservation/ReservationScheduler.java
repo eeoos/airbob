@@ -18,8 +18,8 @@ public class ReservationScheduler {
 
 	public ReservationScheduler(
 		ExpiredReservationCleanupService cleanupService,
-		@Value("${reservation.expiration.max-batches-per-run:10}") int maxBatchesPerRun
-	) {
+		@Value("${reservation.expiration.max-batches-per-run:10}")
+		int maxBatchesPerRun) {
 		if (maxBatchesPerRun < 1) {
 			throw new IllegalArgumentException("max batches per cleanup run must be positive");
 		}
@@ -27,10 +27,7 @@ public class ReservationScheduler {
 		this.maxBatchesPerRun = maxBatchesPerRun;
 	}
 
-	@Scheduled(
-		fixedDelayString = "${reservation.expiration.cleanup-interval:30s}",
-		scheduler = RESERVATION_CLEANUP_TASK_SCHEDULER
-	)
+	@Scheduled(fixedDelayString = "${reservation.expiration.cleanup-interval:30s}", scheduler = RESERVATION_CLEANUP_TASK_SCHEDULER)
 	public void cleanupExpiredPendingReservation() {
 		log.info("만료된 결제 대기 예약 정리 작업 시작");
 

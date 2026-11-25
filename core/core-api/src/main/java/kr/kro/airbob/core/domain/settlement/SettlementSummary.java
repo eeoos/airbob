@@ -16,8 +16,7 @@ public record SettlementSummary(
 	long commissionAmount,
 	long payoutAmount,
 	SettlementStatus status,
-	Instant settledAt
-) {
+	Instant settledAt) {
 
 	public static SettlementSummary from(Settlement settlement) {
 		return new SettlementSummary(
@@ -31,7 +30,6 @@ public record SettlementSummary(
 			settlement.getCommissionAmount(),
 			settlement.getPayoutAmount(),
 			settlement.getStatus(),
-			settlement.getSettledAt()
-		);
+			settlement.getSettledAt());
 	}
 }

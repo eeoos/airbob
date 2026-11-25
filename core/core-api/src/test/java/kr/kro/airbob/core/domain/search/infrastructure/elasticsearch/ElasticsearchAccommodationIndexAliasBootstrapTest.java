@@ -36,8 +36,10 @@ import co.elastic.clients.transport.endpoints.BooleanResponse;
 @DisplayName("숙소 색인 alias Elasticsearch bootstrap")
 class ElasticsearchAccommodationIndexAliasBootstrapTest {
 
-	@Mock private ElasticsearchClient elasticsearchClient;
-	@Mock private ElasticsearchIndicesClient indicesClient;
+	@Mock
+	private ElasticsearchClient elasticsearchClient;
+	@Mock
+	private ElasticsearchIndicesClient indicesClient;
 
 	private ElasticsearchAccommodationIndexAliasBootstrap bootstrap;
 
@@ -65,8 +67,7 @@ class ElasticsearchAccommodationIndexAliasBootstrapTest {
 
 		bootstrap.ensureReady();
 
-		ArgumentCaptor<CreateIndexRequest> request =
-			ArgumentCaptor.forClass(CreateIndexRequest.class);
+		ArgumentCaptor<CreateIndexRequest> request = ArgumentCaptor.forClass(CreateIndexRequest.class);
 		then(indicesClient).should().create(request.capture());
 		assertThat(request.getValue().index()).isEqualTo("accommodations-vbootstrap");
 		assertThat(request.getValue().aliases()).containsKey("accommodations");
@@ -138,8 +139,7 @@ class ElasticsearchAccommodationIndexAliasBootstrapTest {
 	void rejectsInvalidExistingAliasShapesWithoutMutation(
 		String scenario,
 		GetAliasResponse invalidAlias,
-		String expectedMessage
-	) throws Exception {
+		String expectedMessage) throws Exception {
 		given(indicesClient.existsAlias(any(Function.class)))
 			.willReturn(new BooleanResponse(true));
 		given(indicesClient.getAlias(any(Function.class)))
@@ -184,39 +184,33 @@ class ElasticsearchAccommodationIndexAliasBootstrapTest {
 						"accommodations", alias -> alias.isWriteIndex(true)))
 					.result("accommodations-v20260817100000", index -> index.aliases(
 						"accommodations", alias -> alias.isWriteIndex(true)))),
-				"exactly one version index"
-			),
+				"exactly one version index"),
 			Arguments.of(
 				"비관리 index target",
 				GetAliasResponse.of(response -> response.result(
 					"legacy-accommodations",
 					index -> index.aliases(
 						"accommodations", alias -> alias.isWriteIndex(true)))),
-				"versioned index"
-			),
+				"versioned index"),
 			Arguments.of(
 				"alias definition 누락",
 				GetAliasResponse.of(response -> response.result(
 					"accommodations-v20260817090000",
 					index -> index.aliases(Map.of()))),
-				"exactly one write index"
-			),
+				"exactly one write index"),
 			Arguments.of(
 				"write flag 누락",
 				GetAliasResponse.of(response -> response.result(
 					"accommodations-v20260817090000",
 					index -> index.aliases("accommodations", alias -> alias))),
-				"exactly one write index"
-			),
+				"exactly one write index"),
 			Arguments.of(
 				"write flag false",
 				GetAliasResponse.of(response -> response.result(
 					"accommodations-v20260817090000",
 					index -> index.aliases(
 						"accommodations", alias -> alias.isWriteIndex(false)))),
-				"exactly one write index"
-			)
-		);
+				"exactly one write index"));
 	}
 
 	private GetAliasResponse validAliasResponse() {

@@ -4,6 +4,5 @@ package kr.kro.airbob.core.domain.accommodation;
 public record NewOccupancyPolicy(
 	Integer maxOccupancy,
 	Integer infantOccupancy,
-	Integer petOccupancy
-) {
+	Integer petOccupancy) {
 }

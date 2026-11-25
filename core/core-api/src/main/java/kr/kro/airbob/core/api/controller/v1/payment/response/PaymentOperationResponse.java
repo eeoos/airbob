@@ -50,13 +50,9 @@ public class PaymentOperationResponse {
 
 	@Schema(name = "PaymentOperationResponseAccepted")
 	public record Accepted(
-		@Schema(description = "승인 작업 UUID. 예약 UID와 별개입니다.", example = "00000000-0000-0000-0000-000000000040", requiredMode = Schema.RequiredMode.REQUIRED)
-		UUID operationId,
-		@Schema(description = "작업의 현재 회원용 상태. 재요청에는 이미 완료된 상태도 반환합니다.", example = "PENDING", requiredMode = Schema.RequiredMode.REQUIRED)
-		Status status,
-		@Schema(description = "같은 API 서버에서 조회할 상대 URL", example = "/api/v1/payment-operations/00000000-0000-0000-0000-000000000040", requiredMode = Schema.RequiredMode.REQUIRED)
-		String statusUrl
-	) {
+		@Schema(description = "승인 작업 UUID. 예약 UID와 별개입니다.", example = "00000000-0000-0000-0000-000000000040", requiredMode = Schema.RequiredMode.REQUIRED) UUID operationId,
+		@Schema(description = "작업의 현재 회원용 상태. 재요청에는 이미 완료된 상태도 반환합니다.", example = "PENDING", requiredMode = Schema.RequiredMode.REQUIRED) Status status,
+		@Schema(description = "같은 API 서버에서 조회할 상대 URL", example = "/api/v1/payment-operations/00000000-0000-0000-0000-000000000040", requiredMode = Schema.RequiredMode.REQUIRED) String statusUrl) {
 		public static Accepted from(PaymentOperationReceipt receipt) {
 			UUID operationUid = receipt.operationUid();
 			return new Accepted(operationUid, Status.from(receipt.status()),
@@ -68,10 +64,8 @@ public class PaymentOperationResponse {
 	public record Cancellation(
 		UUID operationId,
 		Status status,
-		@Schema(description = "결제 작업 상태를 조회할 상대 URL")
-		String statusUrl,
-		boolean completedSynchronously
-	) {
+		@Schema(description = "결제 작업 상태를 조회할 상대 URL") String statusUrl,
+		boolean completedSynchronously) {
 		public static Cancellation from(PaymentOperationReceipt receipt) {
 			if (receipt.completedSynchronously()) {
 				return completed();
@@ -81,8 +75,7 @@ public class PaymentOperationResponse {
 				operationUid,
 				Status.from(receipt.status()),
 				"/api/v1/payment-operations/" + operationUid,
-				false
-			);
+				false);
 		}
 
 		public static Cancellation completed() {
@@ -97,29 +90,16 @@ public class PaymentOperationResponse {
 		 "server_time":"2027-01-01T00:00:02Z","user_failure_code":null}
 		""")
 	public record Detail(
-		@Schema(description = "승인 또는 취소 작업 UUID", example = "00000000-0000-0000-0000-000000000040", requiredMode = Schema.RequiredMode.REQUIRED)
-		UUID operationId,
-		@Schema(description = "예약 UID와 같은 주문 ID", example = "00000000-0000-0000-0000-000000000020", requiredMode = Schema.RequiredMode.REQUIRED)
-		UUID orderId,
-		@Schema(description = "회원용 작업 상태. 결제 조회 응답의 DONE·CANCELED 상태와 구분합니다.", example = "PENDING", requiredMode = Schema.RequiredMode.REQUIRED)
-		Status status,
-		@Schema(description = "FAILED·REQUIRES_REVIEW에서 제공할 수 있는 내부 진단 코드. 그 외 null이며 사용자 안내에는 user_message·user_failure_code를 사용합니다.", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-		String failureCode,
-		@Schema(description = "작업이 마지막으로 변경된 UTC 시각", example = "2027-01-01T00:00:00Z", requiredMode = Schema.RequiredMode.REQUIRED)
-		Instant updatedAt,
-		@Schema(description = "현재 예약 상태·체크인 시각을 고려한 다음 행동. status보다 이 값을 우선합니다.", example = "POLL", requiredMode = Schema.RequiredMode.REQUIRED)
-		NextAction nextAction,
-		@Schema(description = "재조회 권장 간격(초). 진행 중에는 2~30, REQUIRES_REVIEW에는 30, SUCCEEDED·FAILED에는 null입니다. 값이 있어도 승인·취소 재요청을 뜻하지 않습니다.",
-			nullable = true, minimum = "2", maximum = "30", example = "2", requiredMode = Schema.RequiredMode.REQUIRED)
-		Long retryAfterSeconds,
-		@Schema(description = "현재 상태와 다음 행동에 맞는 사용자 안내", example = "결제 결과를 확인하고 있습니다. 잠시 후 다시 확인해 주세요.", requiredMode = Schema.RequiredMode.REQUIRED)
-		String userMessage,
-		@Schema(description = "서버의 현재 UTC 시각", example = "2027-01-01T00:00:02Z", requiredMode = Schema.RequiredMode.REQUIRED)
-		Instant serverTime,
-		@Schema(description = "FAILED: PAYMENT_DECLINED 또는 PAYMENT_CANCELLATION_DECLINED, REQUIRES_REVIEW: PAYMENT_REVIEW_REQUIRED. 그 외 null입니다.",
-			nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-		String userFailureCode
-	) {
+		@Schema(description = "승인 또는 취소 작업 UUID", example = "00000000-0000-0000-0000-000000000040", requiredMode = Schema.RequiredMode.REQUIRED) UUID operationId,
+		@Schema(description = "예약 UID와 같은 주문 ID", example = "00000000-0000-0000-0000-000000000020", requiredMode = Schema.RequiredMode.REQUIRED) UUID orderId,
+		@Schema(description = "회원용 작업 상태. 결제 조회 응답의 DONE·CANCELED 상태와 구분합니다.", example = "PENDING", requiredMode = Schema.RequiredMode.REQUIRED) Status status,
+		@Schema(description = "FAILED·REQUIRES_REVIEW에서 제공할 수 있는 내부 진단 코드. 그 외 null이며 사용자 안내에는 user_message·user_failure_code를 사용합니다.", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED) String failureCode,
+		@Schema(description = "작업이 마지막으로 변경된 UTC 시각", example = "2027-01-01T00:00:00Z", requiredMode = Schema.RequiredMode.REQUIRED) Instant updatedAt,
+		@Schema(description = "현재 예약 상태·체크인 시각을 고려한 다음 행동. status보다 이 값을 우선합니다.", example = "POLL", requiredMode = Schema.RequiredMode.REQUIRED) NextAction nextAction,
+		@Schema(description = "재조회 권장 간격(초). 진행 중에는 2~30, REQUIRES_REVIEW에는 30, SUCCEEDED·FAILED에는 null입니다. 값이 있어도 승인·취소 재요청을 뜻하지 않습니다.", nullable = true, minimum = "2", maximum = "30", example = "2", requiredMode = Schema.RequiredMode.REQUIRED) Long retryAfterSeconds,
+		@Schema(description = "현재 상태와 다음 행동에 맞는 사용자 안내", example = "결제 결과를 확인하고 있습니다. 잠시 후 다시 확인해 주세요.", requiredMode = Schema.RequiredMode.REQUIRED) String userMessage,
+		@Schema(description = "서버의 현재 UTC 시각", example = "2027-01-01T00:00:02Z", requiredMode = Schema.RequiredMode.REQUIRED) Instant serverTime,
+		@Schema(description = "FAILED: PAYMENT_DECLINED 또는 PAYMENT_CANCELLATION_DECLINED, REQUIRES_REVIEW: PAYMENT_REVIEW_REQUIRED. 그 외 null입니다.", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED) String userFailureCode) {
 		public static Detail from(PaymentOperationDetail detail) {
 			PaymentOperationDetailRow operation = detail.operation();
 			PaymentOperationStatus operationStatus = operation.status();
@@ -130,20 +110,18 @@ public class PaymentOperationResponse {
 				Status.from(operationStatus),
 				operationStatus == PaymentOperationStatus.DECLINED
 					|| operationStatus == PaymentOperationStatus.MANUAL_REVIEW
-					? operation.failureCode() : null,
+						? operation.failureCode() : null,
 				operation.updatedAt().toInstant(ZoneOffset.UTC),
 				nextAction,
 				detail.retryAfterSeconds(),
 				userMessage(operationStatus, operation.operationType(), nextAction),
 				detail.serverTime(),
-				userFailureCode(operationStatus, operation.operationType())
-			);
+				userFailureCode(operationStatus, operation.operationType()));
 		}
 
 		private static String userFailureCode(
 			PaymentOperationStatus status,
-			PaymentOperationType operationType
-		) {
+			PaymentOperationType operationType) {
 			return switch (status) {
 				case DECLINED -> operationType == PaymentOperationType.CANCEL
 					? "PAYMENT_CANCELLATION_DECLINED"
@@ -156,8 +134,7 @@ public class PaymentOperationResponse {
 		private static String userMessage(
 			PaymentOperationStatus status,
 			PaymentOperationType operationType,
-			NextAction nextAction
-		) {
+			NextAction nextAction) {
 			if (status == PaymentOperationStatus.APPLIED) {
 				return operationType == PaymentOperationType.CANCEL
 					? "예약 취소가 완료되었습니다."

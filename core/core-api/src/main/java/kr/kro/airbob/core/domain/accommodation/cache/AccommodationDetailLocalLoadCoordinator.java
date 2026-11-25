@@ -22,23 +22,20 @@ import kr.kro.airbob.core.domain.accommodation.AccommodationNotFoundException;
  */
 final class AccommodationDetailLocalLoadCoordinator {
 
-	private final ConcurrentHashMap<Long, CompletableFuture<AccommodationDetailSnapshot>> localLoads =
-		new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<Long, CompletableFuture<AccommodationDetailSnapshot>> localLoads = new ConcurrentHashMap<>();
 	private final AccommodationDetailCacheMetricRecorder metricRecorder;
 	private final Duration localLoadWait;
 
 	AccommodationDetailLocalLoadCoordinator(
 		AccommodationDetailCacheMetricRecorder metricRecorder,
-		Duration localLoadWait
-	) {
+		Duration localLoadWait) {
 		this.metricRecorder = metricRecorder;
 		this.localLoadWait = localLoadWait;
 	}
 
 	Optional<AccommodationDetailSnapshot> joinIfRunning(
 		Long accommodationId,
-		Supplier<AccommodationDetailSnapshot> loader
-	) {
+		Supplier<AccommodationDetailSnapshot> loader) {
 		CompletableFuture<AccommodationDetailSnapshot> running = localLoads.get(accommodationId);
 		if (running == null) {
 			return Optional.empty();
@@ -48,11 +45,9 @@ final class AccommodationDetailLocalLoadCoordinator {
 
 	AccommodationDetailSnapshot loadOrJoin(
 		Long accommodationId,
-		Supplier<AccommodationDetailSnapshot> loader
-	) {
+		Supplier<AccommodationDetailSnapshot> loader) {
 		CompletableFuture<AccommodationDetailSnapshot> newLoad = new CompletableFuture<>();
-		CompletableFuture<AccommodationDetailSnapshot> existing =
-			localLoads.putIfAbsent(accommodationId, newLoad);
+		CompletableFuture<AccommodationDetailSnapshot> existing = localLoads.putIfAbsent(accommodationId, newLoad);
 		if (existing != null) {
 			return await(accommodationId, existing, loader);
 		}
@@ -96,8 +91,7 @@ final class AccommodationDetailLocalLoadCoordinator {
 	private AccommodationDetailSnapshot await(
 		Long accommodationId,
 		CompletableFuture<AccommodationDetailSnapshot> load,
-		Supplier<AccommodationDetailSnapshot> loader
-	) {
+		Supplier<AccommodationDetailSnapshot> loader) {
 		try {
 			AccommodationDetailSnapshot snapshot = load.get(localLoadWait.toMillis(), TimeUnit.MILLISECONDS);
 			metricRecorder.recordRequest(COALESCED);

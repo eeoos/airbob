@@ -1,8 +1,8 @@
 package kr.kro.airbob.core.domain.reservation;
 
+import static kr.kro.airbob.core.domain.reservation.ReservationCheckoutTestDriver.createPendingReservation;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
-import static kr.kro.airbob.core.domain.reservation.ReservationCheckoutTestDriver.createPendingReservation;
 
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -13,12 +13,12 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +31,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -42,8 +43,6 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
-
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
@@ -155,7 +154,8 @@ class ReservationConcurrencyTest {
 		.withCommand("--log-bin-trust-function-creators=1");
 
 	@Container
-	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+		DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
 
 	@DynamicPropertySource
@@ -209,8 +209,7 @@ class ReservationConcurrencyTest {
 		guests = new ArrayList<>();
 		for (int i = 1; i <= THREAD_COUNT; i++) {
 			guests.add(memberRepository.save(
-				Member.builder().email("guest" + i + "@test.com").nickname("guest" + i).build()
-			));
+				Member.builder().email("guest" + i + "@test.com").nickname("guest" + i).build()));
 		}
 	}
 
@@ -300,10 +299,11 @@ class ReservationConcurrencyTest {
 			""");
 
 		try {
-			assertThatThrownBy(() -> PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
-				confirmed.getReservationUid().toString(),
-				new PaymentCancellation("0원 취소 롤백", null),
-				guest.getId())))
+			assertThatThrownBy(
+				() -> PaymentOperationResponse.Cancellation.from(cancellationCommandService.requestCancellation(
+					confirmed.getReservationUid().toString(),
+					new PaymentCancellation("0원 취소 롤백", null),
+					guest.getId())))
 				.isInstanceOf(DataAccessException.class);
 		} finally {
 			jdbcTemplate.execute(
@@ -411,18 +411,17 @@ class ReservationConcurrencyTest {
 			new ReservationCreateCommand(
 				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
 			guests.getFirst().getId(),
-			"결제 승인 선점 동시성 테스트"
-		);
-		var paymentAttempt = ReservationResponse.PaymentAttemptReady.from(reservationHoldCommandService.beginPaymentAttempt(
-			pendingReservation.getReservationUid().toString(), guests.getFirst().getId()));
+			"결제 승인 선점 동시성 테스트");
+		var paymentAttempt = ReservationResponse.PaymentAttemptReady
+			.from(reservationHoldCommandService.beginPaymentAttempt(
+				pendingReservation.getReservationUid().toString(), guests.getFirst().getId()));
 		outboxRepository.deleteAllInBatch();
 
 		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
 			"payment-key",
 			pendingReservation.getReservationUid().toString(),
 			pendingReservation.getTotalPrice().intValue(),
-			paymentAttempt.paymentAttemptId()
-		);
+			paymentAttempt.paymentAttemptId());
 		ExecutorService executorService = Executors.newFixedThreadPool(2);
 		CountDownLatch readyLatch = new CountDownLatch(2);
 		CountDownLatch startLatch = new CountDownLatch(1);
@@ -472,8 +471,7 @@ class ReservationConcurrencyTest {
 			new ReservationCreateCommand(
 				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
 			guest.getId(),
-			"결제 취소 동시성 테스트"
-		);
+			"결제 취소 동시성 테스트");
 		jdbcTemplate.update(
 			"UPDATE reservation SET status = 'CONFIRMED' WHERE id = ?", reservation.getId());
 		jdbcTemplate.update("""
@@ -507,8 +505,10 @@ class ReservationConcurrencyTest {
 				try {
 					ready.countDown();
 					start.await();
-					operationUids.add(PaymentOperationResponse.Cancellation.from(paymentCancellationCommandService.requestCancellation(
-						reservation.getReservationUid().toString(), request.toCancellation(), guest.getId())).operationId());
+					operationUids.add(PaymentOperationResponse.Cancellation
+						.from(paymentCancellationCommandService.requestCancellation(
+							reservation.getReservationUid().toString(), request.toCancellation(), guest.getId()))
+						.operationId());
 				} catch (Exception exception) {
 					failures.incrementAndGet();
 				} finally {
@@ -646,8 +646,7 @@ class ReservationConcurrencyTest {
 			accommodation.getId(),
 			checkInDate,
 			checkOutDate,
-			2
-		);
+			2);
 
 		// when - 외부 서비스 계층을 우회하고 권위 트랜잭션을 직접 호출
 		for (int i = 0; i < threadCount; i++) {
@@ -734,8 +733,7 @@ class ReservationConcurrencyTest {
 				createPendingReservation(checkoutService,
 					new ReservationCreateCommand(accommodation.getId(), checkInDate, checkOutDate, 2),
 					guestA.getId(),
-					"different accommodation A"
-				);
+					"different accommodation A");
 				successCount.incrementAndGet();
 			} catch (Exception e) {
 				unexpectedFailCount.incrementAndGet();
@@ -752,8 +750,7 @@ class ReservationConcurrencyTest {
 				createPendingReservation(checkoutService,
 					new ReservationCreateCommand(accommodation2.getId(), checkInDate, checkOutDate, 2),
 					guestB.getId(),
-					"different accommodation B"
-				);
+					"different accommodation B");
 				successCount.incrementAndGet();
 			} catch (Exception e) {
 				unexpectedFailCount.incrementAndGet();
@@ -801,15 +798,13 @@ class ReservationConcurrencyTest {
 			accommodation.getId(),
 			baseDate.plusDays(1),
 			baseDate.plusDays(3),
-			2
-		);
+			2);
 
 		ReservationCreateCommand requestB = new ReservationCreateCommand(
 			accommodation.getId(),
 			baseDate,
 			baseDate.plusDays(2),
-			2
-		);
+			2);
 
 		Member guestA = guests.get(0);
 		Member guestB = guests.get(1);

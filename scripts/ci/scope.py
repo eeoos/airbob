@@ -24,6 +24,7 @@ OCI_PREFIXES = ('gradle/', 'docker/app/', 'docker/debezium/',
                 'docker/elasticsearch/', 'docker/kafka/', 'docker/mysql/init/',
                 'docker/logstash/', 'docker/nginx/', 'monitoring/')
 OCI_FILES = BUILD_FILES | DEPLOYMENT_SCRIPTS | {'docker-compose.oci.yml', 'infra/aws/images/release.json'}
+FORMATTER_CONFIG = 'config/formatter/'
 
 
 def is_build_file(path):
@@ -41,9 +42,13 @@ def classify(paths, force_app=False):
             continue
         if path.startswith(('docs/', 'load-test/', 'scripts/archive/', '.claude/rules/')) or path in {
             'README.md', 'AGENTS.md', 'CLAUDE.md', 'scripts/README.md', '.gitattributes', '.gitignore', 'LICENSE',
+            '.editorconfig', '.git-blame-ignore-revs',
         }:
             continue
-        if path.startswith(('.github/', 'scripts/ci/')) or is_build_file(path) or path.startswith('gradle/'):
+        if path.startswith(FORMATTER_CONFIG):
+            # The Java build's spotlessCheck reads it; it does not change the application JAR.
+            selected['app'] = True
+        elif path.startswith(('.github/', 'scripts/ci/')) or is_build_file(path) or path.startswith('gradle/'):
             selected.update(app=True, infrastructure=True, data=True)
         elif path.startswith('infra/aws/'):
             selected.update(infrastructure=True, data=True)

@@ -52,8 +52,7 @@ class ManualPaymentResolutionMigrationIntegrationTest {
 			assertThat(indexColumns(
 				connection,
 				"payment_operation",
-				"idx_payment_operation_manual_review_queue"
-			)).containsExactly("status", "review_required_at", "id");
+				"idx_payment_operation_manual_review_queue")).containsExactly("status", "review_required_at", "id");
 		}
 	}
 
@@ -92,7 +91,8 @@ class ManualPaymentResolutionMigrationIntegrationTest {
 
 	private List<String> indexColumns(Connection connection, String table, String index) throws SQLException {
 		List<String> columns = new ArrayList<>();
-		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false, false)) {
+		try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, table, false,
+			false)) {
 			while (indexes.next()) {
 				if (index.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
 					columns.add(indexes.getString("COLUMN_NAME").toLowerCase());

@@ -16,8 +16,7 @@ public record PaymentOperationHealthSnapshot(
 	long staleQueuedCount,
 	Optional<Instant> oldestStaleQueuedAt,
 	long expiredExecutingLeaseCount,
-	Map<PaymentOperationResolutionAction, Long> resolutionCounts
-) {
+	Map<PaymentOperationResolutionAction, Long> resolutionCounts) {
 	public PaymentOperationHealthSnapshot {
 		Objects.requireNonNull(observedAt, "observedAt must not be null");
 		oldestManualReviewAt = requireQueueSnapshot(
@@ -49,15 +48,13 @@ public record PaymentOperationHealthSnapshot(
 			0,
 			Optional.empty(),
 			0,
-			Map.of()
-		);
+			Map.of());
 	}
 
 	private static Optional<Instant> requireQueueSnapshot(
 		long count,
 		Optional<Instant> oldestAt,
-		String name
-	) {
+		String name) {
 		Objects.requireNonNull(oldestAt, name + " oldest timestamp must not be null");
 		if (count < 0) {
 			throw new IllegalArgumentException(name + " count must not be negative");

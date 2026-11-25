@@ -35,8 +35,10 @@ import kr.kro.airbob.core.support.response.ApiResponse;
 @ExtendWith(MockitoExtension.class)
 class PaymentControllerTest {
 
-	@Mock private PaymentOperationCommandService commandService;
-	@Mock private PaymentQueryService paymentQueryService;
+	@Mock
+	private PaymentOperationCommandService commandService;
+	@Mock
+	private PaymentQueryService paymentQueryService;
 
 	private MockMvc mockMvc;
 	private PaymentController controller;
@@ -70,7 +72,8 @@ class PaymentControllerTest {
 
 		ResponseEntity<ApiResponse<Accepted>> response = controller.confirmPayment(request, 10L);
 
-		org.assertj.core.api.Assertions.assertThat(response.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.ACCEPTED);
+		org.assertj.core.api.Assertions.assertThat(response.getStatusCode())
+			.isEqualTo(org.springframework.http.HttpStatus.ACCEPTED);
 		org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isEqualTo(accepted);
 		then(commandService).should().requestConfirmation(request.toConfirmation(), 10L);
 	}
@@ -108,10 +111,10 @@ class PaymentControllerTest {
 		given(commandService.requestConfirmation(org.mockito.ArgumentMatchers.any(), eq(10L))).willReturn(receipt);
 
 		mockMvc.perform(post("/api/v1/payments/confirm")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"paymentKey":"payment-key","orderId":"%s","amount":100000,"paymentAttemptId":"%s"}
-					""".formatted(reservationUid, paymentAttemptId)))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"paymentKey":"payment-key","orderId":"%s","amount":100000,"paymentAttemptId":"%s"}
+				""".formatted(reservationUid, paymentAttemptId)))
 			.andExpect(status().isAccepted())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.operationId").value(operationUid.toString()))
@@ -123,10 +126,10 @@ class PaymentControllerTest {
 		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
 
 		mockMvc.perform(post("/api/v1/payments/confirm")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-					{"paymentKey":"payment-key","orderId":"%s","amount":100000}
-					""".formatted(reservationUid)))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"paymentKey":"payment-key","orderId":"%s","amount":100000}
+				""".formatted(reservationUid)))
 			.andExpect(status().isBadRequest());
 
 		then(commandService).shouldHaveNoInteractions();

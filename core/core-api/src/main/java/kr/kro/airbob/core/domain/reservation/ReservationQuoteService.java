@@ -75,8 +75,7 @@ public class ReservationQuoteService {
 			currency,
 			stayPrice,
 			discountAmount,
-			now
-		);
+			now);
 		quoteWriter.create(quote);
 		return ReservationQuoteDetail.of(quote, now);
 	}

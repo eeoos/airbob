@@ -18,7 +18,9 @@ public interface DailyRevenueStatsRepository
 
 	@Modifying
 	@Query("DELETE FROM DailyRevenueStats d WHERE d.statDate = :d")
-	void deleteByStatDate(@Param("d") LocalDate d);
+	void deleteByStatDate(
+		@Param("d")
+		LocalDate d);
 
 	// payment_transaction 원장에서 해당 일자의 (숙소별) gross/refund 를 집계해 적재.
 	// gross  = CONFIRM.amount @ DATE(created_at)
@@ -48,5 +50,7 @@ public interface DailyRevenueStatsRepository
 		) t
 		GROUP BY t.accommodation_id
 		""", nativeQuery = true)
-	void aggregateForDate(@Param("d") LocalDate d);
+	void aggregateForDate(
+		@Param("d")
+		LocalDate d);
 }

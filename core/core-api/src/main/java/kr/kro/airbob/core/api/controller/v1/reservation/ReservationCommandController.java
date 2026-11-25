@@ -30,8 +30,7 @@ public class ReservationCommandController implements ReservationCommandApi {
 	@Override
 	public ResponseEntity<ApiResponse<ReservationResponse.Quote>> createQuote(
 		ReservationRequest.Quote request,
-		Long memberId
-	) {
+		Long memberId) {
 		ReservationResponse.Quote response = ReservationResponse.Quote.from(
 			quoteService.createQuote(request.toNewQuote(), memberId));
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
@@ -41,8 +40,7 @@ public class ReservationCommandController implements ReservationCommandApi {
 	public ResponseEntity<ApiResponse<ReservationResponse.Ready>> checkout(
 		ReservationRequest.Checkout request,
 		String idempotencyKey,
-		Long memberId
-	) {
+		Long memberId) {
 		ReservationResponse.Ready response = ReservationResponse.Ready.from(
 			checkoutService.checkout(request.toCheckout(), memberId, idempotencyKey));
 		return ResponseEntity.ok(ApiResponse.success(response));
@@ -51,8 +49,7 @@ public class ReservationCommandController implements ReservationCommandApi {
 	@Override
 	public ResponseEntity<ApiResponse<ReservationResponse.HoldRelease>> releaseHold(
 		String reservationUid,
-		Long memberId
-	) {
+		Long memberId) {
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
 			.body(ApiResponse.success(ReservationResponse.HoldRelease.from(
@@ -62,8 +59,7 @@ public class ReservationCommandController implements ReservationCommandApi {
 	@Override
 	public ResponseEntity<ApiResponse<ReservationResponse.PaymentAttemptReady>> beginPaymentAttempt(
 		String reservationUid,
-		Long memberId
-	) {
+		Long memberId) {
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
 			.body(ApiResponse.success(ReservationResponse.PaymentAttemptReady.from(

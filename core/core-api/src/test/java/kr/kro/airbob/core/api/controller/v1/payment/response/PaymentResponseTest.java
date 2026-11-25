@@ -60,7 +60,8 @@ class PaymentResponseTest {
 			.createdAt(LocalDateTime.of(2026, 8, 12, 5, 59))
 			.build();
 
-		PaymentResponse.CancelInfo cancelInfo = PaymentResponse.CancelInfo.from(PaymentDetail.Cancellation.from(transaction));
+		PaymentResponse.CancelInfo cancelInfo = PaymentResponse.CancelInfo
+			.from(PaymentDetail.Cancellation.from(transaction));
 
 		assertThat(cancelInfo.canceledAt()).isEqualTo(canceledAt);
 	}

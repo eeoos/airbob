@@ -19,7 +19,8 @@ import kr.kro.airbob.core.domain.accommodation.OccupancyPolicy;
 @JsonTest
 @DisplayName("호스트 편집 정책 JSON 계약")
 class PolicyResponseJsonTest {
-	@Autowired private ObjectMapper objectMapper;
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	@Test
 	@DisplayName("정책 없음·부분 누락·완전한 정책의 필드와 null을 보존한다")
@@ -44,6 +45,7 @@ class PolicyResponseJsonTest {
 				null, null, null, null, null, null, null,
 				policy == null ? null : policy.getMaxOccupancy(),
 				policy == null ? null : policy.getInfantOccupancy(),
-				policy == null ? null : policy.getPetOccupancy()), List.of(), List.of()).policy();
+				policy == null ? null : policy.getPetOccupancy()),
+			List.of(), List.of()).policy();
 	}
 }

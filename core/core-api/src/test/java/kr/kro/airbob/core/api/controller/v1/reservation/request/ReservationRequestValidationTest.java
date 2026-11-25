@@ -24,8 +24,7 @@ class ReservationRequestValidationTest {
 			LocalDate.of(2000, 1, 1),
 			LocalDate.of(2000, 1, 2),
 			2,
-			null
-		);
+			null);
 
 		assertThat(validator.validate(request)).isEmpty();
 	}
@@ -38,8 +37,7 @@ class ReservationRequestValidationTest {
 			null,
 			null,
 			0,
-			null
-		);
+			null);
 
 		assertThat(validator.validate(request))
 			.extracting(violation -> violation.getPropertyPath().toString())
@@ -47,8 +45,7 @@ class ReservationRequestValidationTest {
 				"accommodationId",
 				"checkInDate",
 				"checkOutDate",
-				"guestCount"
-			);
+				"guestCount");
 	}
 
 	@Test

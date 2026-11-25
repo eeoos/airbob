@@ -88,13 +88,20 @@ class WishlistDetailQueryIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private WishlistService service;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private CursorDecoder cursorDecoder;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
+	@Autowired
+	private WishlistService service;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private CursorDecoder cursorDecoder;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
 
 	@BeforeEach
 	void setUp() {
@@ -193,11 +200,13 @@ class WishlistDetailQueryIntegrationTest {
 	void membershipSnapshotReplacesThreeSummaryPages() {
 		insertAccommodation(31, "PUBLISHED");
 		for (long id = 100; id < 145; id++) {
-			jdbc.update("""
-				INSERT INTO wishlist
-					(id, name, member_id, status, accommodation_count, representative_accommodation_id, created_at, updated_at)
-				VALUES (?, '여행', ?, 'ACTIVE', 1, 31, '2026-07-01 00:00:00', NOW(6))
-				""", id, OWNER_ID);
+			jdbc.update(
+				"""
+					INSERT INTO wishlist
+						(id, name, member_id, status, accommodation_count, representative_accommodation_id, created_at, updated_at)
+					VALUES (?, '여행', ?, 'ACTIVE', 1, 31, '2026-07-01 00:00:00', NOW(6))
+					""",
+				id, OWNER_ID);
 			insertItem(1000 + id, id, 31);
 		}
 		Statistics before = prepareMeasurement();
@@ -433,7 +442,8 @@ class WishlistDetailQueryIntegrationTest {
 
 	private WishlistAccommodationInfos findPage(CursorPageRequest request) {
 		Statistics statistics = prepareMeasurement();
-		var result = WishlistAccommodationInfos.from(service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID));
+		var result = WishlistAccommodationInfos
+			.from(service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(selectedColumnCounts()).containsExactly(2, 12);

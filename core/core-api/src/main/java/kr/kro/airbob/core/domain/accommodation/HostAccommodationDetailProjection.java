@@ -23,8 +23,7 @@ public record HostAccommodationDetailProjection(
 	String postalCode,
 	Integer maxOccupancy,
 	Integer infantOccupancy,
-	Integer petOccupancy
-) {
+	Integer petOccupancy) {
 	@QueryProjection
 	public HostAccommodationDetailProjection {
 	}

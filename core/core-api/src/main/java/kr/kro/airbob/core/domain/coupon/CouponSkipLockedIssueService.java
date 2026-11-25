@@ -13,10 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 
+import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder;
 import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.DatabaseResult;
 import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.IssueResult;
 import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
-import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder;
 import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricResultResolver;
 
 @Service
@@ -29,8 +29,11 @@ public class CouponSkipLockedIssueService {
 	private final long retryBudgetNanos;
 
 	public CouponSkipLockedIssueService(PlatformTransactionManager transactionManager, CouponIssuer issuer,
-		CouponIssueMetricRecorder metrics, @Value("${coupon.issue.max-attempts:3}") int maxAttempts,
-		@Value("${coupon.issue.retry-budget-ms:250}") long retryBudgetMillis) {
+		CouponIssueMetricRecorder metrics,
+		@Value("${coupon.issue.max-attempts:3}")
+		int maxAttempts,
+		@Value("${coupon.issue.retry-budget-ms:250}")
+		long retryBudgetMillis) {
 		Assert.isTrue(maxAttempts >= 1 && maxAttempts <= 10, "coupon.issue.max-attempts must be 1..10");
 		Assert.isTrue(retryBudgetMillis >= 1 && retryBudgetMillis <= 5000, "Invalid coupon retry budget");
 		this.transactionManager = transactionManager;
@@ -53,16 +56,20 @@ public class CouponSkipLockedIssueService {
 				} catch (CouponIssuer.NoAvailableUnitException busy) {
 					retry = RetryReason.EMPTY_UNIT;
 				} catch (RuntimeException failure) {
-					if (CouponIssueFailureClassifier.duplicateMemberCoupon(failure)) throw new CouponAlreadyIssuedException();
+					if (CouponIssueFailureClassifier.duplicateMemberCoupon(failure))
+						throw new CouponAlreadyIssuedException();
 					retry = CouponIssueFailureClassifier.retryReason(failure);
-					if (retry == null) throw failure;
+					if (retry == null)
+						throw failure;
 				}
 				// executeWithoutResult has rolled the entire attempt back before this fresh snapshot.
 				metrics.recordRetry(retry);
 				classifyEmptyOrContended(couponId, memberId);
 				long remaining = retryBudgetNanos - (System.nanoTime() - started);
-				if (attempt == maxAttempts || remaining <= 0) throw new CouponIssueContendedException();
-				LockSupport.parkNanos(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(ThreadLocalRandom.current().nextLong(1, 6))));
+				if (attempt == maxAttempts || remaining <= 0)
+					throw new CouponIssueContendedException();
+				LockSupport.parkNanos(
+					Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(ThreadLocalRandom.current().nextLong(1, 6))));
 				if (Thread.currentThread().isInterrupted() || System.nanoTime() - started >= retryBudgetNanos) {
 					throw new CouponIssueContendedException();
 				}
@@ -82,8 +89,9 @@ public class CouponSkipLockedIssueService {
 			transaction(false).executeWithoutResult(status -> issuer.issue(couponId, memberId));
 			result = DatabaseResult.SUCCESS;
 		} catch (RuntimeException failure) {
-			result = failure instanceof CouponIssuer.NoAvailableUnitException || CouponIssueFailureClassifier.retryReason(failure) != null
-				? DatabaseResult.RETRY : CouponIssueMetricResultResolver.databaseResult(failure);
+			result = failure instanceof CouponIssuer.NoAvailableUnitException
+				|| CouponIssueFailureClassifier.retryReason(failure) != null
+					? DatabaseResult.RETRY : CouponIssueMetricResultResolver.databaseResult(failure);
 			throw failure;
 		} finally {
 			metrics.recordDatabase(result, System.nanoTime() - started);

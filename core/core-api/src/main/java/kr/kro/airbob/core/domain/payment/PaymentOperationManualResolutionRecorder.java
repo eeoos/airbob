@@ -19,8 +19,7 @@ public class PaymentOperationManualResolutionRecorder {
 
 	public PaymentOperationManualResolutionRecorder(
 		PaymentOperationResolutionRepository resolutionRepository,
-		OperatorAlertOutboxPublisher alertPublisher
-	) {
+		OperatorAlertOutboxPublisher alertPublisher) {
 		this.resolutionRepository = resolutionRepository;
 		this.alertPublisher = alertPublisher;
 	}
@@ -33,8 +32,7 @@ public class PaymentOperationManualResolutionRecorder {
 		String evidenceReference,
 		PaymentOperationStatus previousStatus,
 		PaymentOperationStatus resultStatus,
-		Instant recordedAt
-	) {
+		Instant recordedAt) {
 		resolutionRepository.save(PaymentOperationResolution.recordAdmin(
 			operation,
 			actorMemberId,
@@ -43,8 +41,7 @@ public class PaymentOperationManualResolutionRecorder {
 			evidenceReference,
 			previousStatus,
 			resultStatus,
-			recordedAt
-		));
+			recordedAt));
 		appendAlert(operation, action);
 	}
 
@@ -54,8 +51,7 @@ public class PaymentOperationManualResolutionRecorder {
 		String reason,
 		PaymentOperationStatus previousStatus,
 		PaymentOperationStatus resultStatus,
-		Instant recordedAt
-	) {
+		Instant recordedAt) {
 		resolutionRepository.save(PaymentOperationResolution.recordSystem(
 			operation,
 			action,
@@ -63,8 +59,7 @@ public class PaymentOperationManualResolutionRecorder {
 			null,
 			previousStatus,
 			resultStatus,
-			recordedAt
-		));
+			recordedAt));
 		appendAlert(operation, action);
 	}
 

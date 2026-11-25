@@ -24,21 +24,17 @@ class WebMvcConfigCursorResolverTest {
 	@Test
 	@DisplayName("모든 커서 argument resolver 빈을 MVC에 등록한다")
 	void registersEveryCursorArgumentResolverBean() {
-		CurrentMemberIdArgumentResolver memberResolver =
-			mock(CurrentMemberIdArgumentResolver.class);
-		CursorParamArgumentResolver cursorResolver =
-			mock(CursorParamArgumentResolver.class);
-		ReviewCursorParamArgumentResolver reviewCursorResolver =
-			mock(ReviewCursorParamArgumentResolver.class);
-		CouponCampaignCursorParamArgumentResolver campaignCursorResolver =
-			mock(CouponCampaignCursorParamArgumentResolver.class);
+		CurrentMemberIdArgumentResolver memberResolver = mock(CurrentMemberIdArgumentResolver.class);
+		CursorParamArgumentResolver cursorResolver = mock(CursorParamArgumentResolver.class);
+		ReviewCursorParamArgumentResolver reviewCursorResolver = mock(ReviewCursorParamArgumentResolver.class);
+		CouponCampaignCursorParamArgumentResolver campaignCursorResolver = mock(
+			CouponCampaignCursorParamArgumentResolver.class);
 		WebMvcConfig config = new WebMvcConfig(
 			memberResolver,
 			List.of(cursorResolver, reviewCursorResolver, campaignCursorResolver),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
-			mock(QueryCountInterceptor.class)
-		);
+			mock(QueryCountInterceptor.class));
 		List<HandlerMethodArgumentResolver> resolvers = new ArrayList<>();
 
 		config.addArgumentResolvers(resolvers);

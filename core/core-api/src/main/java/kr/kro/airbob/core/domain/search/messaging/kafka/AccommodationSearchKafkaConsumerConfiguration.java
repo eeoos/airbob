@@ -10,14 +10,11 @@ import kr.kro.airbob.core.support.messaging.kafka.IntegrationEventKafkaListenerC
 @Configuration(proxyBeanMethods = false)
 public class AccommodationSearchKafkaConsumerConfiguration {
 
-	public static final String CONTAINER_FACTORY =
-		"accommodationSearchKafkaListenerContainerFactory";
+	public static final String CONTAINER_FACTORY = "accommodationSearchKafkaListenerContainerFactory";
 
 	@Bean(name = CONTAINER_FACTORY)
-	public ConcurrentKafkaListenerContainerFactory<Object, Object>
-		accommodationSearchKafkaListenerContainerFactory(
-			IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder
-		) {
+	public ConcurrentKafkaListenerContainerFactory<Object, Object> accommodationSearchKafkaListenerContainerFactory(
+		IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder) {
 		return factoryBuilder.build(AccommodationSearchRefreshRequestedV1.TOPIC);
 	}
 }

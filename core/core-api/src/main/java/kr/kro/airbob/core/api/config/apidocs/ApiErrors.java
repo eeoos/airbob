@@ -10,7 +10,7 @@ import kr.kro.airbob.core.support.error.ErrorCode;
 /** Major client-visible failures; values and examples come from the application's error catalog. */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ApiErrors {
+public @interface ApiErrors{
 
 	ErrorCode[] value();
 }

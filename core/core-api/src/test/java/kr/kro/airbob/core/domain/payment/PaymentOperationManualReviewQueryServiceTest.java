@@ -23,7 +23,8 @@ import kr.kro.airbob.core.support.error.InvalidInputException;
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationManualReviewQueryServiceTest {
 
-	@Mock private PaymentOperationManualReviewQueryRepository repository;
+	@Mock
+	private PaymentOperationManualReviewQueryRepository repository;
 
 	private PaymentOperationManualReviewQueryService service;
 
@@ -80,8 +81,7 @@ class PaymentOperationManualReviewQueryServiceTest {
 		String operationUid,
 		PaymentOperationType operationType,
 		boolean notPaidResolutionEligible,
-		int offset
-	) {
+		int offset) {
 		return new PaymentOperationManualReviewQueueItem(
 			UUID.fromString(operationUid),
 			operationType,
@@ -89,7 +89,6 @@ class PaymentOperationManualReviewQueryServiceTest {
 			1 + offset,
 			Instant.parse("2026-08-17T00:00:00Z").plusSeconds(offset),
 			offset,
-			notPaidResolutionEligible
-		);
+			notPaidResolutionEligible);
 	}
 }

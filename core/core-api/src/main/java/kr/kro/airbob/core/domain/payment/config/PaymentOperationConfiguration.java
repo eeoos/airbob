@@ -24,8 +24,7 @@ public class PaymentOperationConfiguration {
 
 	@Bean
 	public InitializingBean paymentOperationTimeoutGuard(
-		PaymentOperationProperties operation, TossPaymentClientProperties toss
-	) {
+		PaymentOperationProperties operation, TossPaymentClientProperties toss) {
 		return () -> {
 			if (toss.connectTimeout().compareTo(operation.leaseDuration()) >= 0
 				|| toss.readTimeout().compareTo(operation.leaseDuration()) >= 0) {

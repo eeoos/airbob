@@ -90,14 +90,22 @@ class HostReservationListReadQueryIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private ObjectMapper objectMapper;
-	@Autowired private CursorPageInfoCreator cursorPageInfoCreator;
-	@Autowired private CursorDecoder cursorDecoder;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@Autowired
+	private ReservationRepository reservationRepository;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private CursorPageInfoCreator cursorPageInfoCreator;
+	@Autowired
+	private CursorDecoder cursorDecoder;
 	private ReservationQueryService service;
 
 	@BeforeEach
@@ -273,8 +281,7 @@ class HostReservationListReadQueryIntegrationTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = ReservationStatus.class,
-		names = {"CONFIRMED", "CANCELLATION_PENDING", "CANCELLATION_FAILED"})
+	@EnumSource(value = ReservationStatus.class, names = {"CONFIRMED", "CANCELLATION_PENDING", "CANCELLATION_FAILED"})
 	void checkoutInstantBelongsToPastAtMicrosecondPrecision(ReservationStatus status) {
 		LocalDate checkIn = LocalDate.parse("2026-09-07");
 		LocalDateTime nowUtc = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
@@ -300,7 +307,8 @@ class HostReservationListReadQueryIntegrationTest {
 		sqlCapture.statements.clear();
 		HostReservationInfos result = HostReservationInfos.from(service.findHostReservations(hostId,
 			new CursorPageRequest(size, cursor == null ? null : cursor.id(),
-				cursor == null ? null : cursor.lastCreatedAt()), filter));
+				cursor == null ? null : cursor.lastCreatedAt()),
+			filter));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).hasSize(1);
 		String sql = sqlCapture.statements.getFirst();
@@ -331,7 +339,8 @@ class HostReservationListReadQueryIntegrationTest {
 		assertThat(sql).doesNotContain(" offset ", " for update", " for share");
 	}
 
-	private void insertReservation(long id, long accommodationId, long guestId, ReservationStatus status, LocalDate checkIn) {
+	private void insertReservation(long id, long accommodationId, long guestId, ReservationStatus status,
+		LocalDate checkIn) {
 		LocalDate checkOut = checkIn.plusDays(2);
 		jdbc.update("""
 			INSERT INTO reservation (id, reservation_uid, reservation_code, accommodation_id, guest_id,

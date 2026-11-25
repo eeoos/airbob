@@ -25,14 +25,12 @@ class QueryCountMonitoringFlowTest {
 	void recordsInspectedSqlAsRouteTemplateMetric() throws Exception {
 		SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 		QueryCountInterceptor interceptor = new QueryCountInterceptor(
-			new MicrometerQueryCountMetricRecorder(meterRegistry)
-		);
+			new MicrometerQueryCountMetricRecorder(meterRegistry));
 		SqlQueryStatementInspector inspector = new SqlQueryStatementInspector();
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/accommodations/10");
 		request.setAttribute(
 			HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE,
-			"/api/v1/accommodations/{accommodationId}"
-		);
+			"/api/v1/accommodations/{accommodationId}");
 
 		interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 		inspector.inspect("select * from accommodation where id = ?");
@@ -45,8 +43,7 @@ class QueryCountMonitoringFlowTest {
 		assertThat(summary(meterRegistry, SqlQueryType.TOTAL).totalAmount()).isEqualTo(3.0);
 		assertThat(meterRegistry.find(MicrometerQueryCountMetricRecorder.METRIC_NAME)
 			.tag("path", "/api/v1/accommodations/10")
-			.summary()
-		).isNull();
+			.summary()).isNull();
 		assertThat(QueryCountContextHolder.getContext()).isNull();
 	}
 

@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import kr.kro.airbob.core.support.response.ApiResponse;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.support.cursor.annotation.CursorParam;
 import kr.kro.airbob.core.support.cursor.dto.CouponCampaignCursorData;
@@ -33,6 +32,7 @@ import kr.kro.airbob.core.support.cursor.dto.CursorRequest;
 import kr.kro.airbob.core.support.cursor.dto.ReviewCursorData;
 import kr.kro.airbob.core.support.cursor.util.CursorDecoder;
 import kr.kro.airbob.core.support.cursor.util.CursorEncoder;
+import kr.kro.airbob.core.support.response.ApiResponse;
 
 @DisplayName("커서 요청 HTTP 계약 테스트")
 class CursorArgumentResolverMvcTest {
@@ -48,12 +48,10 @@ class CursorArgumentResolverMvcTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 		CursorDecoder cursorDecoder = new CursorDecoder(objectMapper);
-		CursorParamArgumentResolver argumentResolver =
-			new CursorParamArgumentResolver(cursorDecoder);
-		ReviewCursorParamArgumentResolver reviewArgumentResolver =
-			new ReviewCursorParamArgumentResolver(cursorDecoder);
-		CouponCampaignCursorParamArgumentResolver campaignArgumentResolver =
-			new CouponCampaignCursorParamArgumentResolver(cursorDecoder);
+		CursorParamArgumentResolver argumentResolver = new CursorParamArgumentResolver(cursorDecoder);
+		ReviewCursorParamArgumentResolver reviewArgumentResolver = new ReviewCursorParamArgumentResolver(cursorDecoder);
+		CouponCampaignCursorParamArgumentResolver campaignArgumentResolver = new CouponCampaignCursorParamArgumentResolver(
+			cursorDecoder);
 		cursorEncoder = new CursorEncoder(objectMapper);
 
 		mockMvc = MockMvcBuilders.standaloneSetup(new CursorTestController())
@@ -68,8 +66,8 @@ class CursorArgumentResolverMvcTest {
 	@DisplayName("숫자가 아닌 페이지 크기는 400으로 응답한다")
 	void rejectsNonNumericPageSize(String path) throws Exception {
 		mockMvc.perform(get(path)
-				.param("size", "abc")
-				.accept(MediaType.APPLICATION_JSON))
+			.param("size", "abc")
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.error.code").value("C006"));
@@ -80,8 +78,8 @@ class CursorArgumentResolverMvcTest {
 	@DisplayName("손상된 커서는 400으로 응답한다")
 	void rejectsMalformedCursor(String path) throws Exception {
 		mockMvc.perform(get(path)
-				.param("cursor", "%%%")
-				.accept(MediaType.APPLICATION_JSON))
+			.param("cursor", "%%%")
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.error.code").value("C010"));
@@ -96,8 +94,8 @@ class CursorArgumentResolverMvcTest {
 	@DisplayName("허용 범위를 벗어난 페이지 크기는 400으로 응답한다")
 	void rejectsOutOfRangePageSize(String path, String size) throws Exception {
 		mockMvc.perform(get(path)
-				.param("size", size)
-				.accept(MediaType.APPLICATION_JSON))
+			.param("size", size)
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C006"));
 	}
@@ -111,8 +109,8 @@ class CursorArgumentResolverMvcTest {
 	@DisplayName("페이지 크기 경계값을 허용한다")
 	void acceptsPageSizeBoundaries(String path, String size) throws Exception {
 		mockMvc.perform(get(path)
-				.param("size", size)
-				.accept(MediaType.APPLICATION_JSON))
+			.param("size", size)
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.size").value(Integer.parseInt(size)));
 	}
@@ -122,7 +120,7 @@ class CursorArgumentResolverMvcTest {
 	@DisplayName("페이지 인자를 생략하면 크기 20의 첫 페이지로 변환한다")
 	void defaultsToFirstPage(String path) throws Exception {
 		mockMvc.perform(get(path)
-				.accept(MediaType.APPLICATION_JSON))
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.size").value(20))
 			.andExpect(jsonPath("$.data.last_id").isEmpty());
@@ -133,13 +131,12 @@ class CursorArgumentResolverMvcTest {
 	void resolvesGenericCursorRequest() throws Exception {
 		String cursor = cursorEncoder.encode(new CursorData(
 			17L,
-			LocalDateTime.of(2026, 8, 13, 12, 30)
-		));
+			LocalDateTime.of(2026, 8, 13, 12, 30)));
 
 		mockMvc.perform(get("/cursor")
-				.param("size", "7")
-				.param("cursor", cursor)
-				.accept(MediaType.APPLICATION_JSON))
+			.param("size", "7")
+			.param("cursor", cursor)
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.size").value(7))
 			.andExpect(jsonPath("$.data.last_id").value(17))
@@ -152,13 +149,12 @@ class CursorArgumentResolverMvcTest {
 		String cursor = cursorEncoder.encode(new ReviewCursorData(
 			23L,
 			LocalDateTime.of(2026, 8, 13, 14, 15),
-			4
-		));
+			4));
 
 		mockMvc.perform(get("/review-cursor")
-				.param("size", "7")
-				.param("cursor", cursor)
-				.accept(MediaType.APPLICATION_JSON))
+			.param("size", "7")
+			.param("cursor", cursor)
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.size").value(7))
 			.andExpect(jsonPath("$.data.last_id").value(23))
@@ -170,13 +166,12 @@ class CursorArgumentResolverMvcTest {
 	void resolvesCampaignCursorRequest() throws Exception {
 		String cursor = cursorEncoder.encode(new CouponCampaignCursorData(
 			29L,
-			LocalDateTime.of(2026, 8, 13, 15, 45, 0, 123456000)
-		));
+			LocalDateTime.of(2026, 8, 13, 15, 45, 0, 123456000)));
 
 		mockMvc.perform(get("/campaign-cursor")
-				.param("size", "7")
-				.param("cursor", cursor)
-				.accept(MediaType.APPLICATION_JSON))
+			.param("size", "7")
+			.param("cursor", cursor)
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.size").value(7))
 			.andExpect(jsonPath("$.data.last_id").value(29))
@@ -188,12 +183,11 @@ class CursorArgumentResolverMvcTest {
 	void rejectsGenericCursorForCampaignRequest() throws Exception {
 		String cursor = cursorEncoder.encode(new CursorData(
 			17L,
-			LocalDateTime.of(2026, 8, 13, 12, 30)
-		));
+			LocalDateTime.of(2026, 8, 13, 12, 30)));
 
 		mockMvc.perform(get("/campaign-cursor")
-				.param("cursor", cursor)
-				.accept(MediaType.APPLICATION_JSON))
+			.param("cursor", cursor)
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C010"));
 	}
@@ -203,12 +197,11 @@ class CursorArgumentResolverMvcTest {
 	void rejectsCampaignCursorForGenericRequest() throws Exception {
 		String cursor = cursorEncoder.encode(new CouponCampaignCursorData(
 			29L,
-			LocalDateTime.of(2026, 8, 13, 15, 45)
-		));
+			LocalDateTime.of(2026, 8, 13, 15, 45)));
 
 		mockMvc.perform(get("/cursor")
-				.param("cursor", cursor)
-				.accept(MediaType.APPLICATION_JSON))
+			.param("cursor", cursor)
+			.accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C010"));
 	}
@@ -218,22 +211,22 @@ class CursorArgumentResolverMvcTest {
 
 		@GetMapping("/cursor")
 		ApiResponse<CursorRequest.CursorPageRequest> find(
-			@CursorParam CursorRequest.CursorPageRequest request
-		) {
+			@CursorParam
+			CursorRequest.CursorPageRequest request) {
 			return ApiResponse.success(request);
 		}
 
 		@GetMapping("/review-cursor")
 		ApiResponse<CursorRequest.ReviewCursorPageRequest> findReviews(
-			@CursorParam CursorRequest.ReviewCursorPageRequest request
-		) {
+			@CursorParam
+			CursorRequest.ReviewCursorPageRequest request) {
 			return ApiResponse.success(request);
 		}
 
 		@GetMapping("/campaign-cursor")
 		ApiResponse<CursorRequest.CouponCampaignCursorPageRequest> findCampaigns(
-			@CursorParam CursorRequest.CouponCampaignCursorPageRequest request
-		) {
+			@CursorParam
+			CursorRequest.CouponCampaignCursorPageRequest request) {
 			return ApiResponse.success(request);
 		}
 	}

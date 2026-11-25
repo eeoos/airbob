@@ -30,16 +30,15 @@ class UtcResponseJsonTest {
 	@Test
 	@DisplayName("숙소, 리뷰, 위시리스트의 절대 시각은 Z가 붙은 UTC로 반환한다")
 	void serializesAbsoluteTimesWithUtcOffset() {
-		AccommodationResponse.HostAccommodationInfo accommodation =
-			AccommodationResponse.HostAccommodationInfo.builder().createdAt(OCCURRED_AT).build();
+		AccommodationResponse.HostAccommodationInfo accommodation = AccommodationResponse.HostAccommodationInfo
+			.builder().createdAt(OCCURRED_AT).build();
 		ReviewResponse.ReviewInfo review = new ReviewResponse.ReviewInfo(
 			1L, 5, "좋아요", OCCURRED_AT, null, List.of());
 		WishlistResponse.WishlistInfo wishlist = WishlistResponse.WishlistInfo.builder()
 			.createdAt(OCCURRED_AT)
 			.build();
-		WishlistAccommodationResponse.WishlistAccommodationInfo wishlistAccommodation =
-			new WishlistAccommodationResponse.WishlistAccommodationInfo(
-				1L, null, OCCURRED_AT, null, null, null, true);
+		WishlistAccommodationResponse.WishlistAccommodationInfo wishlistAccommodation = new WishlistAccommodationResponse.WishlistAccommodationInfo(
+			1L, null, OCCURRED_AT, null, null, null, true);
 
 		assertUtc(accommodation, "created_at", "createdAt");
 		assertUtc(review, "reviewed_at", "reviewedAt");

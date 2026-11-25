@@ -10,10 +10,7 @@ public class MemberAdminResponse {
 
 	@Schema(name = "MemberAdminResponseRoleChanged")
 	public record RoleChanged(
-		@Schema(description = "역할 변경 대상 회원 ID", example = "20", requiredMode = Schema.RequiredMode.REQUIRED)
-		Long memberId,
-		@Schema(description = "요청 처리 후 대상 회원의 역할", example = "ADMIN", requiredMode = Schema.RequiredMode.REQUIRED)
-		MemberRole role
-	) {
+		@Schema(description = "역할 변경 대상 회원 ID", example = "20", requiredMode = Schema.RequiredMode.REQUIRED) Long memberId,
+		@Schema(description = "요청 처리 후 대상 회원의 역할", example = "ADMIN", requiredMode = Schema.RequiredMode.REQUIRED) MemberRole role) {
 	}
 }

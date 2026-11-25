@@ -13,20 +13,24 @@ import kr.kro.airbob.core.domain.accommodation.repository.projection.Accommodati
 import kr.kro.airbob.core.domain.accommodation.repository.querydsl.AccommodationAmenityRepositoryCustom;
 
 public interface AccommodationAmenityRepository extends JpaRepository<AccommodationAmenity, Long>,
-    AccommodationAmenityRepositoryCustom {
+	AccommodationAmenityRepositoryCustom {
 
-    List<AccommodationAmenity> findAllByAccommodationId(Long accommodationId);
+	List<AccommodationAmenity> findAllByAccommodationId(Long accommodationId);
 
-    @Query("""
-        select new kr.kro.airbob.core.domain.accommodation.repository.projection.AccommodationAmenityProjection(
-            amenity.amenityCode, amenity.count)
-        from AccommodationAmenity amenity where amenity.accommodation.id = :accommodationId
-        """)
-    List<AccommodationAmenityProjection> findDetailAmenitiesByAccommodationId(@Param("accommodationId") Long accommodationId);
+	@Query("""
+		select new kr.kro.airbob.core.domain.accommodation.repository.projection.AccommodationAmenityProjection(
+		    amenity.amenityCode, amenity.count)
+		from AccommodationAmenity amenity where amenity.accommodation.id = :accommodationId
+		""")
+	List<AccommodationAmenityProjection> findDetailAmenitiesByAccommodationId(
+		@Param("accommodationId")
+		Long accommodationId);
 
-    List<AccommodationAmenity> findAllByAccommodation_AccommodationUid(UUID accommodationUid);
+	List<AccommodationAmenity> findAllByAccommodation_AccommodationUid(UUID accommodationUid);
 
-    @Modifying
-    @Query("DELETE FROM AccommodationAmenity amenity WHERE amenity.accommodation.id = :accommodationId")
-    int deleteByAccommodationIdInBulk(@Param("accommodationId") Long accommodationId);
+	@Modifying
+	@Query("DELETE FROM AccommodationAmenity amenity WHERE amenity.accommodation.id = :accommodationId")
+	int deleteByAccommodationIdInBulk(
+		@Param("accommodationId")
+		Long accommodationId);
 }

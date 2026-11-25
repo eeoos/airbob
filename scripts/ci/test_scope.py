@@ -11,8 +11,12 @@ class ScopeTests(unittest.TestCase):
     def test_docs_and_archived_measurements_do_not_run_or_deploy_application(self):
         self.assertEqual(scope.classify(['docs/performance/cache.md', 'README.md',
             'load-test/k6/cache/comparison.js', 'scripts/archive/bootstrap.py',
-            'CLAUDE.md', 'AGENTS.md', '.claude/rules/reservation.md']),
+            'CLAUDE.md', 'AGENTS.md', '.claude/rules/reservation.md', '.editorconfig', '.git-blame-ignore-revs']),
             dict(app=False, infrastructure=False, data=False, oci=False, api_docs=False))
+
+    def test_formatter_configuration_runs_the_java_build_without_deploying(self):
+        self.assertEqual(scope.classify(['config/formatter/naver-eclipse-formatter.xml']),
+            dict(app=True, infrastructure=False, data=False, oci=False, api_docs=False))
 
     def test_api_docs_run_contract_checks_without_application_tests_or_deployment(self):
         for path in ('docs/api/README.md', 'docs/api/openapi/client.yaml',

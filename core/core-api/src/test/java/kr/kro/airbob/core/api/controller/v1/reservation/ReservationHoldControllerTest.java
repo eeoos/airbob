@@ -28,7 +28,6 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
-import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.domain.payment.PaymentCancellationCommandService;
 import kr.kro.airbob.core.domain.reservation.ReservationCheckoutService;
@@ -48,10 +47,14 @@ class ReservationHoldControllerTest {
 	private static final String RESERVATION_UID = "8ff131af-946c-4fe1-889d-e7cd7deaeec0";
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@Mock private ReservationHoldCommandService holdCommandService;
-	@Mock private PaymentCancellationCommandService cancellationCommandService;
-	@Mock private ReservationQuoteService quoteService;
-	@Mock private ReservationCheckoutService checkoutService;
+	@Mock
+	private ReservationHoldCommandService holdCommandService;
+	@Mock
+	private PaymentCancellationCommandService cancellationCommandService;
+	@Mock
+	private ReservationQuoteService quoteService;
+	@Mock
+	private ReservationCheckoutService checkoutService;
 
 	private MockMvc mockMvc;
 
@@ -105,12 +108,11 @@ class ReservationHoldControllerTest {
 			"KRW",
 			NOW.plusSeconds(900),
 			900,
-			NOW
-		);
+			NOW);
 		given(holdCommandService.beginPaymentAttempt(RESERVATION_UID, MEMBER_ID)).willReturn(response);
 
 		mockMvc.perform(post(
-				"/api/v1/reservations/{reservationUid}/payment-attempts", RESERVATION_UID))
+			"/api/v1/reservations/{reservationUid}/payment-attempts", RESERVATION_UID))
 			.andExpect(status().isOk())
 			.andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
 			.andExpect(jsonPath("$.data.payment_attempt_id").value(paymentAttemptId.toString()))
@@ -132,7 +134,7 @@ class ReservationHoldControllerTest {
 		mockMvc.perform(delete("/api/v2/reservations/{reservationUid}/hold", RESERVATION_UID))
 			.andExpect(status().isNotFound());
 		mockMvc.perform(post(
-				"/api/v2/reservations/{reservationUid}/payment-attempts", RESERVATION_UID))
+			"/api/v2/reservations/{reservationUid}/payment-attempts", RESERVATION_UID))
 			.andExpect(status().isNotFound());
 
 		then(holdCommandService).shouldHaveNoInteractions();

@@ -30,25 +30,11 @@ public class AccommodationDetailCacheInvalidationKafkaListener {
 	private final AccommodationDetailCache cache;
 	private final OperatorAlertEnqueueService alertEnqueueService;
 
-	@RetryableTopic(
-		attempts = "${accommodation.detail-cache.invalidation.kafka.attempts:4}",
-		backoff = @Backoff(
-			delayExpression = "${accommodation.detail-cache.invalidation.kafka.backoff-ms:30000}"),
-		kafkaTemplate = "accommodationDetailCacheRetryKafkaTemplate",
-		listenerContainerFactory = AccommodationDetailCacheKafkaConsumerConfiguration.CONTAINER_FACTORY,
-		retryTopicSuffix = ".RETRY",
-		dltTopicSuffix = ".DLT",
-		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
-		dltStrategy = DltStrategy.FAIL_ON_ERROR,
-		autoCreateTopics = "false"
-	)
-	@KafkaListener(
-		topics = AccommodationDetailCacheInvalidationRequestedV1.TOPIC,
-		groupId = "${accommodation.detail-cache.invalidation.kafka.group:accommodation-detail-cache-invalidation-group}",
-		containerFactory = AccommodationDetailCacheKafkaConsumerConfiguration.CONTAINER_FACTORY,
-		autoStartup = "${accommodation.detail-cache.invalidation.kafka.auto-startup:true}"
-	)
-	public void handle(@Payload String message, Acknowledgment acknowledgment) {
+	@RetryableTopic(attempts = "${accommodation.detail-cache.invalidation.kafka.attempts:4}", backoff = @Backoff(delayExpression = "${accommodation.detail-cache.invalidation.kafka.backoff-ms:30000}"), kafkaTemplate = "accommodationDetailCacheRetryKafkaTemplate", listenerContainerFactory = AccommodationDetailCacheKafkaConsumerConfiguration.CONTAINER_FACTORY, retryTopicSuffix = ".RETRY", dltTopicSuffix = ".DLT", sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC, dltStrategy = DltStrategy.FAIL_ON_ERROR, autoCreateTopics = "false")
+	@KafkaListener(topics = AccommodationDetailCacheInvalidationRequestedV1.TOPIC, groupId = "${accommodation.detail-cache.invalidation.kafka.group:accommodation-detail-cache-invalidation-group}", containerFactory = AccommodationDetailCacheKafkaConsumerConfiguration.CONTAINER_FACTORY, autoStartup = "${accommodation.detail-cache.invalidation.kafka.auto-startup:true}")
+	public void handle(
+		@Payload
+		String message, Acknowledgment acknowledgment) {
 		AccommodationDetailCacheInvalidationRequestedV1 event = decode(message).payload();
 		cache.evictOrThrow(event.accommodationId(), event.reason());
 		acknowledgment.acknowledge();
@@ -72,8 +58,8 @@ public class AccommodationDetailCacheInvalidationKafkaListener {
 		String trustedTopic = AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR.destination();
 		String observedOriginalTopic = KafkaRetryHeaders.readStringHeader(
 			record.headers(), KafkaHeaders.ORIGINAL_TOPIC).orElse(null);
-		KafkaRetryHeaders.RecordCoordinates coordinates =
-			KafkaRetryHeaders.canonicalSourceCoordinates(record, trustedTopic);
+		KafkaRetryHeaders.RecordCoordinates coordinates = KafkaRetryHeaders.canonicalSourceCoordinates(record,
+			trustedTopic);
 		return OperatorAlertSourcePosition.from(
 			AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR,
 			observedOriginalTopic,

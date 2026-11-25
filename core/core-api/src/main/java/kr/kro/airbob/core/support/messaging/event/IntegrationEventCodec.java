@@ -39,8 +39,7 @@ public class IntegrationEventCodec {
 	public <T extends IntegrationEvent> EventEnvelope<T> decode(
 		String rawMessage,
 		EventDescriptor expectedDescriptor,
-		Class<T> payloadType
-	) {
+		Class<T> payloadType) {
 		try {
 			Objects.requireNonNull(expectedDescriptor);
 			Objects.requireNonNull(payloadType);
@@ -59,8 +58,7 @@ public class IntegrationEventCodec {
 				rawEnvelope.eventType(),
 				rawEnvelope.eventVersion(),
 				occurredAt,
-				payload
-			);
+				payload);
 		} catch (Exception exception) {
 			throw new InvalidIntegrationEventException();
 		}
@@ -105,7 +103,6 @@ public class IntegrationEventCodec {
 		String eventType,
 		String eventVersion,
 		String occurredAt,
-		JsonNode payload
-	) {
+		JsonNode payload) {
 	}
 }

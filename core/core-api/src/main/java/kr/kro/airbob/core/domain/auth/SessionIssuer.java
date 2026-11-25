@@ -1,10 +1,11 @@
 package kr.kro.airbob.core.domain.auth;
 
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.MemberReader;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 비밀번호를 확인한 회원에게 세션을 발급한다. 로그인은 비밀번호 비교를 트랜잭션 밖에서 하므로,
@@ -13,17 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 public class SessionIssuer {
-    private final MemberReader memberReader;
-    private final SessionWriter sessionWriter;
+	private final MemberReader memberReader;
+	private final SessionWriter sessionWriter;
 
-    @Transactional
-    public String issue(Long memberId, String verifiedPasswordHash) {
-        Member member = memberReader.readActiveForUpdate(memberId);
+	@Transactional
+	public String issue(Long memberId, String verifiedPasswordHash) {
+		Member member = memberReader.readActiveForUpdate(memberId);
 
-        if (!member.hasPasswordHash(verifiedPasswordHash)) {
-            throw new InvalidPasswordException();
-        }
+		if (!member.hasPasswordHash(verifiedPasswordHash)) {
+			throw new InvalidPasswordException();
+		}
 
-        return sessionWriter.create(memberId);
-    }
+		return sessionWriter.create(memberId);
+	}
 }

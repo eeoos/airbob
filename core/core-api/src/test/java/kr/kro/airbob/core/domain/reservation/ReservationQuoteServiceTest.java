@@ -49,24 +49,33 @@ class ReservationQuoteServiceTest {
 	private static final long COUPON_ID = 55L;
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private MemberReader memberReader;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private ReservationQuoteRepository quoteRepository;
-	@Mock private CouponUsageManager couponUsageManager;
-	@Mock private BookingWindowProvider bookingWindowProvider;
-	@Mock private Clock clock;
+	@Mock
+	private AccommodationRepository accommodationRepository;
+	@Mock
+	private MemberReader memberReader;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private ReservationQuoteRepository quoteRepository;
+	@Mock
+	private CouponUsageManager couponUsageManager;
+	@Mock
+	private BookingWindowProvider bookingWindowProvider;
+	@Mock
+	private Clock clock;
 
 	private ReservationQuoteService quoteService;
 
-	@Captor private ArgumentCaptor<ReservationQuote> quoteCaptor;
+	@Captor
+	private ArgumentCaptor<ReservationQuote> quoteCaptor;
 
 	private Accommodation accommodation;
 
 	@BeforeEach
 	void setUp() {
 		quoteService = new ReservationQuoteService(new AccommodationReader(accommodationRepository), memberReader,
-			inventoryManager, new ReservationQuoteWriter(quoteRepository), couponUsageManager, bookingWindowProvider, clock);
+			inventoryManager, new ReservationQuoteWriter(quoteRepository), couponUsageManager, bookingWindowProvider,
+			clock);
 		Member host = Member.builder().id(3L).build();
 		Member guest = Member.builder().id(MEMBER_ID).build();
 		accommodation = Accommodation.builder()
@@ -105,7 +114,8 @@ class ReservationQuoteServiceTest {
 		given(couponUsageManager.preview(MEMBER_ID, COUPON_ID, 360_000L))
 			.willReturn(30_000L);
 
-		ReservationResponse.Quote response = ReservationResponse.Quote.from(quoteService.createQuote(request.toNewQuote(), MEMBER_ID));
+		ReservationResponse.Quote response = ReservationResponse.Quote
+			.from(quoteService.createQuote(request.toNewQuote(), MEMBER_ID));
 
 		assertThat(response.accommodationId()).isEqualTo(ACCOMMODATION_ID);
 		assertThat(response.orderName()).isEqualTo("한강 전망 숙소");
@@ -142,7 +152,8 @@ class ReservationQuoteServiceTest {
 	@Test
 	@DisplayName("쿠폰을 고르지 않은 견적은 쿠폰 저장소를 건드리지 않고 소계를 그대로 결제 금액으로 쓴다")
 	void createsQuoteWithoutCouponPreviewWhenCouponIsAbsent() {
-		ReservationResponse.Quote response = ReservationResponse.Quote.from(quoteService.createQuote(quoteRequest(null).toNewQuote(), MEMBER_ID));
+		ReservationResponse.Quote response = ReservationResponse.Quote
+			.from(quoteService.createQuote(quoteRequest(null).toNewQuote(), MEMBER_ID));
 
 		assertThat(response.subtotal()).isEqualTo(360_000L);
 		assertThat(response.discountAmount()).isZero();
@@ -176,10 +187,10 @@ class ReservationQuoteServiceTest {
 			LocalDate.of(2027, 3, 27),
 			LocalDate.of(2027, 3, 28),
 			2,
-			null
-		);
+			null);
 
-		assertThatThrownBy(() -> ReservationResponse.Quote.from(quoteService.createQuote(request.toNewQuote(), MEMBER_ID)))
+		assertThatThrownBy(
+			() -> ReservationResponse.Quote.from(quoteService.createQuote(request.toNewQuote(), MEMBER_ID)))
 			.isInstanceOf(InvalidReservationLocalTimeException.class);
 
 		then(quoteRepository).shouldHaveNoInteractions();
@@ -192,7 +203,6 @@ class ReservationQuoteServiceTest {
 			LocalDate.of(2026, 9, 10),
 			LocalDate.of(2026, 9, 13),
 			2,
-			couponId
-		);
+			couponId);
 	}
 }

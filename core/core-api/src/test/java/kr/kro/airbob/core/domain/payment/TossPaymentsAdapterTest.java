@@ -32,9 +32,9 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
-import org.springframework.retry.annotation.Retryable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -84,8 +84,7 @@ class TossPaymentsAdapterTest {
 	void springManagedAdapterUsesDisabledPropertyBeforeSendingARequest() {
 		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
 			context.getEnvironment().getPropertySources().addFirst(
-				new MapPropertySource("payment-guard-test", Map.of("payment.toss.enabled", false))
-			);
+				new MapPropertySource("payment-guard-test", Map.of("payment.toss.enabled", false)));
 			context.registerBean(
 				TossPaymentsClient.class, () -> new TossPaymentsClient(builder.build(), new ObjectMapper()));
 			context.registerBean(
@@ -94,8 +93,7 @@ class TossPaymentsAdapterTest {
 			context.register(TossPaymentsAdapter.class);
 			context.refresh();
 
-			assertTossPaymentsDisabled(() ->
-				context.getBean(TossPaymentsAdapter.class).confirm(command()));
+			assertTossPaymentsDisabled(() -> context.getBean(TossPaymentsAdapter.class).confirm(command()));
 		}
 
 		server.verify();
@@ -131,9 +129,7 @@ class TossPaymentsAdapterTest {
 				"088",
 				"1234567890",
 				"홍길동",
-				Instant.parse("2026-08-15T06:00:00Z")
-			)
-		)));
+				Instant.parse("2026-08-15T06:00:00Z")))));
 		server.verify();
 	}
 
@@ -182,8 +178,8 @@ class TossPaymentsAdapterTest {
 
 		PaymentGatewayResult result = adapter.confirm(command());
 
-		assertThat(result).isInstanceOfSatisfying(PaymentGatewayResult.OutcomeUnknown.class, unknown ->
-			assertThat(unknown.message()).doesNotContain("provider infrastructure detail"));
+		assertThat(result).isInstanceOfSatisfying(PaymentGatewayResult.OutcomeUnknown.class,
+			unknown -> assertThat(unknown.message()).doesNotContain("provider infrastructure detail"));
 		server.verify();
 	}
 
@@ -232,8 +228,8 @@ class TossPaymentsAdapterTest {
 
 	@Test
 	void connectTimeoutIsRetryable() {
-		TossPaymentsAdapter connectTimeoutAdapter =
-			adapterThatFailsWith(new HttpConnectTimeoutException("connect timed out"));
+		TossPaymentsAdapter connectTimeoutAdapter = adapterThatFailsWith(
+			new HttpConnectTimeoutException("connect timed out"));
 
 		PaymentGatewayResult result = connectTimeoutAdapter.confirm(command());
 
@@ -495,8 +491,7 @@ class TossPaymentsAdapterTest {
 			ORDER_ID,
 			100_000L,
 			PROVIDER_IDEMPOTENCY_KEY,
-			null
-		);
+			null);
 	}
 
 	private PaymentProviderCommand cancellationCommand() {
@@ -506,8 +501,7 @@ class TossPaymentsAdapterTest {
 			ORDER_ID,
 			100_000L,
 			"airbob-cancel-" + OPERATION_UID,
-			"사용자 요청"
-		);
+			"사용자 요청");
 	}
 
 	private String successBody(String status) {

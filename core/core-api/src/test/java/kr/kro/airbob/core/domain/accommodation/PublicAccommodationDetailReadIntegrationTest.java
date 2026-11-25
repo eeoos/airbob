@@ -50,7 +50,8 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationDetailReader.class, WishlistReader.class,
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationDetailReader.class,
+	WishlistReader.class,
 	PublicAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PublicAccommodationDetailReadIntegrationTest {
@@ -69,12 +70,18 @@ class PublicAccommodationDetailReadIntegrationTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 	}
 
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private EntityManager entityManager;
-	@Autowired private EntityManagerFactory entityManagerFactory;
-	@Autowired private SqlCapture sqlCapture;
-	@Autowired private AccommodationDetailReader reader;
-	@Autowired private ObjectMapper objectMapper;
+	@Autowired
+	private JdbcTemplate jdbc;
+	@Autowired
+	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
+	@Autowired
+	private SqlCapture sqlCapture;
+	@Autowired
+	private AccommodationDetailReader reader;
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	@BeforeEach
 	void fixture() {
@@ -93,14 +100,15 @@ class PublicAccommodationDetailReadIntegrationTest {
 			INSERT INTO occupancy_policy (id, max_occupancy, infant_occupancy, pet_occupancy, updated_at)
 			VALUES (50, 4, 1, 0, NOW(6))
 			""");
-		jdbc.update("""
-			INSERT INTO accommodation (id, member_id, accommodation_uid, name, description, type, base_price,
-				currency, address_id, occupancy_policy_id, status, check_in_time, check_out_time, time_zone_id, updated_at)
-			VALUES (30, 20, UUID_TO_BIN(UUID()), '공개 상세 계약 숙소', '창가에서 쉬어가는 숙소입니다.', 'APARTMENT',
-				150000, 'KRW', 40, 50, 'PUBLISHED', '15:30:00', '11:00:00', 'Asia/Seoul', NOW(6)),
-			       (31, 20, UUID_TO_BIN(UUID()), '다른 숙소', '다른 내용', 'HOUSE', 90000,
-				'KRW', null, null, 'PUBLISHED', '16:00:00', '12:00:00', 'Asia/Seoul', NOW(6))
-			""");
+		jdbc.update(
+			"""
+				INSERT INTO accommodation (id, member_id, accommodation_uid, name, description, type, base_price,
+					currency, address_id, occupancy_policy_id, status, check_in_time, check_out_time, time_zone_id, updated_at)
+				VALUES (30, 20, UUID_TO_BIN(UUID()), '공개 상세 계약 숙소', '창가에서 쉬어가는 숙소입니다.', 'APARTMENT',
+					150000, 'KRW', 40, 50, 'PUBLISHED', '15:30:00', '11:00:00', 'Asia/Seoul', NOW(6)),
+				       (31, 20, UUID_TO_BIN(UUID()), '다른 숙소', '다른 내용', 'HOUSE', 90000,
+					'KRW', null, null, 'PUBLISHED', '16:00:00', '12:00:00', 'Asia/Seoul', NOW(6))
+				""");
 		jdbc.update("""
 			INSERT INTO accommodation_review_summary
 				(accommodation_id, total_review_count, rating_sum, average_rating, updated_at)
@@ -160,7 +168,8 @@ class PublicAccommodationDetailReadIntegrationTest {
 		jdbc.update("UPDATE address SET latitude = 0, longitude = 0 WHERE id = 40");
 		jdbc.update("UPDATE occupancy_policy SET max_occupancy = 2, infant_occupancy = 0 WHERE id = 50");
 		jdbc.update("UPDATE member SET nickname = '변경된 호스트', thumbnail_image_url = null WHERE id = 20");
-		jdbc.update("UPDATE accommodation_review_summary SET total_review_count = 0, rating_sum = 0, average_rating = 0 WHERE accommodation_id = 30");
+		jdbc.update(
+			"UPDATE accommodation_review_summary SET total_review_count = 0, rating_sum = 0, average_rating = 0 WHERE accommodation_id = 30");
 		jdbc.update("UPDATE accommodation_amenity SET count = 0 WHERE id = 71");
 		jdbc.update("UPDATE accommodation_image SET image_url = '/contract/changed.jpg' WHERE id = 60");
 		Statistics statistics = prepareMeasurement();

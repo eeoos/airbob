@@ -23,9 +23,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.core.api.controller.v1.payment.request.PaymentRequest;
+import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse.Status;
-import kr.kro.airbob.core.api.controller.v1.payment.response.PaymentOperationResponse;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
@@ -57,11 +57,16 @@ class PaymentOperationCommandServiceTest {
 	private static final LocalDate CHECK_IN = LocalDate.of(2026, 8, 20);
 	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 22);
 
-	@Mock private ReservationRepository reservationRepository;
-	@Mock private ReservationInventoryManager inventoryManager;
-	@Mock private PaymentOperationRepository paymentOperationRepository;
-	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private OutboxWriter outboxWriter;
+	@Mock
+	private ReservationRepository reservationRepository;
+	@Mock
+	private ReservationInventoryManager inventoryManager;
+	@Mock
+	private PaymentOperationRepository paymentOperationRepository;
+	@Mock
+	private ReservationHistoryRepository historyRepository;
+	@Mock
+	private OutboxWriter outboxWriter;
 
 	private PaymentOperationCommandService service;
 	private Accommodation accommodation;
@@ -76,8 +81,7 @@ class PaymentOperationCommandServiceTest {
 			new PaymentOperationWriter(paymentOperationRepository),
 			new ReservationHistoryWriter(historyRepository, mock(ReservationHistoryBatchWriter.class)),
 			outboxWriter,
-			Clock.fixed(NOW, ZoneOffset.UTC)
-		);
+			Clock.fixed(NOW, ZoneOffset.UTC));
 		accommodation = Accommodation.builder().id(ACCOMMODATION_ID).build();
 		pendingReservation = Reservation.builder()
 			.id(1L)
@@ -99,13 +103,14 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 		ArgumentCaptor<PaymentOperation> operationCaptor = ArgumentCaptor.forClass(PaymentOperation.class);
-		ArgumentCaptor<PaymentOperationExecutionRequestedV1> eventCaptor =
-			ArgumentCaptor.forClass(PaymentOperationExecutionRequestedV1.class);
+		ArgumentCaptor<PaymentOperationExecutionRequestedV1> eventCaptor = ArgumentCaptor
+			.forClass(PaymentOperationExecutionRequestedV1.class);
 
 		PaymentRequest.Confirm request = request();
 		assertThat(request.paymentAttemptId()).isEqualTo(PAYMENT_ATTEMPT_ID);
 
-		Accepted accepted = PaymentOperationResponse.Accepted.from(service.requestConfirmation(request.toConfirmation(), GUEST_ID));
+		Accepted accepted = PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request.toConfirmation(), GUEST_ID));
 
 		assertThat(accepted.status()).isEqualTo(Status.PENDING);
 		assertThat(accepted.statusUrl()).isEqualTo("/api/v1/payment-operations/" + accepted.operationId());
@@ -131,14 +136,14 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 
-		PaymentOperationResponse.Accepted.from(service.requestConfirmation(request(PAYMENT_ATTEMPT_ID).toConfirmation(), GUEST_ID));
+		PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request(PAYMENT_ATTEMPT_ID).toConfirmation(), GUEST_ID));
 
 		InOrder order = org.mockito.Mockito.inOrder(
 			pendingReservation,
 			inventoryManager,
 			paymentOperationRepository,
-			outboxWriter
-		);
+			outboxWriter);
 		order.verify(pendingReservation).validatePaymentAttempt(PAYMENT_ATTEMPT_ID);
 		order.verify(paymentOperationRepository).findByDeduplicationKey("CONFIRM:" + RESERVATION_UID);
 		order.verify(pendingReservation).startPayment(NOW);
@@ -188,7 +193,8 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.of(existing));
 
-		Accepted replay = PaymentOperationResponse.Accepted.from(service.requestConfirmation(request(PAYMENT_ATTEMPT_ID).toConfirmation(), GUEST_ID));
+		Accepted replay = PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request(PAYMENT_ATTEMPT_ID).toConfirmation(), GUEST_ID));
 
 		assertThat(replay.operationId()).isEqualTo(EXISTING_OPERATION_UID);
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
@@ -218,7 +224,8 @@ class PaymentOperationCommandServiceTest {
 	void nonOwnerCreatesNeitherOperationNorOutbox() {
 		givenReservationLocks(pendingReservation);
 
-		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request().toConfirmation(), 999L)))
+		assertThatThrownBy(
+			() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request().toConfirmation(), 999L)))
 			.isInstanceOf(PaymentAccessDeniedException.class);
 
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -234,9 +241,11 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.of(existing));
 
-		assertThat(PaymentOperationResponse.Accepted.from(service.requestConfirmation(request("pk-one", 100_000).toConfirmation(), GUEST_ID)).operationId())
+		assertThat(PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request("pk-one", 100_000).toConfirmation(), GUEST_ID)).operationId())
 			.isEqualTo(EXISTING_OPERATION_UID);
-		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request("pk-two", 100_000).toConfirmation(), GUEST_ID)))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request("pk-two", 100_000).toConfirmation(), GUEST_ID)))
 			.isInstanceOf(PaymentOperationConflictException.class);
 
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -258,7 +267,8 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request().toConfirmation(), GUEST_ID)))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request().toConfirmation(), GUEST_ID)))
 			.isInstanceOf(ExpiredReservationConfirmationException.class);
 
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
@@ -276,7 +286,8 @@ class PaymentOperationCommandServiceTest {
 			.given(inventoryManager).transitionHeldToOccupied(
 				ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 
-		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request().toConfirmation(), GUEST_ID)))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request().toConfirmation(), GUEST_ID)))
 			.isInstanceOf(ReservationInventoryInvariantViolationException.class);
 
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
@@ -289,7 +300,8 @@ class PaymentOperationCommandServiceTest {
 		PaymentRequest.Confirm malformed = new PaymentRequest.Confirm(
 			"pk", "not-a-uuid", 100_000, PAYMENT_ATTEMPT_ID);
 
-		assertThatThrownBy(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(malformed.toConfirmation(), GUEST_ID)))
+		assertThatThrownBy(() -> PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(malformed.toConfirmation(), GUEST_ID)))
 			.isInstanceOf(InvalidInputException.class);
 
 		then(reservationRepository).shouldHaveNoInteractions();
@@ -321,7 +333,8 @@ class PaymentOperationCommandServiceTest {
 	}
 
 	private void assertPaymentAttemptRejected(PaymentRequest.Confirm request) {
-		Throwable thrown = catchThrowable(() -> PaymentOperationResponse.Accepted.from(service.requestConfirmation(request.toConfirmation(), GUEST_ID)));
+		Throwable thrown = catchThrowable(() -> PaymentOperationResponse.Accepted
+			.from(service.requestConfirmation(request.toConfirmation(), GUEST_ID)));
 
 		assertThat(thrown).isInstanceOf(BaseException.class);
 		assertThat(((BaseException)thrown).getErrorCode().getCode()).isEqualTo("R024");

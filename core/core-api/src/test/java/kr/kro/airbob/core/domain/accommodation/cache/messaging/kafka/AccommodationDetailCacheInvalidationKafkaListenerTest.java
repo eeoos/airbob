@@ -41,12 +41,14 @@ import kr.kro.airbob.core.support.messaging.event.InvalidIntegrationEventExcepti
 class AccommodationDetailCacheInvalidationKafkaListenerTest {
 
 	private static final String TOPIC = AccommodationDetailCacheInvalidationRequestedV1.TOPIC;
-	private static final UUID EVENT_ID =
-		UUID.fromString("12f4c680-6c60-4b60-a1c8-8ef1ea285207");
+	private static final UUID EVENT_ID = UUID.fromString("12f4c680-6c60-4b60-a1c8-8ef1ea285207");
 
-	@Mock private AccommodationDetailCache cache;
-	@Mock private OperatorAlertEnqueueService alertEnqueueService;
-	@Mock private Acknowledgment acknowledgment;
+	@Mock
+	private AccommodationDetailCache cache;
+	@Mock
+	private OperatorAlertEnqueueService alertEnqueueService;
+	@Mock
+	private Acknowledgment acknowledgment;
 
 	private AccommodationDetailCacheInvalidationKafkaListener listener;
 	private String message;
@@ -102,11 +104,12 @@ class AccommodationDetailCacheInvalidationKafkaListenerTest {
 
 		listener.handleDlt(record, acknowledgment);
 
-		then(alertEnqueueService).should().enqueue(org.mockito.ArgumentMatchers.argThat(request ->
-			request.kind() == OperatorAlertKind.ACCOMMODATION_CACHE_QUARANTINED
-				&& request.sourcePosition().topic().equals(TOPIC)
-				&& request.sourcePosition().partition() == 2
-				&& request.sourcePosition().offset() == 41L));
+		then(alertEnqueueService).should()
+			.enqueue(org.mockito.ArgumentMatchers
+				.argThat(request -> request.kind() == OperatorAlertKind.ACCOMMODATION_CACHE_QUARANTINED
+					&& request.sourcePosition().topic().equals(TOPIC)
+					&& request.sourcePosition().partition() == 2
+					&& request.sourcePosition().offset() == 41L));
 		then(acknowledgment).should().acknowledge();
 	}
 

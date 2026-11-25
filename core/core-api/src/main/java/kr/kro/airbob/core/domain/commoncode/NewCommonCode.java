@@ -9,6 +9,5 @@ public record NewCommonCode(
 	String name,
 	String description,
 	Integer sortOrder,
-	Boolean active
-) {
+	Boolean active) {
 }

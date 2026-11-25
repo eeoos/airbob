@@ -63,7 +63,8 @@ class TossPaymentsClientTest {
 			.andExpect(method(HttpMethod.POST))
 			.andExpect(header("Idempotency-Key", "cancel-key"))
 			.andExpect(content().json("{\"cancelReason\":\"guest request\",\"cancelAmount\":5000}", true))
-			.andRespond(withSuccess("{\"paymentKey\":\"pk_test\",\"status\":\"CANCELED\"}", MediaType.APPLICATION_JSON));
+			.andRespond(
+				withSuccess("{\"paymentKey\":\"pk_test\",\"status\":\"CANCELED\"}", MediaType.APPLICATION_JSON));
 
 		assertThat(client.cancel("pk_test", "guest request", 5_000L, "cancel-key").getStatus())
 			.isEqualTo("CANCELED");
