@@ -1,0 +1,65 @@
+# 코딩 컨벤션
+
+airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을 지키게 하는 장치를 하나씩 정해 둔다.
+기계로 확인할 수 있는 규칙은 기계가 강제하고, 사람과 AI 리뷰는 기계가 보지 못하는 부분만 본다.
+
+| 영역 | 기준 | 강제하는 장치 |
+|---|---|---|
+| 포매팅·import | 아래 [포매팅](#포매팅) | 편집 훅의 자동 정리, Stop 훅과 CI의 `spotlessCheck` |
+| 계층·의존 | [코드 구조](../architecture/code-structure.md) | ArchUnit(`core/core-api/src/test/java/kr/kro/airbob/architecture`) |
+
+## 포매팅
+
+### 기준
+
+[네이버 Java 코딩 컨벤션](https://naver.github.io/hackday-conventions-java/)을 따른다.
+
+- 들여쓰기는 탭이고, 탭 하나는 4칸이다. 줄을 이어 쓸 때는 한 단계 더 들여쓴다.
+- 한 줄은 120자를 넘지 않게 한다. 포매터가 줄을 바꾸지만 문자열 리터럴은 나누지 못하므로 120자가 넘는 줄이 남을 수 있다. 줄 길이 자체는 검사하지 않는다.
+- import 순서는 static → `java` → `javax` → `org` → `net` → `com` → 그 외이고, 그룹 사이에 빈 줄을 둔다. 쓰지 않는 import는 지운다.
+- 와일드카드 import(`*`)는 static import에서만 쓴다. 일반 import는 클래스 이름을 하나씩 쓴다.
+
+포매터 설정은 `config/formatter/naver-eclipse-formatter.xml`이다.
+
+- 네이버 저장소의 `rule-config/naver-eclipse-formatter.xml`을 그대로 옮겼다. 원본은 [커밋 `ad868727`](https://github.com/naver/hackday-conventions-java/blob/ad868727813252198d577c152071f190b774a87d/rule-config/naver-eclipse-formatter.xml)(2020-07-24)이고, 출처 주석만 붙였다.
+- 원본 저장소에는 라이선스 표기가 없다.
+- 옵션을 바꾸지 않고 원본 그대로 쓰기로 했다(2026-11-25). 지금 코드와 모양이 다른 곳도 네이버 설정에 맞췄다. 예를 들면 여러 줄로 쓴 파라미터 목록의 닫는 괄호를 앞 줄 끝에 둔다.
+- 옵션을 바꾸려면 전체 코드를 다시 포매팅하고 이 문서를 함께 고친다.
+
+### Spotless
+
+[Spotless](https://github.com/diffplug/spotless) Gradle 플러그인이 위 기준을 적용한다. 설정은 루트 `build.gradle`에 있다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `./gradlew spotlessApply` | 모든 모듈의 Java 파일을 포매팅한다 |
+| `./gradlew spotlessCheck` | 포매팅이 다르거나 static이 아닌 와일드카드 import가 있으면 실패한다. `check`에 포함되어 `./gradlew build`가 함께 실행한다 |
+
+- 대상은 각 모듈의 `src/*/java/**/*.java`다. QueryDSL Q클래스 같은 생성 코드(`build/`)는 빼고 본다.
+- 주석 내용은 다시 줄바꿈하지 않는다. Javadoc, 블록 주석, 한 줄 주석 모두 들여쓰기만 맞춘다.
+- 포매터가 만든 모양이 읽기 어렵다면 그 구간만 `// @formatter:off`와 `// @formatter:on`으로 감쌀 수 있다. 꼭 필요한 곳에만 쓴다.
+
+### 자동으로 적용되는 곳
+
+| 시점 | 장치 | 동작 |
+|---|---|---|
+| Claude Code가 Java 파일을 편집한 직후 | `.claude/hooks/compile-on-edit.sh` | 그 파일만 `spotlessApply`로 포매팅한 뒤 소스셋을 컴파일한다. 이 모드는 와일드카드 import 같은 lint를 검사하지 않는다 |
+| Claude Code가 응답을 마치기 전 | `.claude/hooks/test-before-stop.sh` | 바뀐 모듈의 `spotlessCheck`를 테스트와 함께 실행한다 |
+| PR CI | `ci.yml`의 app 잡(`./gradlew build`) | `spotlessCheck`가 실패하면 필수 검사 `CI result`가 실패한다 |
+
+### 사람이 편집할 때
+
+- `.editorconfig`가 인코딩, 줄 끝, 들여쓰기 문자를 맞춘다. IntelliJ는 이 파일을 자동으로 읽는다.
+- IntelliJ의 포매터는 Eclipse 포매터와 결과가 같다는 보장이 없다. 기준은 Spotless 결과다. 두 방법 중 하나를 쓴다.
+  - 커밋 전에 `./gradlew spotlessApply`를 실행한다.
+  - IntelliJ에 [Adapter for Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546) 플러그인을 설치하고, 위 XML과 같은 import 순서를 지정한다.
+
+### 전체 포매팅 커밋과 blame
+
+- 기존 코드는 2026-11-25에 포매팅만 담은 커밋 `1f871dd7` 하나로 맞췄다. 652개 파일이 바뀌었다.
+- 디버그 정보 없이(`-g:none`) 컴파일한 클래스 파일 1,484개가 이 커밋 전후로 같다. 그래서 동작은 바뀌지 않았다.
+- 이 커밋은 `.git-blame-ignore-revs`에 있다. GitHub의 blame 화면은 자동으로 건너뛴다. 로컬에서는 한 번 설정한다.
+  ```bash
+  git config blame.ignoreRevsFile .git-blame-ignore-revs
+  ```
+- 이 커밋 전에 갈라진 브랜치는 main을 합칠 때 충돌할 수 있다. 자기 브랜치의 변경을 기준으로 충돌을 풀고 `./gradlew spotlessApply`를 실행한다.

@@ -85,6 +85,7 @@ class AreaTests(unittest.TestCase):
             'clients/client-aws-s3/src/main/java/S3StorageClient.java': 'client:aws-s3',
             'support/monitoring/src/main/resources/monitoring.yml': 'support-module:monitoring',
             'settings.gradle': 'build', 'core/core-api/build.gradle': 'build', 'gradle/libs.versions.toml': 'build',
+            'config/formatter/naver-eclipse-formatter.xml': 'build',
             '.github/workflows/ci.yml': 'ci', 'scripts/ci/scope.py': 'ci',
             'scripts/deploy-oci.sh': 'deploy', 'docker-compose.oci.yml': 'deploy', 'docker/kafka/init-topics.sh': 'deploy',
             'scripts/restore-growth-b-local.py': 'dataset-tools',

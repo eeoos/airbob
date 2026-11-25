@@ -23,13 +23,14 @@ airbob의 코드 변경과 PR 상당수는 AI 코딩 에이전트(Claude Code)�
 
 | 단계 | 장치 | 종류 | 실패하면 |
 |---|---|---|---|
-| 편집 직후 | `.claude/hooks/compile-on-edit.sh`: 편집한 Java 파일이 속한 모듈의 소스셋을 컴파일한다 | 테스트 | 에이전트에 컴파일 오류를 돌려준다 |
-| 응답 종료 전 | `.claude/hooks/test-before-stop.sh`: 커밋하지 않은 변경이 있는 영역의 테스트와 ArchUnit을 실행한다 | 테스트 | 에이전트가 작업을 끝내지 못한다 |
+| 편집 직후 | `.claude/hooks/compile-on-edit.sh`: 편집한 Java 파일을 Spotless로 포매팅하고, 그 파일이 속한 모듈의 소스셋을 컴파일한다 | 테스트 | 에이전트에 컴파일 오류를 돌려준다 |
+| 응답 종료 전 | `.claude/hooks/test-before-stop.sh`: 커밋하지 않은 변경이 있는 영역의 테스트와 ArchUnit, 바뀐 모듈의 `spotlessCheck`를 실행한다 | 테스트 | 에이전트가 작업을 끝내지 못한다 |
 | push 전 | Codex 리뷰(`.claude/skills/pr-ai-review`): 작성자와 계열이 다른 모델이 브랜치 diff를 [리뷰 기준](code-review.md)에 따라 리뷰한다 | 리뷰 | 작성자가 지적을 검증해 고치거나 사유를 남긴다 |
 | PR CI | `scripts/ci/contracts.py`: 보관 부하 테스트 파일의 해시·모드, 적용된 Flyway 마이그레이션의 수정·삭제 | 계약 검사 | CI 실패 |
 | PR CI | `scripts/ci/scope.py`와 `check_result.py`: 변경에 맞는 검사를 고르고, 선택한 검사가 실패·취소·누락되면 필수 검사 `CI result`를 실패시킨다 | 계약 검사 | CI 실패 |
 | PR CI | 테스트 1,968개: core-api 1,865, API 문서 85, client 모듈 18 (2026-11-24 기준) | 테스트 | CI 실패 |
 | PR CI | ArchUnit: 엄격 계층 규칙 10개, 동결 규칙 3개(기록된 위반 외에 새 위반이 생기면 실패) | 계약 검사 | CI 실패 |
+| PR CI | Spotless `spotlessCheck`: 네이버 컨벤션 포매팅, import 순서, static이 아닌 와일드카드 import 금지([코딩 컨벤션](coding-convention.md)) | 계약 검사 | CI 실패 |
 | PR CI | OpenAPI 스냅샷(`verifyOpenApi`, operation 75개): 코드에서 만든 명세와 커밋된 스냅샷이 다르면 실패 | 계약 검사 | CI 실패 |
 | PR CI | 쿼리 수 고정 테스트: 예약 상세 SQL 1개(`ReservationPaymentReadQueryIntegrationTest`), 숙소 상세 쿼리 수 등 | 측정 | CI 실패 |
 | PR CI | 배포 계약 테스트: `OciDeploymentContractTest`, `MessagingDeploymentContractTest`, 모든 GitHub Action의 SHA 고정(`infra/aws/tests/image-publication-test.sh`) | 계약 검사 | CI 실패 |

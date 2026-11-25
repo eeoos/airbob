@@ -1,0 +1,28 @@
+# Editor defaults. Java formatting is decided by Spotless (./gradlew spotlessApply);
+# see docs/development/coding-convention.md.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[{*.java,*.gradle,Makefile}]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+[*.java]
+max_line_length = 120
+
+[*.{yml,yaml,json,js,tf,sh}]
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

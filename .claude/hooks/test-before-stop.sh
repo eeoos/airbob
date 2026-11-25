@@ -2,6 +2,8 @@
 # Stop: run the tests for the areas with uncommitted changes in the Gradle modules.
 # core/core-api runs only the test packages of the changed areas; other modules (clients/*,
 # support/*, ...) are small and run their whole test task.
+# Every changed module also runs spotlessCheck: the edit hook formats files, but only the check
+# reports lints such as a non-static wildcard import.
 # Exits 2 with the failures on stderr when they fail. Each code state is tested once,
 # so a failure that cannot be fixed (for example Docker not running) cannot block stopping forever.
 
@@ -40,13 +42,20 @@ if echo "$changed" | grep -q "^$app/src/main/java/"; then
 fi
 # --tests applies to the task right before it, so core-api's filtered task goes last.
 [ ${#app_args[@]} -gt 0 ] && tasks+=(":core:core-api:test" "${app_args[@]}")
+
+checks=()
+for module_dir in $(echo "$changed" | sed -nE 's#^((core|clients|support|storage|tests)/[^/]+)/src/.*#\1#p' | sort -u); do
+  [ -f "$module_dir/build.gradle" ] && checks+=(":${module_dir//\//:}:spotlessCheck")
+done
+tasks=("${checks[@]}" "${tasks[@]}")
 [ ${#tasks[@]} -eq 0 ] && exit 0
 
 mkdir -p "$(dirname "$state")" && echo "$fingerprint" > "$state"
 
-if ! out=$(./gradlew "${tasks[@]}" 2>&1); then
+# --continue runs the tests even when spotlessCheck fails, so one stop reports both.
+if ! out=$(./gradlew --continue "${tasks[@]}" 2>&1); then
   {
-    echo "Tests failed for the changed areas (./gradlew ${tasks[*]}):"
+    echo "spotlessCheck or tests failed for the changed areas (./gradlew --continue ${tasks[*]}):"
     echo "$out" | grep -vE '^Picked up JAVA_TOOL_OPTIONS|UP-TO-DATE$' | tail -60
   } >&2
   exit 2

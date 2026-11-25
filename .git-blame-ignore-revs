@@ -1,0 +1,6 @@
+# Formatting-only commits. GitHub's blame view skips these automatically; locally run
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# See docs/development/coding-convention.md.
+
+# style: 네이버 컨벤션으로 전체 코드를 포매팅한다 (Spotless, Naver Eclipse formatter)
+1f871dd7b1cf922ab45ea81347729d28e47e9466
