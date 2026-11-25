@@ -71,6 +71,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
    - `claude-review.yml`은 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
    - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
    - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
+   - 실행이 취소(cancelled)됐으면 미완료로 보고 라벨로 다시 돌린다. 워크플로 수준의 동시성 그룹이라, 다른 라벨이 붙어 생긴 실행이 대기 중인 리뷰를 취소할 수 있다.
 2. **결과를 읽는다.**
    - 리뷰는 `<!-- airbob-claude-review -->`로 시작하는 댓글 하나다. 인라인 댓글은 없다. `gh pr view <번호> --comments`로 읽는다.
      - 꼬리말의 "실행" ID가 기다린 실행의 ID와 같은 댓글만 쓴다.
