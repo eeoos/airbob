@@ -64,7 +64,7 @@ class PaymentOperationControllerTest {
 	}
 
 	@Test
-	void findReturnsTheOwnerOperationWithoutPaymentKey() throws Exception {
+	void getReturnsTheOwnerOperationWithoutPaymentKey() throws Exception {
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
 		UUID orderId = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
 		Instant serverTime = Instant.parse("2026-08-14T01:03:00Z");

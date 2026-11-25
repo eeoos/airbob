@@ -106,7 +106,7 @@ class WishlistDenormalizationIntegrationTest {
 
 	@Test
 	@DisplayName("목록 조회는 반정규화 컬럼으로 개수와 대표 썸네일을 반환한다")
-	void findWishlistsUsesDenormalizedColumns() {
+	void getWishlistsUsesDenormalizedColumns() {
 		add(acc1);
 		add(acc2);
 		add(acc3);

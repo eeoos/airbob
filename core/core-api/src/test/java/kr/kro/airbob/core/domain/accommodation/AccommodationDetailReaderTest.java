@@ -41,7 +41,7 @@ class AccommodationDetailReaderTest {
 
 	@Test
 	@DisplayName("공개 숙소의 공용 상세 스냅샷을 찜 여부 없이 조회한다")
-	void loadSharedSnapshotWithoutViewerState() {
+	void readSharedSnapshotWithoutViewerState() {
 		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
 			1L, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(new PublicAccommodationDetailProjection(

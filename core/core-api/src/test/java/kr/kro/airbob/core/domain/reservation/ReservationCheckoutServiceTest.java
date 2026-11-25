@@ -309,7 +309,7 @@ class ReservationCheckoutServiceTest {
 		}
 
 		@Test
-		@DisplayName("정상적인 예약 생성 시 Reservation이 저장되고 이벤트가 발행된다")
+		@DisplayName("결제 대기 예약과 생성 이력을 저장하고 검색 갱신 이벤트는 발행하지 않는다")
 		void createsReservation() {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))

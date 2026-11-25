@@ -386,8 +386,8 @@ class ReservationTest {
 		}
 
 		@Test
-		@DisplayName("CANCELLED 상태에서 confirm() 호출 시 InvalidReservationStatusException이 발생한다")
-		void rejectsConfirmFromCancelled() {
+		@DisplayName("CANCELLATION_PENDING 상태에서 confirm() 호출 시 InvalidReservationStatusException이 발생한다")
+		void rejectsConfirmFromCancellationPending() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
