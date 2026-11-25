@@ -3,8 +3,7 @@
 The first review, by Codex, runs locally before push (docs/development/ai-review-log.md). This script
 collects the context from Git (the review criteria, CLAUDE.md, the .claude/rules files whose paths match
 the change, the PR description, the commits, the diff, and the changed files at head), asks Claude for
-the review as structured output in scripts/ci/review-schema.json, renders it with review_format.py, and
-posts it as a new PR comment.
+the review as structured output, and posts it as a new PR comment.
 
 The Claude API is reached with workload identity federation: the run's GitHub OIDC token is handed to
 the anthropic SDK, which exchanges it for a short-lived token. claude-code-action is not used because
@@ -23,7 +22,6 @@ import urllib.request
 
 import pr_comment
 import pr_report
-import review_format
 import scope
 
 MARKER = '<!-- airbob-claude-review -->'
@@ -45,9 +43,11 @@ REQUEST_LIMIT = 800_000  # the whole request; changed files fill what the rest l
 FILES_HEADING = '# 바뀐 파일의 전체 내용 (head)\n\n'
 NO_FILES = '(없음)'
 OMITTED_LABEL = '\n\n전체 내용을 싣지 않은 파일(크기 한도 또는 바이너리, diff만 있음): '
+SCHEMA = {'type': 'object', 'properties': {'summary': {'type': 'string'}},
+          'required': ['summary'], 'additionalProperties': False}
 SYSTEM = ('너는 airbob 저장소의 pull request를 리뷰한다. 이 저장소의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성했다. '
           '도구는 없다. 주어진 리뷰 기준, 프로젝트 규칙, 변경 내용만 근거로 삼고, 그것으로 확인할 수 없으면 "확실하지 않음"이라고 표시하라. '
-          '답은 주어진 스키마의 필드로 쓰고, 필드 안의 글은 한국어로 써라. 댓글의 형식과 건수는 코드가 만든다.')
+          'summary에는 PR에 그대로 게시할 요약 댓글 본문을 한국어 마크다운으로 써라.')
 
 
 class ReviewSkipped(Exception):
@@ -144,7 +144,7 @@ def response_text(message):
     return ''.join(block.text for block in message.content if block.type == 'text')
 
 
-def review_of(message):
+def summary_of(message):
     if message.stop_reason == 'refusal':
         details = getattr(message, 'stop_details', None)
         raise RuntimeError(f"Claude declined the review: {getattr(details, 'category', None)} "
@@ -154,7 +154,10 @@ def review_of(message):
     text = response_text(message)
     if not text:
         raise RuntimeError(f'no text in the response (stop_reason {message.stop_reason})')
-    return json.loads(text)
+    summary = (json.loads(text).get('summary') or '').strip()
+    if not summary:
+        raise RuntimeError('the response has an empty summary')
+    return summary
 
 
 def review(user_message, client=None):
@@ -170,7 +173,7 @@ def review(user_message, client=None):
             model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
             # A safety decline is retried server-side on Anthropic's recommended model for its category.
             betas=['server-side-fallback-2026-07-01'], fallbacks='default',
-            output_config={'effort': EFFORT, 'format': {'type': 'json_schema', 'schema': review_format.schema()}},
+            output_config={'effort': EFFORT, 'format': {'type': 'json_schema', 'schema': SCHEMA}},
             messages=[{'role': 'user', 'content': user_message}]) as stream:
         return stream.get_final_message()
 
@@ -271,7 +274,7 @@ def main():
             details = '토큰 정보를 읽지 못함'
         print(details)
         try:
-            text = review_format.render(review_of(message), 'Claude 리뷰')
+            text = summary_of(message)
         except Exception:
             # A refused partial answer is discarded, as Anthropic advises; the error names the refusal.
             if message.stop_reason != 'refusal':

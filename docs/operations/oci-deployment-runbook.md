@@ -40,7 +40,6 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
 - 각 실행의 Step Summary에도 같은 보고서가 남는다.
 
 **Claude 리뷰:** `claude-review.yml`이 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
-- 답은 [review-schema.json](../../scripts/ci/review-schema.json) 스키마로 받고, 댓글의 모양과 건수는 [review_format.py](../../scripts/ci/review_format.py)가 만든다.
 - 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 돈다.
 - 응답을 받으면 토큰 수와 리뷰 본문(쓸 수 없는 응답이면 그 원문, 거절이면 사유만)을 댓글을 달기 전에 실행 로그에 먼저 남긴다. 게시나 응답 처리가 실패해도 과금된 결과를 잃지 않는다.
 - 다시 리뷰하려면 `claude-review` 라벨을 붙인다. push마다 돌지 않는다. 리뷰는 PR당 1회가 원칙이고, 다시 돌리는 기준은 `.claude/skills/pr-ai-review`에 있다.
