@@ -29,7 +29,11 @@ import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 
 @Testcontainers
-@SpringBootTest(properties = {"spring.cloud.aws.s3.enabled=false", "spring.jpa.open-in-view=false"})
+// The default retry budget (250 ms) bounds production latency, and a slow CI runner can spend it in the first
+// attempt and give up before a retry these tests rely on. The attempt limit, not the clock, should decide when
+// issuance gives up here, so the budget is the maximum the service accepts.
+@SpringBootTest(properties = {"spring.cloud.aws.s3.enabled=false", "spring.jpa.open-in-view=false",
+	"coupon.issue.retry-budget-ms=5000"})
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class CouponConcurrencyTest {
