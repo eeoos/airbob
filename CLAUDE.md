@@ -81,6 +81,10 @@ directly, even if you have not opened a matching file yet.
   `core/core-api/src/test/resources/application-test.yaml`.
 - Do not weaken `test`-profile Kafka/scheduling isolation to make a focused test pass.
 
+## Pull requests
+
+Write PR titles and bodies with the `pr-description` skill; the format is `.github/pull_request_template.md`.
+
 ## AI code review
 
 Before pushing a branch whose PR changes code (not only `docs/` or `*.md`; agent policy in `CLAUDE.md`,
