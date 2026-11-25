@@ -35,8 +35,11 @@ paths:
   code) runs `scripts/ci/claude_review.py` from main. The PR is fetched and read only as Git objects and
   API data, and the criteria and rules come from the default-branch commit the workflow runs, so a PR
   cannot change how it is reviewed; never check out, install from, or run anything from the PR head in
-  that job. The script sends one review request to the Messages API with no tools (structured output;
-  the SDK retries up to twice on connection errors and HTTP 408/409/429/5xx), logs the usage and then the
+  that job. The criteria and rules go in the system prompt and the PR only in the user message, as
+  material to review. The job runs only when the event links exactly one PR. The run log, not the PR
+  comment, is the review of record, because a PR's own workflow can post a look-alike comment. The script
+  sends one review request to the Messages API with no tools (structured output; the SDK retries up to
+  twice on connection errors and HTTP 408/409/429/5xx), logs the usage and then the
   review (or the unusable raw response, except a refused one) with workflow commands stopped around model
   output, and posts the result as a new PR comment; a usage footer it cannot read does not stop the post.
   Keep it tool-free and bounded by its size limits and `max_tokens`. It is informational, not part of

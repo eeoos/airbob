@@ -1,5 +1,6 @@
 name: Claude review
-run-name: Claude review PR #${{ github.event.workflow_run.pull_requests[0].number }} at ${{ github.event.workflow_run.head_sha }}
+# Quoted: in a plain YAML value, " #" starts a comment and would cut the name.
+run-name: "Claude review PR #${{ github.event.workflow_run.pull_requests[0].number }} at ${{ github.event.workflow_run.head_sha }}"
 
 # Second AI review of a pull request (the first, Codex, runs locally before push). claude-review-request.yml
 # runs on the PR and holds nothing; when it completes, this workflow runs. workflow_run always uses this
@@ -29,12 +30,14 @@ jobs:
   review:
     name: Review the pull request
     # Only a successful request from a same-repository PR; the PR number and commits come from GitHub's
-    # workflow_run event, not from anything the PR run produced.
+    # workflow_run event, not from anything the PR run produced. The event must link exactly one PR, so the
+    # base and the comment target are not taken from the wrong PR; with none or several the job is skipped.
     if: >-
       github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && github.event.workflow_run.pull_requests[0].number
+      && !github.event.workflow_run.pull_requests[1]
     runs-on: ubuntu-latest
     # Measured runs took four to seven and a half minutes; xhigh on a request near the size limit can take longer.
     timeout-minutes: 20
