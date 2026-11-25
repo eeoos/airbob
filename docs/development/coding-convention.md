@@ -46,7 +46,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 시점 | 장치 | 동작 |
 |---|---|---|
 | Claude Code가 Java 파일을 편집한 직후 | `.claude/hooks/compile-on-edit.sh` | 그 파일만 `spotlessApply`로 포매팅한 뒤 소스셋을 컴파일한다. 이 모드는 와일드카드 import 같은 lint를 검사하지 않는다 |
-| Claude Code가 응답을 마치기 전 | `.claude/hooks/test-before-stop.sh` | 바뀐 모듈의 `spotlessCheck`를 테스트와 함께 실행한다 |
+| Claude Code가 응답을 마치기 전 | `.claude/hooks/test-before-stop.sh` | 바뀐 모듈의 `spotlessCheck`를 테스트와 함께 실행한다. 포매팅 설정(루트 `build.gradle`, `gradle/libs.versions.toml`, `config/formatter/`)이 바뀌면 모든 모듈을 검사한다 |
 | PR CI | `ci.yml`의 app 잡(`./gradlew build`), API 문서만 바뀐 PR은 API documentation 잡 | `spotlessCheck`가 실패하면 필수 검사 `CI result`가 실패한다 |
 
 ### 사람이 편집할 때
