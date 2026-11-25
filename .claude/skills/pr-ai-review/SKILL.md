@@ -21,13 +21,14 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 
    ```
    mkdir -p build/review
-   codex exec -s read-only --ephemeral -o build/review/codex-<head 8자리>.md "<지시문>"
+   codex exec -s read-only --ephemeral -o build/review/codex-<head 8자리>.md "<지시문>" < /dev/null
    ```
 
    지시문:
    > 이 저장소의 `<base>...HEAD` 변경을 리뷰하라. `git log`와 `git diff <base>...HEAD`로 변경을 보고, 필요하면 저장소 파일을 읽어라. 파일은 수정하지 마라. 기준은 docs/development/code-review.md다. 변경 의도: <PR 요약 한두 줄>.
 
    - `codex exec review --commit`은 지시문과 함께 쓸 수 없다. 그래서 일반 `exec`를 쓴다.
+   - `< /dev/null`로 입력을 닫는다. 백그라운드에서 입력이 열려 있으면 `Reading additional input from stdin...`에서 멈춘다.
    - 모델과 추론 수준은 `~/.codex/config.toml`을 따른다. 기록할 때 실제 값을 적는다.
 3. **작성자가 지적마다 검증하고 판정한다.**
    - 코드를 읽고, 가능하면 테스트나 메모리 입력으로 재현한다.
@@ -69,21 +70,38 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 ## B. PR 후: Claude 리뷰
 
 1. **실행을 기다린다.**
-   - `claude-review.yml`은 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
+   - 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `claude-review-request.yml`이 PR에서 돈다. 그 실행이 끝나면 main의 `claude-review.yml`이 `workflow_run`으로 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
+   - 리뷰는 main에 있는 워크플로, 스크립트, 리뷰 기준으로 돈다. 이것들을 바꾼 PR도 바꾸기 전 버전으로 리뷰되고, 바뀐 것은 머지 뒤 다음 PR부터 적용된다.
    - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
    - 리뷰를 받은 PR은 고치는 동안 초안으로 돌리거나 닫지 않는다. 초안을 준비 완료로 되돌리거나 다시 열면 라벨 없이 리뷰가 다시 돈다.
-   - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
-   - 실행이 취소(cancelled)되면 미완료로 보고 라벨로 다시 돌린다. 같은 PR에 다른 라벨이 붙으면, 동시성 그룹에서 대기 중이던 리뷰 실행이 취소될 수 있다.
-2. **결과를 읽는다.**
-   - 리뷰는 `<!-- airbob-claude-review -->`로 시작하는 댓글 하나다. 인라인 댓글은 없다. `gh pr view <번호> --comments`로 읽는다.
-     - 꼬리말의 "실행" ID가 기다린 실행의 ID와 같은 댓글만 쓴다.
-     - 본문이 "Claude 리뷰를 하지 않았습니다"로 시작하면 크기 한도로 건너뛴 것이다. "생략(크기 한도)"으로 기록하고 지표(정확도, 2단계 추가 발견, 비용)에서 뺀다.
-     - 실행이 실패하면 댓글이 없으므로, 가장 최근 댓글은 이전 실행의 것이다.
-     - 맞는 댓글이 없으면 실행 로그(`gh run view <실행 ID> --log`)를 본다. 스크립트는 응답을 받으면 토큰 수와 리뷰 본문을 게시 전에 로그에 먼저 출력한다.
-       - 같은 마커로 시작하는 본문이 있으면 그것으로 검증을 이어가고, "댓글 게시 실패"를 따로 기록한다.
-       - "Unusable response"(`max_tokens`, JSON 오류)나 거절 오류("Claude declined")가 있으면 응답 처리 실패다. 이번 리뷰를 "미완료"로 기록한다.
-         - 비용은 로그의 토큰 수로 적는다. 단 거절은 과금되지 않았을 수 있으므로 Console에서 확인해 적는다.
-       - 둘 다 없으면 이번 리뷰를 "미완료"로 기록하고 로그에서 원인을 본다.
+   - 먼저 요청 실행을 찾고, 그 ID로 리뷰 실행을 찾아 끝날 때까지 기다린다. 리뷰 실행은 브랜치가 main으로 찍히고, 이름 끝에 `(request <요청 실행 ID>)`가 붙는다.
+     ```
+     gh run list --workflow claude-review-request.yml --branch <브랜치> --json databaseId,headSha,conclusion
+     gh run list --workflow claude-review.yml --event workflow_run --branch main \
+       --json databaseId,displayTitle,status,conclusion \
+       --jq '.[] | select(.displayTitle | endswith("(request <요청 실행 ID>)"))'
+     ```
+     - `--event workflow_run --branch main`은 빼지 않는다. 그래야 main의 워크플로가 만든 실행만 남는다. PR 브랜치에서 같은 파일명으로 돈 실행은 PR이 바꾼 워크플로일 수 있다.
+     - 요청이 건너뛰어졌으면(초안, 다른 라벨) 리뷰도 돌지 않는다.
+   - 요청은 성공했는데 리뷰 잡이 건너뛰어졌으면, 이벤트에 연결된 PR이 없거나 여럿인 경우다. 미완료로 기록하고 라벨로 다시 돌린다.
+   - 실행이 취소(cancelled)되면 미완료로 보고 라벨로 다시 돌린다. 같은 PR의 리뷰 요청이 겹치면(예: 리뷰가 도는 동안 라벨을 다시 붙임) 대기 중이던 리뷰가 새 요청으로 바뀌며 취소될 수 있다.
+2. **결과를 읽는다.** 판정에 쓰는 리뷰 본문은 PR 댓글이 아니라 **기다린 리뷰 실행의 로그**에서 읽는다.
+   - 이유: 로그는 main의 워크플로가 남겨 PR이 손댈 수 없다. 반면 PR의 워크플로는 같은 마커와 실행 ID를 넣은 댓글을 `github-actions[bot]` 이름으로 달 수 있다. 댓글(`<!-- airbob-claude-review -->`로 시작, 인라인 댓글 없음)은 사람이 보는 사본이다.
+   - 스크립트는 응답을 받으면 토큰 수를 출력하고, 리뷰 본문을 마커부터 `::***::` 줄(워크플로 명령을 다시 켠 줄)까지 출력한 뒤 게시한다.
+
+     ```
+     gh run view <실행 ID> --log \
+       | awk -F'\t' '$2 == "Review with Claude" { sub(/^[^\t]*\t[^\t]*\t[^ ]+ ?/, ""); print }' \
+       | sed -n '/^<!-- airbob-claude-review -->$/,$p'
+     ```
+
+     잡 이름, 단계 이름, 시각만 떼고 줄의 나머지는 그대로 둔다. 본문 안의 탭도 보존된다. 본문은 마커부터 **마지막** `::***::` 줄 앞까지다. 리뷰가 이 표식을 인용할 수 있으니 처음 나온 표식에서 자르지 않는다. 그 뒤에 남은 줄은 게시 오류 같은 스크립트 출력이다.
+     - 같은 실행 ID의 PR 댓글은 꼬리말(`<sub>리뷰한 커밋`…)을 빼면, 로그 본문에서 마지막 `::***::` 줄을 뺀 것과 같아야 한다. 댓글이 길어 잘렸으면 잘림 안내 앞까지만 같다. 그 밖에 다르면 댓글은 쓰지 않고 사용자에게 알린다.
+     - 본문이 있는데 댓글이 없으면, 로그의 본문으로 검증을 이어가고 "댓글 게시 실패"를 따로 기록한다.
+   - 본문이 "Claude 리뷰를 하지 않았습니다"로 시작하면 크기 한도로 건너뛴 것이다. "생략(크기 한도)"으로 기록하고 지표(정확도, 2단계 추가 발견, 비용)에서 뺀다.
+   - 로그에 "Unusable response"(`max_tokens`, JSON 오류)나 거절 오류("Claude declined")가 있으면 응답 처리 실패다. 이번 리뷰를 "미완료"로 기록한다.
+     - 비용은 로그의 토큰 수로 적는다. 단 거절은 과금되지 않았을 수 있으므로 Console에서 확인해 적는다.
+   - 본문도 처리 실패 기록도 없으면 이번 리뷰를 "미완료"로 기록하고 로그에서 원인을 본다.
    - 토큰 수와 추정 비용은 댓글 꼬리말에 있다.
 3. **검증하고 고친다.** A의 3·4와 같다.
    - 넘김·오탐 판정의 근거도 Codex에게 묻는다. Claude 리뷰어는 작성자와 같은 계열이라, 다른 계열의 확인이 더 필요하다.

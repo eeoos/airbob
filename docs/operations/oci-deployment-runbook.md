@@ -39,8 +39,15 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
 - 게시: `main`의 `pr-report.yml`
 - 각 실행의 Step Summary에도 같은 보고서가 남는다.
 
-**Claude 리뷰:** `claude-review.yml`이 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
-- 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 돈다.
+**Claude 리뷰:** 두 워크플로가 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
+- `claude-review-request.yml`은 PR에서 돈다. 권한이 없고 아무것도 실행하지 않으며, 리뷰할지만 정한다. 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 돈다.
+- 그 실행이 성공하면 `claude-review.yml`이 `workflow_run`으로 main에서 돈다.
+  - 워크플로, 스크립트, 잠금 파일, 리뷰 기준이 모두 main 버전이라, PR은 자기 리뷰 방식을 바꿀 수 없다. 리뷰 방식을 바꾸는 PR은 머지된 뒤부터 적용된다.
+  - PR은 git 객체와 API 데이터로만 읽고, 체크아웃하거나 실행하지 않는다. 리뷰 기준은 시스템 프롬프트에, PR은 리뷰할 자료로 사용자 메시지에 넣는다.
+  - 이벤트에 연결된 PR이 정확히 하나일 때만 돈다.
+  - 리뷰 본문의 원본은 이 실행의 로그다. PR 댓글은 사본이고, PR의 워크플로도 비슷한 댓글을 달 수 있다.
+  - Actions 목록의 실행 이름은 `Claude review PR #<번호> at <커밋> (request <요청 실행 ID>)`이다. 브랜치는 main으로 찍힌다.
+- `pull_request_target`은 쓰지 않는다. GitHub가 2026-12-02부터 공개 저장소에서 기본으로 막는다.
 - 응답을 받으면 토큰 수와 리뷰 본문(쓸 수 없는 응답이면 그 원문, 거절이면 사유만)을 댓글을 달기 전에 실행 로그에 먼저 남긴다. 게시나 응답 처리가 실패해도 과금된 결과를 잃지 않는다.
 - 다시 리뷰하려면 `claude-review` 라벨을 붙인다. push마다 돌지 않는다. 리뷰는 PR당 1회가 원칙이고, 다시 돌리는 기준은 `.claude/skills/pr-ai-review`에 있다.
 - `CI result`에 포함되지 않고 머지를 막지 않는다.
@@ -50,7 +57,9 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
   - 대체 모델이 실행됐으면 시도별 토큰을 적고, 비용은 Console에서 확인하도록 안내한다.
 - `claude-code-action`은 쓰지 않는다. 월간 API 크레딧이 그 액션이 시작한 실행에는 적용되지 않기 때문이다.
 - 인증은 API 키 없이 ID 페더레이션(GitHub OIDC)으로 한다.
-  - Console의 페더레이션 규칙은 이 저장소의 PR 실행(`repo:eeoos/airbob:pull_request`)만 받는다.
+  - Console의 페더레이션 규칙은 main의 `claude-review.yml`이 `workflow_run`으로 돈 실행만 받는다.
+    - subject: `repo:eeoos/airbob:ref:refs/heads/main`
+    - claim: `event_name`은 `workflow_run`, `workflow_ref`는 `eeoos/airbob/.github/workflows/claude-review.yml@refs/heads/main`, 그리고 저장소 claim(`repository`, `repository_owner`, `repository_owner_id`)
   - 규칙·조직·서비스 계정·workspace ID는 저장소 변수 `ANTHROPIC_*`에 둔다.
   - 인증이 실패하면 Console의 authentication history에서 원인을 본다.
 - 기준과 판정 기록: [AI 코드 리뷰 기준](../development/code-review.md), [AI 리뷰 기록](../development/ai-review-log.md)

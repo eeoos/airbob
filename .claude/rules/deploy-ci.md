@@ -29,25 +29,30 @@ paths:
   and is not part of `CI result`; `pr-report.yml` (`workflow_run`, default-branch code) posts the one
   sticky comment. Never add `pull-requests: write` or `actions: read` to `ci.yml`: CD reuses it with
   `contents: read`, and a called workflow cannot request more than its caller grants.
-- Claude review: `claude-review.yml` runs `scripts/ci/claude_review.py` on same-repository, non-draft PRs
-  when opened, reopened, or marked ready for review, and when the `claude-review` label is added. It
-  logs the usage and then the review (or the unusable raw response, except a refused one) before
-  posting, with workflow commands stopped around model output, and a usage footer it cannot read does
-  not stop the post. It is informational, not part of `CI result`, and
-  stays outside `ci.yml` for the same permission reason. The script collects the context from Git at the
-  event's base and head SHAs (criteria and rules from base), sends one review request to the Messages
-  API with no tools (structured output; the SDK retries up to twice on connection errors and HTTP
-  408/409/429/5xx), and posts the result as a new PR comment; keep it tool-free and bounded by its size
-  limits and `max_tokens`. Known gap: as a `pull_request` workflow it runs the PR's own workflow and
-  script with `pull-requests: write` and OIDC, so the boundary is repository write access. The planned
-  follow-up is `pull_request_target` (main's code, PR head read only as Git objects) with a federation
-  rule narrowed to that workflow; do not widen this job's permissions before then. Do not switch to
-  `anthropics/claude-code-action`: the monthly API credit does not cover runs that the action starts.
-  The job authenticates with workload identity federation (GitHub OIDC, rule subject
-  `repo:eeoos/airbob:pull_request`, IDs in repository variables); do not add an API key secret, and keep
-  `id-token: write` on that job only. Its Python packages are pinned by version and hash in
-  `scripts/ci/claude-review-requirements.txt` and installed with `--require-hashes`; regenerate it with
-  the `uv pip compile` command in `scripts/README.md`. Documentation-only PRs are skipped, but agent
+- Claude review: `claude-review-request.yml` (`pull_request`, no permissions, runs nothing) marks
+  same-repository, non-draft PRs when opened, reopened, or marked ready for review, and when the
+  `claude-review` label is added. When it succeeds, `claude-review.yml` (`workflow_run`, default-branch
+  code) runs `scripts/ci/claude_review.py` from main. The PR is fetched and read only as Git objects and
+  API data, and the criteria and rules come from the default-branch commit the workflow runs, so a PR
+  cannot change how it is reviewed; never check out, install from, or run anything from the PR head in
+  that job. The criteria and rules go in the system prompt and the PR only in the user message, as
+  material to review. The job runs only when the event links exactly one PR. The run log, not the PR
+  comment, is the review of record, because a PR's own workflow can post a look-alike comment. The script
+  sends one review request to the Messages API with no tools (structured output; the SDK retries up to
+  twice on connection errors and HTTP 408/409/429/5xx), logs the usage and then the
+  review (or the unusable raw response, except a refused one) with workflow commands stopped around model
+  output, and posts the result as a new PR comment; a usage footer it cannot read does not stop the post.
+  Keep it tool-free and bounded by its size limits and `max_tokens`. It is informational, not part of
+  `CI result`, and stays outside `ci.yml` for the same permission reason. Do not use
+  `pull_request_target`: GitHub blocks it by default in public repositories from 2026-12-02. Do not switch
+  to `anthropics/claude-code-action`: the monthly API credit does not cover runs that the action starts.
+  The review job authenticates with workload identity federation. The rule accepts the subject
+  `repo:eeoos/airbob:ref:refs/heads/main` only with `event_name` `workflow_run` and `workflow_ref`
+  `eeoos/airbob/.github/workflows/claude-review.yml@refs/heads/main`; its IDs are repository variables.
+  Do not add an API key secret, and keep `id-token: write` on that job only. Its Python packages are
+  pinned by version and hash in `scripts/ci/claude-review-requirements.txt` and installed with
+  `--require-hashes`; regenerate it with the `uv pip compile` command in `scripts/README.md`.
+  Documentation-only PRs are skipped, but agent
   policy (`CLAUDE.md`, `AGENTS.md`, `.claude/`) and the review criteria are reviewed. Criteria and
   verdict records live in `docs/development/code-review.md` and `docs/development/ai-review-log.md`.
 

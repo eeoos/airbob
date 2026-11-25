@@ -1,0 +1,37 @@
+name: Claude review request
+
+# Asks for the Claude review of a pull request. Like every pull_request workflow it runs the PR's own copy
+# of this file, so it holds no permissions and runs nothing; it only decides whether a review is wanted.
+# When it completes, claude-review.yml runs from the default branch (workflow_run) and reviews the PR with
+# main's code. A PR can therefore ask for a review or skip one, but cannot change how it is reviewed.
+on:
+  pull_request:
+    types: [ opened, reopened, ready_for_review, labeled ]
+    # Documentation-only changes are not reviewed. Agent policy (CLAUDE.md, AGENTS.md, .claude/) and the
+    # review criteria are not documentation, so later patterns include them again.
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!**/*.md'
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - '.claude/**'
+      - 'docs/development/code-review.md'
+
+permissions: {}
+
+jobs:
+  request:
+    name: Request the Claude review
+    # Same-repository PRs only; a draft waits for ready_for_review; a label counts only if it is
+    # claude-review. A skipped job leaves the run without success, and claude-review.yml reviews only after
+    # a successful request.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && !github.event.pull_request.draft
+      && (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Request the review
+        run: echo "claude-review.yml reviews this pull request from the default branch."

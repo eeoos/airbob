@@ -1,43 +1,46 @@
 name: Claude review
+# Quoted: in a plain YAML value, " #" starts a comment and would cut the name. The request run ID finds this
+# run even when the event links no PR or several.
+run-name: "Claude review PR #${{ github.event.workflow_run.pull_requests[0].number }} at ${{ github.event.workflow_run.head_sha }} (request ${{ github.event.workflow_run.id }})"
 
-# Second AI review of a pull request (the first, Codex, runs locally before push). scripts/ci/claude_review.py
-# sends one Claude Messages API request with the context it collects from Git and posts the result as a new
-# PR comment; Claude gets no tools. It is informational and not part of CI result. It lives outside ci.yml
-# because posting needs pull-requests: write, which CD's contents: read call of ci.yml cannot grant.
-# claude-code-action is not used: the monthly API credit does not cover runs that the action starts.
-# Criteria: docs/development/code-review.md. Verdicts: docs/development/ai-review-log.md.
+# Second AI review of a pull request (the first, Codex, runs locally before push). claude-review-request.yml
+# runs on the PR and holds nothing; when it completes, this workflow runs. workflow_run always uses this
+# file and the scripts from the default branch, so the workflow, scripts/ci/claude_review.py, its lock file,
+# and the review criteria are main's, never the PR's. The PR is read only as Git objects and API data and
+# is never checked out or executed. scripts/ci/claude_review.py sends one Claude Messages API request with
+# no tools and posts the result as a new PR comment. It is informational and not part of CI result. It
+# lives outside ci.yml because posting needs pull-requests: write, which CD's contents: read call of ci.yml
+# cannot grant. claude-code-action is not used: the monthly API credit does not cover runs that the action
+# starts. Criteria: docs/development/code-review.md. Verdicts: docs/development/ai-review-log.md.
 on:
-  pull_request:
-    types: [ opened, reopened, ready_for_review, labeled ]
-    # Documentation-only changes are not reviewed. Agent policy (CLAUDE.md, AGENTS.md, .claude/) and the
-    # review criteria are not documentation, so later patterns include them again.
-    paths:
-      - '**'
-      - '!docs/**'
-      - '!**/*.md'
-      - 'CLAUDE.md'
-      - 'AGENTS.md'
-      - '.claude/**'
-      - 'docs/development/code-review.md'
+  workflow_run:
+    workflows: [ Claude review request ]
+    types: [ completed ]
 
 permissions:
   contents: read
   pull-requests: write
 
+# One review at a time per PR. A run that will not review (no successful request, or not exactly one linked
+# PR) gets a group of its own, so it cannot replace a review that waits in the PR's group.
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
+  group: claude-review-${{ github.event.workflow_run.conclusion == 'success' && !github.event.workflow_run.pull_requests[1] && github.event.workflow_run.pull_requests[0].number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   review:
     name: Review the pull request
-    # Same-repository PRs only (forks get no OIDC token). Re-review by adding the claude-review label.
+    # Only a successful request from a same-repository PR; the PR number and commits come from GitHub's
+    # workflow_run event, not from anything the PR run produced. The event must link exactly one PR, so the
+    # base and the comment target are not taken from the wrong PR; with none or several the job is skipped.
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository
-      && !github.event.pull_request.draft
-      && (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && github.event.workflow_run.pull_requests[0].number
+      && !github.event.workflow_run.pull_requests[1]
     runs-on: ubuntu-latest
-    # The first run took about five minutes; xhigh on a request near the size limit can take longer.
+    # Measured runs took four to seven and a half minutes; xhigh on a request near the size limit can take longer.
     timeout-minutes: 20
     # id-token: write lets the script exchange this run's GitHub OIDC token for a short-lived Claude API
     # token (workload identity federation), so there is no API key secret.
@@ -46,13 +49,17 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      # Full history for the base...head diff; the script reads both commits from the event through Git, so
-      # the review stays on the same change if the base moves or the PR is merged while this run waits.
+      # The default branch with full history. The PR commits are fetched as objects only; the working tree,
+      # and everything this job runs, stays main's.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Fetch the pull request commits
+        env:
+          BASE_SHA: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: git fetch --no-tags --quiet origin "$BASE_SHA" "$HEAD_SHA"
       # Every package is pinned by version and hash (uv pip compile --universal --generate-hashes), like the
       # SHA-pinned actions: this job holds an OIDC request token and a pull-requests: write token.
       - name: Install the Anthropic SDK
@@ -63,15 +70,19 @@ jobs:
       - name: Review with Claude
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Workload identity federation. These IDs are identifiers, not secrets; the rule only accepts the
-          # subject repo:eeoos/airbob:pull_request. Do not add ANTHROPIC_API_KEY: it would take precedence.
+          # Workload identity federation. These IDs are identifiers, not secrets. The rule accepts only the
+          # subject repo:eeoos/airbob:ref:refs/heads/main with the claims event_name workflow_run and
+          # workflow_ref eeoos/airbob/.github/workflows/claude-review.yml@refs/heads/main, so only this file on
+          # main can get a token. Do not add ANTHROPIC_API_KEY: it would take precedence.
           ANTHROPIC_FEDERATION_RULE_ID: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           ANTHROPIC_ORGANIZATION_ID: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           ANTHROPIC_WORKSPACE_ID: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          CRITERIA_SHA: ${{ github.sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
         run: >-
           "$RUNNER_TEMP/claude-review-venv/bin/python" -B scripts/ci/claude_review.py
-          --base "$BASE_SHA" --head "$HEAD_SHA" --pr "$PR_NUMBER" --repository "$GITHUB_REPOSITORY"
+          --base "$BASE_SHA" --head "$HEAD_SHA" --criteria "$CRITERIA_SHA"
+          --pr "$PR_NUMBER" --repository "$GITHUB_REPOSITORY"

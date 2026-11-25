@@ -43,12 +43,17 @@ class RequestTests(unittest.TestCase):
         (self.repo.root / 'scripts/old.py').unlink()
         head = self.repo.commit('change scripts')
 
-        text, omitted = claude_review.build_request(self.reader, self.base, head, 'PR 제목', 'PR 설명')
+        system, text, omitted = claude_review.build_request(self.reader, self.base, head, 'PR 제목', 'PR 설명',
+                                                            criteria=self.base)
 
-        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n# 리뷰 기준', text)
-        self.assertIn('# 프로젝트 규칙 (CLAUDE.md)', text)
-        self.assertIn('(.claude/rules/ci.md)', text)
-        self.assertNotIn('core.md', text)
+        # The trusted criteria and rules are in the system prompt; the PR is only in the user message.
+        self.assertTrue(system.startswith(claude_review.SYSTEM))
+        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n# 리뷰 기준', system)
+        self.assertIn('# 프로젝트 규칙 (CLAUDE.md)', system)
+        self.assertIn('(.claude/rules/ci.md)', system)
+        self.assertNotIn('core.md', system)
+        self.assertNotIn('# 리뷰 기준', text)
+        self.assertNotIn('PR 설명', system)
         self.assertIn('제목: PR 제목\n\nPR 설명', text)
         self.assertIn('change scripts', text)
         self.assertIn('-a = 1\n+a = 2', text)
@@ -64,67 +69,59 @@ class RequestTests(unittest.TestCase):
         (self.repo.root / 'scripts/utf16.txt').write_bytes('AB'.encode('utf-16-le'))
         head = self.repo.commit('add files')
 
-        text, omitted = claude_review.build_request(self.reader, self.base, head)
+        _, text, omitted = claude_review.build_request(self.reader, self.base, head, criteria=self.base)
 
         self.assertEqual(sorted(omitted), ['scripts/big.py', 'scripts/data.bin', 'scripts/utf16.txt'])
         self.assertIn('전체 내용을 싣지 않은 파일(크기 한도 또는 바이너리, diff만 있음): ', text)
         self.assertIn('제목: (없음)\n\n(설명 없음)', text)
 
-    def test_criteria_and_rules_come_from_the_base_commit(self):
-        # A PR that weakens the criteria or narrows a rule is still reviewed against the base versions.
+    def test_criteria_and_rules_come_from_the_criteria_commit(self):
+        # Neither the PR head nor a base branch the PR stacks on can weaken what the PR is reviewed against.
         self.repo.write(claude_review.GUIDE, '# 약해진 기준\n')
         self.repo.write('.claude/rules/ci.md', '---\npaths:\n  - "nothing/**"\n---\n')
+        stacked_base = self.repo.commit('a base branch that weakens the rules')
         self.repo.write('scripts/kept.py', 'a = 2\n')
-        head = self.repo.commit('weaken the rules')
+        self.repo.write('CLAUDE.md', '# Weakened\n')
+        head = self.repo.commit('weaken more and change a script')
 
-        text, _ = claude_review.build_request(self.reader, self.base, head)
+        system, _, _ = claude_review.build_request(self.reader, stacked_base, head, criteria=self.base)
 
-        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n# 리뷰 기준\n', text)
-        self.assertIn('(.claude/rules/ci.md)\n\n' + RULE, text)
+        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n# 리뷰 기준\n', system)
+        self.assertIn('# 프로젝트 규칙 (CLAUDE.md)\n\n# Project\n', system)
+        self.assertIn('(.claude/rules/ci.md)\n\n' + RULE, system)
 
-    def test_criteria_that_main_deleted_after_the_branch_point_stay_deleted(self):
-        self.repo.write('scripts/kept.py', 'a = 2\n')
-        head = self.repo.commit('change scripts')
-        self.repo.git('checkout', '-q', self.base)
-        self.repo.git('rm', '-q', claude_review.GUIDE)
-        main = self.repo.commit('main deletes the guide')
-
-        text, _ = claude_review.build_request(self.reader, main, head)
-
-        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n(없음)', text)
-
-    def test_criteria_the_pr_adds_are_labeled(self):
+    def test_criteria_the_pr_adds_are_not_used(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         repo = TempRepo(directory.name)
         repo.write('scripts/a.py', 'a\n')
-        base = repo.commit('base')
+        main = repo.commit('main without criteria')
         repo.write(claude_review.GUIDE, '# 새 기준\n')
         head = repo.commit('add the guide')
 
-        text, _ = claude_review.build_request(pr_report.Repo(directory.name), base, head)
+        system, _, _ = claude_review.build_request(pr_report.Repo(directory.name), main, head, criteria=main)
 
-        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n(base에 없어 이 PR이 추가한 버전)\n\n# 새 기준', text)
-        self.assertIn('# 프로젝트 규칙 (CLAUDE.md)\n\n(없음)', text)
+        self.assertIn('# 리뷰 기준 (docs/development/code-review.md)\n\n(없음)', system)
+        self.assertIn('# 프로젝트 규칙 (CLAUDE.md)\n\n(없음)', system)
 
     def test_a_change_beyond_the_diff_limit_is_not_reviewed(self):
         self.repo.write('scripts/big.py', 'x\n' * claude_review.DIFF_LIMIT)
         head = self.repo.commit('huge')
         with self.assertRaises(claude_review.ReviewSkipped):
-            claude_review.build_request(self.reader, self.base, head)
+            claude_review.build_request(self.reader, self.base, head, criteria=self.base)
 
     def test_changed_files_beyond_the_request_budget_are_left_to_the_diff(self):
         self.repo.write('scripts/kept.py', 'b = 2\n' * 1000)
         head = self.repo.commit('long file')
-        text, omitted = claude_review.build_request(self.reader, self.base, head)
+        system, text, omitted = claude_review.build_request(self.reader, self.base, head, criteria=self.base)
         self.assertEqual(omitted, [])
 
         # A smaller budget leaves the file to the diff but still reviews the change within the limit.
-        limit = len(claude_review.SYSTEM) + len(text) - 3000
+        limit = len(system) + len(text) - 3000
         with mock.patch.object(claude_review, 'REQUEST_LIMIT', limit):
-            text, omitted = claude_review.build_request(self.reader, self.base, head)
+            system, text, omitted = claude_review.build_request(self.reader, self.base, head, criteria=self.base)
         self.assertEqual(omitted, ['scripts/kept.py'])
-        self.assertLessEqual(len(claude_review.SYSTEM) + len(text), limit)
+        self.assertLessEqual(len(system) + len(text), limit)
         self.assertIn('+b = 2', text)
 
     def test_deleted_files_take_no_room_in_the_budget(self):
@@ -135,20 +132,20 @@ class RequestTests(unittest.TestCase):
         for index in range(300):
             (self.repo.root / f'scripts/deleted/{"long-name-" * 5}{index}.py').unlink()
         head = self.repo.commit('delete them')
-        text, _ = claude_review.build_request(self.reader, base, head)
+        system, text, _ = claude_review.build_request(self.reader, base, head, criteria=base)
 
         # The reserve is exact: a request that fits the limit to the character is reviewed, one more is not.
-        size = len(claude_review.SYSTEM) + len(text)
+        size = len(system) + len(text)
         with mock.patch.object(claude_review, 'REQUEST_LIMIT', size):
-            self.assertEqual(claude_review.build_request(self.reader, base, head)[0], text)
+            self.assertEqual(claude_review.build_request(self.reader, base, head, criteria=base)[1], text)
         with mock.patch.object(claude_review, 'REQUEST_LIMIT', size - 1), self.assertRaises(claude_review.ReviewSkipped):
-            claude_review.build_request(self.reader, base, head)
+            claude_review.build_request(self.reader, base, head, criteria=base)
 
     def test_a_request_beyond_the_total_limit_is_not_sent(self):
         self.repo.write('scripts/kept.py', 'a = 2\n')
         head = self.repo.commit('small change')
         with mock.patch.object(claude_review, 'REQUEST_LIMIT', 100), self.assertRaises(claude_review.ReviewSkipped):
-            claude_review.build_request(self.reader, self.base, head)
+            claude_review.build_request(self.reader, self.base, head, criteria=self.base)
 
 
 class ResponseTests(unittest.TestCase):
@@ -184,7 +181,7 @@ class ResponseTests(unittest.TestCase):
             return Stream()
 
         client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream)))
-        response = claude_review.review('변경 내용', client)
+        response = claude_review.review('지시와 기준', '변경 내용', client)
 
         self.assertEqual(claude_review.summary_of(response), '지적 없음')
         self.assertEqual(len(calls), 1)
@@ -193,6 +190,7 @@ class ResponseTests(unittest.TestCase):
         self.assertEqual(request['output_config']['effort'], 'xhigh')
         self.assertEqual(request['max_tokens'], 64000)
         self.assertEqual(request['output_config']['format']['schema']['required'], ['summary'])
+        self.assertEqual(request['system'], '지시와 기준')
         self.assertEqual(request['messages'], [{'role': 'user', 'content': '변경 내용'}])
         self.assertNotIn('tools', request)
 
@@ -246,24 +244,28 @@ class IdentityTests(unittest.TestCase):
         claude_review.use_github_identity(environ)
         self.assertEqual(environ, {})
 
-    def test_the_pull_request_text_comes_from_the_event(self):
-        with tempfile.TemporaryDirectory() as directory:
-            event = Path(directory) / 'event.json'
-            event.write_text(json.dumps({'pull_request': {'title': '제목', 'body': None}}))
-            self.assertEqual(claude_review.pull_request_text(str(event)), ('제목', ''))
-        self.assertEqual(claude_review.pull_request_text(None), ('', ''))
+    def test_the_pull_request_text_comes_from_the_api(self):
+        request = mock.Mock(return_value={'title': '제목', 'body': None})
+        self.assertEqual(claude_review.pull_request_text(request, 'eeoos/airbob', '223'), ('제목', ''))
+        request.assert_called_once_with('GET', 'https://api.github.com/repos/eeoos/airbob/pulls/223')
+        # A local dry run has no token and no API call.
+        self.assertEqual(claude_review.pull_request_text(None, 'eeoos/airbob', '223'), ('', ''))
 
 
 class MainTests(unittest.TestCase):
-    def run_main(self, response, post, log):
-        argv = ['claude_review.py', '--base', 'a' * 40, '--head', 'b' * 40, '--pr', '223', '--repository', 'eeoos/airbob']
+    def run_main(self, response, post, log, skipped=None):
+        build = dict(side_effect=claude_review.ReviewSkipped(skipped)) if skipped else dict(return_value=('지시', '요청', []))
+        argv = ['claude_review.py', '--base', 'a' * 40, '--head', 'b' * 40, '--criteria', 'c' * 40,
+                '--pr', '223', '--repository', 'eeoos/airbob']
         with mock.patch('sys.argv', argv), mock.patch.dict('os.environ', {'GITHUB_TOKEN': 'token'}, clear=True), \
                 mock.patch.object(pr_report, 'Repo'), \
-                mock.patch.object(claude_review, 'build_request', return_value=('요청', [])), \
+                mock.patch.object(claude_review, 'build_request', **build) as build, \
+                mock.patch.object(claude_review, 'pull_request_text', return_value=('제목', '본문')), \
                 mock.patch.object(claude_review, 'review', return_value=response), \
                 mock.patch.object(claude_review.pr_comment, 'github', return_value=post), \
                 contextlib.redirect_stdout(log):
             claude_review.main()
+        self.assertEqual(build.call_args.kwargs, {'criteria': 'c' * 40})
 
     def test_a_failed_post_leaves_the_billed_review_in_the_log_with_workflow_commands_stopped(self):
         log = io.StringIO()
@@ -288,6 +290,12 @@ class MainTests(unittest.TestCase):
             self.run_main(message('{"summary": "거절 전 부분', stop_reason='refusal'), mock.Mock(), log)
         self.assertIn('입력 1,000 / 출력 200', log.getvalue())
         self.assertNotIn('거절 전 부분', log.getvalue())
+
+    def test_a_skipped_review_is_logged_like_a_review_and_posted(self):
+        log, post = io.StringIO(), mock.Mock()
+        self.run_main(message(), post, log, skipped='diff가 한도를 넘습니다')
+        self.assertRegex(log.getvalue(), re.escape(f'{claude_review.MARKER}\nClaude 리뷰를 하지 않았습니다: diff가 한도를 넘습니다.\n'))
+        self.assertIn('Claude 리뷰를 하지 않았습니다: diff가 한도를 넘습니다.', post.call_args.args[2]['body'])
 
     def test_an_unreadable_usage_does_not_stop_the_comment(self):
         post = mock.Mock()
