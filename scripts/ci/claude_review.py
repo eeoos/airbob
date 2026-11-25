@@ -231,9 +231,12 @@ def pull_request_text(event_path):
 
 
 def log_model_output(label, text):
-    """Print model output to the job log with workflow commands stopped, since it can quote PR content."""
+    """Print model output to the job log with workflow commands stopped, since it can quote PR content.
+
+    Flushed, so the log keeps it even if the job is killed while posting.
+    """
     token = secrets.token_hex(16)
-    print(f'::stop-commands::{token}\n{label}\n{text}\n::{token}::')
+    print(f'::stop-commands::{token}\n{label}\n{text}\n::{token}::', flush=True)
 
 
 def main():
@@ -273,7 +276,9 @@ def main():
         try:
             text = summary_of(message)
         except Exception:
-            log_model_output(f'Unusable response (stop_reason {message.stop_reason}):', response_text(message))
+            # A refused partial answer is discarded, as Anthropic advises; the error names the refusal.
+            if message.stop_reason != 'refusal':
+                log_model_output(f'Unusable response (stop_reason {message.stop_reason}):', response_text(message))
             raise
         log_model_output(MARKER, text)
     if args.dry_run:

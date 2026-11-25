@@ -55,8 +55,9 @@
     - 기준과 규칙은 base 커밋에서 읽는다. PR이 자기를 리뷰할 기준을 약하게 바꿀 수 없게 하기 위해서다.
     - 단, 지금은 워크플로가 PR head의 이 스크립트를 실행하므로, PR이 스크립트를 고치면 이 보장도 사라진다. 후속 `pull_request_target` 전환(main의 스크립트로 실행) 뒤에 보장된다.
   - Messages API에 도구 없이 리뷰 요청을 한 번 보낸다(구조화 출력). 연결 오류와 일부 HTTP 오류(408·409·429·5xx)는 SDK가 최대 2회 재시도한다. 인증은 ID 페더레이션(GitHub OIDC)이다.
-  - 응답을 받으면 토큰 수부터 실행 로그에 출력한다. 이어서 리뷰 본문을, 응답을 쓸 수 없으면(`max_tokens`, 거절, JSON 오류) 그 원문을 출력한다. 그래서 게시나 응답 처리가 실패해도 과금된 결과가 남는다.
-    - 모델 출력은 PR 내용을 인용할 수 있어서, 워크플로 명령을 멈춘(`::stop-commands::`) 상태로 출력한다.
+  - 응답을 받으면 토큰 수부터 실행 로그에 출력한다. 이어서 리뷰 본문을, 응답을 쓸 수 없으면(`max_tokens`, JSON 오류) 그 원문을 출력한다. 그래서 게시나 응답 처리가 실패해도 과금된 결과가 남는다.
+    - 거절된 응답의 부분 출력은 Anthropic 안내대로 버리고, 거절 사유만 오류로 남긴다.
+    - 모델 출력은 PR 내용을 인용할 수 있어서, 워크플로 명령을 멈춘(`::stop-commands::`) 상태로 출력한다. 게시 중에 잡이 종료돼도 남도록 바로 flush한다.
     - 토큰 정보를 읽지 못해도 꼬리말에 그 사실만 적고 게시한다.
   - 로컬에서는 `--dry-run <파일>`로 보낼 요청을 파일로 확인할 수 있다.
   - 설치할 패키지는 [ci/claude-review-requirements.txt](ci/claude-review-requirements.txt)에 버전과 해시로 고정한다. 버전을 올리거나 다시 만들 때는 저장소 루트에서 `printf 'anthropic==2.8.0\n' | uv pip compile - --universal --python-version 3.12 --generate-hashes --no-header -o scripts/ci/claude-review-requirements.txt`를 실행한다.

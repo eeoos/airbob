@@ -282,6 +282,13 @@ class MainTests(unittest.TestCase):
         self.assertIn('Unusable response (stop_reason max_tokens):\n{"summary": "잘린\n', log.getvalue())
         post.assert_not_called()
 
+    def test_a_refused_partial_answer_is_not_logged(self):
+        log = io.StringIO()
+        with self.assertRaisesRegex(RuntimeError, 'declined'):
+            self.run_main(message('{"summary": "거절 전 부분', stop_reason='refusal'), mock.Mock(), log)
+        self.assertIn('입력 1,000 / 출력 200', log.getvalue())
+        self.assertNotIn('거절 전 부분', log.getvalue())
+
     def test_an_unreadable_usage_does_not_stop_the_comment(self):
         post = mock.Mock()
         self.run_main(message('{"summary": "리뷰 본문"}', input_tokens=None), post, io.StringIO())
