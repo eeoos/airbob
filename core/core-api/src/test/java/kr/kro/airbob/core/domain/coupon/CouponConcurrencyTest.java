@@ -29,7 +29,11 @@ import kr.kro.airbob.core.domain.member.Member;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
 
 @Testcontainers
-@SpringBootTest(properties = {"spring.cloud.aws.s3.enabled=false", "spring.jpa.open-in-view=false"})
+// The default retry budget (250 ms) bounds production latency, and a slow CI runner can spend it in the first
+// attempt and give up before a retry these tests rely on. The attempt limit, not the clock, should decide when
+// issuance gives up here, so the budget is the maximum the service accepts.
+@SpringBootTest(properties = {"spring.cloud.aws.s3.enabled=false", "spring.jpa.open-in-view=false",
+	"coupon.issue.retry-budget-ms=5000"})
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class CouponConcurrencyTest {
@@ -50,9 +54,6 @@ class CouponConcurrencyTest {
 	@MockitoBean kr.kro.airbob.core.domain.search.repository.AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean io.awspring.cloud.s3.S3Template s3Template;
 	@Autowired CouponSkipLockedIssueService skip;
-	@Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
-	@Autowired CouponIssuer issuer;
-	@Autowired kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder metrics;
 	@Autowired CouponStockPreparationService preparation;
 	@Autowired CouponService administration;
 	@Autowired CouponRepository coupons;
@@ -136,10 +137,6 @@ class CouponConcurrencyTest {
 	@Test
 	void retriesIssuanceWhenLockedStockBecomesAvailable() throws Exception {
 		Coupon coupon = campaign(1, true);
-		// The default retry budget (250 ms) bounds production latency, and a slow CI runner can spend it in the
-		// first attempt, which gives up before the retry this test checks. This test only needs the retry, so it
-		// gets a budget no runner reaches; the attempt limit stays the default 3.
-		var patient = new CouponSkipLockedIssueService(transactionManager, issuer, metrics, 3, 5_000);
 		try (Connection owner = dataSource.getConnection()) {
 			owner.setAutoCommit(false);
 			try (var remove = owner.prepareStatement("delete from coupon_issue_unit where coupon_id=?")) {
@@ -155,7 +152,7 @@ class CouponConcurrencyTest {
 				}
 				return unit;
 			}).when(units).lockAvailable(coupon.getId());
-			patient.issue(coupon.getId(), users.getFirst().getId());
+			issue(coupon, users.getFirst().getId());
 			assertThat(attempts.get()).isEqualTo(2);
 		}
 		assertInventory(coupon, 1);
