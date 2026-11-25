@@ -2,7 +2,9 @@ package kr.kro.airbob.core.domain.coupon.monitoring;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import org.junit.jupiter.api.Test;
-import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.*;
+import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.DatabaseResult;
+import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.IssueResult;
+import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
 class FailSafeCouponIssueMetricRecorderTest {
 	@Test void swallowsEveryMetricFailure() {
 		var delegate = mock(MicrometerCouponIssueMetricRecorder.class);

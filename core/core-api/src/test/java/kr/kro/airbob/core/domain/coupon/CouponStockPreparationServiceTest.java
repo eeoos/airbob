@@ -4,7 +4,9 @@ import static org.mockito.Mockito.*;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import kr.kro.airbob.core.domain.coupon.repository.*;
+import kr.kro.airbob.core.domain.coupon.repository.CouponIssueUnitStore;
+import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
+import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 class CouponStockPreparationServiceTest {
 	@Test void rejectsInactiveAndPreviouslyIssuedCampaigns() {
 		var coupons = mock(CouponRepository.class);

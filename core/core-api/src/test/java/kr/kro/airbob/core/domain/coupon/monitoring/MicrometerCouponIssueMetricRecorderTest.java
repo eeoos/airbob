@@ -4,7 +4,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.*;
+import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.DatabaseResult;
+import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.IssueResult;
+import kr.kro.airbob.core.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
 class MicrometerCouponIssueMetricRecorderTest {
 	@Test void recordsClosedStrategyOutcomesAndRetryReasonsWithoutIdentifiers() {
 		var registry = new SimpleMeterRegistry();

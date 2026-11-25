@@ -5,7 +5,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import kr.kro.airbob.core.domain.coupon.repository.*;
+import kr.kro.airbob.core.domain.coupon.repository.CouponIssueUnitStore;
+import kr.kro.airbob.core.domain.coupon.repository.CouponRepository;
+import kr.kro.airbob.core.domain.coupon.repository.MemberCouponRepository;
 class CouponServiceTest {
 	@Test void doesNotMoveStartedCampaignBackIntoEditableState() {
 		var coupons = mock(CouponRepository.class);

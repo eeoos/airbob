@@ -12,6 +12,7 @@ timeshape = "2026b.29"
 org-json = "20250107"
 json-schema-validator = "1.5.9"
 archunit = "1.5.1"
+spotless = "8.11.0"
 
 [libraries]
 springdoc-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
@@ -29,3 +30,4 @@ archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
