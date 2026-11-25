@@ -2,8 +2,9 @@
 # PostToolUse (Edit|Write): format an edited Java file with Spotless (Naver convention), then compile
 # the source set it belongs to in its Gradle module. One Gradle run does both.
 # Modules live at <group>/<module>/ (core/core-api, clients/*, support/*, ...).
-# Exits 2 with the Gradle output on stderr when formatting (for example a non-static wildcard import)
-# or compilation fails.
+# Exits 2 with the Gradle output on stderr when formatting or compilation fails.
+# Spotless's IDE-hook mode skips lints (a non-static wildcard import); the Stop hook's spotlessCheck
+# reports them.
 
 file=$(jq -r '.tool_input.file_path // empty')
 root=${CLAUDE_PROJECT_DIR:?}

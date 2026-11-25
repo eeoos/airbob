@@ -9,8 +9,9 @@ state. The README, `docs/` and `scripts/README.md` are written in Korean.
 - Run `./gradlew compileJava` after entity changes to regenerate QueryDSL Q-classes.
 - Java code follows the Naver convention through Spotless. The edit hook formats each edited file.
   `spotlessCheck`, part of `./gradlew build`, fails on unformatted code or a non-static wildcard import.
-  Fix with `./gradlew spotlessApply`. Do not change the formatter XML; see
-  `docs/development/coding-convention.md`.
+  Fix formatting with `./gradlew spotlessApply`. `spotlessApply` cannot fix a non-static wildcard
+  import; replace it with class imports by hand. The Stop hook runs `spotlessCheck`; the edit hook
+  does not. Do not change the formatter XML; see `docs/development/coding-convention.md`.
 - `./gradlew test` needs Docker running (Testcontainers).
 - Datasource and AWS credentials come from environment variables (`SPRING_DATASOURCE_*`, `AWS_*`,
   `CLOUDFRONT_DOMAIN`) supplied by `.env`.

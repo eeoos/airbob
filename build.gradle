@@ -46,7 +46,8 @@ configure(subprojects.findAll { it.subprojects.isEmpty() }) {
 			// Hand-written sources only; generated QueryDSL Q-classes live under build/.
 			target 'src/*/java/**/*.java'
 			removeUnusedImports()
-			importOrder('\\#', 'java', 'javax', 'org', 'net', 'com', '')
+			// Trailing dots keep package boundaries: 'java' alone would also match javassist.
+			importOrder('\\#', 'java.', 'javax.', 'org.', 'net.', 'com.', '')
 			// The Naver convention allows wildcards only in static imports; forbidWildcardImports() rejects both.
 			forbidRegex('Non-static wildcard import', '(?m)^import (?!static\\s)[\\w.]+\\.\\*;',
 				'Import each class by name; only static imports may use *')
