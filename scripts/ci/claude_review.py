@@ -1,9 +1,11 @@
 """Second AI review of a pull request (claude-review.yml): one Claude Messages API request, no tools.
 
-The first review, by Codex, runs locally before push (docs/development/ai-review-log.md). This script
-collects the context from Git (the review criteria, CLAUDE.md, the .claude/rules files whose paths match
-the change, the PR description, the commits, the diff, and the changed files at head), asks Claude for
-the review as structured output, and posts it as a new PR comment.
+The first review, by Codex, runs locally before push (docs/development/ai-review-log.md). claude-review.yml
+runs this script from the default branch (workflow_run), so a PR cannot change the review it gets. The
+script reads the PR only as Git objects and data: the review criteria, CLAUDE.md, and the .claude/rules
+files whose paths match the change come from the default-branch commit the workflow runs (`--criteria`);
+the PR description comes from the API; the commits, the diff, and the changed files come from the PR head.
+It asks Claude for the review as structured output and posts it as a new PR comment.
 
 The Claude API is reached with workload identity federation: the run's GitHub OIDC token is handed to
 the anthropic SDK, which exchanges it for a short-lived token. claude-code-action is not used because
@@ -76,15 +78,11 @@ def read_text(repo, revision, path):
     return None if text is None or '\0' in text else text
 
 
-def criteria_text(repo, base, head, path, added):
-    """Criteria and rules come from the base commit, so a PR cannot weaken what it is reviewed against.
-    Only a file this PR adds (`added`) is taken from head, and it is labeled as such; a file that main
-    deleted after the branch point is not brought back."""
-    text = read_text(repo, base, path)
-    if text is not None:
-        return text
-    text = read_text(repo, head, path) if path in added else None
-    return '(없음)' if text is None else f'(base에 없어 이 PR이 추가한 버전)\n\n{text}'
+def criteria_text(repo, criteria, path):
+    """Criteria and rules come from the default-branch commit the workflow runs, never from the PR's head or
+    base, so a PR cannot weaken what it is reviewed against. A change to them applies once it is merged."""
+    text = read_text(repo, criteria, path)
+    return '(없음)' if text is None else text
 
 
 def matched_rules(repo, revision, paths):
@@ -94,19 +92,21 @@ def matched_rules(repo, revision, paths):
                   if any(pattern.match(path) for path in paths for pattern in patterns))
 
 
-def build_request(repo, base, head, title='', body=''):
-    """(user message, changed files left to the diff); raises ReviewSkipped when the change is too large."""
+def build_request(repo, base, head, title='', body='', *, criteria):
+    """(user message, changed files left to the diff); raises ReviewSkipped when the change is too large.
+
+    `criteria` is the commit the criteria and rules are read from (see criteria_text).
+    """
     diff = git_text(repo, 'diff', f'{base}...{head}')
     if len(diff) > DIFF_LIMIT:
         raise ReviewSkipped(f'diff가 {len(diff):,}자로 한도 {DIFF_LIMIT:,}자를 넘습니다')
     entries = repo.name_status(f'{base}...{head}')
     paths = [path for _, path in entries]
-    added = {path for status, path in entries if status == 'A'}
-    sections = [f'# 리뷰 기준 ({GUIDE})\n\n{criteria_text(repo, base, head, GUIDE, added)}',
-                f'# 프로젝트 규칙 (CLAUDE.md)\n\n{criteria_text(repo, base, head, "CLAUDE.md", added)}']
-    for name in matched_rules(repo, base, paths):
+    sections = [f'# 리뷰 기준 ({GUIDE})\n\n{criteria_text(repo, criteria, GUIDE)}',
+                f'# 프로젝트 규칙 (CLAUDE.md)\n\n{criteria_text(repo, criteria, "CLAUDE.md")}']
+    for name in matched_rules(repo, criteria, paths):
         sections.append(f'# 이 변경에 해당하는 영역 규칙 (.claude/rules/{name})\n\n'
-                        f'{criteria_text(repo, base, head, ".claude/rules/" + name, added)}')
+                        f'{criteria_text(repo, criteria, ".claude/rules/" + name)}')
     sections.append(f'# PR\n\n제목: {title or "(없음)"}\n\n{body or "(설명 없음)"}')
     commits = git_text(repo, 'log', '--format=%h %s', f'{base}..{head}')
     sections.append(f'# 커밋 ({base[:8]}..{head[:8]})\n\n{fenced(commits)}')
@@ -223,10 +223,12 @@ def use_github_identity(environ=os.environ):
         environ['ANTHROPIC_IDENTITY_TOKEN'] = json.load(response)['value']
 
 
-def pull_request_text(event_path):
-    if not event_path or not Path(event_path).is_file():
+def pull_request_text(request, repository, number):
+    """The PR title and body from the API; the workflow_run event that starts the review does not carry them.
+    Without a GitHub token (a local dry run) both are empty."""
+    if request is None:
         return '', ''
-    pull = json.loads(Path(event_path).read_text()).get('pull_request') or {}
+    pull = request('GET', f'{pr_comment.API}/repos/{repository}/pulls/{number}') or {}
     return pull.get('title') or '', pull.get('body') or ''
 
 
@@ -243,19 +245,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--base', required=True, help='PR base commit (pull_request.base.sha)')
     parser.add_argument('--head', required=True, help='PR head commit (pull_request.head.sha)')
+    parser.add_argument('--criteria', required=True,
+                        help='commit to read the review criteria and rules from: the default-branch commit '
+                             'the workflow runs (github.sha), never one the PR controls')
     parser.add_argument('--pr', required=True)
     parser.add_argument('--repository', required=True)
     parser.add_argument('--dry-run', metavar='FILE', help='write the request to FILE instead of sending it')
     args = parser.parse_args()
     scope.require_sha(args.base)
     scope.require_sha(args.head)
+    scope.require_sha(args.criteria)
     if not pr_comment.PR_NUMBER.fullmatch(args.pr) or not pr_comment.REPOSITORY.fullmatch(args.repository):
         raise ValueError('invalid pull request number or repository')
     run = f"{os.environ.get('GITHUB_RUN_ID', 'local')}/{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-    title, body = pull_request_text(os.environ.get('GITHUB_EVENT_PATH'))
+    token = os.environ.get('GITHUB_TOKEN')
+    title, body = pull_request_text(pr_comment.github(token) if token else None, args.repository, args.pr)
 
     try:
-        user_message, omitted = build_request(pr_report.Repo(), args.base, args.head, title, body)
+        user_message, omitted = build_request(pr_report.Repo(), args.base, args.head, title, body,
+                                              criteria=args.criteria)
     except ReviewSkipped as skipped:
         text, details = f'Claude 리뷰를 하지 않았습니다: {skipped}.', ''
     else:

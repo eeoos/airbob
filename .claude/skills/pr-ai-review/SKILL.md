@@ -69,10 +69,16 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 ## B. PR 후: Claude 리뷰
 
 1. **실행을 기다린다.**
-   - `claude-review.yml`은 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
+   - 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `claude-review-request.yml`이 PR에서 돈다. 그 실행이 끝나면 main의 `claude-review.yml`이 `workflow_run`으로 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
+   - 리뷰는 main에 있는 워크플로, 스크립트, 리뷰 기준으로 돈다. 이것들을 바꾼 PR도 바꾸기 전 버전으로 리뷰되고, 바뀐 것은 머지 뒤 다음 PR부터 적용된다.
    - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
    - 리뷰를 받은 PR은 고치는 동안 초안으로 돌리거나 닫지 않는다. 초안을 준비 완료로 되돌리거나 다시 열면 라벨 없이 리뷰가 다시 돈다.
-   - `gh run list --workflow claude-review.yml --branch <브랜치>`로 실행을 찾고, 끝날 때까지 기다린다.
+   - 리뷰 실행은 브랜치가 main으로 찍히므로 브랜치가 아니라 실행 이름으로 찾고, 끝날 때까지 기다린다.
+     ```
+     gh run list --workflow claude-review.yml --json databaseId,displayTitle,status,conclusion \
+       --jq '.[] | select(.displayTitle | startswith("Claude review PR #<번호> "))'
+     ```
+     요청 실행은 `gh run list --workflow claude-review-request.yml --branch <브랜치>`로 찾는다. 요청이 건너뛰어졌으면(초안, 다른 라벨) 리뷰도 돌지 않는다.
    - 실행이 취소(cancelled)되면 미완료로 보고 라벨로 다시 돌린다. 같은 PR에 다른 라벨이 붙으면, 동시성 그룹에서 대기 중이던 리뷰 실행이 취소될 수 있다.
 2. **결과를 읽는다.**
    - 리뷰는 `<!-- airbob-claude-review -->`로 시작하는 댓글 하나다. 인라인 댓글은 없다. `gh pr view <번호> --comments`로 읽는다.
