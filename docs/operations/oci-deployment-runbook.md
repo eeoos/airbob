@@ -39,6 +39,22 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
 - 게시: `main`의 `pr-report.yml`
 - 각 실행의 Step Summary에도 같은 보고서가 남는다.
 
+**Claude 리뷰:** `claude-review.yml`이 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
+- 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 돈다.
+- 응답을 받으면 토큰 수와 리뷰 본문(쓸 수 없는 응답이면 그 원문, 거절이면 사유만)을 댓글을 달기 전에 실행 로그에 먼저 남긴다. 게시나 응답 처리가 실패해도 과금된 결과를 잃지 않는다.
+- 다시 리뷰하려면 `claude-review` 라벨을 붙인다. push마다 돌지 않는다. 리뷰는 PR당 1회가 원칙이고, 다시 돌리는 기준은 `.claude/skills/pr-ai-review`에 있다.
+- `CI result`에 포함되지 않고 머지를 막지 않는다.
+- Messages API에 리뷰 요청을 한 번 보낸다. 연결 오류와 일부 HTTP 오류(408·409·429·5xx)는 SDK가 최대 2회 재시도한다. 처리 중에 연결이 끊긴 요청은 과금될 수 있다.
+- 요청과 출력의 크기 한도로 비용을 제한한다. 댓글 꼬리말에는 토큰 수를 남긴다.
+  - 기본 모델만 실행됐으면 추정 비용도 함께 적는다.
+  - 대체 모델이 실행됐으면 시도별 토큰을 적고, 비용은 Console에서 확인하도록 안내한다.
+- `claude-code-action`은 쓰지 않는다. 월간 API 크레딧이 그 액션이 시작한 실행에는 적용되지 않기 때문이다.
+- 인증은 API 키 없이 ID 페더레이션(GitHub OIDC)으로 한다.
+  - Console의 페더레이션 규칙은 이 저장소의 PR 실행(`repo:eeoos/airbob:pull_request`)만 받는다.
+  - 규칙·조직·서비스 계정·workspace ID는 저장소 변수 `ANTHROPIC_*`에 둔다.
+  - 인증이 실패하면 Console의 authentication history에서 원인을 본다.
+- 기준과 판정 기록: [AI 코드 리뷰 기준](../development/code-review.md), [AI 리뷰 기록](../development/ai-review-log.md)
+
 AWS 앱 이미지가 새로 필요하면 `Publish AWS application image`를 수동 실행한다.
 검토한 `main` SHA를 입력하고 같은 CI를 통과한 뒤 ECR에 게시하며 OCI 배포는 하지 않는다.
 고정된 과거 B 이미지 게시와 AWS 자원 기동·종료 워크플로는 별도로 유지한다.

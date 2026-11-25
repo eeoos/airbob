@@ -39,14 +39,24 @@ jobs:
           path: build/pr-report
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
+      # The PR base comes from this event, not from the artifact. A failed or slow search must not stop
+      # the comment, so the search and the download have their own time limits within the job's.
       - name: Find the main test summary to compare with
         id: baseline
+        continue-on-error: true
+        timeout-minutes: 2
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 -B scripts/ci/pr_baseline.py --facts build/pr-report/facts.json --repository "$GITHUB_REPOSITORY"
+          PR_BASE_SHA: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+        run: >-
+          python3 -B scripts/ci/pr_baseline.py --facts build/pr-report/facts.json --base "$PR_BASE_SHA"
+          --repository "$GITHUB_REPOSITORY" --repository-id "$REPOSITORY_ID"
       - name: Download the main test summary
-        if: ${{ steps.baseline.outputs.found == 'true' }}
+        id: baseline-download
+        if: ${{ steps.baseline.outputs.status == 'found' }}
         continue-on-error: true
+        timeout-minutes: 1
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: ${{ steps.baseline.outputs.name }}
@@ -58,7 +68,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           BASELINE_SHA: ${{ steps.baseline.outputs.sha }}
+          BASELINE_STATUS: ${{ steps.baseline.outputs.status }}
+          BASELINE_SEARCHED: ${{ steps.baseline.outputs.searched }}
+          BASELINE_DOWNLOAD: ${{ steps.baseline-download.outcome }}
         run: >-
           python3 -B scripts/ci/pr_comment.py --dir build/pr-report
           --repository "$GITHUB_REPOSITORY" --head-sha "$HEAD_SHA"
           --baseline build/baseline/test-summary.json --baseline-sha "$BASELINE_SHA"
+          --baseline-status "$BASELINE_STATUS" --baseline-searched "$BASELINE_SEARCHED"
+          --baseline-download "$BASELINE_DOWNLOAD"

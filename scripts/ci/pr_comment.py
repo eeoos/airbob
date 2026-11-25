@@ -44,15 +44,22 @@ def load_report(directory):
     return int(number), pr_report.fit(body)
 
 
-def add_test_delta(body, directory, baseline=None, baseline_sha=''):
-    """Insert the main comparison; a failure is reported in the comment instead of blocking it."""
+def add_test_delta(body, directory, baseline=None, baseline_sha='', status='found', searched=0, downloaded='success'):
+    """Insert the main comparison; a failure is reported in the comment instead of blocking it.
+
+    `status` and `searched` come from pr_baseline.py; an empty status means that step did not finish.
+    `downloaded` is the outcome of the download step: a failed download may leave a partial file behind.
+    """
     try:
         facts = json.loads((Path(directory) / 'facts.json').read_text())
         summary = None
-        if baseline and Path(baseline).is_file():
+        if status == 'found':
             scope.require_sha(baseline_sha)
-            summary = json.loads(Path(baseline).read_text())
-        lines = pr_report.render_test_delta(facts, baseline_sha, summary, pr_report.BASELINE_SEARCH_LIMIT)
+            if downloaded == 'success' and baseline and Path(baseline).is_file():
+                summary = json.loads(Path(baseline).read_text())
+            else:
+                status = 'download_failed'
+        lines = pr_report.render_test_delta(facts, baseline_sha, summary, status or 'lookup_failed', searched)
     except Exception as error:
         lines = ['### main 대비 테스트 증감', f'{pr_report.WARN} 비교 실패: {type(error).__name__}: {pr_report.first_line(str(error))}']
     return pr_report.fit(pr_report.insert_section(body, lines))
@@ -95,9 +102,14 @@ def main():
     parser.add_argument('--head-sha', required=True, help='head commit of the CI run (workflow_run.head_sha)')
     parser.add_argument('--baseline', help='main test-summary.json found by pr_baseline.py (optional)')
     parser.add_argument('--baseline-sha', default='', help='main commit of --baseline')
+    parser.add_argument('--baseline-status', default='', help='status written by pr_baseline.py')
+    parser.add_argument('--baseline-searched', default='0', help='main commits pr_baseline.py looked up')
+    parser.add_argument('--baseline-download', default='', help='outcome of the baseline download step')
     args = parser.parse_args()
     number, body = load_report(args.dir)
-    body = add_test_delta(body, args.dir, args.baseline, args.baseline_sha)
+    searched = int(args.baseline_searched) if args.baseline_searched.isdigit() else 0
+    body = add_test_delta(body, args.dir, args.baseline, args.baseline_sha, args.baseline_status, searched,
+                          args.baseline_download)
     print(publish(github(os.environ['GITHUB_TOKEN']), args.repository, number, args.head_sha, body))
 
 

@@ -1,0 +1,77 @@
+name: Claude review
+
+# Second AI review of a pull request (the first, Codex, runs locally before push). scripts/ci/claude_review.py
+# sends one Claude Messages API request with the context it collects from Git and posts the result as a new
+# PR comment; Claude gets no tools. It is informational and not part of CI result. It lives outside ci.yml
+# because posting needs pull-requests: write, which CD's contents: read call of ci.yml cannot grant.
+# claude-code-action is not used: the monthly API credit does not cover runs that the action starts.
+# Criteria: docs/development/code-review.md. Verdicts: docs/development/ai-review-log.md.
+on:
+  pull_request:
+    types: [ opened, reopened, ready_for_review, labeled ]
+    # Documentation-only changes are not reviewed. Agent policy (CLAUDE.md, AGENTS.md, .claude/) and the
+    # review criteria are not documentation, so later patterns include them again.
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!**/*.md'
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - '.claude/**'
+      - 'docs/development/code-review.md'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: Review the pull request
+    # Same-repository PRs only (forks get no OIDC token). Re-review by adding the claude-review label.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && !github.event.pull_request.draft
+      && (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    runs-on: ubuntu-latest
+    # The first run took about five minutes; xhigh on a request near the size limit can take longer.
+    timeout-minutes: 20
+    # id-token: write lets the script exchange this run's GitHub OIDC token for a short-lived Claude API
+    # token (workload identity federation), so there is no API key secret.
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      # Full history for the base...head diff; the script reads both commits from the event through Git, so
+      # the review stays on the same change if the base moves or the PR is merged while this run waits.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      # Every package is pinned by version and hash (uv pip compile --universal --generate-hashes), like the
+      # SHA-pinned actions: this job holds an OIDC request token and a pull-requests: write token.
+      - name: Install the Anthropic SDK
+        run: |
+          python3 -m venv "$RUNNER_TEMP/claude-review-venv"
+          "$RUNNER_TEMP/claude-review-venv/bin/pip" install --quiet --require-hashes --only-binary :all: \
+            -r scripts/ci/claude-review-requirements.txt
+      - name: Review with Claude
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Workload identity federation. These IDs are identifiers, not secrets; the rule only accepts the
+          # subject repo:eeoos/airbob:pull_request. Do not add ANTHROPIC_API_KEY: it would take precedence.
+          ANTHROPIC_FEDERATION_RULE_ID: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          ANTHROPIC_ORGANIZATION_ID: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          ANTHROPIC_WORKSPACE_ID: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: >-
+          "$RUNNER_TEMP/claude-review-venv/bin/python" -B scripts/ci/claude_review.py
+          --base "$BASE_SHA" --head "$HEAD_SHA" --pr "$PR_NUMBER" --repository "$GITHUB_REPOSITORY"

@@ -682,14 +682,35 @@ def signed(number):
     return f'+{number:,}' if number > 0 else f'{number:,}' if number < 0 else '±0'
 
 
-def render_test_delta(facts, baseline_sha, summary, searched):
-    """The "main 대비 테스트 증감" section; `summary` is the main test summary or None."""
+def build_succeeded(summary):
+    """`./gradlew build` stops at the first failure, so a failed build may have run only some modules' tests.
+    The app job keeps the summary even after a failed build, so a summary without `build_outcome`
+    (written before it was recorded) is not known to be complete."""
+    return summary.get('build_outcome') == 'success'
+
+
+def render_test_delta(facts, baseline_sha, summary, status, searched=0):
+    """The "main 대비 테스트 증감" section.
+
+    `status` is the baseline search result (pr_baseline.py): found, not_found, base_mismatch,
+    lookup_failed, or download_failed. `summary` is the main test summary when it was found.
+    """
     lines = ['### main 대비 테스트 증감']
     tests = facts.get('tests')
     if not isinstance(tests, dict) or 'suites' not in tests:
         return lines + ['이 PR의 테스트 요약이 없어 비교하지 않았습니다.']
-    if summary is None:
+    if not build_succeeded(tests):
+        return lines + [f'{WARN} 이 PR의 빌드 성공이 확인되지 않아(실패 또는 이전 형식 요약) 일부 모듈의 테스트만 담겼을 수 있습니다. 비교하지 않았습니다.']
+    if status == 'not_found':
         return lines + [f'main 기준 테스트 요약을 찾지 못했습니다(PR base부터 main 커밋 {searched}개 확인).']
+    if status == 'base_mismatch':
+        return lines + [f"{WARN} 보고서의 PR base({code(short(facts.get('base')))})가 이 PR의 실제 base와 달라 비교하지 않았습니다."]
+    if status == 'download_failed':
+        return lines + [f'{WARN} main {code(short(baseline_sha))}의 테스트 요약을 내려받지 못했습니다.']
+    if status != 'found' or summary is None:
+        return lines + [f'{WARN} main 기준 테스트 요약을 조회하지 못했습니다. PR report 실행 로그를 보세요.']
+    if not build_succeeded(summary):
+        return lines + [f'{WARN} main {code(short(baseline_sha))}의 빌드 성공이 확인되지 않아(실패 또는 이전 형식 요약) 기준 요약이 불완전할 수 있습니다. 비교하지 않았습니다.']
     delta = test_delta(tests, summary)
     base = facts.get('base') or ''
     source = f'main {code(short(baseline_sha))}'
@@ -739,6 +760,7 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     tests = commands.add_parser('tests', help='summarize JUnit XML of every module')
     tests.add_argument('--out', required=True)
+    tests.add_argument('--build-outcome', help='outcome of the Gradle build step (steps.<id>.outcome)')
     facts = commands.add_parser('facts', help='collect facts.json and report.md')
     facts.add_argument('--base', required=True)
     facts.add_argument('--head', default='HEAD')
@@ -752,7 +774,8 @@ def main():
     if args.command == 'tests':
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(summarize_tests(), ensure_ascii=False, indent=1) + '\n')
+        summary = dict(summarize_tests(), build_outcome=args.build_outcome)
+        out.write_text(json.dumps(summary, ensure_ascii=False, indent=1) + '\n')
         return
 
     summary = None

@@ -76,6 +76,13 @@ directly, even if you have not opened a matching file yet.
   `core/core-api/src/test/resources/application-test.yaml`.
 - Do not weaken `test`-profile Kafka/scheduling isolation to make a focused test pass.
 
+## AI code review
+
+Before pushing a branch whose PR changes code (not only `docs/` or `*.md`; agent policy in `CLAUDE.md`,
+`AGENTS.md`, `.claude/`, and the review criteria `docs/development/code-review.md` count as code),
+follow the `pr-ai-review` skill: a Codex review of the branch diff, then verify, fix, and record each
+finding. After the PR's Claude review comment arrives, follow part B of the same skill.
+
 ## Behavioral guidelines
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
