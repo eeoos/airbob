@@ -32,7 +32,7 @@ description: PR 제목과 본문 형식. PR을 만들거나 PR 본문을 고칠 
 
 - 본문은 스크래치패드 파일에 써서 넘긴다. 대상 브랜치는 보통 `main`이고, 머지되지 않은 이전 PR 브랜치 위에 쌓았으면 그 브랜치다.
   ```
-  gh pr create --base <대상 브랜치> --title "<제목>" --body-file <파일>
+  gh pr create --base <대상 브랜치> --title "<제목>" --body-file <파일> --label claude-review
   ```
+- `--label claude-review`가 Claude 리뷰를 요청한다(`pr-ai-review` B.1). 문서만 바뀐 PR과 사용자가 리뷰를 건너뛰자고 한 PR에서는 뺀다. 초안 PR은 준비 완료로 바꾼 뒤 붙인다.
 - 본문을 고칠 때는 `gh api -X PATCH repos/eeoos/airbob/pulls/<번호> -F body=@<파일>`을 쓴다. `gh pr edit`은 classic Projects 조회 오류로 실패할 수 있다.
-- PR을 만들 때 `claude-review` 라벨을 붙이지 않는다(`pr-ai-review` B.1).

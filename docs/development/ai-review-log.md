@@ -9,7 +9,7 @@ AI가 작성한 변경을 다른 AI가 리뷰한 결과와 판정을 남긴다.
 | 단계 | 리뷰어 | 시점 | 실행 |
 |---|---|---|---|
 | PR 전 | Codex(다른 계열 모델) | 커밋과 로컬 테스트를 마친 뒤 push 전 | 로컬 `codex exec`, `.claude/skills/pr-ai-review` |
-| PR 후 | Claude | 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때. 다시 볼 때는 `claude-review` 라벨 | PR의 `.github/workflows/claude-review-request.yml`(권한 없음)이 끝나면, main의 `.github/workflows/claude-review.yml`이 main의 `scripts/ci/claude_review.py`와 기준으로 리뷰한다(Messages API 1회, 도구 없음) |
+| PR 후 | Claude | 초안이 아닌 PR에 `claude-review` 라벨을 붙일 때(작성자가 PR을 만들 때 붙인다). 다시 볼 때는 뗐다가 다시 붙인다 | PR의 `.github/workflows/claude-review-request.yml`(권한 없음)이 끝나면, main의 `.github/workflows/claude-review.yml`이 main의 `scripts/ci/claude_review.py`와 기준으로 리뷰한다(Messages API 1회, 도구 없음) |
 
 - Codex를 먼저 둔다. 작성자와 계열이 다른 모델이 작성자의 사각지대를 가장 많이 찾기 때문이다.
 - 리뷰어는 고치지 않는다. 작성자(Claude Code)가 지적마다 코드를 읽거나 재현해 확인한 뒤 판정하고 고친다.
@@ -21,6 +21,7 @@ AI가 작성한 변경을 다른 AI가 리뷰한 결과와 판정을 남긴다.
 - 수정분 재리뷰는 최대 2회다. 재리뷰 1은 첫 리뷰의 심각도와 관계없이 로직을 고쳤으면 하고, 재리뷰 2는 재리뷰 1에 필수가 있을 때만 한다. 2회째에도 필수가 나오면 멈추고 사용자에게 묻는다. 고칠 때마다 새 경계 조건이 생겨 끝없이 이어질 수 있기 때문이다.
 - Claude 리뷰는 PR당 1회다. Claude 지적을 고친 부분은 Codex가 다시 본다. 라벨로 다시 돌리는 것은 실행 실패, 리뷰 뒤의 큰 설계 변경, 리뷰 과정 자체를 다듬는 PR에서 사용자가 원할 때뿐이다.
   - 근거: 이 도입 PR에서 Claude 리뷰를 세 번 돌렸더니 필수는 매번 0건이었는데, 실제 결함이 1~2건씩 계속 나왔다. 그 결함은 주로 직전 수정 근처에서 나왔다.
+- 첫 리뷰도 라벨로 요청한다(2026-11-26, 사용자 결정). 요청 방법이 하나라 PR을 만들며 라벨을 붙여 두 번 리뷰하거나, 초안 전환·다시 열기로 리뷰가 다시 도는 일이 없다. 기계적인 대량 변경처럼 리뷰가 필요 없는 PR은 라벨을 붙이지 않고 "생략(사용자 결정)"으로 기록해 지표에서 뺀다.
 
 | 판정 | 기준 |
 |---|---|

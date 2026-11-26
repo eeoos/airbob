@@ -35,7 +35,7 @@ airbob의 코드 변경과 PR 상당수는 AI 코딩 에이전트(Claude Code)�
 | PR CI | 쿼리 수 고정 테스트: 예약 상세 SQL 1개(`ReservationPaymentReadQueryIntegrationTest`), 숙소 상세 쿼리 수 등 | 측정 | CI 실패 |
 | PR CI | 배포 계약 테스트: `OciDeploymentContractTest`, `MessagingDeploymentContractTest`, 모든 GitHub Action의 SHA 고정(`infra/aws/tests/image-publication-test.sh`) | 계약 검사 | CI 실패 |
 | PR 댓글 | PR 점검 보고서(`scripts/ci/pr_report.py`, `pr_baseline.py`, `pr_comment.py`): CI 잡 결과, 모듈별 테스트, main 대비 테스트 증감, 계약 신호(API·마이그레이션·오류 코드·ArchUnit·보관 해시·설정·빌드), 바뀐 영역 | 측정 | 표시만 한다(⚠️) |
-| PR 댓글 | Claude 리뷰(`.github/workflows/claude-review-request.yml` → `claude-review.yml`, `scripts/ci/claude_review.py`, main의 코드와 기준으로): 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때, `claude-review` 라벨을 붙일 때 같은 기준으로 리뷰하고 요약 댓글을 단다 | 리뷰 | 표시만 한다. 작성자가 검증해 [AI 리뷰 기록](ai-review-log.md)에 판정을 남긴다 |
+| PR 댓글 | Claude 리뷰(`.github/workflows/claude-review-request.yml` → `claude-review.yml`, `scripts/ci/claude_review.py`, main의 코드와 기준으로): 초안이 아닌 PR에 `claude-review` 라벨을 붙일 때 리뷰하고 요약 댓글을 단다. 작성자가 PR을 만들 때 붙인다 | 리뷰 | 표시만 한다. 작성자가 검증해 [AI 리뷰 기록](ai-review-log.md)에 판정을 남긴다 |
 
 에이전트가 따를 영역 불변식은 `CLAUDE.md`와 `.claude/rules/*.md`에 둔다. 위 장치들은 그 불변식 중 기계로 확인할 수 있는 부분을 강제한다.
 PR 보고서의 구조는 [실행 도구 안내](../../scripts/README.md#ci-검사-선택과-결과)를 본다.

@@ -30,9 +30,10 @@ paths:
   sticky comment. Never add `pull-requests: write` or `actions: read` to `ci.yml`: CD reuses it with
   `contents: read`, and a called workflow cannot request more than its caller grants.
 - Claude review: `claude-review-request.yml` (`pull_request`, no permissions, runs nothing) marks
-  same-repository, non-draft PRs when opened, reopened, or marked ready for review, and when the
-  `claude-review` label is added. When it succeeds, `claude-review.yml` (`workflow_run`, default-branch
-  code) runs `scripts/ci/claude_review.py` from main. The PR is fetched and read only as Git objects and
+  same-repository, non-draft PRs only when the `claude-review` label is added, the first review included;
+  opening, reopening, marking ready, or pushing does not request one. When it succeeds,
+  `claude-review.yml` (`workflow_run`, default-branch code) runs `scripts/ci/claude_review.py` from main.
+  The PR is fetched and read only as Git objects and
   API data, and the criteria and rules come from the default-branch commit the workflow runs, so a PR
   cannot change how it is reviewed; never check out, install from, or run anything from the PR head in
   that job. The criteria and rules go in the system prompt and the PR only in the user message, as

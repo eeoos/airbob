@@ -6,7 +6,10 @@ name: Claude review request
 # main's code. A PR can therefore ask for a review or skip one, but cannot change how it is reviewed.
 on:
   pull_request:
-    types: [ opened, reopened, ready_for_review, labeled ]
+    # Only adding the claude-review label asks for a review, the first one included (the author adds it when
+    # creating the PR); remove and re-add it to review again. Opening, reopening, marking ready, or pushing
+    # does not, so a PR is reviewed once per request and a PR nobody labels is not reviewed.
+    types: [ labeled ]
     # Documentation-only changes are not reviewed. Agent policy (CLAUDE.md, AGENTS.md, .claude/) and the
     # review criteria are not documentation, so later patterns include them again.
     paths:
@@ -23,13 +26,13 @@ permissions: {}
 jobs:
   request:
     name: Request the Claude review
-    # Same-repository PRs only; a draft waits for ready_for_review; a label counts only if it is
-    # claude-review. A skipped job leaves the run without success, and claude-review.yml reviews only after
-    # a successful request.
+    # Same-repository PRs only; a label on a draft is ignored (add it after marking the PR ready); only the
+    # claude-review label counts. A skipped job leaves the run without success, and claude-review.yml
+    # reviews only after a successful request.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository
       && !github.event.pull_request.draft
-      && (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+      && github.event.label.name == 'claude-review'
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
