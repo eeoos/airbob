@@ -13,14 +13,14 @@ public class PaymentQueryService {
 	private final PaymentTransactionReader transactionReader;
 
 	@Transactional(readOnly = true)
-	public PaymentDetail findPaymentByPaymentKey(String paymentKey, Long memberId) {
+	public PaymentDetail getPaymentByPaymentKey(String paymentKey, Long memberId) {
 		Payment payment = paymentReader.readByPaymentKey(paymentKey);
 		validateOwner(payment, memberId);
 		return PaymentDetail.of(payment, transactionReader.readCancellations(payment.getId()));
 	}
 
 	@Transactional(readOnly = true)
-	public PaymentDetail findPaymentByOrderId(String orderId, Long memberId) {
+	public PaymentDetail getPaymentByOrderId(String orderId, Long memberId) {
 		Payment payment = paymentReader.readByOrderId(orderId);
 		validateOwner(payment, memberId);
 		return PaymentDetail.of(payment, transactionReader.readCancellations(payment.getId()));

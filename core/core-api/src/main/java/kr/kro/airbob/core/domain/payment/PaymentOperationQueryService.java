@@ -17,7 +17,7 @@ public class PaymentOperationQueryService {
 	private final Clock clock;
 
 	@Transactional(readOnly = true)
-	public PaymentOperationDetail find(UUID operationUid, Long memberId) {
+	public PaymentOperationDetail get(UUID operationUid, Long memberId) {
 		PaymentOperationDetailRow operation = operationReader.readDetail(operationUid);
 		if (!Objects.equals(operation.requesterMemberId(), memberId)) {
 			throw new PaymentAccessDeniedException();

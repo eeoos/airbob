@@ -46,11 +46,11 @@ public class WishlistController implements WishlistApi {
 	}
 
 	@Override
-	public ResponseEntity<ApiResponse<WishlistResponse.WishlistInfos>> findWishlists(
+	public ResponseEntity<ApiResponse<WishlistResponse.WishlistInfos>> getWishlists(
 		CursorRequest.CursorPageRequest request,
 		Long accommodationId,
 		Long memberId) {
-		WishlistSummaryPage page = wishlistService.findWishlists(request, memberId, accommodationId);
+		WishlistSummaryPage page = wishlistService.getWishlists(request, memberId, accommodationId);
 		return ResponseEntity.ok(ApiResponse.success(
 			WishlistResponse.WishlistInfos.from(page, accommodationId != null)));
 	}

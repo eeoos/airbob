@@ -67,8 +67,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.controller.v1.payment.PaymentController;
 import kr.kro.airbob.core.api.controller.v1.payment.PaymentOperationController;
@@ -112,8 +112,8 @@ import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMess
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	CouponTimeProvider.class,
 	CouponUsageManager.class,
 	AccommodationInventoryDayRepository.class,

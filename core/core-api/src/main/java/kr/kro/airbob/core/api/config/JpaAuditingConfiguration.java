@@ -16,7 +16,7 @@ import kr.kro.airbob.core.support.context.UserInfo;
 
 @Configuration
 @EnableJpaAuditing(auditorAwareRef = "auditorProvider", dateTimeProviderRef = "utcDateTimeProvider")
-public class JpaAuditingConfig {
+public class JpaAuditingConfiguration {
 	// created_by / updated_by 자동 채움: 인증된 요청이면 member.id, 아니면 비움(NULL).
 	@Bean
 	public AuditorAware<Long> auditorProvider() {

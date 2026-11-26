@@ -20,7 +20,7 @@ import kr.kro.airbob.client.toss.TossPaymentsClient;
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationConfiguration;
 import kr.kro.airbob.core.domain.payment.config.TossPaymentClientProperties;
 
-class RestClientConfigTest {
+class RestClientConfigurationTest {
 
 	@Test
 	void applicationDefaultsBoundTossDeadlines() throws Exception {

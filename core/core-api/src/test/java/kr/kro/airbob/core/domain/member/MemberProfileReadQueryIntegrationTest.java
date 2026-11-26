@@ -40,9 +40,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.member.port.SessionInvalidator;
 import kr.kro.airbob.core.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.core.domain.member.repository.MemberRepository;
@@ -53,8 +53,8 @@ import kr.kro.airbob.core.support.error.ErrorCode;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
-	MemberProfileReadQueryIntegrationTest.ReadTestConfig.class})
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	MemberProfileReadQueryIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class MemberProfileReadQueryIntegrationTest {
 
@@ -178,7 +178,7 @@ class MemberProfileReadQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

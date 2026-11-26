@@ -24,7 +24,7 @@ import kr.kro.airbob.core.domain.accommodation.cache.redis.AccommodationDetailRe
  */
 @Configuration
 @EnableConfigurationProperties(AccommodationDetailRedisProperties.class)
-public class AccommodationDetailRedisConfig {
+public class AccommodationDetailRedisConfiguration {
 
 	private static final int CACHE_LOCK_CONNECTION_POOL_SIZE = 8;
 	private static final int CACHE_LOCK_CONNECTION_MINIMUM_IDLE_SIZE = 1;

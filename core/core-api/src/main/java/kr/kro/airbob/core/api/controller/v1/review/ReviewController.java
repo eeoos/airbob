@@ -74,12 +74,12 @@ public class ReviewController implements ReviewApi {
 	}
 
 	@Override
-	public ResponseEntity<ApiResponse<ReviewResponse.ReviewInfos>> findReviews(
+	public ResponseEntity<ApiResponse<ReviewResponse.ReviewInfos>> getReviews(
 		Long accommodationId,
 		ReviewSortType sortType,
 		CursorRequest.ReviewCursorPageRequest cursorRequest) {
 		ReviewResponse.ReviewInfos response = ReviewResponse.ReviewInfos.from(
-			reviewService.findReviews(accommodationId, cursorRequest, sortType));
+			reviewService.getReviews(accommodationId, cursorRequest, sortType));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

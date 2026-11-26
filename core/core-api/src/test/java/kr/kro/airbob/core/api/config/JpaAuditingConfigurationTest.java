@@ -10,7 +10,7 @@ import java.time.ZoneId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-class JpaAuditingConfigTest {
+class JpaAuditingConfigurationTest {
 
 	@Test
 	@DisplayName("주입된 Clock의 시간대와 무관하게 감사 시각을 UTC로 생성한다")
@@ -19,7 +19,7 @@ class JpaAuditingConfigTest {
 			Instant.parse("2026-08-13T07:30:00Z"),
 			ZoneId.of("Asia/Seoul"));
 
-		LocalDateTime auditTime = (LocalDateTime)new JpaAuditingConfig()
+		LocalDateTime auditTime = (LocalDateTime)new JpaAuditingConfiguration()
 			.utcDateTimeProvider(seoulClock)
 			.getNow()
 			.orElseThrow();

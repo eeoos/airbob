@@ -106,7 +106,7 @@ public class ReviewService {
 	}
 
 	@Transactional(readOnly = true)
-	public ReviewPage findReviews(
+	public ReviewPage getReviews(
 		Long accommodationId,
 		CursorRequest.ReviewCursorPageRequest cursorRequest,
 		ReviewSortType sortType) {

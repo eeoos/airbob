@@ -46,8 +46,8 @@ class AccommodationSearchRequestValidationTest {
 		assertThat(validator.validate(bounds(10.0, 170.0, -10.0, -170.0))).isEmpty();
 	}
 
-	private AccommodationSearchRequest.MapBoundsDto bounds(Double top, Double left, Double bottom, Double right) {
-		var bounds = new AccommodationSearchRequest.MapBoundsDto();
+	private AccommodationSearchRequest.MapBounds bounds(Double top, Double left, Double bottom, Double right) {
+		var bounds = new AccommodationSearchRequest.MapBounds();
 		bounds.setTopLeftLat(top);
 		bounds.setTopLeftLng(left);
 		bounds.setBottomRightLat(bottom);
@@ -58,7 +58,7 @@ class AccommodationSearchRequestValidationTest {
 	@Test
 	@DisplayName("날짜의 과거 여부는 DTO가 아니라 숙소 현지 예약 창으로 검증한다")
 	void allowsPastDatesForAccommodationLocalDateValidation() {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = requestWithDates(
+		AccommodationSearchRequest.Condition request = requestWithDates(
 			LocalDate.of(2000, 1, 1),
 			LocalDate.of(2000, 1, 2));
 
@@ -69,7 +69,7 @@ class AccommodationSearchRequestValidationTest {
 	@MethodSource("invalidDateRanges")
 	@DisplayName("체크인과 체크아웃은 함께 입력하고 체크아웃이 더 뒤여야 한다")
 	void rejectsNonIncreasingDateRanges(LocalDate checkIn, LocalDate checkOut) {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = requestWithDates(checkIn, checkOut);
+		AccommodationSearchRequest.Condition request = requestWithDates(checkIn, checkOut);
 
 		assertThat(validator.validate(request))
 			.extracting(violation -> violation.getPropertyPath().toString())
@@ -87,15 +87,15 @@ class AccommodationSearchRequestValidationTest {
 	@Test
 	@DisplayName("체크인과 체크아웃을 모두 생략하면 날짜 조건 없는 검색으로 허용한다")
 	void allowsBothDatesToBeOmitted() {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = requestWithDates(null, null);
+		AccommodationSearchRequest.Condition request = requestWithDates(null, null);
 
 		assertThat(validator.validate(request)).isEmpty();
 	}
 
-	private AccommodationSearchRequest.AccommodationSearchRequestDto requestWithDates(
+	private AccommodationSearchRequest.Condition requestWithDates(
 		LocalDate checkIn,
 		LocalDate checkOut) {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.Condition request = new AccommodationSearchRequest.Condition();
 		request.setCheckIn(checkIn);
 		request.setCheckOut(checkOut);
 		return request;

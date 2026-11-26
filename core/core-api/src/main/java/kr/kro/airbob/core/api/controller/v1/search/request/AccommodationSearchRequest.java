@@ -22,7 +22,7 @@ public class AccommodationSearchRequest {
 	@Getter
 	@Setter
 	@Schema(name = "AccommodationSearchRequestAccommodationSearchRequestDto")
-	public static class AccommodationSearchRequestDto {
+	public static class Condition {
 
 		@Schema(description = "목적지 텍스트. 도시·구/군·도로·상세 주소·국가·숙소 이름·설명에서 검색합니다. 공백은 무시하며 목적지와 지도 범위가 모두 없으면 빈 결과입니다.", example = "서울")
 		private String destination;
@@ -75,7 +75,7 @@ public class AccommodationSearchRequest {
 		}
 
 		// 총 인원 수 계산 (유아, 펫 제외)
-		public AccommodationSearchCondition toCondition(MapBoundsDto mapBounds) {
+		public AccommodationSearchCondition toCondition(MapBounds mapBounds) {
 			return new AccommodationSearchCondition(
 				destination, minPrice, maxPrice, checkIn, checkOut,
 				adultOccupancy, childOccupancy, infantOccupancy, petOccupancy,
@@ -86,7 +86,7 @@ public class AccommodationSearchRequest {
 	@Getter
 	@Setter
 	@Schema(name = "AccommodationSearchRequestMapBoundsDto")
-	public static class MapBoundsDto {
+	public static class MapBounds {
 		@Schema(description = "지도 좌상단 위도. 좌표 4개를 함께 입력하며 bottomRightLat 이상이어야 합니다.", minimum = "-90", maximum = "90", example = "37.7")
 		private Double topLeftLat;
 		@Schema(description = "지도 좌상단 경도. 날짜 변경선을 지나는 범위에서는 bottomRightLng보다 클 수 있습니다.", minimum = "-180", maximum = "180", example = "126.8")

@@ -68,7 +68,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 			.thenReturn(new BookingWindow(WINDOW_START, WINDOW_END_EXCLUSIVE));
 		when(clock.instant()).thenReturn(QUERIED_AT);
 
-		AccommodationResponse.Availability.from(service.findAccommodationAvailability(accommodationId));
+		AccommodationResponse.Availability.from(service.getAccommodationAvailability(accommodationId));
 
 		verify(inventoryManager).findUnavailableRangesSnapshot(
 			accommodationId,

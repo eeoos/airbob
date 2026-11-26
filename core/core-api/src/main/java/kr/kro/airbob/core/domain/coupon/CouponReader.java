@@ -21,7 +21,7 @@ public class CouponReader {
 	private final MemberCouponRepository memberCouponRepository;
 	private final CouponIssueUnitStore units;
 
-	public LocalDateTime databaseNow() {
+	public LocalDateTime readDatabaseNow() {
 		return units.databaseNow();
 	}
 

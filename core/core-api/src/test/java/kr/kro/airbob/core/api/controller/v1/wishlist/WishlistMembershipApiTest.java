@@ -73,7 +73,7 @@ class WishlistMembershipApiTest {
 	@DisplayName("요청한 memberId 대신 세션 소유자로 찜 상태를 조회한다")
 	void usesSessionOwnerAndReturnsTargetSnapshot() throws Exception {
 		authenticate();
-		given(service.findMembership(1L, 31L, 42L))
+		given(service.getMembership(1L, 31L, 42L))
 			.willReturn(new WishlistMembership(true, false, true));
 		mockMvc.perform(get(PATH).cookie(new Cookie("SESSION_ID", "wishlist-test-session"))
 			.param("accommodationId", "31").param("wishlistId", "42").param("memberId", "999"))
@@ -81,7 +81,7 @@ class WishlistMembershipApiTest {
 			.andExpect(jsonPath("$.data.is_in_any_wishlist").value(true))
 			.andExpect(jsonPath("$.data.target_wishlist_contains").value(false))
 			.andExpect(jsonPath("$.data.target_wishlist_found").value(true));
-		then(service).should().findMembership(1L, 31L, 42L);
+		then(service).should().getMembership(1L, 31L, 42L);
 		then(service).shouldHaveNoMoreInteractions();
 	}
 
@@ -89,7 +89,7 @@ class WishlistMembershipApiTest {
 	@DisplayName("대상 위시리스트를 생략하면 전체 저장 상태와 명시적인 null을 반환한다")
 	void acceptsOptionalTargetWishlist() throws Exception {
 		authenticate();
-		given(service.findMembership(1L, 31L, null))
+		given(service.getMembership(1L, 31L, null))
 			.willReturn(new WishlistMembership(true, null, false));
 		mockMvc.perform(get(PATH).cookie(new Cookie("SESSION_ID", "wishlist-test-session"))
 			.param("accommodationId", "31"))
@@ -97,7 +97,7 @@ class WishlistMembershipApiTest {
 			.andExpect(jsonPath("$.data.is_in_any_wishlist").value(true))
 			.andExpect(jsonPath("$.data.target_wishlist_contains").value(nullValue()))
 			.andExpect(jsonPath("$.data.target_wishlist_found").value(false));
-		then(service).should().findMembership(1L, 31L, null);
+		then(service).should().getMembership(1L, 31L, null);
 	}
 
 	@Test

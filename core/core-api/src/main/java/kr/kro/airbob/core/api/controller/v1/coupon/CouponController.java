@@ -19,19 +19,19 @@ public class CouponController implements CouponApi {
 	private final CouponSkipLockedIssueService issueService;
 
 	@Override
-	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findCouponCampaigns(
+	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> getCouponCampaigns(
 		CursorRequest.CouponCampaignCursorPageRequest request) {
 		CouponResponse.CouponInfos coupons = CouponResponse.CouponInfos
-			.from(couponQueryService.findCouponCampaigns(request));
+			.from(couponQueryService.getCouponCampaigns(request));
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 
 	@Override
-	public ResponseEntity<ApiResponse<CouponResponse.MemberCouponInfos>> findMyCoupons(
+	public ResponseEntity<ApiResponse<CouponResponse.MemberCouponInfos>> getMyCoupons(
 		Long memberId,
 		CursorRequest.CursorPageRequest request) {
 		CouponResponse.MemberCouponInfos coupons = CouponResponse.MemberCouponInfos.from(
-			couponQueryService.findMyCoupons(memberId, request));
+			couponQueryService.getMyCoupons(memberId, request));
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 

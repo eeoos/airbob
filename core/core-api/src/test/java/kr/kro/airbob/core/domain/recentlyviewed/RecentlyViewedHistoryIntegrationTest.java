@@ -179,7 +179,7 @@ class RecentlyViewedHistoryIntegrationTest {
 		when(
 			accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
 			.thenReturn(List.of(card(10L), card(31L), card(9L)));
-		when(wishlists.findWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(10L));
+		when(wishlists.readWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(10L));
 
 		var result = RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(7L));
 		assertThat(result.accommodations()).extracting(item -> item.accommodationId()).containsExactly(9L, 31L, 10L);

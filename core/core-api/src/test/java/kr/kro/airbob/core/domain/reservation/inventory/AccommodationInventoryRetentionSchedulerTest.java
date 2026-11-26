@@ -1,6 +1,6 @@
 package kr.kro.airbob.core.domain.reservation.inventory;
 
-import static kr.kro.airbob.core.api.config.SchedulingConfig.ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER;
+import static kr.kro.airbob.core.api.config.SchedulingConfiguration.ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;

@@ -14,11 +14,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import kr.kro.airbob.core.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
 
-class AccommodationDetailRedisConfigTest {
+class AccommodationDetailRedisConfigurationTest {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(
-			AccommodationDetailRedisConfig.class,
+			AccommodationDetailRedisConfiguration.class,
 			AccommodationDetailCacheConfiguration.class)
 		.withPropertyValues(
 			"accommodation.detail-cache.ttl=10m",
@@ -55,7 +55,7 @@ class AccommodationDetailRedisConfigTest {
 
 	@Test
 	void cacheLockClientUsesTheDedicatedEndpointAndLazyConnection() {
-		AccommodationDetailRedisConfig redisConfig = new AccommodationDetailRedisConfig();
+		AccommodationDetailRedisConfiguration redisConfig = new AccommodationDetailRedisConfiguration();
 		var endpoint = new AccommodationDetailRedisProperties(
 			"cache.internal", 6380, 3, "cache-user", "cache-password");
 
@@ -74,7 +74,7 @@ class AccommodationDetailRedisConfigTest {
 
 	@Test
 	void cacheDataClientUsesTheDedicatedEndpointAndTimeouts() {
-		AccommodationDetailRedisConfig redisConfig = new AccommodationDetailRedisConfig();
+		AccommodationDetailRedisConfiguration redisConfig = new AccommodationDetailRedisConfiguration();
 		var endpoint = new AccommodationDetailRedisProperties(
 			"cache.internal", 6380, 3, "cache-user", "cache-password");
 

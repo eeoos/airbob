@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 @Configuration
 @Slf4j
 @RequiredArgsConstructor
-public class WebMvcConfig implements WebMvcConfigurer {
+public class WebMvcConfiguration implements WebMvcConfigurer {
 
 	private final CurrentMemberIdArgumentResolver currentMemberIdArgumentResolver;
 	private final List<AbstractCursorParamArgumentResolver<?, ?>> cursorParamArgumentResolvers;

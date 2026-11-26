@@ -24,9 +24,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.AccommodationRequest;
 import kr.kro.airbob.core.api.controller.v1.accommodation.request.PolicyRequest;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
@@ -48,7 +48,8 @@ import kr.kro.airbob.core.domain.search.messaging.AccommodationSearchRefreshPubl
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationCommandService.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	AccommodationCommandService.class,
 	MemberReader.class, ReservationReader.class,
 	AccommodationReader.class, AccommodationWriter.class, AccommodationValidator.class,
 	AccommodationLocationResolver.class})

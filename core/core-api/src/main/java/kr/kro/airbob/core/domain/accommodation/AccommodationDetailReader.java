@@ -23,7 +23,7 @@ public class AccommodationDetailReader {
 	private final AccommodationWishlistReader wishlistReader;
 
 	@Transactional(readOnly = true)
-	public AccommodationDetailSnapshot load(Long accommodationId) {
+	public AccommodationDetailSnapshot read(Long accommodationId) {
 		PublicAccommodationDetailProjection projection = accommodationRepository
 			.findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
@@ -32,8 +32,8 @@ public class AccommodationDetailReader {
 
 	private AccommodationDetailSnapshot toSnapshot(Long accommodationId,
 		PublicAccommodationDetailProjection projection) {
-		List<AccommodationDetailSnapshot.Amenity> amenities = loadAmenities(accommodationId);
-		List<StoredImage> images = loadImages(accommodationId);
+		List<AccommodationDetailSnapshot.Amenity> amenities = readAmenities(accommodationId);
+		List<StoredImage> images = readImages(accommodationId);
 
 		return new AccommodationDetailSnapshot(
 			projection.id(),
@@ -62,14 +62,14 @@ public class AccommodationDetailReader {
 		return wishlistReader.isInWishlist(accommodationId, viewerId);
 	}
 
-	List<AccommodationDetailSnapshot.Amenity> loadAmenities(Long accommodationId) {
+	List<AccommodationDetailSnapshot.Amenity> readAmenities(Long accommodationId) {
 		return accommodationAmenityRepository.findDetailAmenitiesByAccommodationId(accommodationId)
 			.stream()
 			.map(amenity -> new AccommodationDetailSnapshot.Amenity(amenity.type(), amenity.count()))
 			.toList();
 	}
 
-	List<StoredImage> loadImages(Long accommodationId) {
+	List<StoredImage> readImages(Long accommodationId) {
 		return accommodationImageRepository.findDetailImagesByAccommodationIdOrderByIdAsc(accommodationId)
 			.stream()
 			.map(image -> new StoredImage(image.id(), image.imageUrl()))

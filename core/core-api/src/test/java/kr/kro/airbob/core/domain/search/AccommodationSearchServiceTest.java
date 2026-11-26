@@ -62,14 +62,14 @@ class AccommodationSearchServiceTest {
 	@Test
 	@DisplayName("어느 숙소 현지 3개월 예약 창에도 들지 않는 날짜는 빈 결과를 반환한다")
 	void returnsEmptyWhenNoTimeZoneCanBookStay() {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = dateRequest(
+		AccommodationSearchRequest.Condition request = dateRequest(
 			LocalDate.of(2026, 11, 12), LocalDate.of(2026, 11, 13));
 		request.setDestination("Seoul");
 		given(bookingWindowProvider.eligibleTimeZonesForStay(
 			request.getCheckIn(), request.getCheckOut())).willReturn(Set.of());
 
-		var result = accommodationSearchService.searchAccommodations(
-			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+		var result = accommodationSearchService.getSearchResults(
+			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null);
 
@@ -81,11 +81,11 @@ class AccommodationSearchServiceTest {
 	@Test
 	@DisplayName("날짜 검색은 숙박일이 현지 3개월 창 안에 있는 시간대의 숙소만 대상으로 한다")
 	void filtersDateSearchByEligibleAccommodationTimeZones() {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = dateRequest(
+		AccommodationSearchRequest.Condition request = dateRequest(
 			LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 13));
 
 		Query query = new AccommodationDocumentReader(esClient).buildQuery(
-			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			Set.of("Asia/Seoul", "Pacific/Auckland"));
 
 		assertThat(query.bool().filter())
@@ -109,13 +109,13 @@ class AccommodationSearchServiceTest {
 	@Test
 	@DisplayName("Elasticsearch 연결 실패를 정상적인 빈 검색 결과로 숨기지 않는다")
 	void throwsServiceUnavailableWhenElasticsearchCannotBeReached() throws IOException {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.Condition request = new AccommodationSearchRequest.Condition();
 		request.setDestination("Seoul");
 		willThrow(new IOException("connection refused"))
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
 
-		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
-			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+		assertThatThrownBy(() -> accommodationSearchService.getSearchResults(
+			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null))
 			.isInstanceOf(SearchUnavailableException.class);
@@ -125,13 +125,13 @@ class AccommodationSearchServiceTest {
 	@Test
 	@DisplayName("Elasticsearch 오류 응답도 검색 서비스 장애로 명시한다")
 	void throwsServiceUnavailableWhenElasticsearchRejectsSearch() throws IOException {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.Condition request = new AccommodationSearchRequest.Condition();
 		request.setDestination("Seoul");
 		willThrow(mock(ElasticsearchException.class))
 			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
 
-		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
-			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+		assertThatThrownBy(() -> accommodationSearchService.getSearchResults(
+			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null))
 			.isInstanceOf(SearchUnavailableException.class);
@@ -142,7 +142,7 @@ class AccommodationSearchServiceTest {
 	@DisplayName("1만 건을 넘는 검색은 Elasticsearch 기본 상한을 유지한다")
 	@SuppressWarnings("unchecked")
 	void keepsDefaultTotalHitsBoundBeyondElasticsearchThreshold() throws IOException {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.Condition request = new AccommodationSearchRequest.Condition();
 		request.setDestination("Seoul");
 		AccommodationDocument document = AccommodationDocument.builder()
 			.id("accommodation-1")
@@ -167,8 +167,8 @@ class AccommodationSearchServiceTest {
 		given(esClient.search(any(SearchRequest.class), eq(AccommodationDocument.class)))
 			.willReturn(response);
 
-		var result = accommodationSearchService.searchAccommodations(
-			request.toCondition(new AccommodationSearchRequest.MapBoundsDto()),
+		var result = accommodationSearchService.getSearchResults(
+			request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18),
 			null);
 
@@ -179,10 +179,10 @@ class AccommodationSearchServiceTest {
 		assertThat(result.totalPages()).isEqualTo(556);
 	}
 
-	private AccommodationSearchRequest.AccommodationSearchRequestDto dateRequest(
+	private AccommodationSearchRequest.Condition dateRequest(
 		LocalDate checkIn,
 		LocalDate checkOut) {
-		AccommodationSearchRequest.AccommodationSearchRequestDto request = new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		AccommodationSearchRequest.Condition request = new AccommodationSearchRequest.Condition();
 		request.setCheckIn(checkIn);
 		request.setCheckOut(checkOut);
 		return request;

@@ -40,9 +40,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.HostAccommodationInfo;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse.HostAccommodationInfos;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AddressResponse.AddressSummaryInfo;
@@ -63,10 +63,11 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
-	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationQueryService.class,
+	ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	AccommodationQueryService.class,
 	ReservationAvailabilityReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
-	HostAccommodationListQueryIntegrationTest.SqlCaptureConfig.class
+	HostAccommodationListQueryIntegrationTest.SqlCaptureConfiguration.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("호스트 숙소 목록 projection MySQL 통합 테스트")
@@ -194,7 +195,7 @@ class HostAccommodationListQueryIntegrationTest {
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
 		sqlCapture.statements.clear();
-		HostAccommodationInfos result = HostAccommodationInfos.from(service.findMyAccommodations(hostId,
+		HostAccommodationInfos result = HostAccommodationInfos.from(service.getMyAccommodations(hostId,
 			CursorPageRequest.builder().size(size)
 				.lastId(cursor == null ? null : cursor.id())
 				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(),
@@ -229,7 +230,7 @@ class HostAccommodationListQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class SqlCaptureConfig {
+	static class SqlCaptureConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

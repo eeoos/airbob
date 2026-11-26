@@ -24,7 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
 
 /**
  * Checks that each rule in {@link CodingRulesTest} reports the violation it is meant to catch. The rules run
@@ -71,7 +71,7 @@ class CodingRulesFixtureTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(classes = {ReadsTheClockBean.class, ClockConfig.class})
+	@ValueSource(classes = {ReadsTheClockBean.class, ClockConfiguration.class})
 	void clockRuleAllowsTheClockBeanAndElapsedTime(Class<?> fixture) {
 		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, fixture)).isFalse();
 	}

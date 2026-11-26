@@ -69,5 +69,5 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
 
-	boolean existsByWishlist_Member_IdAndAccommodation_Id(Long memberId, Long accommodationId);
+	boolean existsByWishlistMemberIdAndAccommodationId(Long memberId, Long accommodationId);
 }

@@ -83,7 +83,7 @@ public class PaymentController {
 		@CurrentMemberId
 		Long memberId) {
 		PaymentResponse.PaymentInfo response = PaymentResponse.PaymentInfo.from(
-			paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId));
+			paymentQueryService.getPaymentByPaymentKey(paymentKey, memberId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
@@ -105,7 +105,7 @@ public class PaymentController {
 		@CurrentMemberId
 		Long memberId) {
 		PaymentResponse.PaymentInfo response = PaymentResponse.PaymentInfo.from(
-			paymentQueryService.findPaymentByOrderId(orderId, memberId));
+			paymentQueryService.getPaymentByOrderId(orderId, memberId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

@@ -17,7 +17,7 @@ public class PaymentOperationManualReviewQueryService {
 	private final PaymentOperationManualReviewReader manualReviewReader;
 
 	@Transactional(readOnly = true)
-	public PaymentOperationManualReviewQueue findManualReviewQueue(int limit) {
+	public PaymentOperationManualReviewQueue getManualReviewQueue(int limit) {
 		validateLimit(limit);
 		List<PaymentOperationManualReviewQueueItem> fetched = manualReviewReader.readOldest(limit + 1);
 		boolean hasMore = fetched.size() > limit;

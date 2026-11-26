@@ -38,8 +38,8 @@ import co.elastic.clients.elasticsearch._types.Refresh;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
-import kr.kro.airbob.core.api.controller.v1.search.request.AccommodationSearchRequest.AccommodationSearchRequestDto;
-import kr.kro.airbob.core.api.controller.v1.search.request.AccommodationSearchRequest.MapBoundsDto;
+import kr.kro.airbob.core.api.controller.v1.search.request.AccommodationSearchRequest.Condition;
+import kr.kro.airbob.core.api.controller.v1.search.request.AccommodationSearchRequest.MapBounds;
 import kr.kro.airbob.core.api.controller.v1.search.response.AccommodationSearchResponse.AccommodationSearchInfos;
 import kr.kro.airbob.core.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.core.domain.search.infrastructure.elasticsearch.ElasticsearchAccommodationIndexAliasBootstrap;
@@ -103,9 +103,9 @@ class AccommodationSearchContractIntegrationTest {
 	void destinationOrCompleteMapBoundsAreNeededEvenWhenOtherFiltersExist() {
 		var request = request(null);
 		request.setMinPrice(0);
-		assertThat(search(request, new MapBoundsDto(), 0, null).staySearchResultListing()).isEmpty();
+		assertThat(search(request, new MapBounds(), 0, null).staySearchResultListing()).isEmpty();
 		request.setDestination("  ");
-		assertThat(search(request, new MapBoundsDto(), 0, null).pageInfo().totalElements()).isZero();
+		assertThat(search(request, new MapBounds(), 0, null).pageInfo().totalElements()).isZero();
 		verifyNoInteractions(wishlists);
 	}
 
@@ -124,17 +124,17 @@ class AccommodationSearchContractIntegrationTest {
 		var price = request("서울");
 		price.setMinPrice(100_000);
 		price.setMaxPrice(100_000);
-		assertIds(search(price, new MapBoundsDto(), 0, null), 1L);
+		assertIds(search(price, new MapBounds(), 0, null), 1L);
 		var guests = request("서울");
 		guests.setAdultOccupancy(2);
 		guests.setChildOccupancy(1);
-		assertIds(search(guests, new MapBoundsDto(), 0, null), 2L);
+		assertIds(search(guests, new MapBounds(), 0, null), 2L);
 		var infants = request("서울");
 		infants.setInfantOccupancy(2);
-		assertIds(search(infants, new MapBoundsDto(), 0, null), 2L);
+		assertIds(search(infants, new MapBounds(), 0, null), 2L);
 		var pets = request("서울");
 		pets.setPetOccupancy(1);
-		assertIds(search(pets, new MapBoundsDto(), 0, null), 2L);
+		assertIds(search(pets, new MapBounds(), 0, null), 2L);
 	}
 
 	@Test
@@ -142,16 +142,16 @@ class AccommodationSearchContractIntegrationTest {
 		var request = request("서울");
 		request.setCheckIn(LocalDate.parse("2027-01-12"));
 		request.setCheckOut(LocalDate.parse("2027-01-13"));
-		assertIds(search(request, new MapBoundsDto(), 0, null), 2L);
+		assertIds(search(request, new MapBounds(), 0, null), 2L);
 		request.setCheckIn(LocalDate.parse("2027-01-13"));
 		request.setCheckOut(LocalDate.parse("2027-01-14"));
-		assertIds(search(request, new MapBoundsDto(), 0, null), 1L, 2L);
+		assertIds(search(request, new MapBounds(), 0, null), 1L, 2L);
 		request.setCheckIn(LocalDate.parse("2027-01-10"));
 		request.setCheckOut(LocalDate.parse("2027-01-11"));
-		assertIds(search(request, new MapBoundsDto(), 0, null), 1L, 2L);
+		assertIds(search(request, new MapBounds(), 0, null), 1L, 2L);
 		request.setCheckIn(LocalDate.parse("2000-01-10"));
 		request.setCheckOut(LocalDate.parse("2000-01-11"));
-		assertIds(search(request, new MapBoundsDto(), 0, null));
+		assertIds(search(request, new MapBounds(), 0, null));
 	}
 
 	@Test
@@ -164,18 +164,18 @@ class AccommodationSearchContractIntegrationTest {
 		var request = request("서울");
 		request.setAdultOccupancy(Integer.MAX_VALUE);
 		request.setChildOccupancy(0);
-		assertIds(search(request, new MapBoundsDto(), 0, null));
+		assertIds(search(request, new MapBounds(), 0, null));
 		request.setChildOccupancy(1);
-		assertIds(search(request, new MapBoundsDto(), 0, null));
+		assertIds(search(request, new MapBounds(), 0, null));
 		request.setChildOccupancy(Integer.MAX_VALUE);
-		assertIds(search(request, new MapBoundsDto(), 0, null));
+		assertIds(search(request, new MapBounds(), 0, null));
 		request.setAdultOccupancy(0);
-		assertIds(search(request, new MapBoundsDto(), 0, null));
+		assertIds(search(request, new MapBounds(), 0, null));
 	}
 
 	@Test
 	void emptyLaterPageRetainsTheKnownTotalAndPreviousPageLink() {
-		var result = search(request("서울"), new MapBoundsDto(), 1, null);
+		var result = search(request("서울"), new MapBounds(), 1, null);
 		assertThat(result.staySearchResultListing()).isEmpty();
 		assertThat(result.pageInfo().totalElements()).isEqualTo(2);
 		assertThat(result.pageInfo().totalPages()).isEqualTo(1);
@@ -188,11 +188,11 @@ class AccommodationSearchContractIntegrationTest {
 	void lastAccessiblePageDoesNotAdvertiseAnotherPageEvenWhenMoreResultsExist() throws Exception {
 		index(java.util.stream.IntStream.range(1000, 1300).mapToObj(id -> card(id, "서울", 100_000, 2, 0, 0,
 			37.5, 127.0, "PUBLISHED", "APT", List.of(), List.of())).toList());
-		var first = search(request("서울"), new MapBoundsDto(), 0, null);
+		var first = search(request("서울"), new MapBounds(), 0, null);
 		assertThat(first.pageInfo().totalElements()).isEqualTo(302);
 		assertThat(first.pageInfo().totalPages()).isEqualTo(17);
 		assertThat(first.pageInfo().hasNext()).isTrue();
-		var last = search(request("서울"), new MapBoundsDto(), 14, null);
+		var last = search(request("서울"), new MapBounds(), 14, null);
 		assertThat(last.staySearchResultListing()).hasSize(18);
 		assertThat(last.pageInfo().totalElements()).isEqualTo(302);
 		assertThat(last.pageInfo().hasNext()).isFalse();
@@ -201,33 +201,33 @@ class AccommodationSearchContractIntegrationTest {
 
 	@Test
 	void anonymousSearchSkipsMembershipAndAuthenticatedSearchUsesOnlyTheSessionMember() {
-		var anonymous = search(request("서울"), new MapBoundsDto(), 0, null);
+		var anonymous = search(request("서울"), new MapBounds(), 0, null);
 		assertThat(anonymous.staySearchResultListing()).allSatisfy(card -> assertThat(card.isInWishlist()).isFalse());
 		verifyNoInteractions(wishlists);
-		when(wishlists.findWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
-		var authenticated = search(request("서울"), new MapBoundsDto(), 0, 7L);
+		when(wishlists.readWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
+		var authenticated = search(request("서울"), new MapBounds(), 0, 7L);
 		assertThat(authenticated.staySearchResultListing())
 			.allSatisfy(card -> assertThat(card.isInWishlist()).isEqualTo(card.id() == 2));
 	}
 
-	private AccommodationSearchInfos search(AccommodationSearchRequestDto request, MapBoundsDto bounds, int page,
+	private AccommodationSearchInfos search(Condition request, MapBounds bounds, int page,
 		Long memberId) {
 		return AccommodationSearchInfos
-			.from(service.searchAccommodations(request.toCondition(bounds), PageRequest.of(page, 18), memberId));
+			.from(service.getSearchResults(request.toCondition(bounds), PageRequest.of(page, 18), memberId));
 	}
 
 	private void assertIds(AccommodationSearchInfos response, Long... ids) {
 		assertThat(response.staySearchResultListing()).extracting(card -> card.id()).containsExactlyInAnyOrder(ids);
 	}
 
-	private AccommodationSearchRequestDto request(String destination) {
-		var request = new AccommodationSearchRequestDto();
+	private Condition request(String destination) {
+		var request = new Condition();
 		request.setDestination(destination);
 		return request;
 	}
 
-	private MapBoundsDto bounds(double top, double left, double bottom, double right) {
-		var bounds = new MapBoundsDto();
+	private MapBounds bounds(double top, double left, double bottom, double right) {
+		var bounds = new MapBounds();
 		bounds.setTopLeftLat(top);
 		bounds.setTopLeftLng(left);
 		bounds.setBottomRightLat(bottom);

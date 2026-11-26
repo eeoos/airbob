@@ -39,9 +39,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AmenityResponse;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
@@ -57,10 +57,11 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationDetailReader.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	AccommodationDetailReader.class,
 	WishlistReader.class, AccommodationQueryService.class,
 	ReservationAvailabilityReader.class, AccommodationReader.class,
-	HostAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
+	HostAccommodationDetailReadIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class HostAccommodationDetailReadIntegrationTest {
 
@@ -141,7 +142,7 @@ class HostAccommodationDetailReadIntegrationTest {
 		jdbc.update("UPDATE accommodation SET status = ? WHERE id = 31", status.name());
 		Statistics statistics = prepareMeasurement();
 
-		var response = AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, 202L));
+		var response = AccommodationResponse.HostDetail.from(service.getHostAccommodationDetail(31L, 202L));
 
 		try (var fixture = new ClassPathResource("contracts/host-accommodation-editor.json").getInputStream()) {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(response)))
@@ -160,7 +161,7 @@ class HostAccommodationDetailReadIntegrationTest {
 		jdbc.update("DELETE FROM accommodation_amenity WHERE accommodation_id = 31");
 		Statistics statistics = prepareMeasurement();
 
-		var response = AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, 202L));
+		var response = AccommodationResponse.HostDetail.from(service.getHostAccommodationDetail(31L, 202L));
 
 		assertThat(response.id()).isEqualTo(31L);
 		assertThat(response.name()).isNull();
@@ -189,7 +190,7 @@ class HostAccommodationDetailReadIntegrationTest {
 			""");
 		Statistics statistics = prepareMeasurement();
 
-		var response = AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, 202L));
+		var response = AccommodationResponse.HostDetail.from(service.getHostAccommodationDetail(31L, 202L));
 
 		assertThat(response.policy().maxOccupancy()).isEqualTo(4);
 		assertThat(response.policy().infantOccupancy()).isNull();
@@ -206,13 +207,13 @@ class HostAccommodationDetailReadIntegrationTest {
 
 	@Test
 	void readsCurrentStoredValuesOnSubsequentUncachedLookup() {
-		AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, 202L));
+		AccommodationResponse.HostDetail.from(service.getHostAccommodationDetail(31L, 202L));
 		jdbc.update("UPDATE accommodation SET name = '수정된 숙소', base_price = 170000 WHERE id = 31");
 		jdbc.update("UPDATE address SET detail = '수정된 상세주소' WHERE id = 40");
 		jdbc.update("UPDATE occupancy_policy SET max_occupancy = 6, infant_occupancy = 2 WHERE id = 50");
 		Statistics statistics = prepareMeasurement();
 
-		var response = AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, 202L));
+		var response = AccommodationResponse.HostDetail.from(service.getHostAccommodationDetail(31L, 202L));
 
 		assertThat(response.name()).isEqualTo("수정된 숙소");
 		assertThat(response.basePrice()).isEqualTo(170000L);
@@ -227,7 +228,7 @@ class HostAccommodationDetailReadIntegrationTest {
 	void rejectsOtherMembersBeforeLoadingCollections(long memberId) {
 		Statistics statistics = prepareMeasurement();
 		assertThatThrownBy(
-			() -> AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(31L, memberId)))
+			() -> AccommodationResponse.HostDetail.from(service.getHostAccommodationDetail(31L, memberId)))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		assertRejectedQuery(statistics);
 	}
@@ -235,7 +236,7 @@ class HostAccommodationDetailReadIntegrationTest {
 	@Test
 	void rejectsUnknownAccommodation() {
 		Statistics statistics = prepareMeasurement();
-		assertThatThrownBy(() -> AccommodationResponse.HostDetail.from(service.findHostAccommodationDetail(999L, 202L)))
+		assertThatThrownBy(() -> AccommodationResponse.HostDetail.from(service.getHostAccommodationDetail(999L, 202L)))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		assertRejectedQuery(statistics);
 	}
@@ -270,7 +271,7 @@ class HostAccommodationDetailReadIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

@@ -39,9 +39,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfo;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistAccommodationResponse.WishlistAccommodationInfos;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
@@ -60,10 +60,10 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
-	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
+	ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
-	WishlistDetailQueryIntegrationTest.ReadTestConfig.class
+	WishlistDetailQueryIntegrationTest.ReadTestConfiguration.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("위시리스트 상세 조회 계약 MySQL 통합 테스트")
@@ -215,7 +215,7 @@ class WishlistDetailQueryIntegrationTest {
 		boolean inAny = false;
 		boolean inTarget = false;
 		do {
-			var page = WishlistResponse.WishlistInfos.from(service.findWishlists(CursorPageRequest.builder().size(20)
+			var page = WishlistResponse.WishlistInfos.from(service.getWishlists(CursorPageRequest.builder().size(20)
 				.lastId(cursor == null ? null : cursor.id())
 				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), OWNER_ID, 31L), true);
 			pages++;
@@ -284,7 +284,7 @@ class WishlistDetailQueryIntegrationTest {
 
 	private WishlistResponse.Membership membership(long memberId, Long accommodationId, Long wishlistId) {
 		Statistics statistics = prepareMeasurement();
-		var result = WishlistResponse.Membership.from(service.findMembership(memberId, accommodationId, wishlistId));
+		var result = WishlistResponse.Membership.from(service.getMembership(memberId, accommodationId, wishlistId));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		return result;
@@ -408,7 +408,7 @@ class WishlistDetailQueryIntegrationTest {
 			insertItem(501, WISHLIST_ID, 31);
 		}
 		Statistics statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findWishlistAccommodations(
+		assertThatThrownBy(() -> service.getWishlistAccommodations(
 			WISHLIST_ID, CursorPageRequest.builder().size(20).build(), OTHER_MEMBER_ID))
 			.isInstanceOf(WishlistAccessDeniedException.class);
 		assertHeaderOnlyRead(statistics);
@@ -424,13 +424,13 @@ class WishlistDetailQueryIntegrationTest {
 		assertHeaderOnlyRead(statistics);
 
 		statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findWishlistAccommodations(
+		assertThatThrownBy(() -> service.getWishlistAccommodations(
 			999L, CursorPageRequest.builder().size(20).build(), OWNER_ID))
 			.isInstanceOf(WishlistNotFoundException.class);
 		assertHeaderOnlyRead(statistics);
 
 		statistics = prepareMeasurement();
-		assertThatThrownBy(() -> service.findWishlistAccommodations(
+		assertThatThrownBy(() -> service.getWishlistAccommodations(
 			WISHLIST_ID, CursorPageRequest.builder().size(20).build(), OTHER_MEMBER_ID))
 			.isInstanceOf(WishlistNotFoundException.class);
 		assertHeaderOnlyRead(statistics);
@@ -443,7 +443,7 @@ class WishlistDetailQueryIntegrationTest {
 	private WishlistAccommodationInfos findPage(CursorPageRequest request) {
 		Statistics statistics = prepareMeasurement();
 		var result = WishlistAccommodationInfos
-			.from(service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID));
+			.from(service.getWishlistAccommodations(WISHLIST_ID, request, OWNER_ID));
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(selectedColumnCounts()).containsExactly(2, 12);
@@ -502,7 +502,7 @@ class WishlistDetailQueryIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

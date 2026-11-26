@@ -10,5 +10,5 @@ import java.util.Set;
 public interface SearchWishlistReader {
 
 	/** IDs among accommodationIds that are published and saved in one of the member's active wishlists. */
-	Set<Long> findWishlistedAccommodationIds(Long memberId, List<Long> accommodationIds);
+	Set<Long> readWishlistedAccommodationIds(Long memberId, List<Long> accommodationIds);
 }

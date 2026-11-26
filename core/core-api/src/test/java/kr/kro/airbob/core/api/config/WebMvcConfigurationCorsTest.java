@@ -22,7 +22,7 @@ import kr.kro.airbob.core.support.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
 
 @DisplayName("일반 API CORS 설정 테스트")
-class WebMvcConfigCorsTest {
+class WebMvcConfigurationCorsTest {
 
 	private static final String ALLOWED_ORIGIN = "http://localhost:3000";
 
@@ -43,8 +43,8 @@ class WebMvcConfigCorsTest {
 		assertThat(response.getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS)).isEqualTo("true");
 	}
 
-	private WebMvcConfig createWebMvcConfig() {
-		return new WebMvcConfig(
+	private WebMvcConfiguration createWebMvcConfig() {
+		return new WebMvcConfiguration(
 			mock(CurrentMemberIdArgumentResolver.class),
 			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),

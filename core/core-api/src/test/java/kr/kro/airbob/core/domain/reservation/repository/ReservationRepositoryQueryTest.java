@@ -35,9 +35,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import jakarta.persistence.EntityManager;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.reservation.response.ReservationResponse;
 import kr.kro.airbob.core.domain.accommodation.Accommodation;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
@@ -62,10 +62,10 @@ import kr.kro.airbob.core.domain.reservation.ReservationStatus;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	ClockConfig.class,
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
-	ReservationRepositoryQueryTest.SqlCaptureConfig.class
+	ClockConfiguration.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
+	ReservationRepositoryQueryTest.SqlCaptureConfiguration.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("예약 QueryDSL 저장소 테스트")
@@ -641,7 +641,7 @@ class ReservationRepositoryQueryTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class SqlCaptureConfig {
+	static class SqlCaptureConfiguration {
 
 		@Bean
 		CapturingStatementInspector capturingStatementInspector() {

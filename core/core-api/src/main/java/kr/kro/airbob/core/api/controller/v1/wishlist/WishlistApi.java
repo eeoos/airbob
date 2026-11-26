@@ -83,7 +83,7 @@ public interface WishlistApi {
 		ErrorCode.INVALID_TYPE_VALUE
 	})
 	@GetMapping("/v1/members/wishlists")
-	ResponseEntity<ApiResponse<WishlistResponse.WishlistInfos>> findWishlists(
+	ResponseEntity<ApiResponse<WishlistResponse.WishlistInfos>> getWishlists(
 		@CursorParam
 		CursorRequest.CursorPageRequest request,
 		@Parameter(description = "각 목록의 저장 여부를 확인할 숙소 ID. 목록을 필터링하지 않습니다.", example = "101")

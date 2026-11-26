@@ -19,7 +19,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.junit.CacheMode;
 import com.tngtech.archunit.lang.ArchRule;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
 
 /**
  * Coding rules for application code. See docs/development/coding-convention.md ("코드 규칙").
@@ -82,7 +82,7 @@ class CodingRulesTest {
 
 	/**
 	 * java.time {@code now()} or {@code now(ZoneId)}, {@code System.currentTimeMillis()}, and a system Clock or
-	 * InstantSource created outside ClockConfig, which defines the Clock bean.
+	 * InstantSource created outside ClockConfiguration, which defines the Clock bean.
 	 */
 	private static DescribedPredicate<JavaAccess<?>> readsTheSystemClock() {
 		return DescribedPredicate.describe("read the current time without the Clock bean", access -> {
@@ -92,7 +92,7 @@ class CodingRulesTest {
 			String owner = target.getOwner().getName();
 			if (owner.equals("java.time.Clock") || owner.equals("java.time.InstantSource")) {
 				return SYSTEM_CLOCK_FACTORIES.contains(target.getName())
-					&& !access.getOriginOwner().getName().equals(ClockConfig.class.getName());
+					&& !access.getOriginOwner().getName().equals(ClockConfiguration.class.getName());
 			}
 			if (owner.equals("java.lang.System")) {
 				return target.getName().equals("currentTimeMillis");

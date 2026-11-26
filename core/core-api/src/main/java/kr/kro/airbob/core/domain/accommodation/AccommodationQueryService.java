@@ -25,10 +25,10 @@ public class AccommodationQueryService {
 	private final AccommodationDetailReader accommodationDetailReader;
 	private final AccommodationDetailCache accommodationDetailCache;
 
-	public PublicAccommodationDetail findAccommodation(Long accommodationId, Long viewerId) {
+	public PublicAccommodationDetail getAccommodation(Long accommodationId, Long viewerId) {
 		AccommodationDetailSnapshot snapshot = accommodationDetailCache.getOrLoad(
 			accommodationId,
-			() -> accommodationDetailReader.load(accommodationId));
+			() -> accommodationDetailReader.read(accommodationId));
 		boolean isInWishlist = viewerId != null
 			&& accommodationDetailReader.isInWishlist(accommodationId, viewerId);
 
@@ -36,13 +36,13 @@ public class AccommodationQueryService {
 	}
 
 	@Transactional(readOnly = true)
-	public AccommodationAvailability findAccommodationAvailability(Long accommodationId) {
+	public AccommodationAvailability getAccommodationAvailability(Long accommodationId) {
 		String timeZoneId = accommodationReader.readPublishedTimeZoneId(accommodationId);
 		return availabilityReader.readAvailability(accommodationId, timeZoneId);
 	}
 
 	@Transactional(readOnly = true)
-	public HostAccommodationPage findMyAccommodations(
+	public HostAccommodationPage getMyAccommodations(
 		Long hostId,
 		CursorRequest.CursorPageRequest cursorRequest,
 		AccommodationStatus status) {
@@ -66,13 +66,13 @@ public class AccommodationQueryService {
 	}
 
 	@Transactional(readOnly = true)
-	public HostAccommodationDetail findHostAccommodationDetail(Long accommodationId, Long hostId) {
+	public HostAccommodationDetail getHostAccommodationDetail(Long accommodationId, Long hostId) {
 		HostAccommodationDetailProjection accommodation = accommodationReader.readHostDetail(accommodationId, hostId);
 
 		return new HostAccommodationDetail(
 			accommodation,
-			accommodationDetailReader.loadAmenities(accommodationId),
-			accommodationDetailReader.loadImages(accommodationId));
+			accommodationDetailReader.readAmenities(accommodationId),
+			accommodationDetailReader.readImages(accommodationId));
 	}
 
 }

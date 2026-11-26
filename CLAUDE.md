@@ -41,7 +41,7 @@ shrunk store with the fix. `CodingRulesTest` bans field injection (including `@V
 constructor or `@Bean` method parameters), `System.out`/`System.err`/`printStackTrace()`, creating
 `Throwable`/`Exception`/`RuntimeException` (constructor references included), `java.util.logging`, and
 reading the current time without the `Clock` bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`,
-or a system `Clock`/`InstantSource` created outside `ClockConfig`).
+or a system `Clock`/`InstantSource` created outside `ClockConfiguration`).
 
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`core/domain/payment/messaging/`,

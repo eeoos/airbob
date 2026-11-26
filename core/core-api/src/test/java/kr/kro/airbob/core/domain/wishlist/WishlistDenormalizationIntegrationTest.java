@@ -111,7 +111,7 @@ class WishlistDenormalizationIntegrationTest {
 		add(acc2);
 		add(acc3);
 
-		WishlistResponse.WishlistInfos result = WishlistResponse.WishlistInfos.from(wishlistService.findWishlists(
+		WishlistResponse.WishlistInfos result = WishlistResponse.WishlistInfos.from(wishlistService.getWishlists(
 			CursorRequest.CursorPageRequest.builder().size(20).build(), host, null), false);
 
 		assertThat(result.wishlists()).hasSize(1);
@@ -129,7 +129,7 @@ class WishlistDenormalizationIntegrationTest {
 		CursorRequest.CursorPageRequest request = CursorRequest.CursorPageRequest.builder().size(20).build();
 
 		WishlistResponse.WishlistInfos after = WishlistResponse.WishlistInfos
-			.from(wishlistService.findWishlists(request, host, acc2), true);
+			.from(wishlistService.getWishlists(request, host, acc2), true);
 
 		assertThat(after.wishlists()).singleElement().satisfies(info -> {
 			assertThat(info.isContained()).isTrue();
@@ -150,7 +150,7 @@ class WishlistDenormalizationIntegrationTest {
 		CursorRequest.CursorPageRequest request = CursorRequest.CursorPageRequest.builder().size(20).build();
 
 		WishlistResponse.WishlistInfos after = WishlistResponse.WishlistInfos
-			.from(wishlistService.findWishlists(request, host, null), false);
+			.from(wishlistService.getWishlists(request, host, null), false);
 
 		assertThat(higherId).isGreaterThan(lowerId);
 		assertThat(after.wishlists().getFirst().thumbnailImageUrl()).isEqualTo("url-2");

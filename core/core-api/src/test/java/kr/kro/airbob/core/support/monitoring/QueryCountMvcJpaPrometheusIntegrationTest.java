@@ -38,7 +38,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
-import kr.kro.airbob.core.api.config.WebMvcConfig;
+import kr.kro.airbob.core.api.config.WebMvcConfiguration;
 import kr.kro.airbob.core.api.security.AdminAuthInterceptor;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
@@ -119,7 +119,7 @@ class QueryCountMvcJpaPrometheusIntegrationTest {
 		Map<String, Object> hibernateProperties = new HashMap<>();
 		statementInspectorCustomizer.customize(hibernateProperties);
 		assertThat(hibernateProperties).containsEntry(
-			QueryMonitoringJpaConfig.STATEMENT_INSPECTOR_PROPERTY,
+			QueryMonitoringJpaConfiguration.STATEMENT_INSPECTOR_PROPERTY,
 			sqlQueryStatementInspector);
 
 		mockMvc.perform(get("/monitoring-test/members/{memberId}", memberId))
@@ -148,10 +148,10 @@ class QueryCountMvcJpaPrometheusIntegrationTest {
 	@EntityScan(basePackageClasses = Member.class)
 	@EnableJpaRepositories(basePackageClasses = MemberRepository.class)
 	@Import({
-		WebMvcConfig.class,
+		WebMvcConfiguration.class,
 		QueryCountInterceptor.class,
 		MicrometerQueryCountMetricRecorder.class,
-		QueryMonitoringJpaConfig.class,
+		QueryMonitoringJpaConfiguration.class,
 		SqlQueryStatementInspector.class,
 		RepositoryQueryController.class
 	})

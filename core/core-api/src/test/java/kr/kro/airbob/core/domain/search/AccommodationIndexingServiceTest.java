@@ -36,7 +36,7 @@ class AccommodationIndexingServiceTest {
 			.id(ACCOMMODATION_UID.toString())
 			.status("PUBLISHED")
 			.build();
-		given(snapshotReader.readPublished(ACCOMMODATION_UID))
+		given(snapshotReader.findPublished(ACCOMMODATION_UID))
 			.willReturn(Optional.of(document));
 		AccommodationIndexingService service = new AccommodationIndexingService(
 			new AccommodationDocumentWriter(searchRepository), snapshotReader);
@@ -50,7 +50,7 @@ class AccommodationIndexingServiceTest {
 	@Test
 	@DisplayName("게시 중단과 삭제/누락은 모두 String UID 문서 삭제로 수렴한다")
 	void deletesWhenCurrentSnapshotIsNotSearchable() {
-		given(snapshotReader.readPublished(ACCOMMODATION_UID))
+		given(snapshotReader.findPublished(ACCOMMODATION_UID))
 			.willReturn(Optional.empty());
 		AccommodationIndexingService service = new AccommodationIndexingService(
 			new AccommodationDocumentWriter(searchRepository), snapshotReader);
@@ -68,7 +68,7 @@ class AccommodationIndexingServiceTest {
 			.id(ACCOMMODATION_UID.toString())
 			.status("PUBLISHED")
 			.build();
-		given(snapshotReader.readPublished(ACCOMMODATION_UID))
+		given(snapshotReader.findPublished(ACCOMMODATION_UID))
 			.willReturn(Optional.of(document));
 		given(searchRepository.save(document)).willAnswer(invocation -> {
 			assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
@@ -83,7 +83,7 @@ class AccommodationIndexingServiceTest {
 			.getMethod("refreshAccommodationIndex", UUID.class)
 			.getAnnotation(Transactional.class)).isNull();
 		Transactional snapshotTransaction = AccommodationSearchSnapshotReader.class
-			.getMethod("readPublished", UUID.class)
+			.getMethod("findPublished", UUID.class)
 			.getAnnotation(Transactional.class);
 		assertThat(snapshotTransaction).isNotNull();
 		assertThat(snapshotTransaction.readOnly()).isTrue();

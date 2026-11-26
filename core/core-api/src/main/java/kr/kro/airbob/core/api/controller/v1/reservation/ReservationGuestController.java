@@ -21,7 +21,7 @@ public class ReservationGuestController implements ReservationGuestApi {
 		String reservationUid,
 		Long memberId) {
 		ReservationResponse.GuestDetail response = ReservationResponse.GuestDetail.from(
-			queryService.findMyReservationDetail(reservationUid, memberId));
+			queryService.getMyReservationDetail(reservationUid, memberId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
@@ -31,7 +31,7 @@ public class ReservationGuestController implements ReservationGuestApi {
 		ReservationFilterType filterType,
 		Long memberId) {
 		ReservationResponse.GuestReservationInfos response = ReservationResponse.GuestReservationInfos.from(
-			queryService.findMyReservations(memberId, request, filterType));
+			queryService.getMyReservations(memberId, request, filterType));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

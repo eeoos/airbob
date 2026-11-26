@@ -33,13 +33,13 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailCacheConfiguration;
-import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailRedisConfig;
+import kr.kro.airbob.core.domain.accommodation.cache.config.AccommodationDetailRedisConfiguration;
 import kr.kro.airbob.core.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationListener;
 import kr.kro.airbob.core.domain.accommodation.cache.monitoring.FailSafeAccommodationDetailCacheMetricRecorder;
 import kr.kro.airbob.core.domain.accommodation.cache.monitoring.MicrometerAccommodationDetailCacheMetricRecorder;
@@ -64,12 +64,12 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	ClockConfig.class,
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	ClockConfiguration.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	AccommodationDetailCacheQueryCountTest.TestRedisConfiguration.class,
 	AccommodationDetailCacheConfiguration.class,
-	AccommodationDetailRedisConfig.class,
+	AccommodationDetailRedisConfiguration.class,
 	AccommodationDetailCache.class,
 	MicrometerAccommodationDetailCacheMetricRecorder.class,
 	FailSafeAccommodationDetailCacheMetricRecorder.class,
@@ -168,7 +168,7 @@ class AccommodationDetailCacheQueryCountTest {
 		Statistics cold = prepareMeasurement();
 
 		AccommodationResponse.DetailInfo first = AccommodationResponse.DetailInfo
-			.from(queryService.findAccommodation(accommodation.getId(), null));
+			.from(queryService.getAccommodation(accommodation.getId(), null));
 
 		assertThat(first.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(3);
@@ -178,7 +178,7 @@ class AccommodationDetailCacheQueryCountTest {
 
 		Statistics warm = prepareMeasurement();
 		AccommodationResponse.DetailInfo second = AccommodationResponse.DetailInfo
-			.from(queryService.findAccommodation(accommodation.getId(), null));
+			.from(queryService.getAccommodation(accommodation.getId(), null));
 
 		assertThat(second).isEqualTo(first);
 		assertThat(warm.getPrepareStatementCount()).isZero();
@@ -189,13 +189,13 @@ class AccommodationDetailCacheQueryCountTest {
 	void authenticatedColdMissThenWarmHit() {
 		Statistics cold = prepareMeasurement();
 
-		AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+		AccommodationResponse.DetailInfo.from(queryService.getAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
 
 		Statistics warm = prepareMeasurement();
 		AccommodationResponse.DetailInfo second = AccommodationResponse.DetailInfo
-			.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+			.from(queryService.getAccommodation(accommodation.getId(), host.getId()));
 
 		assertThat(second.isInWishlist()).isFalse();
 		assertThat(warm.getPrepareStatementCount()).isEqualTo(1);
@@ -211,21 +211,21 @@ class AccommodationDetailCacheQueryCountTest {
 		Statistics cold = prepareMeasurement();
 
 		var ownerView = AccommodationResponse.DetailInfo
-			.from(queryService.findAccommodation(accommodation.getId(), host.getId()));
+			.from(queryService.getAccommodation(accommodation.getId(), host.getId()));
 		assertThat(ownerView.isInWishlist()).isTrue();
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
 		assertThat(cold.getEntityLoadCount()).isZero();
 
 		Statistics otherWarm = prepareMeasurement();
 		var otherView = AccommodationResponse.DetailInfo
-			.from(queryService.findAccommodation(accommodation.getId(), other.getId()));
+			.from(queryService.getAccommodation(accommodation.getId(), other.getId()));
 		assertThat(otherView.isInWishlist()).isFalse();
 		assertThat(otherView.images()).isEqualTo(ownerView.images());
 		assertThat(otherView.amenities()).isEqualTo(ownerView.amenities());
 		assertThat(otherWarm.getPrepareStatementCount()).isEqualTo(1);
 
 		Statistics anonymousWarm = prepareMeasurement();
-		assertThat(AccommodationResponse.DetailInfo.from(queryService.findAccommodation(accommodation.getId(), null))
+		assertThat(AccommodationResponse.DetailInfo.from(queryService.getAccommodation(accommodation.getId(), null))
 			.isInWishlist()).isFalse();
 		assertThat(anonymousWarm.getPrepareStatementCount()).isZero();
 
@@ -233,7 +233,7 @@ class AccommodationDetailCacheQueryCountTest {
 			.setParameter("wishlistId", wishlist.getId()).executeUpdate();
 		Statistics afterRemoval = prepareMeasurement();
 		assertThat(AccommodationResponse.DetailInfo
-			.from(queryService.findAccommodation(accommodation.getId(), host.getId())).isInWishlist()).isFalse();
+			.from(queryService.getAccommodation(accommodation.getId(), host.getId())).isInWishlist()).isFalse();
 		assertThat(afterRemoval.getPrepareStatementCount()).isEqualTo(1);
 	}
 

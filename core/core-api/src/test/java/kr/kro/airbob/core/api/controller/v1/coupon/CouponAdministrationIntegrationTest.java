@@ -38,9 +38,9 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.domain.coupon.CouponReader;
 import kr.kro.airbob.core.domain.coupon.CouponService;
@@ -52,7 +52,7 @@ import kr.kro.airbob.core.domain.coupon.repository.CouponIssueUnitStore;
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, CouponService.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class, CouponService.class,
 	CouponStockPreparationService.class, CouponReader.class, CouponWriter.class,
 	CouponIssueUnitStore.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

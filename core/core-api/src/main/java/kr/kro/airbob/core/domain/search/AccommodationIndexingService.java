@@ -16,7 +16,7 @@ public class AccommodationIndexingService {
 	private final AccommodationSearchSnapshotReader snapshotReader;
 
 	public void refreshAccommodationIndex(UUID accommodationUid) {
-		var snapshot = snapshotReader.readPublished(accommodationUid);
+		var snapshot = snapshotReader.findPublished(accommodationUid);
 		if (snapshot.isPresent()) {
 			AccommodationDocument document = snapshot.get();
 			documentWriter.save(document);

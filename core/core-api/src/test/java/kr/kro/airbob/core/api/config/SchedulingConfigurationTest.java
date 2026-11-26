@@ -18,14 +18,14 @@ import kr.kro.airbob.core.support.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.core.support.messaging.kafka.MessagingKafkaConfiguration;
 
 @DisplayName("스케줄러 설정 테스트")
-class SchedulingConfigTest {
+class SchedulingConfigurationTest {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withInitializer(context -> context.getEnvironment().setActiveProfiles("test"))
-		.withUserConfiguration(SchedulingConfig.class);
+		.withUserConfiguration(SchedulingConfiguration.class);
 	private final ApplicationContextRunner profileContextRunner = new ApplicationContextRunner()
 		.withInitializer(new ConfigDataApplicationContextInitializer())
-		.withUserConfiguration(SchedulingConfig.class);
+		.withUserConfiguration(SchedulingConfiguration.class);
 	private final ApplicationContextRunner integratedSmokeContextRunner = new ApplicationContextRunner()
 		.withInitializer(new ConfigDataApplicationContextInitializer())
 		.withPropertyValues(
@@ -35,7 +35,7 @@ class SchedulingConfigTest {
 			"accommodation.indexing.kafka.auto-startup=true",
 			"accommodation.detail-cache.invalidation.kafka.auto-startup=true")
 		.withUserConfiguration(
-			SchedulingConfig.class,
+			SchedulingConfiguration.class,
 			MessagingKafkaConfiguration.class,
 			AccommodationSearchKafkaConsumerConfiguration.class)
 		.withBean(KafkaProperties.class, KafkaProperties::new)
@@ -48,9 +48,9 @@ class SchedulingConfigTest {
 	@DisplayName("일반 프로필에서는 스케줄러를 활성화한다")
 	void defaultProfileEnablesScheduling() {
 		new ApplicationContextRunner()
-			.withUserConfiguration(SchedulingConfig.class)
+			.withUserConfiguration(SchedulingConfiguration.class)
 			.run(context -> {
-				assertThat(context).hasSingleBean(SchedulingConfig.class);
+				assertThat(context).hasSingleBean(SchedulingConfiguration.class);
 				assertThat(context)
 					.hasBean("org.springframework.context.annotation.internalScheduledAnnotationProcessor");
 			});
@@ -65,7 +65,7 @@ class SchedulingConfigTest {
 	@Test
 	@DisplayName("test 프로필에서는 스케줄러를 활성화하지 않는다")
 	void doesNotEnableSchedulingInTestProfile() {
-		contextRunner.run(context -> assertThat(context).doesNotHaveBean(SchedulingConfig.class));
+		contextRunner.run(context -> assertThat(context).doesNotHaveBean(SchedulingConfiguration.class));
 	}
 
 	@Test
@@ -84,7 +84,7 @@ class SchedulingConfigTest {
 			assertThat(context.getEnvironment().getProperty(
 				"accommodation.detail-cache.invalidation.kafka.auto-startup", Boolean.class))
 				.isTrue();
-			assertThat(context).doesNotHaveBean(SchedulingConfig.class);
+			assertThat(context).doesNotHaveBean(SchedulingConfiguration.class);
 			assertThat(context).hasSingleBean(MessagingKafkaConfiguration.class);
 			assertThat(context)
 				.hasSingleBean(AccommodationSearchKafkaConsumerConfiguration.class);
@@ -99,18 +99,18 @@ class SchedulingConfigTest {
 		profileContextRunner
 			.withPropertyValues("spring.profiles.active=aws")
 			.run(context -> {
-				assertThat(context).hasSingleBean(SchedulingConfig.class);
-				assertThat(context).hasBean(SchedulingConfig.DEFAULT_TASK_SCHEDULER);
-				assertThat(context).hasBean(SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER);
-				assertThat(context).hasBean(SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER);
+				assertThat(context).hasSingleBean(SchedulingConfiguration.class);
+				assertThat(context).hasBean(SchedulingConfiguration.DEFAULT_TASK_SCHEDULER);
+				assertThat(context).hasBean(SchedulingConfiguration.RESERVATION_CLEANUP_TASK_SCHEDULER);
+				assertThat(context).hasBean(SchedulingConfiguration.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER);
 				ThreadPoolTaskScheduler defaultScheduler = context.getBean(
-					SchedulingConfig.DEFAULT_TASK_SCHEDULER,
+					SchedulingConfiguration.DEFAULT_TASK_SCHEDULER,
 					ThreadPoolTaskScheduler.class);
 				ThreadPoolTaskScheduler scheduler = context.getBean(
-					SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER,
+					SchedulingConfiguration.RESERVATION_CLEANUP_TASK_SCHEDULER,
 					ThreadPoolTaskScheduler.class);
 				ThreadPoolTaskScheduler quoteScheduler = context.getBean(
-					SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER,
+					SchedulingConfiguration.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER,
 					ThreadPoolTaskScheduler.class);
 				assertThat(defaultScheduler.getScheduledThreadPoolExecutor().getCorePoolSize())
 					.isEqualTo(4);

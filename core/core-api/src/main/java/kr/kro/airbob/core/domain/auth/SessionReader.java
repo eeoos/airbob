@@ -20,7 +20,7 @@ public class SessionReader {
 	 * 세션의 회원 ID. 세션이 없거나 읽을 수 없거나, 회원의 세션이 모두 무효화되었으면 비어 있다.
 	 * 세션 값을 읽다 실패하면 비인증으로 처리한다. 회원별 활성 키를 확인하다 난 오류는 그대로 던진다.
 	 */
-	public Optional<Long> readActiveMemberId(String sessionId) {
+	public Optional<Long> findActiveMemberId(String sessionId) {
 		Optional<Long> memberId;
 		try {
 			memberId = sessionRedisRepository.getMemberIdBySession(sessionId);

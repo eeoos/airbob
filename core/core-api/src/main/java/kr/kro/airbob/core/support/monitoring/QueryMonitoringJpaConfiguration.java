@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-public class QueryMonitoringJpaConfig {
+public class QueryMonitoringJpaConfiguration {
 
 	public static final String STATEMENT_INSPECTOR_PROPERTY = "hibernate.session_factory.statement_inspector";
 

@@ -44,7 +44,7 @@ public class PaymentOperationController {
 		ErrorCode.INVALID_TYPE_VALUE
 	})
 	@GetMapping("/api/v1/payment-operations/{operationId}")
-	public ResponseEntity<ApiResponse<Detail>> find(
+	public ResponseEntity<ApiResponse<Detail>> get(
 		@Parameter(description = "결제 작업 UUID. 예약 UID나 결제 시도 ID가 아닙니다.", example = "00000000-0000-0000-0000-000000000040")
 		@PathVariable
 		UUID operationId,
@@ -52,6 +52,6 @@ public class PaymentOperationController {
 		Long memberId) {
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
-			.body(ApiResponse.success(Detail.from(paymentOperationQueryService.find(operationId, memberId))));
+			.body(ApiResponse.success(Detail.from(paymentOperationQueryService.get(operationId, memberId))));
 	}
 }

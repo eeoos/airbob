@@ -95,7 +95,7 @@ public class AccommodationHostController implements AccommodationHostApi {
 		AccommodationStatus status,
 		Long memberId) {
 		AccommodationResponse.HostAccommodationInfos response = AccommodationResponse.HostAccommodationInfos.from(
-			accommodationQueryService.findMyAccommodations(memberId, request, status));
+			accommodationQueryService.getMyAccommodations(memberId, request, status));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
@@ -104,7 +104,7 @@ public class AccommodationHostController implements AccommodationHostApi {
 		Long accommodationId,
 		Long hostId) {
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
-			accommodationQueryService.findHostAccommodationDetail(accommodationId, hostId));
+			accommodationQueryService.getHostAccommodationDetail(accommodationId, hostId));
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

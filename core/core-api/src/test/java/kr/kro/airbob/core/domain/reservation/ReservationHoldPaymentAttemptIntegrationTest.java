@@ -492,7 +492,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			.findByOperationUid(declinedPayment.accepted().operationId())
 			.orElseThrow();
 		PaymentOperationResponse.Detail polling = PaymentOperationResponse.Detail
-			.from(paymentOperationQueryService.find(
+			.from(paymentOperationQueryService.get(
 				declinedPayment.accepted().operationId(), guest.getId()));
 		MemberCoupon restoredCoupon = memberCoupon(coupon);
 
@@ -596,11 +596,11 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 
 		clock.set(declinedReservation.getCheckInAt());
 		PaymentOperationResponse.Detail atCheckIn = PaymentOperationResponse.Detail
-			.from(paymentOperationQueryService.find(
+			.from(paymentOperationQueryService.get(
 				declinedPayment.accepted().operationId(), guest.getId()));
 		clock.set(declinedReservation.getCheckInAt().plusNanos(1));
 		PaymentOperationResponse.Detail afterCheckIn = PaymentOperationResponse.Detail
-			.from(paymentOperationQueryService.find(
+			.from(paymentOperationQueryService.get(
 				declinedPayment.accepted().operationId(), guest.getId()));
 
 		assertThat(atCheckIn.status()).isEqualTo(PaymentOperationResponse.Status.FAILED);

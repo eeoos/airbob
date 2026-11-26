@@ -37,9 +37,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AccommodationResponse;
 import kr.kro.airbob.core.api.controller.v1.accommodation.response.AmenityResponse;
 import kr.kro.airbob.core.api.controller.v1.image.response.ImageResponse;
@@ -50,9 +50,10 @@ import kr.kro.airbob.core.domain.wishlist.WishlistReader;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, AccommodationDetailReader.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
+	AccommodationDetailReader.class,
 	WishlistReader.class,
-	PublicAccommodationDetailReadIntegrationTest.ReadTestConfig.class})
+	PublicAccommodationDetailReadIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PublicAccommodationDetailReadIntegrationTest {
 
@@ -128,7 +129,7 @@ class PublicAccommodationDetailReadIntegrationTest {
 	@Test
 	void preservesPublicJsonAndIndependentCollections() throws Exception {
 		Statistics statistics = prepareMeasurement();
-		var response = AccommodationResponse.DetailInfo.from(reader.load(30L), false);
+		var response = AccommodationResponse.DetailInfo.from(reader.read(30L), false);
 
 		try (var fixture = new ClassPathResource("contracts/public-accommodation-detail.json").getInputStream()) {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(response)))
@@ -148,7 +149,7 @@ class PublicAccommodationDetailReadIntegrationTest {
 		jdbc.update("DELETE FROM accommodation_amenity WHERE accommodation_id = 30");
 		Statistics statistics = prepareMeasurement();
 
-		var snapshot = reader.load(30L);
+		var snapshot = reader.read(30L);
 
 		assertThat(snapshot.addressSummary().country()).isNull();
 		assertThat(snapshot.coordinate().latitude()).isNull();
@@ -163,7 +164,7 @@ class PublicAccommodationDetailReadIntegrationTest {
 
 	@Test
 	void preservesZerosAndReflectsCurrentValuesOnUncachedRead() {
-		reader.load(30L);
+		reader.read(30L);
 		jdbc.update("UPDATE accommodation SET name = '변경된 숙소', base_price = 0, time_zone_id = 'UTC' WHERE id = 30");
 		jdbc.update("UPDATE address SET latitude = 0, longitude = 0 WHERE id = 40");
 		jdbc.update("UPDATE occupancy_policy SET max_occupancy = 2, infant_occupancy = 0 WHERE id = 50");
@@ -174,7 +175,7 @@ class PublicAccommodationDetailReadIntegrationTest {
 		jdbc.update("UPDATE accommodation_image SET image_url = '/contract/changed.jpg' WHERE id = 60");
 		Statistics statistics = prepareMeasurement();
 
-		var snapshot = reader.load(30L);
+		var snapshot = reader.read(30L);
 
 		assertThat(snapshot.name()).isEqualTo("변경된 숙소");
 		assertThat(snapshot.basePrice()).isZero();
@@ -197,14 +198,14 @@ class PublicAccommodationDetailReadIntegrationTest {
 		jdbc.update("UPDATE accommodation SET status = ? WHERE id = 30", status.name());
 		Statistics statistics = prepareMeasurement();
 
-		assertThatThrownBy(() -> reader.load(30L)).isInstanceOf(AccommodationNotFoundException.class);
+		assertThatThrownBy(() -> reader.read(30L)).isInstanceOf(AccommodationNotFoundException.class);
 		assertRejectedQuery(statistics);
 	}
 
 	@Test
 	void rejectsUnknownAccommodationWithoutLoadingAnotherStay() {
 		Statistics statistics = prepareMeasurement();
-		assertThatThrownBy(() -> reader.load(999L)).isInstanceOf(AccommodationNotFoundException.class);
+		assertThatThrownBy(() -> reader.read(999L)).isInstanceOf(AccommodationNotFoundException.class);
 		assertRejectedQuery(statistics);
 	}
 
@@ -238,7 +239,7 @@ class PublicAccommodationDetailReadIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

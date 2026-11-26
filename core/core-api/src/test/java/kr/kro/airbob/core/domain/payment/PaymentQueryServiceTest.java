@@ -91,7 +91,7 @@ class PaymentQueryServiceTest {
 
 			// when
 			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo
-				.from(paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId));
+				.from(paymentQueryService.getPaymentByPaymentKey(paymentKey, memberId));
 
 			// then
 			assertThat(result).isNotNull();
@@ -105,7 +105,7 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.empty());
 
 			// when & then
-			assertThatThrownBy(() -> paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId))
+			assertThatThrownBy(() -> paymentQueryService.getPaymentByPaymentKey(paymentKey, memberId))
 				.isInstanceOf(PaymentNotFoundException.class);
 		}
 
@@ -119,7 +119,7 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.of(payment));
 
 			// when & then
-			assertThatThrownBy(() -> paymentQueryService.findPaymentByPaymentKey(paymentKey, wrongMemberId))
+			assertThatThrownBy(() -> paymentQueryService.getPaymentByPaymentKey(paymentKey, wrongMemberId))
 				.isInstanceOf(PaymentAccessDeniedException.class);
 		}
 
@@ -138,7 +138,7 @@ class PaymentQueryServiceTest {
 
 			// when
 			PaymentResponse.PaymentInfo result = PaymentResponse.PaymentInfo
-				.from(paymentQueryService.findPaymentByOrderId(orderId, memberId));
+				.from(paymentQueryService.getPaymentByOrderId(orderId, memberId));
 
 			// then
 			assertThat(result).isNotNull();
@@ -152,7 +152,7 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.empty());
 
 			// when & then
-			assertThatThrownBy(() -> paymentQueryService.findPaymentByOrderId(orderId, memberId))
+			assertThatThrownBy(() -> paymentQueryService.getPaymentByOrderId(orderId, memberId))
 				.isInstanceOf(PaymentNotFoundException.class);
 		}
 
@@ -166,7 +166,7 @@ class PaymentQueryServiceTest {
 				.willReturn(Optional.of(payment));
 
 			// when & then
-			assertThatThrownBy(() -> paymentQueryService.findPaymentByOrderId(orderId, wrongMemberId))
+			assertThatThrownBy(() -> paymentQueryService.getPaymentByOrderId(orderId, wrongMemberId))
 				.isInstanceOf(PaymentAccessDeniedException.class);
 		}
 	}

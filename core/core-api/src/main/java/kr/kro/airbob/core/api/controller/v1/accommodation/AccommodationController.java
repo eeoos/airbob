@@ -19,7 +19,7 @@ public class AccommodationController implements AccommodationApi {
 		Long accommodationId,
 		Long viewerId) {
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(
-			accommodationQueryService.findAccommodation(accommodationId, viewerId));
+			accommodationQueryService.getAccommodation(accommodationId, viewerId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
@@ -27,7 +27,7 @@ public class AccommodationController implements AccommodationApi {
 	public ResponseEntity<ApiResponse<AccommodationResponse.Availability>> getAccommodationAvailability(
 		Long accommodationId) {
 		AccommodationResponse.Availability response = AccommodationResponse.Availability.from(
-			accommodationQueryService.findAccommodationAvailability(accommodationId));
+			accommodationQueryService.getAccommodationAvailability(accommodationId));
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

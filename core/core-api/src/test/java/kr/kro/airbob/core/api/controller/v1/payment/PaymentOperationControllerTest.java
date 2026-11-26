@@ -72,7 +72,7 @@ class PaymentOperationControllerTest {
 			operationUid, 10L, PaymentOperationType.CONFIRM, PaymentOperationStatus.DECLINED, "PROVIDER_DECLINED",
 			LocalDateTime.parse("2026-08-14T01:02:03"), null,
 			orderId, ReservationStatus.EXPIRED, serverTime.plusSeconds(3600), serverTime.minusSeconds(1));
-		given(queryService.find(eq(operationUid), eq(10L)))
+		given(queryService.get(eq(operationUid), eq(10L)))
 			.willReturn(PaymentOperationDetail.of(declinedConfirmation, serverTime));
 
 		mockMvc.perform(get("/api/v1/payment-operations/{operationId}", operationUid))
@@ -97,6 +97,6 @@ class PaymentOperationControllerTest {
 			.andExpect(jsonPath("$.data.lease_expires_at").doesNotExist())
 			.andExpect(jsonPath("$.data.dispatch_generation").doesNotExist());
 
-		then(queryService).should().find(operationUid, 10L);
+		then(queryService).should().get(operationUid, 10L);
 	}
 }

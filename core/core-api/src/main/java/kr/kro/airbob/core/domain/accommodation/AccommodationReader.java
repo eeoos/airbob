@@ -79,7 +79,7 @@ public class AccommodationReader {
 	}
 
 	/** 재고 seed 대상. 상태가 같은 숙소를 ID 오름차순으로 커서 다음부터 읽는다. */
-	public List<InventorySeedTarget> findInventorySeedTargets(
+	public List<InventorySeedTarget> readInventorySeedTargets(
 		AccommodationStatus status, long afterAccommodationId, Pageable pageable) {
 		return accommodationRepository.findInventorySeedTargets(status, afterAccommodationId, pageable);
 	}
@@ -90,7 +90,7 @@ public class AccommodationReader {
 	}
 
 	/** 최근 본 숙소 목록용 주소·리뷰 요약. 상태가 다르거나 없는 숙소는 빠진다. */
-	public List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
+	public List<RecentlyViewedAccommodationProjection> readWithAddressAndReviewSummaryByIdInAndStatus(
 		List<Long> accommodationIds, AccommodationStatus status) {
 		return accommodationRepository.findWithAddressAndReviewSummaryByIdInAndStatus(accommodationIds, status);
 	}

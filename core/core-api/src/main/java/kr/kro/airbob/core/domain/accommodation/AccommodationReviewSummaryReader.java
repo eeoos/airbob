@@ -17,6 +17,6 @@ public class AccommodationReviewSummaryReader {
 
 	/** 숙소의 리뷰 요약. 게시된 리뷰가 없으면 요약 행이 없으므로 비어 있다. */
 	public Optional<AccommodationReviewSummary> findByAccommodationUid(UUID accommodationUid) {
-		return summaryRepository.findByAccommodation_AccommodationUid(accommodationUid);
+		return summaryRepository.findByAccommodationAccommodationUid(accommodationUid);
 	}
 }

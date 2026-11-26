@@ -40,7 +40,7 @@ class PaymentOperationQueryServiceTest {
 			PaymentOperationStatus.DECLINED, PaymentOperationType.CONFIRM, "PROVIDER_DECLINED", null);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
+		Detail detail = Detail.from(queryService().get(OPERATION_UID, OWNER_ID));
 
 		assertThat(detail.operationId()).isEqualTo(OPERATION_UID);
 		assertThat(detail.status()).isEqualTo(Status.FAILED);
@@ -59,7 +59,7 @@ class PaymentOperationQueryServiceTest {
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation(
 			PaymentOperationStatus.QUEUED, PaymentOperationType.CONFIRM, null, null)));
 
-		assertThatThrownBy(() -> Detail.from(queryService().find(OPERATION_UID, 999L)))
+		assertThatThrownBy(() -> Detail.from(queryService().get(OPERATION_UID, 999L)))
 			.isInstanceOf(PaymentAccessDeniedException.class);
 	}
 
@@ -67,7 +67,7 @@ class PaymentOperationQueryServiceTest {
 	void unknownOperationReturnsNotFound() {
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> Detail.from(queryService().find(OPERATION_UID, OWNER_ID)))
+		assertThatThrownBy(() -> Detail.from(queryService().get(OPERATION_UID, OWNER_ID)))
 			.isInstanceOf(PaymentOperationNotFoundException.class);
 	}
 
@@ -80,7 +80,7 @@ class PaymentOperationQueryServiceTest {
 			SERVER_TIME.plusSeconds(5).plusNanos(1));
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
+		Detail detail = Detail.from(queryService().get(OPERATION_UID, OWNER_ID));
 
 		assertThat(detail.status()).isEqualTo(Status.PENDING);
 		assertThat(detail.failureCode()).isNull();
@@ -98,7 +98,7 @@ class PaymentOperationQueryServiceTest {
 			SERVER_TIME);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(due));
 
-		Detail atBoundary = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
+		Detail atBoundary = Detail.from(queryService().get(OPERATION_UID, OWNER_ID));
 
 		PaymentOperationDetailRow overdue = operation(
 			PaymentOperationStatus.WAITING_RETRY,
@@ -107,7 +107,7 @@ class PaymentOperationQueryServiceTest {
 			SERVER_TIME.minusNanos(1));
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(overdue));
 
-		Detail afterBoundary = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
+		Detail afterBoundary = Detail.from(queryService().get(OPERATION_UID, OWNER_ID));
 
 		assertThat(atBoundary.nextAction()).isEqualTo(NextAction.POLL);
 		assertThat(atBoundary.retryAfterSeconds()).isEqualTo(2L);
@@ -124,7 +124,7 @@ class PaymentOperationQueryServiceTest {
 			SERVER_TIME.plusSeconds(31));
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Detail detail = Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
+		Detail detail = Detail.from(queryService().get(OPERATION_UID, OWNER_ID));
 
 		assertThat(detail.retryAfterSeconds()).isEqualTo(30L);
 	}
@@ -224,7 +224,7 @@ class PaymentOperationQueryServiceTest {
 	private Detail detailFor(PaymentOperationStatus status, PaymentOperationType operationType) {
 		PaymentOperationDetailRow operation = operation(status, operationType, "raw-provider-code", null);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
-		return Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
+		return Detail.from(queryService().get(OPERATION_UID, OWNER_ID));
 	}
 
 	private Detail detailFor(
@@ -255,7 +255,7 @@ class PaymentOperationQueryServiceTest {
 			checkInAt,
 			expiresAt);
 		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
-		return Detail.from(queryService().find(OPERATION_UID, OWNER_ID));
+		return Detail.from(queryService().get(OPERATION_UID, OWNER_ID));
 	}
 
 	private PaymentOperationQueryService queryService() {

@@ -65,7 +65,7 @@ class AccommodationQueryServiceTest {
 		givenCachedAccommodation(1L);
 
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
-			.from(accommodationQueryService.findAccommodation(1L, null));
+			.from(accommodationQueryService.getAccommodation(1L, null));
 
 		assertThat(response.isInWishlist()).isFalse();
 		verify(accommodationDetailReader, never()).isInWishlist(anyLong(), anyLong());
@@ -78,7 +78,7 @@ class AccommodationQueryServiceTest {
 		when(accommodationDetailReader.isInWishlist(1L, 7L)).thenReturn(true);
 
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
-			.from(accommodationQueryService.findAccommodation(1L, 7L));
+			.from(accommodationQueryService.getAccommodation(1L, 7L));
 
 		assertThat(response.isInWishlist()).isTrue();
 		verify(accommodationDetailReader).isInWishlist(1L, 7L);
@@ -91,7 +91,7 @@ class AccommodationQueryServiceTest {
 		givenPublishedAccommodationAvailability(1L, "America/New_York", newYorkWindow);
 
 		AccommodationResponse.Availability response = AccommodationResponse.Availability
-			.from(accommodationQueryService.findAccommodationAvailability(1L));
+			.from(accommodationQueryService.getAccommodationAvailability(1L));
 
 		assertThat(response.bookingWindowStartInclusive()).isEqualTo(LocalDate.of(2026, 8, 11));
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(LocalDate.of(2026, 11, 11));
@@ -103,7 +103,7 @@ class AccommodationQueryServiceTest {
 	void accommodationDetailSkipsAvailabilityLookup() {
 		givenCachedAccommodation(1L);
 
-		AccommodationResponse.DetailInfo.from(accommodationQueryService.findAccommodation(1L, null));
+		AccommodationResponse.DetailInfo.from(accommodationQueryService.getAccommodation(1L, null));
 
 		verify(accommodationDetailCache).getOrLoad(eq(1L), any());
 		verifyNoInteractions(bookingWindowProvider, inventoryManager);
@@ -115,7 +115,7 @@ class AccommodationQueryServiceTest {
 		givenPublishedAccommodationAvailability(1L);
 
 		AccommodationResponse.Availability response = AccommodationResponse.Availability
-			.from(accommodationQueryService.findAccommodationAvailability(1L));
+			.from(accommodationQueryService.getAccommodationAvailability(1L));
 		ArgumentCaptor<LocalDate> windowStartCaptor = ArgumentCaptor.forClass(LocalDate.class);
 		ArgumentCaptor<LocalDate> windowEndCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
@@ -142,7 +142,7 @@ class AccommodationQueryServiceTest {
 				today.plusDays(4))));
 
 		AccommodationResponse.Availability response = AccommodationResponse.Availability
-			.from(accommodationQueryService.findAccommodationAvailability(accommodationId));
+			.from(accommodationQueryService.getAccommodationAvailability(accommodationId));
 
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(today.plusMonths(3));
 		assertThat(response.unavailableRanges()).containsExactly(
@@ -167,7 +167,7 @@ class AccommodationQueryServiceTest {
 					windowEndExclusive)));
 
 		AccommodationResponse.Availability response = AccommodationResponse.Availability
-			.from(accommodationQueryService.findAccommodationAvailability(accommodationId));
+			.from(accommodationQueryService.getAccommodationAvailability(accommodationId));
 
 		assertThat(response.unavailableRanges()).containsExactly(
 			new AccommodationResponse.UnavailableDateRange(windowStart, windowStart.plusDays(6)),
@@ -182,7 +182,7 @@ class AccommodationQueryServiceTest {
 			1L, AccommodationStatus.PUBLISHED)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(
-			() -> AccommodationResponse.Availability.from(accommodationQueryService.findAccommodationAvailability(1L)))
+			() -> AccommodationResponse.Availability.from(accommodationQueryService.getAccommodationAvailability(1L)))
 			.isInstanceOf(AccommodationNotFoundException.class);
 		verifyNoInteractions(bookingWindowProvider, inventoryManager);
 	}
@@ -193,12 +193,12 @@ class AccommodationQueryServiceTest {
 		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
 		when(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
 			.thenReturn(Optional.of(accommodation));
-		when(accommodationDetailReader.loadAmenities(1L)).thenReturn(List.of());
-		when(accommodationDetailReader.loadImages(1L)).thenReturn(List.of());
+		when(accommodationDetailReader.readAmenities(1L)).thenReturn(List.of());
+		when(accommodationDetailReader.readImages(1L)).thenReturn(List.of());
 
-		AccommodationResponse.HostDetail.from(accommodationQueryService.findHostAccommodationDetail(1L, 7L));
+		AccommodationResponse.HostDetail.from(accommodationQueryService.getHostAccommodationDetail(1L, 7L));
 
-		verify(accommodationDetailReader).loadImages(1L);
+		verify(accommodationDetailReader).readImages(1L);
 	}
 
 	private void givenCachedAccommodation(Long accommodationId) {

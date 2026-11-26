@@ -50,12 +50,12 @@ public class PaymentOperationAdminController {
 		ErrorCode.INVALID_TYPE_VALUE
 	})
 	@GetMapping("/manual-review")
-	public ResponseEntity<ApiResponse<ManualReviewQueue>> findManualReviewQueue(
+	public ResponseEntity<ApiResponse<ManualReviewQueue>> getManualReviewQueue(
 		@Parameter(description = "조회할 작업 수. 커서 페이지가 아닌 가장 오래된 대기 작업 목록입니다.", schema = @Schema(type = "integer", format = "int32", minimum = "1", maximum = "100", defaultValue = "50"))
 		@RequestParam(defaultValue = "50")
 		int limit) {
 		return ResponseEntity
-			.ok(ApiResponse.success(ManualReviewQueue.from(queryService.findManualReviewQueue(limit))));
+			.ok(ApiResponse.success(ManualReviewQueue.from(queryService.getManualReviewQueue(limit))));
 	}
 
 	@Operation(operationId = "PaymentOperationAdmin.requestReconciliation", summary = "결제 대사 요청", description = """

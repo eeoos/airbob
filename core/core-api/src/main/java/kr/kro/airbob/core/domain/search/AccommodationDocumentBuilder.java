@@ -101,7 +101,7 @@ public class AccommodationDocumentBuilder {
 	}
 
 	private List<String> getAccommodationAmenities(UUID accommodationUid) {
-		return amenityReader.findAllByAccommodationUid(accommodationUid)
+		return amenityReader.readAllByAccommodationUid(accommodationUid)
 			.stream()
 			.map(AccommodationAmenity::getAmenityCode)
 			.distinct()

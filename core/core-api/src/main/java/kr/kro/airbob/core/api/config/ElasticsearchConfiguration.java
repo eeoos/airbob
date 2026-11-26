@@ -21,7 +21,7 @@ import co.elastic.clients.transport.rest_client.RestClientTransport;
 
 @Configuration
 @EnableElasticsearchRepositories
-public class ElasticsearchConfig {
+public class ElasticsearchConfiguration {
 
 	@Bean
 	public ElasticsearchClient elasticsearchClient(ObjectMapper objectMapper,

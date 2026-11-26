@@ -45,7 +45,7 @@ class AccommodationAvailabilityApiTest {
 	@Test
 	@DisplayName("숙소 ID의 예약 가능 기간과 예약 불가 구간을 반환한다")
 	void returnsAccommodationAvailability() throws Exception {
-		when(accommodationQueryService.findAccommodationAvailability(42L))
+		when(accommodationQueryService.getAccommodationAvailability(42L))
 			.thenReturn(new AccommodationAvailability(
 				LocalDate.of(2026, 8, 13),
 				LocalDate.of(2026, 11, 13),

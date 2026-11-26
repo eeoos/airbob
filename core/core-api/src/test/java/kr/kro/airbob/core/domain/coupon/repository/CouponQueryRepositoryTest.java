@@ -20,9 +20,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.coupon.CouponCampaignProjection;
 import kr.kro.airbob.core.domain.coupon.MemberCouponProjection;
 
@@ -30,7 +30,7 @@ import kr.kro.airbob.core.domain.coupon.MemberCouponProjection;
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class})
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class})
 @DisplayName("쿠폰 조회 저장소 테스트")
 class CouponQueryRepositoryTest {
 

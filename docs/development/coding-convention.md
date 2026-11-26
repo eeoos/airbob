@@ -77,10 +77,10 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | 표준 출력. `System.out`, `System.err`, `printStackTrace()` | main | `@Slf4j` 로거 |
 | 일반 예외 직접 생성. `Throwable`, `Exception`, `RuntimeException` | main | 구체적인 예외. 보통 `ErrorCode`를 가진 `BaseException`의 하위 예외 |
 | `java.util.logging` | main | SLF4J(`@Slf4j`) |
-| `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()`, `ClockConfig` 밖에서 시스템 시계 만들기(`Clock.systemUTC()`·`systemDefaultZone()`·`system(ZoneId)`, `Clock.tickSeconds`·`tickMinutes`·`tickMillis`, `InstantSource.system()`) | main | `Clock` 빈을 주입받아 `clock.instant()`, `clock.millis()`, `LocalDate.now(clock)`를 쓴다. 저장할 `LocalDateTime`은 JPA 감사 시각처럼 `LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)`로 만든다. 주입받은 시계를 감싸는 `Clock.tick(clock, …)`, `Clock.offset(clock, …)`은 쓸 수 있다. 경과 시간은 `System.nanoTime()`으로 잰다 |
+| `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()`, `ClockConfiguration` 밖에서 시스템 시계 만들기(`Clock.systemUTC()`·`systemDefaultZone()`·`system(ZoneId)`, `Clock.tickSeconds`·`tickMinutes`·`tickMillis`, `InstantSource.system()`) | main | `Clock` 빈을 주입받아 `clock.instant()`, `clock.millis()`, `LocalDate.now(clock)`를 쓴다. 저장할 `LocalDateTime`은 JPA 감사 시각처럼 `LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)`로 만든다. 주입받은 시계를 감싸는 `Clock.tick(clock, …)`, `Clock.offset(clock, …)`은 쓸 수 있다. 경과 시간은 `System.nanoTime()`으로 잰다 |
 | 단언 클래스. JUnit `org.junit.jupiter.api.Assertions`, JUnit 4 `org.junit.Assert`, JUnit 3 `junit.framework.Assert`, Hamcrest `org.hamcrest.MatcherAssert` | 모든 모듈의 test | AssertJ의 `assertThat`, `assertThatThrownBy`. MockMvc `jsonPath`에 넘기는 Hamcrest `Matchers`는 쓸 수 있다 |
 
-- **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfig`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`). 옛 날짜 API(`new Date()`, `Calendar.getInstance()`)는 이 규칙이 다루지 않는다. main에서 쓰지 않으며 새 코드에도 쓰지 않는다.
+- **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfiguration`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`). 옛 날짜 API(`new Date()`, `Calendar.getInstance()`)는 이 규칙이 다루지 않는다. main에서 쓰지 않으며 새 코드에도 쓰지 않는다.
 - **테스트 코드는 대부분 대상이 아니다.** 테스트의 `@Autowired` 필드는 스프링 테스트의 관행이고, 동시성 테스트는 결과를 표준 출력으로 남긴다.
 - **규칙의 시험.** `CodingRulesFixtureTest`는 규칙마다 위반 예시 클래스를 두고, 규칙이 그 위반을 실제로 잡는지 확인한다.
   - 이 프로젝트의 ArchUnit 설정(`resolveMissingDependenciesFromClassPath=false`)은 JDK와 라이브러리 클래스를 가져오지 않는다. 그래서 그 타입은 이름으로만 안다.
@@ -88,7 +88,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - 기본 규칙은 직접 호출만 본다. `orElseGet(Instant::now)`, `orElseThrow(RuntimeException::new)` 같은 메서드·생성자 참조도 잡도록 조건을 더했다. 픽스처는 호출과 참조를 모두 담는다.
 - **테스트 단언을 Spotless로 막는 이유.** ArchUnit 규칙은 core-api 테스트 클래스만 가져와서 클라이언트 모듈의 테스트를 보지 못한다. API 문서 테스트만 바뀐 PR은 CI에서 테스트 대신 `spotlessCheck`와 `verifyOpenApi`만 돈다. Spotless는 모든 모듈에 적용되고 두 경우 모두 실행된다. JUnit 4와 Hamcrest는 Testcontainers와 `spring-boot-starter-test`를 통해 테스트 클래스패스에 있어서 함께 막는다.
 - **도입할 때 고친 위반(2026-11-25).**
-  - 필드 주입 8개: `ElasticsearchConfig`, `RedisConfig`, `S3ImageUploader`, `SettlementGenerator`의 `@Value` 필드
+  - 필드 주입 8개: `ElasticsearchConfig`, `RedisConfig`(지금은 `ElasticsearchConfiguration`, `RedisConfiguration`), `S3ImageUploader`, `SettlementGenerator`의 `@Value` 필드
   - `Clock` 없이 시각을 읽은 5곳: `WishlistRepositoryImpl`, `SessionRedisRepository`, `RecentlyViewedWriter`
   - JUnit `Assertions`를 쓴 테스트 3개 파일
 - **넣지 않은 ArchUnit 기본 규칙.**

@@ -19,7 +19,7 @@ import kr.kro.airbob.core.support.cursor.resolver.ReviewCursorParamArgumentResol
 import kr.kro.airbob.core.support.monitoring.QueryCountInterceptor;
 
 @DisplayName("커서 argument resolver MVC 등록 테스트")
-class WebMvcConfigCursorResolverTest {
+class WebMvcConfigurationCursorResolverTest {
 
 	@Test
 	@DisplayName("모든 커서 argument resolver 빈을 MVC에 등록한다")
@@ -29,7 +29,7 @@ class WebMvcConfigCursorResolverTest {
 		ReviewCursorParamArgumentResolver reviewCursorResolver = mock(ReviewCursorParamArgumentResolver.class);
 		CouponCampaignCursorParamArgumentResolver campaignCursorResolver = mock(
 			CouponCampaignCursorParamArgumentResolver.class);
-		WebMvcConfig config = new WebMvcConfig(
+		WebMvcConfiguration config = new WebMvcConfiguration(
 			memberResolver,
 			List.of(cursorResolver, reviewCursorResolver, campaignCursorResolver),
 			mock(SessionAuthFilter.class),

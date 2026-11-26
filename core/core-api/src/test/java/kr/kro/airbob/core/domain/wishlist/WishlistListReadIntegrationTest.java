@@ -39,9 +39,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import kr.kro.airbob.core.api.config.ClockConfig;
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.ClockConfiguration;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.api.controller.v1.wishlist.response.WishlistResponse;
 import kr.kro.airbob.core.domain.accommodation.AccommodationReader;
 import kr.kro.airbob.core.domain.accommodation.AccommodationStatus;
@@ -58,10 +58,10 @@ import kr.kro.airbob.core.support.cursor.util.CursorPageInfoCreator;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
+@Import({ClockConfiguration.class, JpaAuditingConfiguration.class, QueryDslConfiguration.class,
 	WishlistService.class, WishlistReader.class, WishlistWriter.class, MemberReader.class, AccommodationReader.class,
 	CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
-	WishlistListReadIntegrationTest.ReadTestConfig.class})
+	WishlistListReadIntegrationTest.ReadTestConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("위시리스트 목록·저장 선택 MySQL 조회 계약")
 class WishlistListReadIntegrationTest {
@@ -263,7 +263,7 @@ class WishlistListReadIntegrationTest {
 		entityManagerFactory.unwrap(SessionFactory.class).getStatistics().clear();
 		sqlCapture.statements.clear();
 		var result = WishlistResponse.WishlistInfos.from(
-			service.findWishlists(request, memberId, accommodationId), accommodationId != null);
+			service.getWishlists(request, memberId, accommodationId), accommodationId != null);
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(statistics.getEntityLoadCount()).isZero();
@@ -287,7 +287,7 @@ class WishlistListReadIntegrationTest {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
-	static class ReadTestConfig {
+	static class ReadTestConfiguration {
 		@Bean
 		SqlCapture sqlCapture() {
 			return new SqlCapture();

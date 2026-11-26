@@ -43,7 +43,7 @@ class PaymentOperationManualReviewQueryServiceTest {
 			"98283dcc-f24f-44b2-a877-d89983fb7e33", PaymentOperationType.CONFIRM, false, 3);
 		given(repository.findOldest(3)).willReturn(List.of(first, second, extra));
 
-		ManualReviewQueue result = ManualReviewQueue.from(service.findManualReviewQueue(2));
+		ManualReviewQueue result = ManualReviewQueue.from(service.getManualReviewQueue(2));
 
 		assertThat(result.hasMore()).isTrue();
 		assertThat(result.items()).hasSize(2);
@@ -60,7 +60,7 @@ class PaymentOperationManualReviewQueryServiceTest {
 			"98283dcc-f24f-44b2-a877-d89983fb7e34", PaymentOperationType.CONFIRM, false, 1);
 		given(repository.findOldest(2)).willReturn(List.of(ineligibleConfirm));
 
-		ManualReviewQueue result = ManualReviewQueue.from(service.findManualReviewQueue(1));
+		ManualReviewQueue result = ManualReviewQueue.from(service.getManualReviewQueue(1));
 
 		assertThat(result.hasMore()).isFalse();
 		assertThat(result.items().getFirst().availableActions())
@@ -69,9 +69,9 @@ class PaymentOperationManualReviewQueryServiceTest {
 
 	@Test
 	void rejectsLimitsOutsideThePublicOneToOneHundredRangeWithoutQuerying() {
-		assertThatThrownBy(() -> service.findManualReviewQueue(0))
+		assertThatThrownBy(() -> service.getManualReviewQueue(0))
 			.isInstanceOf(InvalidInputException.class);
-		assertThatThrownBy(() -> service.findManualReviewQueue(101))
+		assertThatThrownBy(() -> service.getManualReviewQueue(101))
 			.isInstanceOf(InvalidInputException.class);
 
 		then(repository).shouldHaveNoInteractions();

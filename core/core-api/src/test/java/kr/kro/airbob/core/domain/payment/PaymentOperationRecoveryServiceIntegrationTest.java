@@ -45,8 +45,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.core.api.config.JpaAuditingConfig;
-import kr.kro.airbob.core.api.config.QueryDslConfig;
+import kr.kro.airbob.core.api.config.JpaAuditingConfiguration;
+import kr.kro.airbob.core.api.config.QueryDslConfiguration;
 import kr.kro.airbob.core.domain.payment.PaymentOperationRecoveryService.RecoveryBatch;
 import kr.kro.airbob.core.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.core.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
@@ -62,8 +62,8 @@ import kr.kro.airbob.core.support.messaging.outbox.infrastructure.jpa.OutboxMess
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-	JpaAuditingConfig.class,
-	QueryDslConfig.class,
+	JpaAuditingConfiguration.class,
+	QueryDslConfiguration.class,
 	PaymentOperationReader.class,
 	IntegrationEventCodec.class,
 	JpaOutboxWriter.class,
