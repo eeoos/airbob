@@ -96,7 +96,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - JodaTime 금지: 의존성이 없다.
   - 옛 날짜·시간 클래스 금지: JDBC에 값을 넘기는 `java.sql.Timestamp`·`Date` 사용이 정당하다.
   - 사용 중단 API 금지: 라이브러리 클래스를 가져오지 않아 JDK API의 사용 중단 표시를 볼 수 없다.
-- **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 끝난다. Stop 훅은 core-api의 main이나 test 코드가 바뀌면 이 테스트를 실행한다.
+- **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 끝난다. Stop 훅은 core-api의 main이나 test, 클라이언트 모듈의 main 코드가 바뀌면 이 테스트를 실행한다.
 
 ## 이름
 
@@ -123,14 +123,14 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | 클래스는 명사, 인터페이스는 명사나 형용사로 짓는다(2.6·2.7) | | 리뷰 |
 | 메서드는 동사나 전치사로 시작한다(2.10) | `readActive`, `toCondition`, `withTicker` | 역할별 동사는 아래 표 |
 | 1글자 이름은 반복문 변수나 람다 파라미터처럼 잠깐 쓰는 변수에만 쓴다(2.13) | | 리뷰 |
-| 테스트 클래스는 `Test`로 끝난다(2.8). JUnit이 실행하는 클래스(물려받은 테스트만 있어도 포함, ArchUnit의 `@AnalyzeClasses` 클래스 포함)와, `@Nested` 클래스를 감싸는 클래스가 대상이다. 추상 클래스, 인터페이스, 정적 중첩 테스트 클래스를 담기만 한 클래스는 대상이 아니다 | `ReservationTest`, `StatusTransitionTest` | ArchUnit `TestNamingRulesTest` |
+| 테스트 클래스는 `Test`로 끝난다(2.8). 테스트 메서드(물려받은 것 포함)를 가진 구체 클래스, ArchUnit의 `@AnalyzeClasses` 클래스, `@Nested` 클래스를 감싸는 클래스가 대상이다. 테스트 메서드가 있으면 JUnit이 실행하지 않는 `private` 클래스나 `@Nested` 없는 내부 클래스도 대상이다. 추상 클래스, 인터페이스, 정적 중첩 테스트 클래스를 담기만 한 클래스는 대상이 아니다 | `ReservationTest`, `StatusTransitionTest` | ArchUnit `TestNamingRulesTest` |
 
 ### 역할 이름
 
 | 대상 | 규칙 | 강제 |
 |---|---|---|
-| Reader 메서드(public이거나 다른 main 클래스가 부르는 것) | `read`는 반드시 있는 단건(없으면 예외)이나 목록을 돌려준다(`void` 아님). `find`는 `Optional`만 돌려준다. 그 밖에는 `is`·`exists`·`has`(boolean), `count`, `search`를 쓴다 | ArchUnit |
-| `@Service`·`@RestController`·Swagger 인터페이스(`@Tag`)의 조회 | 조회는 `get`으로 시작한다. 검색도 같다(`getSearchResults`) | `@GetMapping` 메서드는 ArchUnit이 `get` 시작을 본다. 세 곳의 public 메서드가 `find`·`read`·`search`·`list`·`load`·`fetch`·`retrieve`·`query`·`select`·`lookup`으로 시작하는 것도 ArchUnit이 막는다. Service는 이름만으로 조회인지 알 수 없어, 그 밖의 동사로 지은 조회는 리뷰가 본다. `@GetMapping` 대신 `@RequestMapping(method = GET)`으로 매핑한 조회도 리뷰가 본다 |
+| `core.domain`의 Reader 메서드(public이거나 다른 main 클래스가 부르는 것) | `read`는 반드시 있는 단건(없으면 예외)이나 목록을 돌려준다(`void` 아님). `find`는 `Optional`만 돌려준다. 그 밖에는 `is`·`exists`·`has`(boolean), `count`, `search`를 쓴다 | ArchUnit |
+| `core.domain`의 `@Service`, `@RestController`, Swagger 인터페이스(`@Tag`)의 조회 | 조회는 `get`으로 시작한다. 검색도 같다(`getSearchResults`) | `@GetMapping` 메서드는 ArchUnit이 `get` 시작을 본다. 세 곳의 public 메서드가 `find`·`read`·`search`·`list`·`load`·`fetch`·`retrieve`·`query`·`select`·`lookup`으로 시작하는 것도 ArchUnit이 막는다. Service는 이름만으로 조회인지 알 수 없어, 그 밖의 동사로 지은 조회는 리뷰가 본다. `@GetMapping` 대신 `@RequestMapping(method = GET)`으로 매핑한 조회도 리뷰가 본다 |
 | Writer 메서드 | 뜻으로 짝을 맞춘다. `create`·`delete`는 엔티티 자체를 만들고 지운다. `add`·`remove`는 다른 엔티티의 컬렉션에 넣고 뺀다. `update`·`change`는 값을 바꾸고, `record`는 이력을 남긴다 | 리뷰 |
 | `core.domain`의 `@Component` | 역할을 드러내는 명사로 끝난다(`Reader`, `Writer`, `Validator`, `Issuer` …). `Helper`·`Util`·`Utils`·`Common`·`Misc`·`Etc`로 끝나지 않는다 | ArchUnit |
 | main의 `@Configuration`, 테스트의 `@TestConfiguration` | `*Configuration`. 최소 스프링 컨텍스트를 띄우는 테스트용 앱 루트(`@Configuration` `Application`)는 대상이 아니다 | ArchUnit |
@@ -150,12 +150,9 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - 주석에 `void 한글이름(` 같은 글을 쓰면 걸리니 문구를 바꾼다.
 - **규칙의 시험.** `NamingRulesFixtureTest`는 자체 조건을 가진 규칙마다 위반 예시와 허용 예시를 둔다. Reader 동사, 조회 동사와 `@GetMapping`, 막연한 접미사, 진입점(반복 어노테이션 포함), 예외, 통합 이벤트, 약어, 테스트 클래스(물려받은 테스트, `@Nested`를 감싸는 클래스, 정적 중첩 테스트 클래스, 합성 어노테이션을 포함한 ArchUnit 테스트 클래스)가 대상이다.
   - 예외 규칙은 앱의 예외가 JDK 예외를 상속하는지 따라가야 한다. ArchUnit 설정이 JDK 클래스를 가져오지 않으므로, 앱 클래스가 끝나는 곳의 라이브러리 타입은 테스트 클래스패스에서 읽어 판단한다. 그래서 `IllegalStateException`을 바로 상속한 예외도 잡는다.
-  - 테스트 클래스 규칙은 JUnit의 테스트 클래스 탐색을 이름 검사에 필요한 만큼만 따른다. 다음 구조는 정확히 판단하지 못해 리뷰가 본다(도입할 때 모두 0개).
-    - 추상 부모가 선언한 `@Nested` 클래스를 구체 자식이 물려받아 실행하는 구조
-    - 물려받은 `@Test` 메서드를 어노테이션 없이 재정의해, 실행할 테스트가 하나도 남지 않은 클래스
-    - 테스트 메서드를 물려받았지만 JUnit이 실행하지 않는 보조 클래스(`private` 클래스, `@Nested` 없는 비정적 클래스)
-    - `@Nested`를 붙여 만든 합성 어노테이션
-  - 이 중 JUnit이 실행하지 않는 클래스(위 2·3번)는 `Test`로 끝나지 않아도 된다. 실행되는 구조(1·4번)는 `Test`로 끝나야 한다.
+  - 테스트 클래스 규칙은 JUnit의 테스트 클래스 탐색을 그대로 따르지 않는다.
+    - 더 엄격한 곳: 테스트 메서드(물려받은 것 포함)를 가진 구체 클래스는 JUnit이 실행하지 않아도 `Test`를 요구한다. 예: `private` 클래스, `@Nested` 없는 내부 클래스, 물려받은 테스트를 모두 어노테이션 없이 재정의한 클래스. 이런 클래스는 이름을 `Test`로 끝내거나, 테스트 메서드를 갖지 않게 구조를 바꾼다.
+    - 놓치는 곳(리뷰가 본다, 도입할 때 0개): 추상 부모가 선언한 `@Nested` 클래스를 구체 자식이 물려받아 실행하는 구조(자식 이름을 보지 않는다), `@Nested`를 붙여 만든 합성 어노테이션(감싸는 클래스를 보지 않는다).
   - JUnit 탐색을 그대로 흉내 낼수록 경계 사례가 이어졌다. 그래서 이 저장소에서 쓰는 구조(최상위 테스트 클래스, `@Nested`, 인터페이스의 기본 테스트 메서드)까지만 맞췄다(2026-11-26 결정).
   - `@Scheduled`·`@KafkaListener`를 여러 번 붙이면 컨테이너 어노테이션(`@Schedules`·`@KafkaListeners`)으로 컴파일된다. 이름 규칙과 계층 규칙의 진입점 판별(`ArchitectureSlices`)은 둘 다 인식한다.
   - 나머지 규칙은 이름 접미사만 본다. 모든 규칙은 적어도 한 클래스에 적용되어야 통과하므로, 대상을 고르는 조건이 비면 실패한다.

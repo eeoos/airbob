@@ -28,7 +28,8 @@ formatting, the code rules (`CodingRulesTest`), and most naming rules (`NamingRu
   lowercase English word like any test method (`_` allowed); the Spotless lint reads `void` declarations only.
 - A class that JUnit runs ends with `Test`, also where the test rule cannot judge it: a class that inherits an
   abstract parent's `@Nested` class, and the class around one marked with a composed `@Nested` annotation.
-  A class JUnit does not run needs no suffix: a private class, an inner class without `@Nested`, or a class
-  left with no test to run after overriding its inherited test methods without `@Test`.
+  Elsewhere the rule is stricter than JUnit: a concrete class with test methods, inherited ones included,
+  must end with `Test` even if JUnit skips it (a private class, an inner class without `@Nested`, a class whose
+  inherited tests are all overridden without `@Test`); rename it or move the test methods out.
 - Name domain input records `NewXxx` for creation and `XxxPatch` for a partial update that keeps null fields;
   see `docs/architecture/code-structure.md` ("Business 입출력과 도메인 레코드").

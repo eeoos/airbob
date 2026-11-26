@@ -276,7 +276,7 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 
 규칙은 `core/core-api/src/test/java/kr/kro/airbob/architecture`의 ArchUnit 테스트가 강제한다.
 `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 실행된다.
-Stop 훅도 core-api의 main이나 test 코드가 바뀌면 이 테스트를 함께 실행한다.
+Stop 훅도 core-api의 main이나 test, 클라이언트 모듈의 main 코드가 바뀌면 이 테스트를 함께 실행한다.
 코드 규칙(`CodingRulesTest`)은 [코딩 컨벤션의 코드 규칙](../development/coding-convention.md#코드-규칙)에, 이름 규칙(`NamingRulesTest`, `TestNamingRulesTest`)은 [코딩 컨벤션의 이름](../development/coding-convention.md#이름)에 있다.
 
 - **`LayeredArchitectureTest`(엄격)**: 애플리케이션 코드(`kr.kro.airbob.core..`)에 규칙 1~4와 이름 규칙을 적용한다.
