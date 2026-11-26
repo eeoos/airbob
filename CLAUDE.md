@@ -44,7 +44,8 @@ shrunk store with the fix. `CodingRulesTest` bans field injection (including `@V
 constructor or `@Bean` method parameters), `System.out`/`System.err`/`printStackTrace()`, creating
 `Throwable`/`Exception`/`RuntimeException` (constructor references included), `java.util.logging`, and
 reading the current time without the `Clock` bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`,
-or a system `Clock`/`InstantSource` created outside `ClockConfiguration`), and public setters on entities.
+or a system `Clock`/`InstantSource` created outside `ClockConfiguration`). It also bans public `set...`
+methods of any arity on entities and their `@MappedSuperclass` parents.
 `NamingRulesTest` and
 `TestNamingRulesTest` enforce the naming rules in `docs/development/coding-convention.md` ("이름"): role suffixes,
 Reader `read` (required value or list) and `find` (`Optional`), `get` for `@Service` and controller queries, no

@@ -80,7 +80,7 @@ class CodingRulesFixtureTest {
 	@Test
 	@DisplayName("엔티티와 그 상위 클래스의 public setter를 막고 상태 변경 메서드는 허용한다")
 	void entitySetterRuleReportsPublicSetters() {
-		ArchRule rule = CodingRulesTest.noPublicSettersInClassesAnnotatedWith(
+		ArchRule rule = CodingRulesTest.banPublicSettersInClassesAnnotatedWith(
 			FixtureEntity.class.getName(), FixtureSuperclass.class.getName());
 
 		assertThat(hasViolation(rule, SettableEntity.class)).isTrue();

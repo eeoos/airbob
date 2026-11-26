@@ -44,7 +44,8 @@ Apply these to code you write or change; existing code is not rewritten for them
   constructor when it needs `@Value` parameters or logic.
 - Log with `@Slf4j`; use `LoggerFactory` only for a named logger such as `airbob.sql.trace`.
 - Entities use `@Getter` and `@NoArgsConstructor(access = AccessLevel.PROTECTED)`, never `@Setter` or
-  `@Data`; change state through a method that names the change (`Reservation.confirm()`).
+  `@Data`; change state through a method that names the change (`Reservation.confirm()`), and never name a
+  state change `set...`, even without arguments.
 - Write request/response DTOs, and any type made for domain inputs or outputs, as records; pass simple
   values and return entity IDs as they are.
 - Name a static factory `from` when it converts one other type and `of` when it builds from several values.

@@ -76,11 +76,11 @@ class CodingRulesTest {
 	 * 엔티티가 물려받는 @MappedSuperclass의 메서드도 보고, 인자가 없어도 set으로 시작하는 상태 변경 메서드는 막는다.
 	 */
 	@ArchTest
-	static final ArchRule entitiesHaveNoPublicSetters = noPublicSettersInClassesAnnotatedWith(ENTITY,
+	static final ArchRule entitiesHaveNoPublicSetters = banPublicSettersInClassesAnnotatedWith(ENTITY,
 		MAPPED_SUPERCLASS);
 
 	/** 픽스처가 실제 JPA 어노테이션 대신 자기 어노테이션을 쓸 수 있도록 대상 어노테이션을 인자로 받는다. */
-	static ArchRule noPublicSettersInClassesAnnotatedWith(String... annotations) {
+	static ArchRule banPublicSettersInClassesAnnotatedWith(String... annotations) {
 		return noMethods()
 			.that().areDeclaredInClassesThat(DescribedPredicate.describe("annotated with " + List.of(annotations),
 				javaClass -> Arrays.stream(annotations).anyMatch(javaClass::isAnnotatedWith)))
