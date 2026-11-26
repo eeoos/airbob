@@ -89,9 +89,11 @@ class RangeTests(unittest.TestCase):
 
     def test_only_the_first_line_is_the_subject_even_without_a_blank_line_after_it(self):
         base = self.commit('chore: 시작한다')
-        head = self.commit('fix: retry timeout\n재시도 조건을 수정한다')
-        self.assertEqual(commit_messages.violations(base, head, self.root),
-                         [(head, 'fix: retry timeout', 'the summary has no Korean')])
+        english = self.commit('fix: retry timeout\n재시도 조건을 수정한다')
+        joined = self.commit('fix: 예약을 고친다\nretry on 503')
+        self.assertEqual(commit_messages.violations(base, joined, self.root), [
+            (english, 'fix: retry timeout', 'the summary has no Korean'),
+            (joined, 'fix: 예약을 고친다', 'the line after the subject is not blank')])
 
 
 if __name__ == '__main__':
