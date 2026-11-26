@@ -373,8 +373,8 @@ class ReservationTest {
 		}
 
 		@Test
-		@DisplayName("PAYMENT_PENDING 상태에서 cancel() 호출 시 InvalidReservationStatusException이 발생한다")
-		void rejectsCancelFromPaymentPending() {
+		@DisplayName("PAYMENT_PENDING 상태에서 requestCancellation() 호출 시 InvalidReservationStatusException이 발생한다")
+		void rejectsCancellationRequestFromPaymentPending() {
 			// given
 			Reservation reservation = createPendingReservation();
 

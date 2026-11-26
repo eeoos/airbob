@@ -130,7 +130,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("CARD의 description은 '카드'이다")
-		void CARD_description() {
+		void returnsCardDescription() {
 			// when
 			String description = PaymentMethod.CARD.getDescription();
 
@@ -140,7 +140,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("UNKNOWN의 description은 '알수없음'이다")
-		void UNKNOWN_description() {
+		void returnsUnknownDescription() {
 			// when
 			String description = PaymentMethod.UNKNOWN.getDescription();
 
