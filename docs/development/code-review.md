@@ -16,7 +16,7 @@ airbob의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성한�
 
 ## 지적하지 않는 것
 
-- CI가 이미 강제하는 것: 컴파일, 테스트 통과, ArchUnit(계층 규칙, [코드 규칙](coding-convention.md#코드-규칙), [이름 규칙](coding-convention.md#이름)), OpenAPI 스냅샷, `scripts/ci/contracts.py`, GitHub Action의 SHA 고정, 포매팅·import 순서·static이 아닌 와일드카드 import·테스트 단언 클래스(JUnit `Assertions`, JUnit 4·3 `Assert`, Hamcrest `MatcherAssert`)·한글이 들었거나 대문자로 시작하는 테스트 메서드 이름·`@MockBean`·`@SpyBean`·테스트의 Mockito `when`·`verify`(Spotless, [코딩 컨벤션](coding-convention.md)), 엔티티의 public setter(ArchUnit)
+- CI가 이미 강제하는 것: 컴파일, 테스트 통과, ArchUnit(계층 규칙, [코드 규칙](coding-convention.md#코드-규칙), [이름 규칙](coding-convention.md#이름)), OpenAPI 스냅샷, `scripts/ci/contracts.py`, 커밋 제목 형식(`scripts/ci/commit_messages.py`), GitHub Action의 SHA 고정, 포매팅·import 순서·static이 아닌 와일드카드 import·테스트 단언 클래스(JUnit `Assertions`, JUnit 4·3 `Assert`, Hamcrest `MatcherAssert`)·한글이 들었거나 대문자로 시작하는 테스트 메서드 이름·`@MockBean`·`@SpyBean`·테스트의 Mockito `when`·`verify`(Spotless, [코딩 컨벤션](coding-convention.md)), 엔티티의 public setter(ArchUnit)
 - 비현실적인 전제가 있어야 일어나는 경로
   - 외부 API가 계약과 다른 응답을 보내는 경우(예: 정수 필드에 `null`)
   - 러너나 플랫폼의 비정상 동작(예: 러너가 제공한 파일에 쓰지 못함)
