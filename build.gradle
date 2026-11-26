@@ -64,7 +64,18 @@ configure(subprojects.findAll { it.subprojects.isEmpty() }) {
 			forbidRegex('Method name in Korean or starting uppercase',
 				'\\bvoid\\s+(?:[A-Z]|[^\\s(]*\\p{IsHangul})[^\\s(]*\\s*\\(',
 				'Name methods in lowerCamelCase English (Naver 2.1, 2.9); put a Korean description in @DisplayName')
+			// Spring Boot 3.4 deprecated @MockBean and @SpyBean in favor of @MockitoBean and @MockitoSpyBean.
+			forbidRegex('Deprecated Spring mock bean annotation', '@(MockBean|SpyBean)\\b',
+				'Use @MockitoBean or @MockitoSpyBean')
 			eclipse().configFile(rootProject.file('config/formatter/naver-eclipse-formatter.xml'))
+		}
+		// Tests mock with BDDMockito (given, then, will...). See docs/development/coding-convention.md ("테스트").
+		// Unprefixed calls and Mockito.x(...) are checked; inOrder.verify(...) and lenient().when(...) are not.
+		format 'testMocks', {
+			target 'src/test/java/**/*.java'
+			forbidRegex('Mockito stubbing or verification',
+				'(?<![.\\w])(when|verify|verifyNoInteractions|verifyNoMoreInteractions|doReturn|doThrow|doAnswer|doNothing|doCallRealMethod)\\(|\\b(?:BDD)?Mockito\\.(when|verify\\w*|do[A-Z]\\w*)\\(',
+				'Use BDDMockito: given(...).willReturn(...), willThrow(...).given(mock), then(mock).should()')
 		}
 	}
 }

@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.logging.Logger;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -74,6 +75,18 @@ class CodingRulesFixtureTest {
 	@ValueSource(classes = {ReadsTheClockBean.class, ClockConfiguration.class})
 	void clockRuleAllowsTheClockBeanAndElapsedTime(Class<?> fixture) {
 		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, fixture)).isFalse();
+	}
+
+	@Test
+	@DisplayName("엔티티와 그 상위 클래스의 public setter를 막고 상태 변경 메서드는 허용한다")
+	void entitySetterRuleReportsPublicSetters() {
+		ArchRule rule = CodingRulesTest.banPublicSettersInClassesAnnotatedWith(
+			FixtureEntity.class.getName(), FixtureSuperclass.class.getName());
+
+		assertThat(hasViolation(rule, SettableEntity.class)).isTrue();
+		assertThat(hasViolation(rule, SettableSuperclass.class)).isTrue();
+		assertThat(hasViolation(rule, NoArgumentSetterEntity.class)).isTrue();
+		assertThat(hasViolation(rule, ConfirmableEntity.class)).isFalse();
 	}
 
 	private static boolean hasViolation(ArchRule rule, Class<?> fixture) {
@@ -199,6 +212,59 @@ class CodingRulesFixtureTest {
 
 		long elapsedSince(long startNanos) {
 			return System.nanoTime() - startNanos;
+		}
+	}
+
+	/** 실제 @Entity를 쓰면 JPA 엔티티 스캔에 잡히므로 픽스처 전용 어노테이션을 쓴다. */
+	@interface FixtureEntity{}
+
+	@interface FixtureSuperclass{}
+
+	@FixtureSuperclass
+	static class SettableSuperclass {
+		private String imageUrl;
+
+		public void setImageUrl(String imageUrl) {
+			this.imageUrl = imageUrl;
+		}
+	}
+
+	@FixtureEntity
+	static class SettableEntity {
+		private String name;
+
+		public void setName(String name) {
+			this.name = name;
+		}
+	}
+
+	@FixtureEntity
+	static class ConfirmableEntity {
+		private boolean confirmed;
+		private String name;
+
+		public void confirm() {
+			confirmed = true;
+		}
+
+		/** set 뒤에 대문자가 오지 않으면 setter가 아니다. */
+		public void settle() {
+			confirmed = true;
+		}
+
+		/** public이 아닌 setter는 바깥에서 상태를 바꾸지 못하므로 허용한다. */
+		protected void setName(String name) {
+			this.name = name;
+		}
+	}
+
+	/** 인자가 없어도 상태 변경을 set으로 지으면 막는다. */
+	@FixtureEntity
+	static class NoArgumentSetterEntity {
+		private boolean confirmed;
+
+		public void setConfirmed() {
+			confirmed = true;
 		}
 	}
 }
