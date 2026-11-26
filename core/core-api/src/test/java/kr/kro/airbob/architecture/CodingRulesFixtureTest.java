@@ -85,6 +85,7 @@ class CodingRulesFixtureTest {
 
 		assertThat(hasViolation(rule, SettableEntity.class)).isTrue();
 		assertThat(hasViolation(rule, SettableSuperclass.class)).isTrue();
+		assertThat(hasViolation(rule, NoArgumentSetterEntity.class)).isTrue();
 		assertThat(hasViolation(rule, ConfirmableEntity.class)).isFalse();
 	}
 
@@ -240,8 +241,29 @@ class CodingRulesFixtureTest {
 	@FixtureEntity
 	static class ConfirmableEntity {
 		private boolean confirmed;
+		private String name;
 
 		public void confirm() {
+			confirmed = true;
+		}
+
+		/** set 뒤에 대문자가 오지 않으면 setter가 아니다. */
+		public void settle() {
+			confirmed = true;
+		}
+
+		/** public이 아닌 setter는 바깥에서 상태를 바꾸지 못하므로 허용한다. */
+		protected void setName(String name) {
+			this.name = name;
+		}
+	}
+
+	/** 인자가 없어도 상태 변경을 set으로 지으면 막는다. */
+	@FixtureEntity
+	static class NoArgumentSetterEntity {
+		private boolean confirmed;
+
+		public void setConfirmed() {
 			confirmed = true;
 		}
 	}

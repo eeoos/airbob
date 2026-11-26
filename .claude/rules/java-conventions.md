@@ -67,6 +67,7 @@ Apply these to code you write or change; existing code is not rewritten for them
 
 - Mock with BDDMockito: `given(...).willReturn(...)`, `willThrow(...).given(mock)`, `then(mock).should()`,
   `then(mock).shouldHaveNoInteractions()`, and `then(mock).should(inOrder)` instead of `inOrder.verify(...)`.
+  Keep `lenient().when(...)`, which has no BDDMockito form.
 - Give every new test a Korean `@DisplayName` that states the behavior.
 - Pick the narrowest test: `@ExtendWith(MockitoExtension.class)` for units, `@DataJpaTest` for queries,
   `@SpringBootTest` with Testcontainers across layers and for MySQL contracts (see `CLAUDE.md`).

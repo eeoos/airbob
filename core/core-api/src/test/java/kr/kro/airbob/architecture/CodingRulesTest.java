@@ -21,6 +21,8 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.junit.CacheMode;
 import com.tngtech.archunit.lang.ArchRule;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.MappedSuperclass;
 import kr.kro.airbob.core.api.config.ClockConfiguration;
 
 /**
@@ -34,8 +36,9 @@ import kr.kro.airbob.core.api.config.ClockConfiguration;
 	cacheMode = CacheMode.PER_CLASS)
 class CodingRulesTest {
 
-	private static final String ENTITY = "jakarta.persistence.Entity";
-	private static final String MAPPED_SUPERCLASS = "jakarta.persistence.MappedSuperclass";
+	/** 클래스 리터럴로 이름을 얻어, 오타가 나면 컴파일에서 드러나게 한다. */
+	private static final String ENTITY = Entity.class.getName();
+	private static final String MAPPED_SUPERCLASS = MappedSuperclass.class.getName();
 	private static final Set<String> GENERIC_EXCEPTIONS = Set.of(
 		"java.lang.Throwable", "java.lang.Exception", "java.lang.RuntimeException");
 	/** Static methods of Clock and InstantSource that create a clock on the system time. */
