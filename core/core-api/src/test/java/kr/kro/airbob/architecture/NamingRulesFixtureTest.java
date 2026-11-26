@@ -116,6 +116,7 @@ class NamingRulesFixtureTest {
 		assertThat(hasViolation(rule, UrlContainerField.class)).isTrue();
 		assertThat(hasViolation(rule, CapitalizedField.class)).isTrue();
 		assertThat(hasViolation(rule, MutableSerialVersion.class)).isTrue();
+		assertThat(hasViolation(rule, BoxedSerialVersion.class)).isTrue();
 		assertThat(hasViolation(rule, WellSpelledNames.class, StatusCode.class)).isFalse();
 	}
 
@@ -320,6 +321,10 @@ class NamingRulesFixtureTest {
 
 	static class MutableSerialVersion {
 		private long serialVersionUID = 1L;
+	}
+
+	static class BoxedSerialVersion {
+		private static final Long serialVersionUID = 1L;
 	}
 
 	static class CapitalizedField {

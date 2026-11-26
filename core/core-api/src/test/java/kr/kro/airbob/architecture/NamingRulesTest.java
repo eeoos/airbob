@@ -233,8 +233,7 @@ class NamingRulesTest {
 				}
 				for (JavaField field : javaClass.getFields()) {
 					boolean constant = field.getModifiers().containsAll(Set.of(JavaModifier.STATIC, JavaModifier.FINAL))
-						&& (CONSTANT_NAME.matcher(field.getName()).matches()
-							|| field.getName().equals("serialVersionUID"));
+						&& (CONSTANT_NAME.matcher(field.getName()).matches() || isSerialVersionUid(field));
 					if (!constant && !field.getModifiers().contains(JavaModifier.SYNTHETIC)
 						&& !field.getName().contains("$")) {
 						report(field, field.getName(), field.getFullName(), events);
@@ -273,6 +272,11 @@ class NamingRulesTest {
 		} catch (ClassNotFoundException notOnTheClasspath) {
 			return false;
 		}
+	}
+
+	/** Java serialization reads the version only from a static final long serialVersionUID. */
+	private static boolean isSerialVersionUid(JavaField field) {
+		return field.getName().equals("serialVersionUID") && field.getRawType().getName().equals("long");
 	}
 
 	private static DescribedPredicate<JavaClass> generatedQueryTypes() {

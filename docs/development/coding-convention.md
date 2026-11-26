@@ -117,7 +117,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | 규칙 | 예 | 강제 |
 |---|---|---|
 | 식별자는 영문·숫자·`_`만 쓴다. 한국어 발음을 영문으로 옮겨 적지 않는다(2.1·2.2) | 테스트의 한국어 설명은 `@DisplayName("결제키가 200자를 넘으면 거부한다")`에 쓴다 | 테스트 메서드 이름은 Spotless, 그 밖은 리뷰 |
-| 약어도 첫 글자만 대문자로 쓴다. 대문자로 쓰는 약어 목록은 두지 않는다(2.3) | `HttpApiUrl`, `mysqlContainer`(`HTTPApiURL`, `mySQLContainer`가 아님) | ArchUnit: 클래스·메서드·필드 이름에 대문자 3개 이상 연속 금지. `static final`이면서 대문자로 쓴 상수(`MAX_URL_LENGTH`, enum 상수)와 `static final` `serialVersionUID`는 빼고 본다. `userID`처럼 2글자 약어는 리뷰 |
+| 약어도 첫 글자만 대문자로 쓴다. 대문자로 쓰는 약어 목록은 두지 않는다(2.3) | `HttpApiUrl`, `mysqlContainer`(`HTTPApiURL`, `mySQLContainer`가 아님) | ArchUnit: 클래스·메서드·필드 이름에 대문자 3개 이상 연속 금지. `static final`이면서 대문자로 쓴 상수(`MAX_URL_LENGTH`, enum 상수)와 `static final long serialVersionUID`는 빼고 본다. `userID`처럼 2글자 약어는 리뷰 |
 | 패키지는 소문자, 클래스는 대문자로 시작하는 카멜 표기, 메서드·변수는 소문자로 시작하는 카멜 표기, 상수는 대문자와 `_`(2.4·2.5·2.9·2.11·2.12) | `PaymentStatus`, `readActive`, `MAX_PAGE_NUMBER` | 대문자로 시작하는 `void` 메서드 이름은 Spotless. 그 밖은 리뷰(도입할 때 위반 0) |
 | 테스트 메서드에는 `_`를 쓸 수 있다. Spring Data 파생 쿼리에는 쓰지 않는다(2.9) | `existsByWishlistMemberIdAndAccommodationId` | 리뷰 |
 | 클래스는 명사, 인터페이스는 명사나 형용사로 짓는다(2.6·2.7) | | 리뷰 |
@@ -150,6 +150,12 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - 주석에 `void 한글이름(` 같은 글을 쓰면 걸리니 문구를 바꾼다.
 - **규칙의 시험.** `NamingRulesFixtureTest`는 자체 조건을 가진 규칙마다 위반 예시와 허용 예시를 둔다. Reader 동사, 조회 동사와 `@GetMapping`, 막연한 접미사, 진입점(반복 어노테이션 포함), 예외, 통합 이벤트, 약어, 테스트 클래스(물려받은 테스트, `@Nested`를 감싸는 클래스, 정적 중첩 테스트 클래스 포함)가 대상이다.
   - 예외 규칙은 앱의 예외가 JDK 예외를 상속하는지 따라가야 한다. ArchUnit 설정이 JDK 클래스를 가져오지 않으므로, 앱 클래스가 끝나는 곳의 라이브러리 타입은 테스트 클래스패스에서 읽어 판단한다. 그래서 `IllegalStateException`을 바로 상속한 예외도 잡는다.
+  - 테스트 클래스 규칙은 JUnit의 테스트 클래스 탐색을 이름 검사에 필요한 만큼만 따른다. 다음 구조는 정확히 판단하지 못해 리뷰가 본다(도입할 때 모두 0개).
+    - 추상 부모가 선언한 `@Nested` 클래스를 구체 자식이 물려받아 실행하는 구조
+    - 물려받은 `@Test` 메서드를 어노테이션 없이 재정의한 클래스
+    - 테스트 메서드를 물려받았지만 JUnit이 실행하지 않는 보조 클래스(`private` 클래스, `@Nested` 없는 비정적 클래스)
+    - `@Nested`를 붙여 만든 합성 어노테이션
+  - JUnit 탐색을 그대로 흉내 낼수록 경계 사례가 이어졌다. 그래서 이 저장소에서 쓰는 구조(최상위 테스트 클래스, `@Nested`, 인터페이스의 기본 테스트 메서드)까지만 맞췄다(2026-11-26 결정).
   - `@Scheduled`·`@KafkaListener`를 여러 번 붙이면 컨테이너 어노테이션(`@Schedules`·`@KafkaListeners`)으로 컴파일된다. 이름 규칙과 계층 규칙의 진입점 판별(`ArchitectureSlices`)은 둘 다 인식한다.
   - 나머지 규칙은 이름 접미사만 본다. 모든 규칙은 적어도 한 클래스에 적용되어야 통과하므로, 대상을 고르는 조건이 비면 실패한다.
 - **도입할 때 확인한 것(2026-11-26).** 이름을 바꾸기 전 코드(#227 머지 시점 `5dedd289`)에 이 규칙들을 돌렸다. #228·#229에서 고친 위반이 그대로 잡혔다.
