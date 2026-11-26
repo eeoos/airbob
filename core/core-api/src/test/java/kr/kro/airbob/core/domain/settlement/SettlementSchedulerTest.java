@@ -1,6 +1,7 @@
 package kr.kro.airbob.core.domain.settlement;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.lang.reflect.Method;
@@ -31,7 +32,7 @@ class SettlementSchedulerTest {
 
 		scheduler.generatePreviousMonthSettlement();
 
-		verify(settlementService).generateMonth(YearMonth.of(2098, 12));
+		then(settlementService).should().generateMonth(YearMonth.of(2098, 12));
 	}
 
 	@Test

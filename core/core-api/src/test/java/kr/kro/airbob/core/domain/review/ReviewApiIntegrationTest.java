@@ -3,9 +3,9 @@ package kr.kro.airbob.core.domain.review;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -112,8 +112,8 @@ class ReviewApiIntegrationTest {
 
 	@BeforeEach
 	void fixture() {
-		when(clock.instant()).thenReturn(NOW);
-		when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+		given(clock.instant()).willReturn(NOW);
+		given(clock.getZone()).willReturn(ZoneOffset.UTC);
 		for (String table : List.of("review_image", "review", "accommodation_review_summary", "reservation",
 			"accommodation", "member")) {
 			jdbc.update("DELETE FROM " + table);
@@ -249,11 +249,11 @@ class ReviewApiIntegrationTest {
 
 	@Test
 	void failedPublicationRollsBackReviewAndAggregateTogether() {
-		doThrow(new IllegalStateException("test publication failure")).when(searchRefresh).requestRefresh(any());
+		willThrow(new IllegalStateException("test publication failure")).given(searchRefresh).requestRefresh(any());
 		assertThatThrownBy(this::create).isInstanceOf(IllegalStateException.class);
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review", Long.class)).isZero();
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM accommodation_review_summary", Long.class)).isZero();
-		verifyNoInteractions(cacheInvalidation);
+		then(cacheInvalidation).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -319,7 +319,7 @@ class ReviewApiIntegrationTest {
 		jdbc.update("UPDATE review SET status = ? WHERE id = ?", status, id);
 		var file = new org.springframework.mock.web.MockMultipartFile("images", "review.png", "image/png",
 			new byte[] {1});
-		when(uploader.upload(file, "reviews/" + id)).thenReturn("https://example.invalid/review.png");
+		given(uploader.upload(file, "reviews/" + id)).willReturn("https://example.invalid/review.png");
 		assertThatThrownBy(() -> imageService.uploadReviewImages(id, List.of(file), 20L))
 			.isInstanceOf(ReviewNotFoundException.class);
 		var uploaded = imageService.uploadReviewImages(id, List.of(file), 10L);

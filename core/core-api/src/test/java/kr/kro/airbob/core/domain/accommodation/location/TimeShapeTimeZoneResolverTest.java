@@ -2,8 +2,8 @@ package kr.kro.airbob.core.domain.accommodation.location;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.time.ZoneId;
 
@@ -61,8 +61,8 @@ class TimeShapeTimeZoneResolverTest {
 	@DisplayName("NaN 좌표는 시간대 엔진을 호출하지 않는다")
 	void skipsTimeZoneEngineForNanCoordinates() {
 		TimeZoneEngine engine = mock(TimeZoneEngine.class);
-		when(engine.query(anyDouble(), anyDouble()))
-			.thenThrow(new AssertionError("유효하지 않은 좌표로 엔진을 호출하면 안 된다"));
+		given(engine.query(anyDouble(), anyDouble()))
+			.willThrow(new AssertionError("유효하지 않은 좌표로 엔진을 호출하면 안 된다"));
 		TimeShapeTimeZoneResolver guardedResolver = new TimeShapeTimeZoneResolver(engine);
 
 		assertThat(guardedResolver.resolve(Double.NaN, 126.9780)).isEmpty();

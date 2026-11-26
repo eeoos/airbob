@@ -3,9 +3,9 @@ package kr.kro.airbob.core.domain.search;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import java.nio.file.Path;
 import java.time.Clock;
@@ -106,7 +106,7 @@ class AccommodationSearchContractIntegrationTest {
 		assertThat(search(request, new MapBounds(), 0, null).staySearchResultListing()).isEmpty();
 		request.setDestination("  ");
 		assertThat(search(request, new MapBounds(), 0, null).pageInfo().totalElements()).isZero();
-		verifyNoInteractions(wishlists);
+		then(wishlists).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -203,8 +203,8 @@ class AccommodationSearchContractIntegrationTest {
 	void anonymousSearchSkipsMembershipAndAuthenticatedSearchUsesOnlyTheSessionMember() {
 		var anonymous = search(request("서울"), new MapBounds(), 0, null);
 		assertThat(anonymous.staySearchResultListing()).allSatisfy(card -> assertThat(card.isInWishlist()).isFalse());
-		verifyNoInteractions(wishlists);
-		when(wishlists.readWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(2L));
+		then(wishlists).shouldHaveNoInteractions();
+		given(wishlists.readWishlistedAccommodationIds(eq(7L), anyList())).willReturn(Set.of(2L));
 		var authenticated = search(request("서울"), new MapBounds(), 0, 7L);
 		assertThat(authenticated.staySearchResultListing())
 			.allSatisfy(card -> assertThat(card.isInWishlist()).isEqualTo(card.id() == 2));

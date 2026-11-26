@@ -2,6 +2,8 @@ package kr.kro.airbob.core.domain.review;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.time.Clock;
@@ -77,50 +79,58 @@ class ReviewServiceTest {
 	@Test
 	@DisplayName("숙소가 비공개로 바뀌면 후기 작성과 집계 변경을 거부한다")
 	void rejectCreationWhenAccommodationIsNoLongerPublished() {
-		when(memberReader.readActiveForUpdate(2L))
-			.thenReturn(member());
-		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.empty());
+		given(memberReader.readActiveForUpdate(2L))
+			.willReturn(member());
+		given(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
+			.willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> reviewService.createReview(1L, 5, "후기", 2L))
 			.isInstanceOf(AccommodationNotFoundException.class);
-		verifyNoInteractions(reservationRepository, reviewRepository, summaryRepository,
-			searchRefreshPublisher, cacheInvalidationPublisher);
+		then(reservationRepository).shouldHaveNoInteractions();
+		then(reviewRepository).shouldHaveNoInteractions();
+		then(summaryRepository).shouldHaveNoInteractions();
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
+		then(cacheInvalidationPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("작성 시점에도 본인의 체크아웃 완료 예약이 있어야 한다")
 	void recheckCompletedStayBeforeCreatingReview() {
 		Instant now = Instant.parse("2030-01-01T00:00:00Z");
-		when(memberReader.readActiveForUpdate(2L))
-			.thenReturn(member());
-		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(accommodation()));
-		when(clock.instant()).thenReturn(now);
-		when(reservationRepository.existsPastCompletedReservationByGuest(1L, 2L, now)).thenReturn(false);
+		given(memberReader.readActiveForUpdate(2L))
+			.willReturn(member());
+		given(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
+			.willReturn(Optional.of(accommodation()));
+		given(clock.instant()).willReturn(now);
+		given(reservationRepository.existsPastCompletedReservationByGuest(1L, 2L, now)).willReturn(false);
 
 		assertThatThrownBy(() -> reviewService.createReview(1L, 5, "후기", 2L))
 			.isInstanceOf(ReviewCreationForbiddenException.class);
-		verifyNoInteractions(reviewRepository, summaryRepository, searchRefreshPublisher, cacheInvalidationPublisher);
+		then(reviewRepository).shouldHaveNoInteractions();
+		then(summaryRepository).shouldHaveNoInteractions();
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
+		then(cacheInvalidationPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("조회 이후 게시된 후기가 생겼으면 실제 작성 시 중복을 거부한다")
 	void recheckPublishedReviewBeforeCreatingReview() {
 		Instant now = Instant.parse("2030-01-01T00:00:00Z");
-		when(memberReader.readActiveForUpdate(2L))
-			.thenReturn(member());
-		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(accommodation()));
-		when(clock.instant()).thenReturn(now);
-		when(reservationRepository.existsPastCompletedReservationByGuest(1L, 2L, now)).thenReturn(true);
-		when(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(1L, 2L, ReviewStatus.PUBLISHED))
-			.thenReturn(true);
+		given(memberReader.readActiveForUpdate(2L))
+			.willReturn(member());
+		given(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
+			.willReturn(Optional.of(accommodation()));
+		given(clock.instant()).willReturn(now);
+		given(reservationRepository.existsPastCompletedReservationByGuest(1L, 2L, now)).willReturn(true);
+		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(1L, 2L, ReviewStatus.PUBLISHED))
+			.willReturn(true);
 
 		assertThatThrownBy(() -> reviewService.createReview(1L, 5, "후기", 2L))
 			.isInstanceOf(ReviewAlreadyExistsException.class);
-		verify(reviewRepository, never()).save(any(Review.class));
-		verifyNoInteractions(summaryRepository, searchRefreshPublisher, cacheInvalidationPublisher);
+		then(reviewRepository).should(never()).save(any(Review.class));
+		then(summaryRepository).shouldHaveNoInteractions();
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
+		then(cacheInvalidationPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -129,38 +139,38 @@ class ReviewServiceTest {
 		Accommodation accommodation = accommodation();
 		Member author = member();
 		Review savedReview = review(10L, 5, accommodation, author);
-		when(memberReader.readActiveForUpdate(2L))
-			.thenReturn(author);
-		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(accommodation));
-		when(clock.instant()).thenReturn(Instant.parse("2030-01-01T00:00:00Z"));
-		when(reservationRepository.existsPastCompletedReservationByGuest(
+		given(memberReader.readActiveForUpdate(2L))
+			.willReturn(author);
+		given(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
+			.willReturn(Optional.of(accommodation));
+		given(clock.instant()).willReturn(Instant.parse("2030-01-01T00:00:00Z"));
+		given(reservationRepository.existsPastCompletedReservationByGuest(
 			eq(1L), eq(2L), any(Instant.class)))
-			.thenReturn(true);
-		when(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
+			.willReturn(true);
+		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
 			1L, 2L, ReviewStatus.PUBLISHED))
-			.thenReturn(false);
-		when(reviewRepository.save(any(Review.class))).thenReturn(savedReview);
+			.willReturn(false);
+		given(reviewRepository.save(any(Review.class))).willReturn(savedReview);
 
 		reviewService.createReview(1L, 5, "좋은 숙소", 2L);
 
-		verify(cacheInvalidationPublisher).publish(
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.REVIEW);
-		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		then(searchRefreshPublisher).should().requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
 	@DisplayName("리뷰 평점을 변경하면 숙소 상세 캐시를 무효화한다")
 	void invalidateDetailCacheWhenReviewRatingChanges() {
 		Review review = review(10L, 3, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).thenReturn(Optional.of(review));
+		given(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).willReturn(Optional.of(review));
 
 		reviewService.updateReviewContent(10L, "수정한 내용", 5, 2L);
 
-		verify(summaryRepository).applyRatingChange(1L, 3, 5);
-		verify(cacheInvalidationPublisher).publish(
+		then(summaryRepository).should().applyRatingChange(1L, 3, 5);
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.REVIEW);
-		verify(searchRefreshPublisher).requestRefresh(
+		then(searchRefreshPublisher).should().requestRefresh(
 			review.getAccommodation().getAccommodationUid());
 	}
 
@@ -170,27 +180,27 @@ class ReviewServiceTest {
 	@DisplayName("내용만 바꾸거나 같은 평점을 보내면 숙소 상세 캐시를 무효화하지 않는다")
 	void keepDetailCacheWhenReviewRatingDoesNotChange(Integer requestedRating) {
 		Review review = review(10L, 3, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).thenReturn(Optional.of(review));
+		given(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).willReturn(Optional.of(review));
 
 		reviewService.updateReviewContent(
 			10L, "수정한 내용", requestedRating, 2L);
 
-		verifyNoInteractions(cacheInvalidationPublisher);
-		verifyNoInteractions(searchRefreshPublisher);
-		verify(summaryRepository, never()).applyRatingChange(anyLong(), anyInt(), anyInt());
+		then(cacheInvalidationPublisher).shouldHaveNoInteractions();
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
+		then(summaryRepository).should(never()).applyRatingChange(anyLong(), anyInt(), anyInt());
 	}
 
 	@Test
 	@DisplayName("리뷰를 삭제하면 숙소 상세 캐시를 무효화한다")
 	void invalidateDetailCacheWhenReviewIsDeleted() {
 		Review review = review(10L, 4, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).thenReturn(Optional.of(review));
+		given(reviewRepository.findByIdAndAuthorIdForUpdate(10L, 2L)).willReturn(Optional.of(review));
 
 		reviewService.deleteReview(10L, 2L);
 
-		verify(cacheInvalidationPublisher).publish(
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.REVIEW);
-		verify(searchRefreshPublisher).requestRefresh(
+		then(searchRefreshPublisher).should().requestRefresh(
 			review.getAccommodation().getAccommodationUid());
 	}
 

@@ -2,7 +2,7 @@ package kr.kro.airbob.core.api.controller.v1.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.mockingDetails;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -155,11 +155,11 @@ class MemberSignupIntegrationTest {
 	void concurrentSignupReturnsOneCreatedAndOneConflictWithoutPartialHistory() throws Exception {
 		CyclicBarrier beforeInsert = new CyclicBarrier(2);
 		var repositoryDelegate = mockingDetails(memberRepository).getMockCreationSettings().getDefaultAnswer();
-		doAnswer(call -> {
+		willAnswer(call -> {
 			beforeInsert.await(10, TimeUnit.SECONDS);
 			// Spring Data's interface spy delegates to the real repository proxy.
 			return repositoryDelegate.answer(call);
-		}).when(memberRepository).save(any(Member.class));
+		}).given(memberRepository).save(any(Member.class));
 
 		try (var executor = Executors.newFixedThreadPool(2)) {
 			var first = executor.submit(() -> signup(signupRequest().toString()));

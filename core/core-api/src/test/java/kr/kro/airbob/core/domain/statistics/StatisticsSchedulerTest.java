@@ -1,6 +1,7 @@
 package kr.kro.airbob.core.domain.statistics;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.lang.reflect.Method;
@@ -31,7 +32,7 @@ class StatisticsSchedulerTest {
 
 		scheduler.aggregateDailyRevenue();
 
-		verify(revenueStatsService).recompute(LocalDate.of(2098, 12, 31));
+		then(revenueStatsService).should().recompute(LocalDate.of(2098, 12, 31));
 	}
 
 	@Test

@@ -72,8 +72,8 @@ class AccommodationDetailCacheInvalidationKafkaListenerTest {
 		listener.handle(message, acknowledgment);
 
 		InOrder order = inOrder(cache, acknowledgment);
-		order.verify(cache).evictOrThrow(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
-		order.verify(acknowledgment).acknowledge();
+		then(cache).should(order).evictOrThrow(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
+		then(acknowledgment).should(order).acknowledge();
 	}
 
 	@Test

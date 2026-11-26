@@ -1,11 +1,10 @@
 package kr.kro.airbob.core.domain.coupon;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -369,7 +368,7 @@ class CouponCampaignReadIntegrationTest {
 	}
 
 	private void setDatabaseNow(LocalDateTime now) {
-		when(units.databaseNow()).thenReturn(now);
+		given(units.databaseNow()).willReturn(now);
 	}
 
 	private Statistics prepareMeasurement() {
@@ -392,10 +391,10 @@ class CouponCampaignReadIntegrationTest {
 			".updated_at", ".created_by", ".updated_by");
 		assertThat(sql).contains("exists", "from coupon_issue_unit", "limit ?")
 			.doesNotContain("count(", "member_coupon", " join ", " for update", " for share");
-		verify(units).databaseNow();
+		then(units).should().databaseNow();
 
-		verify(timeProvider, never()).now();
-		verifyNoMoreInteractions(units);
+		then(timeProvider).should(never()).now();
+		then(units).shouldHaveNoMoreInteractions();
 	}
 
 	private int selectedColumnCount() {

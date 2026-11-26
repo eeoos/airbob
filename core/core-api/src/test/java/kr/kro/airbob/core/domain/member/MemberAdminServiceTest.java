@@ -123,9 +123,9 @@ class MemberAdminServiceTest {
 			.isInstanceOf(AdminAccessDeniedException.class);
 
 		InOrder order = inOrder(memberRepository, actor);
-		order.verify(memberRepository).refreshWithWriteLock(target);
-		order.verify(memberRepository).refreshWithWriteLock(actor);
-		order.verify(actor).getStatus();
+		then(memberRepository).should(order).refreshWithWriteLock(target);
+		then(memberRepository).should(order).refreshWithWriteLock(actor);
+		then(actor).should(order).getStatus();
 	}
 
 	@Test

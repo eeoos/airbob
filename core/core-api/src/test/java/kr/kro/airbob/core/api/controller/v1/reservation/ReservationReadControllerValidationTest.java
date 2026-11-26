@@ -1,6 +1,6 @@
 package kr.kro.airbob.core.api.controller.v1.reservation;
 
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -65,7 +65,8 @@ class ReservationReadControllerValidationTest {
 		mvc.perform(get("/api/v1/profile/{role}/reservations/not-a-uuid", role))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.error.code").value("R001"));
-		verifyNoInteractions(reservationRepository, reviewRepository);
+		then(reservationRepository).shouldHaveNoInteractions();
+		then(reviewRepository).shouldHaveNoInteractions();
 	}
 
 	@ParameterizedTest
@@ -75,6 +76,6 @@ class ReservationReadControllerValidationTest {
 			"00000000-0000-0000-0000-000000000020"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.error.code").value("R001"));
-		verifyNoInteractions(reviewRepository);
+		then(reviewRepository).shouldHaveNoInteractions();
 	}
 }

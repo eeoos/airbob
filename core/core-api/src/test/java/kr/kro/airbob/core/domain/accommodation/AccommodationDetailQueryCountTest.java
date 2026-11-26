@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -131,10 +131,10 @@ class AccommodationDetailQueryCountTest {
 
 	@BeforeEach
 	void setUpBookingWindow() {
-		when(bookingWindowProvider.currentFor("Asia/Seoul"))
-			.thenReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 12)));
-		when(accommodationDetailCache.getOrLoad(anyLong(), any()))
-			.thenAnswer(invocation -> {
+		given(bookingWindowProvider.currentFor("Asia/Seoul"))
+			.willReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 12)));
+		given(accommodationDetailCache.getOrLoad(anyLong(), any()))
+			.willAnswer(invocation -> {
 				@SuppressWarnings("unchecked") java.util.function.Supplier<AccommodationDetailSnapshot> loader = invocation
 					.getArgument(1);
 				return loader.get();

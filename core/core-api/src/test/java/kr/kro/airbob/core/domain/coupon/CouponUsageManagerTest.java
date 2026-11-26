@@ -61,11 +61,11 @@ class CouponUsageManagerTest {
 
 		assertThat(discount).isEqualTo(10_000L);
 		InOrder order = Mockito.inOrder(memberCouponRepository, couponRepository, coupon);
-		order.verify(memberCouponRepository).findByMemberIdAndCouponId(MEMBER_ID, COUPON_ID);
-		order.verify(couponRepository).findByIdForShare(COUPON_ID);
-		order.verify(coupon).isUsable(NOW);
-		order.verify(coupon).calculateDiscount(100_000L);
-		order.verify(memberCouponRepository)
+		then(memberCouponRepository).should(order).findByMemberIdAndCouponId(MEMBER_ID, COUPON_ID);
+		then(couponRepository).should(order).findByIdForShare(COUPON_ID);
+		then(coupon).should(order).isUsable(NOW);
+		then(coupon).should(order).calculateDiscount(100_000L);
+		then(memberCouponRepository).should(order)
 			.markUsed(MEMBER_COUPON_ID, RESERVATION_ID, NOW);
 	}
 

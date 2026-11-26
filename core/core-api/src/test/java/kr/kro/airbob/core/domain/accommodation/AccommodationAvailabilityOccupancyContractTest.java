@@ -1,7 +1,7 @@
 package kr.kro.airbob.core.domain.accommodation;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -61,16 +61,16 @@ class AccommodationAvailabilityOccupancyContractTest {
 	@DisplayName("직접 availability는 reservation overlap 대신 조회 시각을 포함한 inventory snapshot을 사용한다")
 	void directAvailabilityUsesInventorySnapshot() {
 		long accommodationId = 42L;
-		when(accommodationRepository.findBookingProjectionByIdAndStatus(
+		given(accommodationRepository.findBookingProjectionByIdAndStatus(
 			accommodationId,
-			AccommodationStatus.PUBLISHED)).thenReturn(Optional.of(new AccommodationBookingProjection("Asia/Seoul")));
-		when(bookingWindowProvider.currentFor("Asia/Seoul"))
-			.thenReturn(new BookingWindow(WINDOW_START, WINDOW_END_EXCLUSIVE));
-		when(clock.instant()).thenReturn(QUERIED_AT);
+			AccommodationStatus.PUBLISHED)).willReturn(Optional.of(new AccommodationBookingProjection("Asia/Seoul")));
+		given(bookingWindowProvider.currentFor("Asia/Seoul"))
+			.willReturn(new BookingWindow(WINDOW_START, WINDOW_END_EXCLUSIVE));
+		given(clock.instant()).willReturn(QUERIED_AT);
 
 		AccommodationResponse.Availability.from(service.getAccommodationAvailability(accommodationId));
 
-		verify(inventoryManager).findUnavailableRangesSnapshot(
+		then(inventoryManager).should().findUnavailableRangesSnapshot(
 			accommodationId,
 			WINDOW_START,
 			WINDOW_END_EXCLUSIVE,

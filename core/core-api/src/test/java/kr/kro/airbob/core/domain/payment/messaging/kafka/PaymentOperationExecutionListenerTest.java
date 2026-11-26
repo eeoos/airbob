@@ -78,8 +78,8 @@ class PaymentOperationExecutionListenerTest {
 		listener.handle(MESSAGE, acknowledgment);
 
 		InOrder order = inOrder(executor, acknowledgment);
-		order.verify(executor).execute(OPERATION_UID, 3);
-		order.verify(acknowledgment).acknowledge();
+		then(executor).should(order).execute(OPERATION_UID, 3);
+		then(acknowledgment).should(order).acknowledge();
 	}
 
 	@Test
@@ -177,8 +177,8 @@ class PaymentOperationExecutionListenerTest {
 			2,
 			41L);
 		InOrder order = inOrder(dltIncidentService, acknowledgment);
-		order.verify(dltIncidentService).record(MESSAGE, source);
-		order.verify(acknowledgment).acknowledge();
+		then(dltIncidentService).should(order).record(MESSAGE, source);
+		then(acknowledgment).should(order).acknowledge();
 	}
 
 	@Test

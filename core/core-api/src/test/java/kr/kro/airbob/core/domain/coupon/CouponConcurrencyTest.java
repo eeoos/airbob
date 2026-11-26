@@ -1,6 +1,8 @@
 package kr.kro.airbob.core.domain.coupon;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.BDDMockito.willCallRealMethod;
 import static org.mockito.Mockito.*;
 
 import java.sql.Connection;
@@ -180,14 +182,14 @@ class CouponConcurrencyTest {
 				remove.executeUpdate();
 			}
 			AtomicInteger attempts = new AtomicInteger();
-			doAnswer(call -> {
+			willAnswer(call -> {
 				var unit = call.callRealMethod();
 				if (attempts.incrementAndGet() == 1) {
 					assertThat((java.util.Optional<?>)unit).isEmpty();
 					owner.rollback();
 				}
 				return unit;
-			}).when(units).lockAvailable(coupon.getId());
+			}).given(units).lockAvailable(coupon.getId());
 			issue(coupon, users.getFirst().getId());
 			assertThat(attempts.get()).isEqualTo(2);
 		}
@@ -256,16 +258,16 @@ class CouponConcurrencyTest {
 	@Test
 	void preparationFailureRollsBackAndPreparedStockCannotBeReseeded() {
 		Coupon coupon = unprepared(5);
-		doAnswer(call -> {
+		willAnswer(call -> {
 			call.callRealMethod();
 			throw new IllegalStateException("injected failure");
 		})
-			.when(units).insertRange(coupon.getId(), 1, 5);
+			.given(units).insertRange(coupon.getId(), 1, 5);
 		assertThatThrownBy(() -> preparation.prepare(coupon.getId()))
 			.hasRootCauseInstanceOf(IllegalStateException.class);
 		assertThat(units.count(coupon.getId())).isZero();
 		assertThat(coupons.findById(coupon.getId()).orElseThrow().isStockPrepared()).isFalse();
-		doCallRealMethod().when(units).insertRange(coupon.getId(), 1, 5);
+		willCallRealMethod().given(units).insertRange(coupon.getId(), 1, 5);
 		preparation.prepare(coupon.getId());
 		assertThatThrownBy(() -> preparation.prepare(coupon.getId()))
 			.isInstanceOf(CouponAlreadyPreparedException.class);
@@ -300,11 +302,11 @@ class CouponConcurrencyTest {
 	void issuanceUsesRepeatableReadAndConservesUnits() {
 		Coupon coupon = campaign(3, true);
 		List<String> observed = new ArrayList<>();
-		doAnswer(call -> {
+		willAnswer(call -> {
 			observed.add(jdbc.queryForObject("select @@transaction_isolation", String.class));
 			return call.callRealMethod();
 		})
-			.when(units).lockAvailable(coupon.getId());
+			.given(units).lockAvailable(coupon.getId());
 		skip.issue(coupon.getId(), users.getFirst().getId());
 		assertThat(observed).containsExactly("REPEATABLE-READ");
 		assertInventory(coupon, 1);

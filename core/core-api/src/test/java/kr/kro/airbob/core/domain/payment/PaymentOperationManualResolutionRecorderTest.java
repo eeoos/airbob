@@ -1,8 +1,8 @@
 package kr.kro.airbob.core.domain.payment;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -48,7 +48,8 @@ class PaymentOperationManualResolutionRecorderTest {
 			Instant.parse("2026-08-17T00:00:00Z")))
 			.isInstanceOf(IllegalTransactionStateException.class);
 
-		verifyNoInteractions(repository, alertPublisher);
+		then(repository).shouldHaveNoInteractions();
+		then(alertPublisher).shouldHaveNoInteractions();
 	}
 
 	@Configuration(proxyBeanMethods = false)

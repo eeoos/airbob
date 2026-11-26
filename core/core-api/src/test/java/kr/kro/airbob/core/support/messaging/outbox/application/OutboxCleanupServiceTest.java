@@ -1,10 +1,9 @@
 package kr.kro.airbob.core.support.messaging.outbox.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -24,8 +23,8 @@ class OutboxCleanupServiceTest {
 		Instant completedAt = startedAt.plusSeconds(2);
 		OutboxCleanupBatchDeleter batchDeleter = mock(OutboxCleanupBatchDeleter.class);
 		Clock clock = mock(Clock.class);
-		when(clock.instant()).thenReturn(startedAt, completedAt);
-		when(batchDeleter.deleteOneBatch(startedAt.minus(Duration.ofDays(30)), 500)).thenReturn(500);
+		given(clock.instant()).willReturn(startedAt, completedAt);
+		given(batchDeleter.deleteOneBatch(startedAt.minus(Duration.ofDays(30)), 500)).willReturn(500);
 		OutboxCleanupService service = new OutboxCleanupService(
 			batchDeleter, Duration.ofDays(30), 500, clock);
 
@@ -33,8 +32,8 @@ class OutboxCleanupServiceTest {
 
 		assertThat(result.deletedCount()).isEqualTo(500);
 		assertThat(result.observedAt()).isEqualTo(completedAt);
-		verify(batchDeleter).deleteOneBatch(startedAt.minus(Duration.ofDays(30)), 500);
-		verifyNoMoreInteractions(batchDeleter);
+		then(batchDeleter).should().deleteOneBatch(startedAt.minus(Duration.ofDays(30)), 500);
+		then(batchDeleter).shouldHaveNoMoreInteractions();
 	}
 
 	@Test

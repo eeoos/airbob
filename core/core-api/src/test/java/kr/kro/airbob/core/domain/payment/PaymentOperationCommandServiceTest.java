@@ -124,8 +124,8 @@ class PaymentOperationCommandServiceTest {
 		assertThat(eventCaptor.getValue().deduplicationKey())
 			.isEqualTo("PAYMENT_EXECUTION:" + accepted.operationId() + ":1");
 		InOrder lockOrder = org.mockito.Mockito.inOrder(reservationRepository, inventoryManager);
-		lockOrder.verify(reservationRepository).findByReservationUidWithLock(RESERVATION_UID);
-		lockOrder.verify(inventoryManager).transitionHeldToOccupied(
+		then(reservationRepository).should(lockOrder).findByReservationUidWithLock(RESERVATION_UID);
+		then(inventoryManager).should(lockOrder).transitionHeldToOccupied(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 	}
 
@@ -144,14 +144,14 @@ class PaymentOperationCommandServiceTest {
 			inventoryManager,
 			paymentOperationRepository,
 			outboxWriter);
-		order.verify(pendingReservation).validatePaymentAttempt(PAYMENT_ATTEMPT_ID);
-		order.verify(paymentOperationRepository).findByDeduplicationKey("CONFIRM:" + RESERVATION_UID);
-		order.verify(pendingReservation).startPayment(NOW);
-		order.verify(pendingReservation).consumePaymentAttempt(PAYMENT_ATTEMPT_ID, NOW);
-		order.verify(inventoryManager).transitionHeldToOccupied(
+		then(pendingReservation).should(order).validatePaymentAttempt(PAYMENT_ATTEMPT_ID);
+		then(paymentOperationRepository).should(order).findByDeduplicationKey("CONFIRM:" + RESERVATION_UID);
+		then(pendingReservation).should(order).startPayment(NOW);
+		then(pendingReservation).should(order).consumePaymentAttempt(PAYMENT_ATTEMPT_ID, NOW);
+		then(inventoryManager).should(order).transitionHeldToOccupied(
 			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
-		order.verify(paymentOperationRepository).save(org.mockito.ArgumentMatchers.any());
-		order.verify(outboxWriter).append(org.mockito.ArgumentMatchers.any());
+		then(paymentOperationRepository).should(order).save(org.mockito.ArgumentMatchers.any());
+		then(outboxWriter).should(order).append(org.mockito.ArgumentMatchers.any());
 	}
 
 	@Test

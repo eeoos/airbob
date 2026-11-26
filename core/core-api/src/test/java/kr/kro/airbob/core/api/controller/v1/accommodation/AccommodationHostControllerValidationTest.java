@@ -2,6 +2,8 @@ package kr.kro.airbob.core.api.controller.v1.accommodation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -143,7 +145,13 @@ class AccommodationHostControllerValidationTest {
 		asMember(
 			() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON).content(body))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("C001")));
-		verifyNoInteractions(accommodations, geocoding, addresses, amenities, history, cache, search);
+		then(accommodations).shouldHaveNoInteractions();
+		then(geocoding).shouldHaveNoInteractions();
+		then(addresses).shouldHaveNoInteractions();
+		then(amenities).shouldHaveNoInteractions();
+		then(history).shouldHaveNoInteractions();
+		then(cache).shouldHaveNoInteractions();
+		then(search).shouldHaveNoInteractions();
 	}
 
 	static Stream<Arguments> invalidUpdates() {
@@ -178,22 +186,24 @@ class AccommodationHostControllerValidationTest {
 			.andExpect(status().isOk()));
 		assertThat(accommodation.getName()).isEqualTo("기존 숙소");
 		assertThat(accommodation.getCurrency()).isEqualTo("KRW");
-		verifyNoInteractions(amenities, addresses, policies);
+		then(amenities).shouldHaveNoInteractions();
+		then(addresses).shouldHaveNoInteractions();
+		then(policies).shouldHaveNoInteractions();
 		asMember(() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"amenity_infos\":[]}"))
 			.andExpect(status().isOk()));
-		verify(amenities).deleteByAccommodationIdInBulk(101L);
-		verify(amenities, never()).saveAll(anyList());
+		then(amenities).should().deleteByAccommodationIdInBulk(101L);
+		then(amenities).should(never()).saveAll(anyList());
 	}
 
 	@Test
 	void duplicatedAmenityCountsAreMergedAfterUppercasingAndZeroCountsAreOmitted() throws Exception {
-		when(codes.isValidCode("AMENITY_TYPE", "WIFI")).thenReturn(true);
+		given(codes.isValidCode("AMENITY_TYPE", "WIFI")).willReturn(true);
 		asMember(() -> mvc.perform(patch("/api/v1/accommodations/101").contentType(MediaType.APPLICATION_JSON)
 			.content(
 				"{\"amenity_infos\":[{\"name\":\"wifi\",\"count\":1},{\"name\":\"WIFI\",\"count\":2},{\"name\":\"UNUSED\",\"count\":0}]}"))
 			.andExpect(status().isOk()));
-		verify(amenities).saveAll(argThat(values -> {
+		then(amenities).should().saveAll(argThat(values -> {
 			var list = (List<kr.kro.airbob.core.domain.accommodation.AccommodationAmenity>)values;
 			return list.size() == 1 && list.getFirst().getCount() == 3
 				&& list.getFirst().getAmenityCode().equals("WIFI");
@@ -208,34 +218,41 @@ class AccommodationHostControllerValidationTest {
 				"{\"name\":\"바뀌면 안 됨\",\"amenity_infos\":[{\"name\":\"wifi\",\"count\":2147483647},{\"name\":\"WIFI\",\"count\":1}]}"))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("C001")));
 		assertThat(accommodation.getName()).isEqualTo("기존 숙소");
-		verifyNoInteractions(amenities, history, cache, search);
+		then(amenities).shouldHaveNoInteractions();
+		then(history).shouldHaveNoInteractions();
+		then(cache).shouldHaveNoInteractions();
+		then(search).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void missingImagePartReturnsInputErrorBeforeCallingStorage() throws Exception {
 		asMember(() -> mvc.perform(multipart("/api/v1/accommodations/101/images"))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("C001")));
-		verifyNoInteractions(uploader, images, accommodations);
+		then(uploader).shouldHaveNoInteractions();
+		then(images).shouldHaveNoInteractions();
+		then(accommodations).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void emptyFileIsDifferentFromMissingImagePart() throws Exception {
-		when(accommodations.findByIdAndMemberIdAndStatusNot(101L, 10L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+		given(accommodations.findByIdAndMemberIdAndStatusNot(101L, 10L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
 		asMember(() -> mvc.perform(multipart("/api/v1/accommodations/101/images")
 			.file(new MockMultipartFile("images", "empty.png", "image/png", new byte[0])))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("I007")));
-		verifyNoInteractions(uploader, images);
+		then(uploader).shouldHaveNoInteractions();
+		then(images).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void unsupportedContentTypeIsRejectedBeforeUpload() throws Exception {
-		when(accommodations.findByIdAndMemberIdAndStatusNot(101L, 10L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+		given(accommodations.findByIdAndMemberIdAndStatusNot(101L, 10L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
 		asMember(() -> mvc.perform(multipart("/api/v1/accommodations/101/images")
 			.file(new MockMultipartFile("images", "image.jpg", "image/gif", new byte[] {1})))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("I003")));
-		verifyNoInteractions(uploader, images);
+		then(uploader).shouldHaveNoInteractions();
+		then(images).shouldHaveNoInteractions();
 	}
 
 	private void asMember(CheckedRequest action) throws Exception {

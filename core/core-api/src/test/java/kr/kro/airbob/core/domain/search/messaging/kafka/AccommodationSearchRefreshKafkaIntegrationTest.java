@@ -1,10 +1,10 @@
 package kr.kro.airbob.core.domain.search.messaging.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -145,8 +145,8 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	@Test
 	@DisplayName("ES 장애는 색인 전용 retry/DLT로만 격리한다")
 	void routesIndexingFailureOnlyToDedicatedRetryAndDlt(CapturedOutput output) throws Exception {
-		doThrow(new IllegalStateException("elasticsearch unavailable"))
-			.when(indexingService).refreshAccommodationIndex(ACCOMMODATION_UID);
+		willThrow(new IllegalStateException("elasticsearch unavailable"))
+			.given(indexingService).refreshAccommodationIndex(ACCOMMODATION_UID);
 
 		kafkaTemplate.send(INDEXING_TOPIC, ACCOMMODATION_UID.toString(), MESSAGE)
 			.get(10, TimeUnit.SECONDS);
@@ -163,9 +163,9 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		assertThat(quarantined.value()).isEqualTo(canonicalMessage);
 		assertThat(retried.key()).isEqualTo(ACCOMMODATION_UID.toString());
 		assertThat(quarantined.key()).isEqualTo(ACCOMMODATION_UID.toString());
-		verify(indexingService, timeout(15_000).times(2))
+		then(indexingService).should(timeout(15_000).times(2))
 			.refreshAccommodationIndex(ACCOMMODATION_UID);
-		verify(alertEnqueueService, timeout(15_000)).enqueue(
+		then(alertEnqueueService).should(timeout(15_000)).enqueue(
 			OperatorAlertRequest.accommodationIndexQuarantined(
 				ACCOMMODATION_UID,
 				new OperatorAlertSourcePosition(INDEXING_TOPIC, 0, 0L)));
@@ -202,7 +202,7 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		assertThat(originalPoisonOffset).isNotNegative();
 		assertThat(readIntHeader(sanitizedRetry, RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS))
 			.isEqualTo(2);
-		verify(alertEnqueueService, timeout(15_000)).enqueue(
+		then(alertEnqueueService).should(timeout(15_000)).enqueue(
 			OperatorAlertRequest.accommodationIndexQuarantined(
 				null,
 				new OperatorAlertSourcePosition(INDEXING_TOPIC, 0, originalPoisonOffset)));

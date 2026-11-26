@@ -2,11 +2,11 @@ package kr.kro.airbob.core.domain.accommodation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,10 +81,10 @@ class AccommodationImageServiceTransactionIntegrationTest {
 		transaction.executeWithoutResult(status -> {
 			accommodationImageService.deleteImage(ACCOMMODATION_ID, IMAGE_ID, MEMBER_ID);
 
-			verify(s3ImageUploader, never()).delete(IMAGE_URL);
+			then(s3ImageUploader).should(never()).delete(IMAGE_URL);
 		});
 
-		verify(s3ImageUploader).delete(IMAGE_URL);
+		then(s3ImageUploader).should().delete(IMAGE_URL);
 	}
 
 	@Test
@@ -97,10 +97,10 @@ class AccommodationImageServiceTransactionIntegrationTest {
 			accommodationImageService.deleteImage(ACCOMMODATION_ID, IMAGE_ID, MEMBER_ID);
 			status.setRollbackOnly();
 
-			verify(s3ImageUploader, never()).delete(IMAGE_URL);
+			then(s3ImageUploader).should(never()).delete(IMAGE_URL);
 		});
 
-		verify(s3ImageUploader, never()).delete(IMAGE_URL);
+		then(s3ImageUploader).should(never()).delete(IMAGE_URL);
 	}
 
 	@Test
@@ -110,13 +110,13 @@ class AccommodationImageServiceTransactionIntegrationTest {
 		MockMultipartFile imageFile = new MockMultipartFile(
 			"images", "image.jpg", "image/jpeg", new byte[] {1});
 		AccommodationImage savedImage = image(accommodation);
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			ACCOMMODATION_ID, MEMBER_ID, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(s3ImageUploader.upload(imageFile, "accommodationInfos/1")).thenReturn(IMAGE_URL);
-		when(accommodationImageRepository.saveAll(anyList())).thenReturn(List.of(savedImage));
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(ACCOMMODATION_ID))
-			.thenReturn(List.of(savedImage));
+			.willReturn(Optional.of(accommodation));
+		given(s3ImageUploader.upload(imageFile, "accommodationInfos/1")).willReturn(IMAGE_URL);
+		given(accommodationImageRepository.saveAll(anyList())).willReturn(List.of(savedImage));
+		given(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(ACCOMMODATION_ID))
+			.willReturn(List.of(savedImage));
 		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 
 		transaction.executeWithoutResult(status -> {
@@ -124,19 +124,19 @@ class AccommodationImageServiceTransactionIntegrationTest {
 				ACCOMMODATION_ID, List.of(imageFile), MEMBER_ID);
 			status.setRollbackOnly();
 
-			verify(s3ImageUploader, never()).delete(IMAGE_URL);
+			then(s3ImageUploader).should(never()).delete(IMAGE_URL);
 		});
 
-		verify(s3ImageUploader).delete(IMAGE_URL);
+		then(s3ImageUploader).should().delete(IMAGE_URL);
 	}
 
 	private void givenOwnedImage() {
 		Accommodation accommodation = accommodation();
 		AccommodationImage image = image(accommodation);
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			ACCOMMODATION_ID, MEMBER_ID, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(accommodationImageRepository.findById(IMAGE_ID)).thenReturn(Optional.of(image));
+			.willReturn(Optional.of(accommodation));
+		given(accommodationImageRepository.findById(IMAGE_ID)).willReturn(Optional.of(image));
 	}
 
 	private Accommodation accommodation() {

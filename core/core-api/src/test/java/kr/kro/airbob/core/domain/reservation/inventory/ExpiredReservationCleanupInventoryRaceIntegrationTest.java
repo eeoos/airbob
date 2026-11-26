@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.BDDMockito.willAnswer;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -176,13 +176,13 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		CountDownLatch allowCleanupInventoryRelease = new CountDownLatch(1);
 		AtomicReference<String> cleanupIsolation = new AtomicReference<>();
 		ReservationInventoryManager inventoryTarget = AopTestUtils.getUltimateTargetObject(inventoryManager);
-		doAnswer(invocation -> {
+		willAnswer(invocation -> {
 			cleanupIsolation.set(jdbcTemplate.queryForObject(
 				"SELECT @@transaction_isolation", String.class));
 			cleanupReachedInventoryRelease.countDown();
 			await(allowCleanupInventoryRelease);
 			return invocation.callRealMethod();
-		}).when(inventoryTarget).releaseHeldIfOwned(
+		}).given(inventoryTarget).releaseHeldIfOwned(
 			eq(accommodation.getId()),
 			eq(STAY_START),
 			eq(STAY_END),

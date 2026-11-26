@@ -2,6 +2,8 @@ package kr.kro.airbob.core.api.controller.v1.review;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.io.BufferedReader;
@@ -79,19 +81,19 @@ class ReviewUploadHttpTest {
 	@BeforeEach
 	void session() {
 		ValueOperations<String, Object> values = mock(ValueOperations.class);
-		when(redis.opsForValue()).thenReturn(values);
-		when(values.get("SESSION:upload-contract-session")).thenReturn(10L);
-		when(redis.hasKey("MEMBER_SESSION_ACTIVE:10")).thenReturn(true);
+		given(redis.opsForValue()).willReturn(values);
+		given(values.get("SESSION:upload-contract-session")).willReturn(10L);
+		given(redis.hasKey("MEMBER_SESSION_ACTIVE:10")).willReturn(true);
 	}
 
 	@Test
 	void repeatedImagePartsBindToRealController() throws Exception {
-		when(reviewImageService.uploadReviewImages(eq(101L), anyList(), eq(10L)))
-			.thenReturn(List.of(new StoredImage(1L, "https://example.invalid/image.png")));
+		given(reviewImageService.uploadReviewImages(eq(101L), anyList(), eq(10L)))
+			.willReturn(List.of(new StoredImage(1L, "https://example.invalid/image.png")));
 		var response = upload(2, 3);
 		assertThat(response.statusCode()).isEqualTo(201);
 		assertThat(mapper.readTree(response.body()).at("/data/uploaded_images/0/id").asLong()).isEqualTo(1L);
-		verify(reviewImageService).uploadReviewImages(eq(101L), argThat(files -> files.size() == 2), eq(10L));
+		then(reviewImageService).should().uploadReviewImages(eq(101L), argThat(files -> files.size() == 2), eq(10L));
 	}
 
 	@Test
@@ -135,13 +137,15 @@ class ReviewUploadHttpTest {
 			}
 			assertThat(status).startsWith("HTTP/1.1 413");
 		}
-		verifyNoInteractions(reviewService, reviewImageService);
+		then(reviewService).shouldHaveNoInteractions();
+		then(reviewImageService).shouldHaveNoInteractions();
 	}
 
 	private void assertError(HttpResponse<String> response, int status, String code) throws Exception {
 		assertThat(response.statusCode()).isEqualTo(status);
 		assertThat(mapper.readTree(response.body()).at("/error/code").asText()).isEqualTo(code);
-		verifyNoInteractions(reviewService, reviewImageService);
+		then(reviewService).shouldHaveNoInteractions();
+		then(reviewImageService).shouldHaveNoInteractions();
 	}
 
 	private HttpResponse<String> upload(int... sizes) throws Exception {

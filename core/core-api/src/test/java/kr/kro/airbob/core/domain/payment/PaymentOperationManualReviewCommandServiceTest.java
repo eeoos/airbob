@@ -176,8 +176,8 @@ class PaymentOperationManualReviewCommandServiceTest {
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.DECLINED);
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
 		InOrder lockOrder = inOrder(reservationRepository, inventoryManager);
-		lockOrder.verify(reservationRepository).findByIdWithLock(reservation.getId());
-		lockOrder.verify(inventoryManager).releaseOccupied(
+		then(reservationRepository).should(lockOrder).findByIdWithLock(reservation.getId());
+		then(inventoryManager).should(lockOrder).releaseOccupied(
 			ACCOMMODATION_ID,
 			CHECK_IN,
 			CHECK_OUT,

@@ -121,9 +121,9 @@ class PaymentOperationExecutionServiceTest {
 		executor.execute(OPERATION_UID, 1);
 
 		InOrder order = inOrder(leaseManager, gateway, finalizer);
-		order.verify(leaseManager).claim(OPERATION_UID, 1);
-		order.verify(gateway).confirm(execution.gatewayCommand());
-		order.verify(finalizer).applyApproved(execution, confirmed);
+		then(leaseManager).should(order).claim(OPERATION_UID, 1);
+		then(gateway).should(order).confirm(execution.gatewayCommand());
+		then(finalizer).should(order).applyApproved(execution, confirmed);
 		then(leaseManager).should(never()).markOutcomeUnknown(any(), any(), any());
 	}
 

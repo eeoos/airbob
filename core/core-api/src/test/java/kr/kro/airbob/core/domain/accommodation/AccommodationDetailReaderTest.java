@@ -2,8 +2,8 @@ package kr.kro.airbob.core.domain.accommodation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
@@ -42,15 +42,15 @@ class AccommodationDetailReaderTest {
 	@Test
 	@DisplayName("공개 숙소의 공용 상세 스냅샷을 찜 여부 없이 조회한다")
 	void readSharedSnapshotWithoutViewerState() {
-		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
+		given(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
 			1L, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(new PublicAccommodationDetailProjection(
+			.willReturn(Optional.of(new PublicAccommodationDetailProjection(
 				1L, "서울의 집", "설명", "HOUSE", 100000L, "KRW",
 				LocalTime.of(15, 0), LocalTime.of(11, 0), "Asia/Seoul",
 				null, null, null, null, null, null, 20L, "호스트", null,
 				4, 1, 0, 3, new BigDecimal("4.50"))));
-		when(accommodationAmenityRepository.findDetailAmenitiesByAccommodationId(1L)).thenReturn(List.of());
-		when(accommodationImageRepository.findDetailImagesByAccommodationIdOrderByIdAsc(1L)).thenReturn(List.of());
+		given(accommodationAmenityRepository.findDetailAmenitiesByAccommodationId(1L)).willReturn(List.of());
+		given(accommodationImageRepository.findDetailImagesByAccommodationIdOrderByIdAsc(1L)).willReturn(List.of());
 
 		AccommodationDetailSnapshot snapshot = reader.read(1L);
 
@@ -58,25 +58,26 @@ class AccommodationDetailReaderTest {
 		assertThat(snapshot.name()).isEqualTo("서울의 집");
 		assertThat(snapshot.reviewSummary().totalCount()).isEqualTo(3);
 		assertThat(snapshot.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
-		verifyNoInteractions(wishlistReader);
+		then(wishlistReader).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("게시되지 않은 숙소는 상세 원본을 만들지 않는다")
 	void rejectMissingPublishedAccommodation() {
-		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
-			1L, AccommodationStatus.PUBLISHED)).thenReturn(Optional.empty());
+		given(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
+			1L, AccommodationStatus.PUBLISHED)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> reader.read(1L))
 			.isInstanceOf(AccommodationNotFoundException.class);
 
-		verifyNoInteractions(accommodationAmenityRepository, accommodationImageRepository);
+		then(accommodationAmenityRepository).shouldHaveNoInteractions();
+		then(accommodationImageRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("로그인 사용자의 찜 여부는 공용 상세와 분리해 조회한다")
 	void readsWishlistStateSeparately() {
-		when(wishlistReader.isInWishlist(1L, 7L)).thenReturn(true);
+		given(wishlistReader.isInWishlist(1L, 7L)).willReturn(true);
 
 		assertThat(reader.isInWishlist(1L, 7L)).isTrue();
 	}

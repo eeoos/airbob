@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -411,7 +411,7 @@ class GlobalTemporalFlowIntegrationTest {
 		searchService.getSearchResults(request.toCondition(new AccommodationSearchRequest.MapBounds()),
 			PageRequest.of(0, 18), null);
 		ArgumentCaptor<SearchRequest> captured = ArgumentCaptor.forClass(SearchRequest.class);
-		verify(elasticsearchClient).search(captured.capture(), eq(AccommodationDocument.class));
+		then(elasticsearchClient).should().search(captured.capture(), eq(AccommodationDocument.class));
 		Query query = captured.getValue().query();
 		assertThat(query.bool().filter()).anySatisfy(filter -> {
 			assertThat(filter.isTerms()).isTrue();
