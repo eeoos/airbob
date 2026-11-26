@@ -45,16 +45,18 @@ class NamingRulesTest {
 	private static final String OPTIONAL = "java.util.Optional";
 	private static final Set<String> BOOLEANS = Set.of("boolean", "java.lang.Boolean");
 	private static final String SWAGGER_TAG = "io.swagger.v3.oas.annotations.tags.Tag";
-	private static final String SCHEDULED = "org.springframework.scheduling.annotation.Scheduled";
-	private static final String KAFKA_LISTENER = "org.springframework.kafka.annotation.KafkaListener";
+	private static final String GET_MAPPING = "org.springframework.web.bind.annotation.GetMapping";
 	private static final String INTEGRATION_EVENT = "kr.kro.airbob.core.support.messaging.event.IntegrationEvent";
-	/** Query verbs other than get; @Service, controller and Swagger interface methods name queries with get. */
-	private static final String QUERY_VERBS_OTHER_THAN_GET = "(find|read|search|load|fetch|retrieve|query|select|lookup)([A-Z0-9].*)?";
+	/**
+	 * Query verbs other than get. A @Service method name alone does not tell a query, so the business layer is checked
+	 * against this list and review covers other verbs; @GetMapping methods are checked for get directly.
+	 */
+	private static final String QUERY_VERBS_OTHER_THAN_GET = "(find|read|search|list|load|fetch|retrieve|query|select|lookup)([A-Z0-9].*)?";
 	/** Three capitals in a row: an abbreviation written in capitals (HTTPClient, getURL, mySQLContainer). */
 	private static final Pattern CAPITALIZED_ABBREVIATION = Pattern.compile("[A-Z]{3,}");
 	/**
-	 * Constants are written in capitals (MAX_URL_LENGTH, enum constants) and are left out. A static final field named
-	 * in camel case, such as a test container, is not a constant and is checked.
+	 * Constants, static final fields written in capitals (MAX_URL_LENGTH, enum constants), are left out. A static final
+	 * field named in camel case, such as a test container, and a field that is not static final are checked.
 	 */
 	private static final Pattern CONSTANT_NAME = Pattern.compile("[A-Z][A-Z0-9_]*");
 
@@ -63,6 +65,12 @@ class NamingRulesTest {
 
 	@ArchTest
 	static final ArchRule queriesUseGet = queriesUseGetIn(CORE_DOMAIN);
+
+	@ArchTest
+	static final ArchRule getEndpointsStartWithGet = methods()
+		.that().areAnnotatedWith(GET_MAPPING)
+		.should().haveNameMatching("get([A-Z0-9].*)?")
+		.as("@GetMapping methods should be named get...");
 
 	@ArchTest
 	static final ArchRule componentsHaveSpecificNames = componentsHaveSpecificNamesIn(CORE_DOMAIN);
@@ -92,19 +100,19 @@ class NamingRulesTest {
 
 	@ArchTest
 	static final ArchRule schedulerNaming = classes()
-		.that(declareMethodsAnnotatedWith(SCHEDULED))
+		.that(DescribedPredicate.describe("declare @Scheduled methods", ArchitectureSlices::isScheduler))
 		.should().haveSimpleNameEndingWith("Scheduler")
 		.as("classes with @Scheduled methods should be named *Scheduler");
 
 	@ArchTest
 	static final ArchRule listenerNaming = classes()
-		.that(annotatedWith(KAFKA_LISTENER).or(declareMethodsAnnotatedWith(KAFKA_LISTENER)))
+		.that(DescribedPredicate.describe("are Kafka listeners", ArchitectureSlices::isKafkaListener))
 		.should().haveSimpleNameEndingWith("Listener")
 		.as("@KafkaListener classes should be named *Listener");
 
 	@ArchTest
 	static final ArchRule exceptionNaming = classes()
-		.that(areThrowables()).and().areNotAnonymousClasses()
+		.that(areExceptions()).and().areNotAnonymousClasses()
 		.should().haveSimpleNameEndingWith("Exception")
 		.as("exceptions should be named *Exception");
 
@@ -131,7 +139,7 @@ class NamingRulesTest {
 	static final ArchRule abbreviations = abbreviationsIn(DescribedPredicate.alwaysTrue());
 
 	/**
-	 * Reader methods that other classes use: read returns a required value or a list, find returns an Optional,
+	 * Reader methods that other classes use: read returns a required value or a list (not void), find returns an Optional,
 	 * and checks start with is, exists, has or count. Methods called only from inside the class or from tests,
 	 * such as a test entry point or a factory for tests, are not part of the reader's vocabulary.
 	 */
@@ -198,7 +206,8 @@ class NamingRulesTest {
 				String verb = method.getName().replaceFirst("^([a-z]+).*$", "$1");
 				String result = method.getRawReturnType().getName();
 				String problem = switch (verb) {
-					case "read" -> result.equals(OPTIONAL) ? "read returns Optional; name it find" : null;
+					case "read" -> result.equals(OPTIONAL) ? "read returns Optional; name it find"
+						: result.equals("void") ? "read returns nothing" : null;
 					case "find" -> result.equals(OPTIONAL) ? null : "find returns " + result + "; find is for Optional";
 					case "is", "exists", "has" -> BOOLEANS.contains(result) ? null : verb + " returns " + result;
 					case "count", "search" -> null;
@@ -223,7 +232,9 @@ class NamingRulesTest {
 					}
 				}
 				for (JavaField field : javaClass.getFields()) {
-					if (!CONSTANT_NAME.matcher(field.getName()).matches() && !field.getName().equals("serialVersionUID")
+					boolean constant = field.getModifiers().containsAll(Set.of(JavaModifier.STATIC, JavaModifier.FINAL))
+						&& CONSTANT_NAME.matcher(field.getName()).matches();
+					if (!constant && !field.getName().equals("serialVersionUID")
 						&& !field.getModifiers().contains(JavaModifier.SYNTHETIC) && !field.getName().contains("$")) {
 						report(field, field.getName(), field.getFullName(), events);
 					}
@@ -239,28 +250,24 @@ class NamingRulesTest {
 		};
 	}
 
-	private static DescribedPredicate<JavaClass> declareMethodsAnnotatedWith(String annotation) {
-		return DescribedPredicate.describe("declare methods annotated with @" + simpleName(annotation),
-			javaClass -> javaClass.getMethods().stream().anyMatch(method -> method.isAnnotatedWith(annotation)));
-	}
-
 	/**
 	 * Library classes are not imported (archunit.properties), so the superclass chain stops at the first library
-	 * type, such as RuntimeException or IllegalStateException. That type is loaded from the test classpath.
+	 * type, such as RuntimeException or IllegalStateException. That type is loaded from the test classpath. Errors
+	 * (AssertionError, ...) are not exceptions and keep their own names.
 	 */
-	static DescribedPredicate<JavaClass> areThrowables() {
-		return DescribedPredicate.describe("are throwables", javaClass -> {
+	static DescribedPredicate<JavaClass> areExceptions() {
+		return DescribedPredicate.describe("are exceptions", javaClass -> {
 			Optional<JavaClass> superclass = javaClass.getRawSuperclass();
 			while (superclass.isPresent() && superclass.get().isFullyImported()) {
 				superclass = superclass.get().getRawSuperclass();
 			}
-			return superclass.map(library -> isThrowable(library.getName())).orElse(false);
+			return superclass.map(library -> isException(library.getName())).orElse(false);
 		});
 	}
 
-	private static boolean isThrowable(String className) {
+	private static boolean isException(String className) {
 		try {
-			return Throwable.class
+			return Exception.class
 				.isAssignableFrom(Class.forName(className, false, NamingRulesTest.class.getClassLoader()));
 		} catch (ClassNotFoundException notOnTheClasspath) {
 			return false;
@@ -277,9 +284,5 @@ class NamingRulesTest {
 			topLevel = topLevel.getEnclosingClass().get();
 		}
 		return topLevel;
-	}
-
-	private static String simpleName(String className) {
-		return className.substring(className.lastIndexOf('.') + 1);
 	}
 }

@@ -5,12 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.tngtech.archunit.base.DescribedPredicate;
@@ -38,6 +40,7 @@ class NamingRulesFixtureTest {
 		assertThat(hasViolation(rule, OptionalReadingReader.class)).isTrue();
 		assertThat(hasViolation(rule, FetchingReader.class)).isTrue();
 		assertThat(hasViolation(rule, TextCheckingReader.class)).isTrue();
+		assertThat(hasViolation(rule, VoidReadingReader.class)).isTrue();
 		assertThat(hasViolation(rule, LoadingReader.class, LoadingReaderCaller.class)).isTrue();
 	}
 
@@ -55,7 +58,14 @@ class NamingRulesFixtureTest {
 		assertThat(hasViolation(rule, FindingService.class)).isTrue();
 		assertThat(hasViolation(rule, SearchingController.class)).isTrue();
 		assertThat(hasViolation(rule, LoadingApi.class)).isTrue();
+		assertThat(hasViolation(rule, ListingController.class)).isTrue();
 		assertThat(hasViolation(rule, GettingService.class)).isFalse();
+	}
+
+	@Test
+	void getEndpointRuleRequiresGet() {
+		assertThat(hasViolation(NamingRulesTest.getEndpointsStartWithGet, PaymentsEndpoint.class)).isTrue();
+		assertThat(hasViolation(NamingRulesTest.getEndpointsStartWithGet, GettingEndpoint.class)).isFalse();
 	}
 
 	@Test
@@ -76,12 +86,15 @@ class NamingRulesFixtureTest {
 	void entryPointRulesReadMethodAnnotations() {
 		assertThat(hasViolation(NamingRulesTest.schedulerNaming, CleanupJob.class)).isTrue();
 		assertThat(hasViolation(NamingRulesTest.listenerNaming, PaymentConsumer.class)).isTrue();
+		assertThat(hasViolation(NamingRulesTest.schedulerNaming, RepeatedJob.class)).isTrue();
+		assertThat(hasViolation(NamingRulesTest.listenerNaming, RepeatedConsumer.class)).isTrue();
 	}
 
 	@Test
 	void exceptionRuleFollowsTheSuperclassesToTheJdk() {
 		assertThat(hasViolation(NamingRulesTest.exceptionNaming, PaymentFailure.class)).isTrue();
-		assertThat(hasViolation(NamingRulesTest.exceptionNaming, PaymentFailedException.class)).isFalse();
+		assertThat(hasViolation(NamingRulesTest.exceptionNaming, PaymentFailedException.class, PaymentFault.class))
+			.isFalse();
 	}
 
 	/** The rule matches implementations of the imported interface, as in the application import. */
@@ -101,7 +114,8 @@ class NamingRulesFixtureTest {
 		assertThat(hasViolation(rule, UrlField.class)).isTrue();
 		assertThat(hasViolation(rule, UrlMethod.class)).isTrue();
 		assertThat(hasViolation(rule, UrlContainerField.class)).isTrue();
-		assertThat(hasViolation(rule, WellSpelledNames.class)).isFalse();
+		assertThat(hasViolation(rule, CapitalizedField.class)).isTrue();
+		assertThat(hasViolation(rule, WellSpelledNames.class, StatusCode.class)).isFalse();
 	}
 
 	@Test
@@ -109,6 +123,7 @@ class NamingRulesFixtureTest {
 		ArchRule rule = TestNamingRulesTest.testClassNamingIn(DescribedPredicate.alwaysTrue());
 
 		assertThat(hasViolation(rule, ChecksWithoutSuffix.class)).isTrue();
+		assertThat(hasViolation(rule, PaymentCases.AcceptedTest.class, PaymentCases.class)).isTrue();
 		assertThat(hasViolation(rule, ChecksTest.class)).isFalse();
 	}
 
@@ -138,6 +153,10 @@ class NamingRulesFixtureTest {
 		public String hasName() {
 			return "";
 		}
+	}
+
+	static class VoidReadingReader {
+		public void readPayment() {}
 	}
 
 	static class LoadingReader {
@@ -207,6 +226,27 @@ class NamingRulesFixtureTest {
 		String loadName();
 	}
 
+	@RestController
+	static class ListingController {
+		public String listPayments() {
+			return "";
+		}
+	}
+
+	static class PaymentsEndpoint {
+		@GetMapping("/payments")
+		public String payments() {
+			return "";
+		}
+	}
+
+	static class GettingEndpoint {
+		@GetMapping("/payments")
+		public String getPayments() {
+			return "";
+		}
+	}
+
 	@Service
 	static class GettingService {
 		public String getName() {
@@ -242,9 +282,23 @@ class NamingRulesFixtureTest {
 		void consume(String message) {}
 	}
 
+	static class RepeatedJob {
+		@Scheduled(cron = "0 0 * * * *")
+		@Scheduled(cron = "0 30 * * * *")
+		void run() {}
+	}
+
+	static class RepeatedConsumer {
+		@KafkaListener(topics = "first")
+		@KafkaListener(topics = "second")
+		void consume(String message) {}
+	}
+
 	static class PaymentFailure extends RuntimeException {}
 
 	static class PaymentFailedException extends IllegalStateException {}
+
+	static class PaymentFault extends AssertionError {}
 
 	abstract static class PaymentCompleted implements IntegrationEvent {}
 
@@ -258,6 +312,10 @@ class NamingRulesFixtureTest {
 
 	static class UrlContainerField {
 		private static final Object sharedURL = new Object();
+	}
+
+	static class CapitalizedField {
+		String URL;
 	}
 
 	static class UrlMethod {
@@ -276,6 +334,10 @@ class NamingRulesFixtureTest {
 		}
 	}
 
+	enum StatusCode {
+		NOT_FOUND
+	}
+
 	/** Private, so JUnit does not run it. */
 	private static class ChecksWithoutSuffix {
 		@Test
@@ -285,5 +347,14 @@ class NamingRulesFixtureTest {
 	private static class ChecksTest {
 		@Test
 		void checks() {}
+	}
+
+	/** Only the @Nested class declares test methods; the class around it lacks the suffix. */
+	private static class PaymentCases {
+		@Nested
+		class AcceptedTest {
+			@Test
+			void accepts() {}
+		}
 	}
 }

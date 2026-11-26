@@ -2,6 +2,7 @@ package kr.kro.airbob.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
+import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.boot.test.context.TestConfiguration;
@@ -12,7 +13,10 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.junit.CacheMode;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 /**
  * Naming rules for core-api test code. See docs/development/coding-convention.md ("이름").
@@ -43,12 +47,31 @@ class TestNamingRulesTest {
 	@ArchTest
 	static final ArchRule abbreviations = NamingRulesTest.abbreviationsIn(notNamingFixtures());
 
-	/** @Nested classes are test classes too, so every class that declares a test method ends with Test. */
+	/**
+	 * A class that declares test methods ends with Test, and so does every class around it: the test class around
+	 * @Nested classes is checked even when only the @Nested classes declare test methods.
+	 */
 	static ArchRule testClassNamingIn(DescribedPredicate<? super JavaClass> scope) {
 		return classes()
 			.that(declareTestMethods()).and(scope)
-			.should().haveSimpleNameEndingWith("Test")
-			.as("classes that declare test methods should be named *Test");
+			.should(beNamedTestWithTheClassesAroundThem())
+			.as("classes that declare test methods, and the classes around them, should be named *Test");
+	}
+
+	private static ArchCondition<JavaClass> beNamedTestWithTheClassesAroundThem() {
+		return new ArchCondition<>("be named *Test, with the classes around them") {
+			@Override
+			public void check(JavaClass javaClass, ConditionEvents events) {
+				Optional<JavaClass> current = Optional.of(javaClass);
+				while (current.isPresent()) {
+					JavaClass testClass = current.get();
+					boolean named = testClass.getSimpleName().endsWith("Test");
+					events.add(new SimpleConditionEvent(testClass, named, testClass.getName()
+						+ (named ? " is named *Test" : " holds test methods but is not named *Test")));
+					current = testClass.getEnclosingClass();
+				}
+			}
+		};
 	}
 
 	private static DescribedPredicate<JavaClass> declareTestMethods() {

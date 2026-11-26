@@ -59,9 +59,10 @@ configure(subprojects.findAll { it.subprojects.isEmpty() }) {
 				'Assert with AssertJ (assertThat, assertThatThrownBy) instead of JUnit Assertions, JUnit 4 or 3 Assert, or Hamcrest MatcherAssert')
 			// Naver naming 2.1 and 2.9 for test method names: English letters, digits and _ only, starting lowercase.
 			// A lint, like the assertion ban, also runs for API-documentation-only PRs, where CI skips ArchUnit.
-			// It reads void method declarations only, which covers every test method.
+			// It reads void method declarations only; review covers test factories that return a value.
+			// \p{IsHangul} also matches decomposed jamo.
 			forbidRegex('Method name in Korean or starting uppercase',
-				'\\bvoid\\s+(?:[A-Z]|[^\\s(]*[\\u3131-\\u318E\\uAC00-\\uD7A3])[^\\s(]*\\s*\\(',
+				'\\bvoid\\s+(?:[A-Z]|[^\\s(]*\\p{IsHangul})[^\\s(]*\\s*\\(',
 				'Name methods in lowerCamelCase English (Naver 2.1, 2.9); put a Korean description in @DisplayName')
 			eclipse().configFile(rootProject.file('config/formatter/naver-eclipse-formatter.xml'))
 		}

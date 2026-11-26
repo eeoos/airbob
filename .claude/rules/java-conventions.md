@@ -21,6 +21,7 @@ formatting, the code rules (`CodingRulesTest`), and most naming rules (`NamingRu
 - Pair Writer verbs by meaning: `create`/`delete` the entity itself, `add`/`remove` an item in another
   entity's collection, `update`/`change` a value, `record` a history row.
 - Name an integration event `<Subject><PastParticiple>V<n>`, such as `AccommodationSearchRefreshRequestedV1`.
-- Checked by tests, for reference: a Reader `read` returns a required value or a list and `find` returns an
-  `Optional`; `@Service` and controller queries start with `get`; configuration classes end with
-  `Configuration`; no class ends with `Dto`.
+- Name a `@Service` query with `get`, even when its first word would be another verb such as `show` or
+  `browse` (the tests only catch the common ones).
+- Name domain input records `NewXxx` for creation and `XxxPatch` for a partial update that keeps null fields;
+  see `docs/architecture/code-structure.md` ("Business 입출력과 도메인 레코드").

@@ -21,7 +21,9 @@ final class ArchitectureSlices {
 		"^kr\\.kro\\.airbob\\.(core\\.[a-z0-9]+|[a-z0-9]+)(?:\\..*)?$");
 	private static final Pattern REPOSITORY_PACKAGE = Pattern.compile("^.*\\.repository(?:\\..*)?$");
 	private static final String SCHEDULED = "org.springframework.scheduling.annotation.Scheduled";
+	private static final String SCHEDULES = "org.springframework.scheduling.annotation.Schedules";
 	private static final String KAFKA_LISTENER = "org.springframework.kafka.annotation.KafkaListener";
+	private static final String KAFKA_LISTENERS = "org.springframework.kafka.annotation.KafkaListeners";
 
 	private ArchitectureSlices() {}
 
@@ -74,9 +76,20 @@ final class ArchitectureSlices {
 	 * implement components.
 	 */
 	static boolean isEntryPoint(JavaClass javaClass) {
-		return javaClass.isAnnotatedWith(KAFKA_LISTENER)
+		return isScheduler(javaClass) || isKafkaListener(javaClass);
+	}
+
+	/** A repeated @Scheduled compiles into its container, @Schedules. */
+	static boolean isScheduler(JavaClass javaClass) {
+		return javaClass.getMethods().stream()
+			.anyMatch(method -> method.isAnnotatedWith(SCHEDULED) || method.isAnnotatedWith(SCHEDULES));
+	}
+
+	/** A repeated @KafkaListener compiles into its container, @KafkaListeners. */
+	static boolean isKafkaListener(JavaClass javaClass) {
+		return javaClass.isAnnotatedWith(KAFKA_LISTENER) || javaClass.isAnnotatedWith(KAFKA_LISTENERS)
 			|| javaClass.getMethods().stream()
-				.anyMatch(method -> method.isAnnotatedWith(SCHEDULED) || method.isAnnotatedWith(KAFKA_LISTENER));
+				.anyMatch(method -> method.isAnnotatedWith(KAFKA_LISTENER) || method.isAnnotatedWith(KAFKA_LISTENERS));
 	}
 
 	static DescribedPredicate<JavaClass> entryPoints() {
