@@ -235,11 +235,12 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 - 요약은 한국어로, 무엇을 하는지 한 문장으로 쓴다. 클래스·파일 이름 같은 영어 식별자는 섞어도 된다. 예: `docs: CLAUDE.md에 행동 가이드라인 추가`
 - 범위 표기(`fix(aws): …`)와 깨는 변경 표시(`feat!: …`)는 쓰지 않는다.
 - `git revert`가 만드는 `Revert "…"` 제목은 `revert: …`로 고쳐 쓴다. `fixup!`·`squash!` 커밋은 PR을 열기 전에 합친다.
+- 제목 다음 줄은 비운다. git은 빈 줄 없이 이어진 줄을 제목에 합쳐 보여 준다. 검사는 메시지의 첫 줄만 제목으로 본다.
 - 본문은 자유다. 검사하지 않는다.
 - PR 제목도 같은 형식으로 쓴다(`pr-description` 스킬). PR 제목은 검사하지 않는다.
 
-**강제.** CI `scope` 잡의 `scripts/ci/commit_messages.py`가 PR의 머지가 아닌 커밋(`base..head`) 제목을 검사한다. 형식, type 목록, 요약의 한글(완성형 1자 이상)을 본다. 위반이 있으면 `scope` 잡과 `CI result`가 실패하고, 빌드와 테스트도 돌지 않는다.
+**강제.** CI `scope` 잡의 `scripts/ci/commit_messages.py`가 PR의 머지가 아닌 커밋(`base..head`) 제목(메시지의 첫 줄)을 검사한다. 형식, type 목록, 요약의 한글(완성형 1자 이상)을 본다. 위반이 있으면 `scope` 잡과 `CI result`가 실패하고, 빌드와 테스트도 돌지 않는다.
 - 고치는 법: 해당 커밋의 제목을 고치고(`git rebase -i <base>`에서 `reword`) `git push --force-with-lease`로 다시 올린다.
 - 로컬 확인: `BASE_SHA=origin/main python3 -B scripts/ci/commit_messages.py` (`HEAD_SHA`를 주지 않으면 `HEAD`)
 
-**도입할 때 관행.** 2026-10-11 이후 커밋 243개는 모두 이 형식이었다(범위 표기 0개, 한국어 요약). 그 전에는 AWS 실험 커밋에 범위 표기와 영어 요약이 많았다. 머지된 PR로 다시 돌리면 #160~#232의 73개는 모두 통과하고, #92~#159의 41개는 실패한다. 검사는 새 PR부터 적용하고 이력은 고치지 않는다.
+**도입할 때 관행.** 머지된 PR마다 머지 커밋의 두 부모 사이(`<머지>^1..<머지>^2`)를 다시 검사하면, #160~#232(2026-10-11~11-26)의 73개는 모두 통과한다. 그 전의 #92~#159에서는 41개가 실패한다. 대부분 AWS 실험 커밋의 범위 표기(`fix(aws): …`)와 영어 요약이다. 검사는 새 PR부터 적용하고 이력은 고치지 않는다.

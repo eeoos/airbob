@@ -26,11 +26,19 @@ def problem(subject):
 
 
 def commits(base, head, cwd='.'):
-    """(sha, subject) of the non-merge commits in base..head, oldest first."""
+    """(sha, subject) of the non-merge commits in base..head, oldest first.
+
+    The subject is the first line of the message. Git's %s would also join the lines that follow it without a
+    blank line, so a Korean second line could make an English first line pass.
+    """
     log = subprocess.check_output(
-        ['git', '-C', str(cwd), 'log', '--no-merges', '--reverse', '--format=%H%x00%s', f'{base}..{head}'],
+        ['git', '-C', str(cwd), 'log', '-z', '--no-merges', '--reverse', '--format=%H%n%B', f'{base}..{head}'],
         encoding='utf-8', timeout=60)
-    return [tuple(line.split('\0', 1)) for line in log.splitlines()]
+    subjects = []
+    for entry in filter(None, log.split('\0')):
+        sha, _, message = entry.partition('\n')
+        subjects.append((sha, message.partition('\n')[0]))
+    return subjects
 
 
 def violations(base, head, cwd='.'):

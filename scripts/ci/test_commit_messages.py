@@ -9,6 +9,10 @@ import commit_messages
 
 
 class SubjectTests(unittest.TestCase):
+    def test_the_types_are_the_eleven_of_the_convention(self):
+        self.assertEqual(set(commit_messages.TYPES), {
+            'feat', 'fix', 'refactor', 'perf', 'test', 'docs', 'style', 'build', 'ci', 'chore', 'revert'})
+
     def test_every_type_with_a_korean_summary_passes(self):
         for type_ in commit_messages.TYPES:
             with self.subTest(type=type_):
@@ -73,9 +77,16 @@ class RangeTests(unittest.TestCase):
 
     def test_a_range_that_follows_the_rule_passes(self):
         base = self.commit('chore: 시작한다')
-        head = self.commit('docs: 규칙을 적는다')
+        head = self.commit('docs: 규칙을 적는다\n\n본문은 English only여도 된다.\n두 번째 문단')
+        self.assertEqual(commit_messages.commits(base, head, self.root), [(head, 'docs: 규칙을 적는다')])
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(commit_messages.main({'BASE_SHA': base, 'HEAD_SHA': head}, self.root), 0)
+
+    def test_only_the_first_line_is_the_subject_even_without_a_blank_line_after_it(self):
+        base = self.commit('chore: 시작한다')
+        head = self.commit('fix: retry timeout\n재시도 조건을 수정한다')
+        self.assertEqual(commit_messages.violations(base, head, self.root),
+                         [(head, 'fix: retry timeout', 'the summary has no Korean')])
 
 
 if __name__ == '__main__':
