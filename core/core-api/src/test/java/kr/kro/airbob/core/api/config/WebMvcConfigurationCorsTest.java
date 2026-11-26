@@ -1,6 +1,7 @@
 package kr.kro.airbob.core.api.config;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ class WebMvcConfigurationCorsTest {
 
 		corsFilter.doFilter(request, response, chain);
 
-		verify(chain).doFilter(request, response);
+		then(chain).should().doFilter(request, response);
 		assertThat(response.getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)).isEqualTo(ALLOWED_ORIGIN);
 		assertThat(response.getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS)).isEqualTo("true");
 	}

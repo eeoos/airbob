@@ -1,6 +1,9 @@
 package kr.kro.airbob.core.domain.settlement;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
@@ -70,7 +73,7 @@ class SettlementServiceTest {
 			100_000L,
 			0L,
 			new BigDecimal("0.03"));
-		when(settlementRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
+		given(settlementRepository.findByIdForUpdate(1L)).willReturn(Optional.of(settlement));
 
 		settlementService.markPaid(1L);
 
@@ -87,7 +90,7 @@ class SettlementServiceTest {
 			100_000L,
 			0L,
 			new BigDecimal("0.03"));
-		when(settlementRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
+		given(settlementRepository.findByIdForUpdate(1L)).willReturn(Optional.of(settlement));
 
 		assertThatThrownBy(() -> settlementService.markPaid(1L))
 			.isInstanceOf(SettlementMonthNotClosedException.class);
@@ -103,8 +106,8 @@ class SettlementServiceTest {
 
 		settlementService.generateMonth(month);
 
-		verify(lock).unlock();
-		verify(lock, never()).isHeldByCurrentThread();
+		then(lock).should().unlock();
+		then(lock).should(never()).isHeldByCurrentThread();
 	}
 
 	@Test
@@ -113,35 +116,35 @@ class SettlementServiceTest {
 		YearMonth month = YearMonth.of(2098, 12);
 		IllegalStateException generationFailure = new IllegalStateException("generation failed");
 		givenAcquiredGenerationLock(month);
-		when(settlementRepository.aggregateByHostForMonth(month.atDay(1), month.atEndOfMonth()))
-			.thenThrow(generationFailure);
-		doThrow(new IllegalStateException("unlock failed")).when(lock).unlock();
+		given(settlementRepository.aggregateByHostForMonth(month.atDay(1), month.atEndOfMonth()))
+			.willThrow(generationFailure);
+		willThrow(new IllegalStateException("unlock failed")).given(lock).unlock();
 
 		assertThatThrownBy(() -> settlementService.generateMonth(month))
 			.isSameAs(generationFailure);
 
-		verify(lock).unlock();
-		verify(lock, never()).isHeldByCurrentThread();
+		then(lock).should().unlock();
+		then(lock).should(never()).isHeldByCurrentThread();
 	}
 
 	@Test
 	@DisplayName("월 정산 락을 얻지 못하면 해제를 시도하지 않는다")
 	void doesNotReleaseGenerationLockWhenAcquisitionTimesOut() throws InterruptedException {
 		YearMonth month = YearMonth.of(2098, 12);
-		when(redissonClient.getLock("LOCK:SETTLEMENT:GENERATE:" + month)).thenReturn(lock);
-		when(lock.tryLock(5, TimeUnit.SECONDS)).thenReturn(false);
+		given(redissonClient.getLock("LOCK:SETTLEMENT:GENERATE:" + month)).willReturn(lock);
+		given(lock.tryLock(5, TimeUnit.SECONDS)).willReturn(false);
 
 		settlementService.generateMonth(month);
 
-		verify(lock, never()).unlock();
-		verify(lock, never()).isHeldByCurrentThread();
+		then(lock).should(never()).unlock();
+		then(lock).should(never()).isHeldByCurrentThread();
 	}
 
 	private void givenAcquiredGenerationLock(YearMonth month) throws InterruptedException {
-		when(redissonClient.getLock("LOCK:SETTLEMENT:GENERATE:" + month)).thenReturn(lock);
-		when(lock.tryLock(5, TimeUnit.SECONDS)).thenReturn(true);
-		when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
-		when(settlementRepository.aggregateByHostForMonth(month.atDay(1), month.atEndOfMonth()))
-			.thenReturn(List.of());
+		given(redissonClient.getLock("LOCK:SETTLEMENT:GENERATE:" + month)).willReturn(lock);
+		given(lock.tryLock(5, TimeUnit.SECONDS)).willReturn(true);
+		given(transactionManager.getTransaction(any())).willReturn(transactionStatus);
+		given(settlementRepository.aggregateByHostForMonth(month.atDay(1), month.atEndOfMonth()))
+			.willReturn(List.of());
 	}
 }

@@ -1,12 +1,10 @@
 package kr.kro.airbob.core.domain.payment.messaging.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -161,7 +159,7 @@ class PaymentOperationKafkaIntegrationTest {
 		assertThat(validMessage).contains("\"occurred_at\":\"2026-08-14T00:00:00Z\"");
 
 		kafkaTemplate.send(OPERATION_TOPIC, validMessage).get(10, TimeUnit.SECONDS);
-		verify(executor, timeout(15_000)).execute(OPERATION_UID, DISPATCH_GENERATION);
+		then(executor).should(timeout(15_000)).execute(OPERATION_UID, DISPATCH_GENERATION);
 		org.mockito.Mockito.clearInvocations(executor, dltIncidentService);
 
 		ProducerRecord<String, String> poison = new ProducerRecord<>(
@@ -175,7 +173,7 @@ class PaymentOperationKafkaIntegrationTest {
 		ProducerRecord<String, String> validFollower = new ProducerRecord<>(
 			OPERATION_TOPIC, 0, RESERVATION_UID.toString(), validMessage);
 		kafkaTemplate.send(validFollower).get(10, TimeUnit.SECONDS);
-		verify(executor, timeout(PROMPT_DELIVERY_TIMEOUT_MS))
+		then(executor).should(timeout(PROMPT_DELIVERY_TIMEOUT_MS))
 			.execute(OPERATION_UID, DISPATCH_GENERATION);
 		org.mockito.Mockito.clearInvocations(executor);
 
@@ -210,10 +208,10 @@ class PaymentOperationKafkaIntegrationTest {
 			.isEqualTo(OPERATION_TOPIC);
 		assertThat(readIntHeader(quarantined, KafkaHeaders.ORIGINAL_PARTITION)).isZero();
 		assertThat(readLongHeader(quarantined, KafkaHeaders.ORIGINAL_OFFSET)).isEqualTo(1L);
-		verify(dltIncidentService, timeout(15_000)).record(
+		then(dltIncidentService).should(timeout(15_000)).record(
 			SANITIZED_POISON,
 			new OperatorAlertSourcePosition(OPERATION_TOPIC, 0, 1L));
-		verifyNoMoreInteractions(dltIncidentService);
+		then(dltIncidentService).shouldHaveNoMoreInteractions();
 		assertThat(retryRecord.value()).isEqualTo(SANITIZED_POISON);
 		assertThat(retryRecord.key()).isNull();
 		assertThat(quarantined.topic()).isEqualTo(OPERATION_DLT_TOPIC);
@@ -223,12 +221,12 @@ class PaymentOperationKafkaIntegrationTest {
 		assertRecordDoesNotContainSecret(quarantined);
 		assertThat(capturedLogs()).doesNotContain(
 			RAW_SECRET, RESERVED_HEADER_SECRET, malformed);
-		verifyNoInteractions(executor);
+		then(executor).shouldHaveNoInteractions();
 
 		reset(executor);
-		doThrow(new IllegalStateException("database unavailable"))
-			.doNothing()
-			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
+		willThrow(new IllegalStateException("database unavailable"))
+			.willDoNothing()
+			.given(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 		kafkaTemplate.send(OPERATION_TOPIC, RESERVATION_UID.toString(), validMessage)
 			.get(10, TimeUnit.SECONDS);
 		ConsumerRecord<String, String> validRetry = KafkaTestUtils.getSingleRecord(
@@ -236,22 +234,22 @@ class PaymentOperationKafkaIntegrationTest {
 		assertThat(validRetry.value()).isEqualTo(validMessage);
 		assertThat(validRetry.key()).isEqualTo(RESERVATION_UID.toString());
 		assertThat(validRetry.partition()).isZero();
-		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
+		then(executor).should(timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
 
 		reset(executor);
-		doThrow(new IllegalStateException("database unavailable"))
-			.doNothing()
-			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
+		willThrow(new IllegalStateException("database unavailable"))
+			.willDoNothing()
+			.given(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 		kafkaTemplate.send(OPERATION_TOPIC, "untrusted-incoming-key", validMessage)
 			.get(10, TimeUnit.SECONDS);
 		ConsumerRecord<String, String> rekeyedRetry = KafkaTestUtils.getSingleRecord(
 			operationRetryConsumer, OPERATION_RETRY_TOPIC, Duration.ofSeconds(15));
 		assertThat(rekeyedRetry.key()).isEqualTo(RESERVATION_UID.toString());
-		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
+		then(executor).should(timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
 
 		reset(executor);
-		doThrow(new IllegalStateException("database unavailable"))
-			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
+		willThrow(new IllegalStateException("database unavailable"))
+			.given(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 		String extraField = validMessage.replace(
 			"\"reservation_uid\":\"" + RESERVATION_UID + "\"",
 			"\"reservation_uid\":\"" + RESERVATION_UID + "\","
@@ -267,7 +265,7 @@ class PaymentOperationKafkaIntegrationTest {
 		assertThat(sanitizedDlt.value()).isEqualTo(SANITIZED_POISON);
 		assertRecordDoesNotContainSecret(sanitizedRetry);
 		assertRecordDoesNotContainSecret(sanitizedDlt);
-		verifyNoInteractions(executor);
+		then(executor).shouldHaveNoInteractions();
 
 		String duplicateKey = validMessage.replace(
 			"\"operation_uid\":\"" + OPERATION_UID + "\"",
@@ -281,14 +279,14 @@ class PaymentOperationKafkaIntegrationTest {
 		kafkaTemplate.send(OPERATION_TOPIC, validMessage).get(10, TimeUnit.SECONDS);
 		kafkaTemplate.send(OPERATION_TOPIC, validMessage).get(10, TimeUnit.SECONDS);
 
-		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
+		then(executor).should(timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
 		assertThat(capturedLogs()).doesNotContain(RAW_SECRET, RESERVED_HEADER_SECRET);
 	}
 
 	private void assertSmuggledPayloadBecomesPoison(String smuggled) throws Exception {
 		reset(executor);
-		doThrow(new IllegalStateException("database unavailable"))
-			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
+		willThrow(new IllegalStateException("database unavailable"))
+			.given(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 
 		kafkaTemplate.send(OPERATION_TOPIC, RESERVATION_UID.toString(), smuggled)
 			.get(10, TimeUnit.SECONDS);
@@ -304,7 +302,7 @@ class PaymentOperationKafkaIntegrationTest {
 		assertRecordDoesNotContainSecret(retry);
 		assertRecordDoesNotContainSecret(dlt);
 		assertThat(capturedLogs()).doesNotContain(smuggled);
-		verifyNoInteractions(executor);
+		then(executor).shouldHaveNoInteractions();
 	}
 
 	private String productionMessage() throws Exception {

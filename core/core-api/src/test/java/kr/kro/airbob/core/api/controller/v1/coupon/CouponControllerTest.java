@@ -1,8 +1,7 @@
 package kr.kro.airbob.core.api.controller.v1.coupon;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -91,7 +90,7 @@ class CouponControllerTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true));
 
-		verify(issueService).issue(1L, 10L);
+		then(issueService).should().issue(1L, 10L);
 	}
 
 	@Test
@@ -113,8 +112,8 @@ class CouponControllerTest {
 			100,
 			true);
 		var request = new CursorRequest.CouponCampaignCursorPageRequest(20, null, null);
-		when(couponQueryService.getCouponCampaigns(request))
-			.thenReturn(
+		given(couponQueryService.getCouponCampaigns(request))
+			.willReturn(
 				new CouponCampaignPage(List.of(new CouponCampaignPage.Item(campaign, CouponIssuanceStatus.UPCOMING)),
 					new CursorResponse.PageInfo(false, null, 1)));
 
@@ -127,7 +126,7 @@ class CouponControllerTest {
 			.andExpect(jsonPath("$.data.page_info.next_cursor").value(org.hamcrest.Matchers.nullValue()))
 			.andExpect(jsonPath("$.data.page_info.current_size").value(1));
 
-		verify(couponQueryService).getCouponCampaigns(request);
+		then(couponQueryService).should().getCouponCampaigns(request);
 	}
 
 	@Test
@@ -149,8 +148,8 @@ class CouponControllerTest {
 			false,
 			true);
 		var request = new CursorRequest.CursorPageRequest(20, null, null);
-		when(couponQueryService.getMyCoupons(10L, request))
-			.thenReturn(new MemberCouponPage(List.of(new MemberCouponPage.Item(owned, MemberCouponStatus.AVAILABLE)),
+		given(couponQueryService.getMyCoupons(10L, request))
+			.willReturn(new MemberCouponPage(List.of(new MemberCouponPage.Item(owned, MemberCouponStatus.AVAILABLE)),
 				new CursorResponse.PageInfo(false, null, 1)));
 
 		mockMvc.perform(get("/api/v1/members/me/coupons"))
@@ -164,7 +163,7 @@ class CouponControllerTest {
 			.andExpect(jsonPath("$.data.page_info.next_cursor").value(org.hamcrest.Matchers.nullValue()))
 			.andExpect(jsonPath("$.data.page_info.current_size").value(1));
 
-		verify(couponQueryService).getMyCoupons(10L, request);
+		then(couponQueryService).should().getMyCoupons(10L, request);
 	}
 
 	@Test
@@ -172,8 +171,8 @@ class CouponControllerTest {
 	void forwardsCampaignCursor() throws Exception {
 		LocalDateTime issueStartAt = LocalDateTime.of(2026, 10, 17, 1, 0, 0, 123456000);
 		var request = new CursorRequest.CouponCampaignCursorPageRequest(5, 17L, issueStartAt);
-		when(couponQueryService.getCouponCampaigns(request))
-			.thenReturn(new CouponCampaignPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+		given(couponQueryService.getCouponCampaigns(request))
+			.willReturn(new CouponCampaignPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 
 		mockMvc.perform(get("/api/v1/coupons").param("size", "5")
 			.param("cursor", cursorEncoder.encode(new CouponCampaignCursorData(17L, issueStartAt))))
@@ -181,7 +180,7 @@ class CouponControllerTest {
 			.andExpect(jsonPath("$.data.infos").isEmpty())
 			.andExpect(jsonPath("$.data.page_info.current_size").value(0));
 
-		verify(couponQueryService).getCouponCampaigns(request);
+		then(couponQueryService).should().getCouponCampaigns(request);
 	}
 
 	@Test
@@ -189,14 +188,14 @@ class CouponControllerTest {
 	void forwardsMemberCouponCursor() throws Exception {
 		LocalDateTime createdAt = LocalDateTime.of(2026, 10, 17, 1, 0, 0, 654321000);
 		var request = new CursorRequest.CursorPageRequest(50, 201L, createdAt);
-		when(couponQueryService.getMyCoupons(10L, request))
-			.thenReturn(new MemberCouponPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
+		given(couponQueryService.getMyCoupons(10L, request))
+			.willReturn(new MemberCouponPage(List.of(), new CursorResponse.PageInfo(false, null, 0)));
 
 		mockMvc.perform(get("/api/v1/members/me/coupons").param("size", "50")
 			.param("cursor", cursorEncoder.encode(new CursorData(201L, createdAt))))
 			.andExpect(status().isOk());
 
-		verify(couponQueryService).getMyCoupons(10L, request);
+		then(couponQueryService).should().getMyCoupons(10L, request);
 	}
 
 	@ParameterizedTest
@@ -207,7 +206,8 @@ class CouponControllerTest {
 			mockMvc.perform(get(endpoint).param("size", size)).andExpect(status().isBadRequest());
 		}
 		mockMvc.perform(get(endpoint).param("cursor", "not-a-cursor")).andExpect(status().isBadRequest());
-		verifyNoInteractions(couponQueryService, issueService);
+		then(couponQueryService).shouldHaveNoInteractions();
+		then(issueService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -220,7 +220,8 @@ class CouponControllerTest {
 		mockMvc.perform(get("/api/v1/members/me/coupons")
 			.param("cursor", cursorEncoder.encode(new CouponCampaignCursorData(1L, boundary))))
 			.andExpect(status().isBadRequest());
-		verifyNoInteractions(couponQueryService, issueService);
+		then(couponQueryService).shouldHaveNoInteractions();
+		then(issueService).shouldHaveNoInteractions();
 	}
 
 	@Test

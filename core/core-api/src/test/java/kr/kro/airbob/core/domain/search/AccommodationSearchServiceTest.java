@@ -5,10 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -75,7 +74,7 @@ class AccommodationSearchServiceTest {
 
 		assertThat(result.items()).isEmpty();
 		assertThat(result.totalElements()).isZero();
-		verifyNoInteractions(esClient);
+		then(esClient).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -119,7 +118,7 @@ class AccommodationSearchServiceTest {
 			PageRequest.of(0, 18),
 			null))
 			.isInstanceOf(SearchUnavailableException.class);
-		verifyNoInteractions(wishlistReader);
+		then(wishlistReader).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -135,7 +134,7 @@ class AccommodationSearchServiceTest {
 			PageRequest.of(0, 18),
 			null))
 			.isInstanceOf(SearchUnavailableException.class);
-		verifyNoInteractions(wishlistReader);
+		then(wishlistReader).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -173,7 +172,7 @@ class AccommodationSearchServiceTest {
 			null);
 
 		ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-		verify(esClient).search(requestCaptor.capture(), eq(AccommodationDocument.class));
+		then(esClient).should().search(requestCaptor.capture(), eq(AccommodationDocument.class));
 		assertThat(requestCaptor.getValue().trackTotalHits()).isNull();
 		assertThat(result.totalElements()).isEqualTo(10_000L);
 		assertThat(result.totalPages()).isEqualTo(556);

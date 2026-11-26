@@ -1,10 +1,9 @@
 package kr.kro.airbob.core.support.messaging.outbox.infrastructure.scheduling;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 
@@ -24,14 +23,15 @@ class OutboxCleanupSchedulerTest {
 		OutboxCleanupMetrics metrics = mock(OutboxCleanupMetrics.class);
 		OutboxCleanupResult result = new OutboxCleanupResult(
 			100, Instant.parse("2026-08-17T00:00:00Z"));
-		when(service.cleanupOneBatch()).thenReturn(result);
+		given(service.cleanupOneBatch()).willReturn(result);
 		OutboxCleanupScheduler scheduler = new OutboxCleanupScheduler(service, metrics);
 
 		scheduler.cleanupExpiredMessages();
 
-		verify(service).cleanupOneBatch();
-		verify(metrics).recordSuccess(result);
-		verifyNoMoreInteractions(service, metrics);
+		then(service).should().cleanupOneBatch();
+		then(metrics).should().recordSuccess(result);
+		then(service).shouldHaveNoMoreInteractions();
+		then(metrics).shouldHaveNoMoreInteractions();
 	}
 
 	@Test
@@ -40,13 +40,14 @@ class OutboxCleanupSchedulerTest {
 		OutboxCleanupService service = mock(OutboxCleanupService.class);
 		OutboxCleanupMetrics metrics = mock(OutboxCleanupMetrics.class);
 		IllegalStateException failure = new IllegalStateException("database unavailable");
-		when(service.cleanupOneBatch()).thenThrow(failure);
+		given(service.cleanupOneBatch()).willThrow(failure);
 		OutboxCleanupScheduler scheduler = new OutboxCleanupScheduler(service, metrics);
 
 		assertThatThrownBy(scheduler::cleanupExpiredMessages).isSameAs(failure);
 
-		verify(service).cleanupOneBatch();
-		verify(metrics).recordFailure();
-		verifyNoMoreInteractions(service, metrics);
+		then(service).should().cleanupOneBatch();
+		then(metrics).should().recordFailure();
+		then(service).shouldHaveNoMoreInteractions();
+		then(metrics).shouldHaveNoMoreInteractions();
 	}
 }

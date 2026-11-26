@@ -2,8 +2,8 @@ package kr.kro.airbob.core.domain.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -174,7 +174,8 @@ class MemberProfileReadQueryIntegrationTest {
 		assertThat(select).doesNotContain(".password", ".role", ".status", ".thumbnail_image_url", ".updated_at");
 		assertThat(sql).contains(".status=?").doesNotContain(" join ");
 		assertThat(statistics.getEntityLoadCount()).isZero();
-		verifyNoInteractions(historyRepository, sessionInvalidator);
+		then(historyRepository).shouldHaveNoInteractions();
+		then(sessionInvalidator).shouldHaveNoInteractions();
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)

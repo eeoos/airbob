@@ -1,6 +1,8 @@
 package kr.kro.airbob.core.domain.commoncode;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.time.Duration;
@@ -54,9 +56,9 @@ class CommonCodeReaderTest {
 			.sortOrder(1)
 			.active(true)
 			.build();
-		when(groupRepository.findById("PAYMENT_METHOD")).thenReturn(Optional.of(group));
-		when(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAscCodeAsc("PAYMENT_METHOD"))
-			.thenReturn(List.of(code));
+		given(groupRepository.findById("PAYMENT_METHOD")).willReturn(Optional.of(group));
+		given(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAscCodeAsc("PAYMENT_METHOD"))
+			.willReturn(List.of(code));
 
 		assertThat(commonCodeReader.readActiveCodes("PAYMENT_METHOD"))
 			.extracting(CommonCodeDetail::code)
@@ -66,15 +68,15 @@ class CommonCodeReaderTest {
 	@Test
 	@DisplayName("존재하지 않는 그룹은 404 상태를 캐시한다")
 	void cacheMissingGroup() {
-		when(groupRepository.findById("NOT_A_GROUP")).thenReturn(Optional.empty());
+		given(groupRepository.findById("NOT_A_GROUP")).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> commonCodeReader.readActiveCodes("NOT_A_GROUP"))
 			.isInstanceOf(CommonCodeGroupNotFoundException.class);
 		assertThatThrownBy(() -> commonCodeReader.readActiveCodes("NOT_A_GROUP"))
 			.isInstanceOf(CommonCodeGroupNotFoundException.class);
 
-		verify(groupRepository, times(1)).findById("NOT_A_GROUP");
-		verifyNoInteractions(commonCodeRepository);
+		then(groupRepository).should(times(1)).findById("NOT_A_GROUP");
+		then(commonCodeRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -92,11 +94,11 @@ class CommonCodeReaderTest {
 			.sortOrder(1)
 			.active(true)
 			.build();
-		when(groupRepository.findById("TTL_GROUP"))
-			.thenReturn(Optional.empty())
-			.thenReturn(Optional.of(group));
-		when(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAscCodeAsc("TTL_GROUP"))
-			.thenReturn(List.of(code));
+		given(groupRepository.findById("TTL_GROUP"))
+			.willReturn(Optional.empty())
+			.willReturn(Optional.of(group));
+		given(commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAscCodeAsc("TTL_GROUP"))
+			.willReturn(List.of(code));
 
 		assertThatThrownBy(() -> commonCodeReader.readActiveCodes("TTL_GROUP"))
 			.isInstanceOf(CommonCodeGroupNotFoundException.class);
@@ -109,7 +111,7 @@ class CommonCodeReaderTest {
 		assertThat(commonCodeReader.readActiveCodes("TTL_GROUP"))
 			.extracting(CommonCodeDetail::code)
 			.containsExactly("NEW_CODE");
-		verify(groupRepository, times(2)).findById("TTL_GROUP");
+		then(groupRepository).should(times(2)).findById("TTL_GROUP");
 	}
 
 	@Test
@@ -120,10 +122,10 @@ class CommonCodeReaderTest {
 			.groupName("비활성 그룹")
 			.active(false)
 			.build();
-		when(groupRepository.findById("INACTIVE_GROUP")).thenReturn(Optional.of(group));
+		given(groupRepository.findById("INACTIVE_GROUP")).willReturn(Optional.of(group));
 
 		assertThat(commonCodeReader.readActiveCodes("INACTIVE_GROUP")).isEmpty();
-		verifyNoInteractions(commonCodeRepository);
+		then(commonCodeRepository).shouldHaveNoInteractions();
 	}
 
 	private static class TestTicker implements Ticker {

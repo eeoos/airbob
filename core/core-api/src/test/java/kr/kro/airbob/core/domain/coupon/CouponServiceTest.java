@@ -1,6 +1,8 @@
 package kr.kro.airbob.core.domain.coupon;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
@@ -23,13 +25,13 @@ class CouponServiceTest {
 		var now = LocalDateTime.of(2026, 10, 9, 10, 0);
 		var coupon = Coupon.builder().id(1L).issueStartAt(now.minusMinutes(1)).issueEndAt(now.plusHours(1))
 			.totalQuantity(10).isActive(true).build();
-		when(coupons.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
-		when(units.databaseNow()).thenReturn(now);
+		given(coupons.findByIdForUpdate(1L)).willReturn(Optional.of(coupon));
+		given(units.databaseNow()).willReturn(now);
 		var request = new CouponPatch(null, null, null, null, null, null, now.plusDays(1).toInstant(ZoneOffset.UTC),
 			null, null, null, null, 20);
 		assertThatThrownBy(() -> service.updateCoupon(request, 1L))
 			.isInstanceOf(CouponConfigurationLockedException.class);
 		assertThat(coupon.getTotalQuantity()).isEqualTo(10);
-		verify(units, never()).insertRange(anyLong(), anyInt(), anyInt());
+		then(units).should(never()).insertRange(anyLong(), anyInt(), anyInt());
 	}
 }

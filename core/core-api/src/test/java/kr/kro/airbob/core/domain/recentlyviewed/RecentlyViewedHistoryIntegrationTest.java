@@ -3,12 +3,12 @@ package kr.kro.airbob.core.domain.recentlyviewed;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -93,7 +93,8 @@ class RecentlyViewedHistoryIntegrationTest {
 		assertThat(redis.opsForZSet().score(KEY, "31")).isBetween((double)before, (double)after);
 		assertThat(redis.opsForZSet().score(KEY, "32")).isEqualTo(2D);
 		assertThat(redis.getExpire(KEY)).isBetween(TTL_SECONDS - 5, TTL_SECONDS);
-		verifyNoInteractions(accommodations, wishlists);
+		then(accommodations).shouldHaveNoInteractions();
+		then(wishlists).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -114,15 +115,15 @@ class RecentlyViewedHistoryIntegrationTest {
 		seedHundred();
 		StringRedisTemplate interleavedTemplate = spy(redis);
 		ZSetOperations<String, String> operations = spy(redis.opsForZSet());
-		doReturn(operations).when(interleavedTemplate).opsForZSet();
+		willReturn(operations).given(interleavedTemplate).opsForZSet();
 		var boundary = new CyclicBarrier(8);
 		// 별도 ZCARD와 삭제 명령 사이에 다른 요청이 끼는 순서를 실제 Redis에서 고정한다.
-		doAnswer(invocation -> {
+		willAnswer(invocation -> {
 			boundary.await(10, TimeUnit.SECONDS);
 			Long size = redis.opsForZSet().size(KEY);
 			boundary.await(10, TimeUnit.SECONDS);
 			return size;
-		}).when(operations).size(KEY);
+		}).given(operations).size(KEY);
 		var concurrentService = new RecentlyViewedService(new RecentlyViewedReader(interleavedTemplate),
 			new RecentlyViewedWriter(interleavedTemplate, Clock.systemUTC()), new AccommodationReader(accommodations),
 			wishlists);
@@ -152,22 +153,24 @@ class RecentlyViewedHistoryIntegrationTest {
 		assertThat(redis.opsForZSet().range(OTHER_KEY, 0, -1)).containsExactly("31");
 		service.removeRecentlyViewed(32L, 7L);
 		assertThat(redis.hasKey(KEY)).isFalse();
-		verifyNoInteractions(accommodations, wishlists);
+		then(accommodations).shouldHaveNoInteractions();
+		then(wishlists).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void addingAnUnknownIdSucceedsAndReadRemovesItWithoutInventingAnAccommodation() {
 		service.addRecentlyViewed(999L, 7L);
-		verifyNoInteractions(accommodations, wishlists);
-		when(
+		then(accommodations).shouldHaveNoInteractions();
+		then(wishlists).shouldHaveNoInteractions();
+		given(
 			accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
-			.thenReturn(List.of());
+			.willReturn(List.of());
 
 		var result = RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(7L));
 		assertThat(result.accommodations()).isEmpty();
 		assertThat(result.totalCount()).isZero();
 		assertThat(redis.hasKey(KEY)).isFalse();
-		verifyNoInteractions(wishlists);
+		then(wishlists).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -176,10 +179,10 @@ class RecentlyViewedHistoryIntegrationTest {
 		for (String id : List.of("9", "10", "31"))
 			redis.opsForZSet().add(KEY, id, score);
 		redis.expire(KEY, Duration.ofHours(1));
-		when(
+		given(
 			accommodations.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
-			.thenReturn(List.of(card(10L), card(31L), card(9L)));
-		when(wishlists.readWishlistedAccommodationIds(eq(7L), anyList())).thenReturn(Set.of(10L));
+			.willReturn(List.of(card(10L), card(31L), card(9L)));
+		given(wishlists.readWishlistedAccommodationIds(eq(7L), anyList())).willReturn(Set.of(10L));
 
 		var result = RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(7L));
 		assertThat(result.accommodations()).extracting(item -> item.accommodationId()).containsExactly(9L, 31L, 10L);
@@ -199,7 +202,8 @@ class RecentlyViewedHistoryIntegrationTest {
 		assertThat(
 			RecentlyViewedResponse.RecentlyViewedAccommodationInfos.from(service.getRecentlyViewed(7L)).totalCount())
 			.isZero();
-		verifyNoInteractions(accommodations, wishlists);
+		then(accommodations).shouldHaveNoInteractions();
+		then(wishlists).shouldHaveNoInteractions();
 	}
 
 	private void seedHundred() {

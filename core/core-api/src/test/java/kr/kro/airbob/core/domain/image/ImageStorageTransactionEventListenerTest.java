@@ -1,11 +1,11 @@
 package kr.kro.airbob.core.domain.image;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,10 +52,10 @@ class ImageStorageTransactionEventListenerTest {
 		transaction.executeWithoutResult(status -> {
 			applicationEventPublisher.publishEvent(new ImageDeletionRequested(IMAGE_URL));
 
-			verify(s3ImageUploader, never()).delete(IMAGE_URL);
+			then(s3ImageUploader).should(never()).delete(IMAGE_URL);
 		});
 
-		verify(s3ImageUploader).delete(IMAGE_URL);
+		then(s3ImageUploader).should().delete(IMAGE_URL);
 	}
 
 	@Test
@@ -67,10 +67,10 @@ class ImageStorageTransactionEventListenerTest {
 			applicationEventPublisher.publishEvent(new ImageUploaded(IMAGE_URL));
 			status.setRollbackOnly();
 
-			verify(s3ImageUploader, never()).delete(IMAGE_URL);
+			then(s3ImageUploader).should(never()).delete(IMAGE_URL);
 		});
 
-		verify(s3ImageUploader).delete(IMAGE_URL);
+		then(s3ImageUploader).should().delete(IMAGE_URL);
 	}
 
 	@Test
@@ -81,15 +81,15 @@ class ImageStorageTransactionEventListenerTest {
 		transaction
 			.executeWithoutResult(status -> applicationEventPublisher.publishEvent(new ImageUploaded(IMAGE_URL)));
 
-		verify(s3ImageUploader, never()).delete(IMAGE_URL);
+		then(s3ImageUploader).should(never()).delete(IMAGE_URL);
 	}
 
 	@Test
 	@DisplayName("커밋 후 이미지 삭제 실패는 이미 완료된 API를 실패시키지 않는다")
 	void isolatesDeleteFailureAfterCommit() {
 		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-		doThrow(new IllegalStateException("S3 unavailable"))
-			.when(s3ImageUploader).delete(IMAGE_URL);
+		willThrow(new IllegalStateException("S3 unavailable"))
+			.given(s3ImageUploader).delete(IMAGE_URL);
 
 		assertThatCode(() -> transaction.executeWithoutResult(
 			status -> applicationEventPublisher.publishEvent(new ImageDeletionRequested(IMAGE_URL))))
@@ -100,8 +100,8 @@ class ImageStorageTransactionEventListenerTest {
 	@DisplayName("롤백 후 업로드 이미지 정리 실패도 원래 예외 처리를 방해하지 않는다")
 	void isolatesCleanupFailureAfterRollback() {
 		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-		doThrow(new IllegalStateException("S3 unavailable"))
-			.when(s3ImageUploader).delete(IMAGE_URL);
+		willThrow(new IllegalStateException("S3 unavailable"))
+			.given(s3ImageUploader).delete(IMAGE_URL);
 
 		assertThatCode(() -> transaction.executeWithoutResult(status -> {
 			applicationEventPublisher.publishEvent(new ImageUploaded(IMAGE_URL));

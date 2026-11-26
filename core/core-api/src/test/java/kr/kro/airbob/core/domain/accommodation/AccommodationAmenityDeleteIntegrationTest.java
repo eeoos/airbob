@@ -2,6 +2,8 @@ package kr.kro.airbob.core.domain.accommodation;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.*;
 
 import java.sql.Statement;
@@ -240,8 +242,8 @@ class AccommodationAmenityDeleteIntegrationTest {
 	@DisplayName("벌크 삭제 후 숙소·주소·정책·이력의 변경을 커밋한다")
 	void preservesManagedParentAndOwnedStateAfterPredicateDelete() {
 		Fixture fixture = createFixture(1);
-		when(geocodingService.getCoordinates(anyString()))
-			.thenReturn(GeocodeResult.success(37.5665, 126.9780));
+		given(geocodingService.getCoordinates(anyString()))
+			.willReturn(GeocodeResult.success(37.5665, 126.9780));
 		AccommodationRequest.Update request = new AccommodationRequest.Update(
 			"managed parent after bulk delete",
 			null,
@@ -285,12 +287,12 @@ class AccommodationAmenityDeleteIntegrationTest {
 			.stream()
 			.map(code -> new AmenityRequest.AmenityInfo(code, 1))
 			.toList();
-		doAnswer(invocation -> {
+		willAnswer(invocation -> {
 			Iterable<AccommodationAmenity> amenities = invocation.getArgument(0);
 			amenities.forEach(entityManager::persist);
 			entityManager.flush();
 			throw new IntentionalAmenitySaveFailure();
-		}).when(accommodationAmenityRepository).saveAll(any());
+		}).given(accommodationAmenityRepository).saveAll(any());
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
 			fixture.targetAccommodationId(),

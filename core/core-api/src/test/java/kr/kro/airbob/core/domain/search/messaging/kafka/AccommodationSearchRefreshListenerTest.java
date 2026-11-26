@@ -71,8 +71,8 @@ class AccommodationSearchRefreshListenerTest {
 		listener.handle(validMessage(), acknowledgment);
 
 		InOrder order = inOrder(indexingService, acknowledgment);
-		order.verify(indexingService).refreshAccommodationIndex(ACCOMMODATION_UID);
-		order.verify(acknowledgment).acknowledge();
+		then(indexingService).should(order).refreshAccommodationIndex(ACCOMMODATION_UID);
+		then(acknowledgment).should(order).acknowledge();
 	}
 
 	@Test
@@ -132,8 +132,8 @@ class AccommodationSearchRefreshListenerTest {
 				2,
 				41L));
 		InOrder order = inOrder(alertEnqueueService, acknowledgment);
-		order.verify(alertEnqueueService).enqueue(request);
-		order.verify(acknowledgment).acknowledge();
+		then(alertEnqueueService).should(order).enqueue(request);
+		then(acknowledgment).should(order).acknowledge();
 	}
 
 	@Test

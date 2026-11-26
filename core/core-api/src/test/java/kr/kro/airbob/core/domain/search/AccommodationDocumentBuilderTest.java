@@ -1,9 +1,8 @@
 package kr.kro.airbob.core.domain.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -73,18 +72,17 @@ class AccommodationDocumentBuilderTest {
 			.accommodationUid(accommodationUid)
 			.status(AccommodationStatus.UNPUBLISHED)
 			.build();
-		when(accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid))
-			.thenReturn(Optional.of(unpublished));
+		given(accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid))
+			.willReturn(Optional.of(unpublished));
 
 		AccommodationDocument document = documentBuilder.buildAccommodationDocument(accommodationUid);
 
 		assertThat(document.id()).isEqualTo(accommodationUid.toString());
 		assertThat(document.status()).isEqualTo(AccommodationStatus.UNPUBLISHED.name());
-		verifyNoInteractions(
-			amenityRepository,
-			reservationRepository,
-			reviewSummaryRepository,
-			bookingWindowProvider);
+		then(amenityRepository).shouldHaveNoInteractions();
+		then(reservationRepository).shouldHaveNoInteractions();
+		then(reviewSummaryRepository).shouldHaveNoInteractions();
+		then(bookingWindowProvider).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -131,13 +129,13 @@ class AccommodationDocumentBuilderTest {
 			new ReservationDateRange(
 				LocalDate.of(2026, 8, 10),
 				LocalDate.of(2026, 8, 13)));
-		when(accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid))
-			.thenReturn(Optional.of(accommodation));
-		when(bookingWindowProvider.currentIndexingWindow()).thenReturn(window);
-		when(reservationRepository
+		given(accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid))
+			.willReturn(Optional.of(accommodation));
+		given(bookingWindowProvider.currentIndexingWindow()).willReturn(window);
+		given(reservationRepository
 			.findActiveReservationRangesByAccommodationId(
 				accommodation.getId(), window.startInclusive(), window.endExclusive()))
-			.thenReturn(projectedRanges);
+			.willReturn(projectedRanges);
 
 		AccommodationDocument document = documentBuilder.buildAccommodationDocument(accommodationUid);
 
@@ -150,7 +148,7 @@ class AccommodationDocumentBuilderTest {
 				LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 13)));
 		assertThat(document.createdAt()).isEqualTo(Instant.parse("2026-08-01T09:00:00Z"));
 		assertThat(document.timeZoneId()).isEqualTo("Asia/Seoul");
-		verify(reservationRepository)
+		then(reservationRepository).should()
 			.findActiveReservationRangesByAccommodationId(
 				accommodation.getId(), window.startInclusive(), window.endExclusive());
 	}

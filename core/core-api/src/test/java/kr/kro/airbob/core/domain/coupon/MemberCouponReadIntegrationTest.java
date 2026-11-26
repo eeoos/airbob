@@ -1,8 +1,8 @@
 package kr.kro.airbob.core.domain.coupon;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -107,7 +107,7 @@ class MemberCouponReadIntegrationTest {
 
 	@BeforeEach
 	void fixture() {
-		when(timeProvider.now()).thenReturn(NOW);
+		given(timeProvider.now()).willReturn(NOW);
 		jdbc.update("""
 			INSERT INTO member (id, nickname, status, updated_at)
 			VALUES (7, 'owner', 'ACTIVE', NOW(6)), (8, 'other', 'ACTIVE', NOW(6))
@@ -156,7 +156,7 @@ class MemberCouponReadIntegrationTest {
 		MemberCouponStatus expected) {
 		insertCoupon(12, "기간 경계", active, NOW, NOW.plusHours(1));
 		insertOwned(101, MEMBER_ID, 12, used, NOW.minusDays(1));
-		when(timeProvider.now()).thenReturn(now);
+		given(timeProvider.now()).willReturn(now);
 		Statistics statistics = prepareMeasurement();
 
 		assertThat(CouponResponse.MemberCouponInfos.from(service.getMyCoupons(MEMBER_ID, firstPage(20))).infos())
@@ -365,7 +365,7 @@ class MemberCouponReadIntegrationTest {
 			".updated_at", ".created_by", ".updated_by");
 		assertThat(sql).contains(" join coupon ", "limit ?").doesNotContain(" join member ", " for update",
 			" for share");
-		verifyNoInteractions(stockManager);
+		then(stockManager).shouldHaveNoInteractions();
 	}
 
 	private int selectedColumnCount() {

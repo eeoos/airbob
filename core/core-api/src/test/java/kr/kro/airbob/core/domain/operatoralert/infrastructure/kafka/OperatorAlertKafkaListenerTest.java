@@ -69,9 +69,9 @@ class OperatorAlertKafkaListenerTest {
 		listener.handle(message, acknowledgment);
 
 		InOrder order = inOrder(gateway, metrics, acknowledgment);
-		order.verify(gateway).deliver(event);
-		order.verify(metrics).delivered();
-		order.verify(acknowledgment).acknowledge();
+		then(gateway).should(order).deliver(event);
+		then(metrics).should(order).delivered();
+		then(acknowledgment).should(order).acknowledge();
 	}
 
 	@Test
@@ -106,8 +106,8 @@ class OperatorAlertKafkaListenerTest {
 			message, OperatorAlertRequestedV1.TOPIC, 2, 99L, acknowledgment);
 
 		InOrder order = inOrder(metrics, acknowledgment);
-		order.verify(metrics).dlt();
-		order.verify(acknowledgment).acknowledge();
+		then(metrics).should(order).dlt();
+		then(acknowledgment).should(order).acknowledge();
 		then(gateway).shouldHaveNoInteractions();
 	}
 

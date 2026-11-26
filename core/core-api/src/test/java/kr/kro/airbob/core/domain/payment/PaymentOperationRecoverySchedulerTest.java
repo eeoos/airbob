@@ -47,8 +47,8 @@ class PaymentOperationRecoverySchedulerTest {
 		scheduler.recoverPaymentOperations();
 
 		InOrder ordered = inOrder(recoveryService, metrics);
-		ordered.verify(recoveryService).recoverDue();
-		ordered.verify(metrics).recordSuccess(NOW);
+		then(recoveryService).should(ordered).recoverDue();
+		then(metrics).should(ordered).recordSuccess(NOW);
 	}
 
 	@Test

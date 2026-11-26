@@ -1,5 +1,6 @@
 package kr.kro.airbob.core.api.controller.v1.accommodation;
 
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -45,8 +46,8 @@ class AccommodationAvailabilityApiTest {
 	@Test
 	@DisplayName("숙소 ID의 예약 가능 기간과 예약 불가 구간을 반환한다")
 	void returnsAccommodationAvailability() throws Exception {
-		when(accommodationQueryService.getAccommodationAvailability(42L))
-			.thenReturn(new AccommodationAvailability(
+		given(accommodationQueryService.getAccommodationAvailability(42L))
+			.willReturn(new AccommodationAvailability(
 				LocalDate.of(2026, 8, 13),
 				LocalDate.of(2026, 11, 13),
 				List.of(new AccommodationAvailability.DateRange(

@@ -1,8 +1,8 @@
 package kr.kro.airbob.core.api.controller.v1.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -91,10 +91,10 @@ class AuthSessionLifecycleIntegrationTest {
 		MemberRepository members = mock(MemberRepository.class);
 		Member member = Member.builder().id(10L).email(EMAIL).password(PASSWORD_HASH)
 			.nickname("여행자").status(MemberStatus.ACTIVE).build();
-		when(members.findByEmailAndStatus(EMAIL, MemberStatus.ACTIVE)).thenReturn(Optional.of(member));
-		when(members.findByIdAndStatusForUpdate(10L, MemberStatus.ACTIVE)).thenReturn(Optional.of(member));
-		when(members.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
-			.thenReturn(Optional.of(new MemberProfile(10L, EMAIL, "여행자")));
+		given(members.findByEmailAndStatus(EMAIL, MemberStatus.ACTIVE)).willReturn(Optional.of(member));
+		given(members.findByIdAndStatusForUpdate(10L, MemberStatus.ACTIVE)).willReturn(Optional.of(member));
+		given(members.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
+			.willReturn(Optional.of(new MemberProfile(10L, EMAIL, "여행자")));
 
 		SessionRedisRepository sessions = new SessionRedisRepository(redis, Clock.systemUTC());
 		MemberReader memberReader = new MemberReader(members);

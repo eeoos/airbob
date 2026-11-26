@@ -1,6 +1,8 @@
 package kr.kro.airbob.core.api.security;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.time.Clock;
@@ -94,8 +96,8 @@ class SessionAuthFilterPublicPathTest {
 	void sessionWithoutActiveMemberKeyIsRejected() throws Exception {
 		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
 		ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
+		given(redisTemplate.opsForValue()).willReturn(valueOperations);
+		given(valueOperations.get("SESSION:valid-session")).willReturn(10L);
 		SessionAuthFilter filter = new SessionAuthFilter(
 			new SessionAuthenticationService(
 				new SessionReader(new SessionRedisRepository(redisTemplate, Clock.systemUTC()))),
@@ -109,7 +111,7 @@ class SessionAuthFilterPublicPathTest {
 
 		assertThat(chain.getRequest()).isNull();
 		assertThat(response.getStatus()).isEqualTo(401);
-		verify(redisTemplate).hasKey("MEMBER_SESSION_ACTIVE:10");
+		then(redisTemplate).should().hasKey("MEMBER_SESSION_ACTIVE:10");
 	}
 
 	@Test
@@ -118,9 +120,9 @@ class SessionAuthFilterPublicPathTest {
 	void validSessionIsAuthenticatedWithSingleGet() throws Exception {
 		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
 		ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
-		when(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:10")).thenReturn(true);
+		given(redisTemplate.opsForValue()).willReturn(valueOperations);
+		given(valueOperations.get("SESSION:valid-session")).willReturn(10L);
+		given(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:10")).willReturn(true);
 		SessionAuthFilter filter = new SessionAuthFilter(
 			new SessionAuthenticationService(
 				new SessionReader(new SessionRedisRepository(redisTemplate, Clock.systemUTC()))),
@@ -134,8 +136,8 @@ class SessionAuthFilterPublicPathTest {
 
 		assertThat(chain.getRequest()).isSameAs(request);
 		assertThat(response.getStatus()).isEqualTo(200);
-		verify(valueOperations).get("SESSION:valid-session");
-		verify(redisTemplate, never()).hasKey("SESSION:valid-session");
+		then(valueOperations).should().get("SESSION:valid-session");
+		then(redisTemplate).should(never()).hasKey("SESSION:valid-session");
 	}
 
 	@SuppressWarnings("unchecked")

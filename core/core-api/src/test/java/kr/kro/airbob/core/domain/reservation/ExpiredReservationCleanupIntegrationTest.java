@@ -2,6 +2,8 @@ package kr.kro.airbob.core.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.*;
 
 import java.time.Clock;
@@ -145,7 +147,7 @@ class ExpiredReservationCleanupIntegrationTest {
 		assertThat(cleanupService.cleanupExpiredPendingReservations()).isZero();
 
 		assertThat(count("SELECT COUNT(*) FROM reservation_history")).isZero();
-		verify(jdbc, never()).batchUpdate(anyString(), any(BatchPreparedStatementSetter.class));
+		then(jdbc).should(never()).batchUpdate(anyString(), any(BatchPreparedStatementSetter.class));
 		assertControlsPreserved();
 	}
 
@@ -154,12 +156,12 @@ class ExpiredReservationCleanupIntegrationTest {
 	void rollsBackAllChangesWhenSecondHistoryBatchFails() {
 		createFixture(3);
 		AtomicInteger historyBatches = new AtomicInteger();
-		doAnswer(invocation -> {
+		willAnswer(invocation -> {
 			if (historyBatches.incrementAndGet() == 2) {
 				throw new DataIntegrityViolationException("intentional second history batch failure");
 			}
 			return invocation.callRealMethod();
-		}).when(jdbc).batchUpdate(
+		}).given(jdbc).batchUpdate(
 			argThat(sql -> sql.contains("INSERT INTO reservation_history")),
 			any(BatchPreparedStatementSetter.class));
 

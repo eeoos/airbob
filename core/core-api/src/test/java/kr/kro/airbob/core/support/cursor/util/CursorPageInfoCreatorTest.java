@@ -2,6 +2,8 @@ package kr.kro.airbob.core.support.cursor.util;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
@@ -40,7 +42,7 @@ class CursorPageInfoCreatorTest {
 		List<Item> content = List.of(
 			item(1L, 10, 3),
 			item(2L, 20, 4));
-		when(cursorEncoder.encode(any())).thenReturn("next-cursor");
+		given(cursorEncoder.encode(any())).willReturn("next-cursor");
 
 		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
 			content,
@@ -49,7 +51,7 @@ class CursorPageInfoCreatorTest {
 			Item::createdAt);
 
 		ArgumentCaptor<CursorData> cursorCaptor = ArgumentCaptor.forClass(CursorData.class);
-		verify(cursorEncoder).encode(cursorCaptor.capture());
+		then(cursorEncoder).should().encode(cursorCaptor.capture());
 		assertThat(cursorCaptor.getValue())
 			.isEqualTo(new CursorData(2L, content.getLast().createdAt()));
 		assertThat(pageInfo)
@@ -62,7 +64,7 @@ class CursorPageInfoCreatorTest {
 		List<Item> content = List.of(
 			item(1L, 10, 5),
 			item(2L, 20, 4));
-		when(cursorEncoder.encode(any())).thenReturn("review-next-cursor");
+		given(cursorEncoder.encode(any())).willReturn("review-next-cursor");
 
 		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
 			content,
@@ -72,7 +74,7 @@ class CursorPageInfoCreatorTest {
 			Item::rating);
 
 		ArgumentCaptor<ReviewCursorData> cursorCaptor = ArgumentCaptor.forClass(ReviewCursorData.class);
-		verify(cursorEncoder).encode(cursorCaptor.capture());
+		then(cursorEncoder).should().encode(cursorCaptor.capture());
 		assertThat(cursorCaptor.getValue())
 			.isEqualTo(new ReviewCursorData(2L, content.getLast().createdAt(), 4));
 		assertThat(pageInfo)
@@ -86,14 +88,14 @@ class CursorPageInfoCreatorTest {
 		List<Campaign> content = List.of(
 			new Campaign(3L, startAt.plusDays(1)),
 			new Campaign(2L, startAt));
-		when(cursorEncoder.encode(any())).thenReturn("campaign-next-cursor");
+		given(cursorEncoder.encode(any())).willReturn("campaign-next-cursor");
 
 		CursorResponse.PageInfo pageInfo = creator.createPageInfo(
 			content,
 			true,
 			campaign -> new CouponCampaignCursorData(campaign.id(), campaign.issueStartAt()));
 
-		verify(cursorEncoder).encode(new CouponCampaignCursorData(2L, startAt));
+		then(cursorEncoder).should().encode(new CouponCampaignCursorData(2L, startAt));
 		assertThat(pageInfo)
 			.isEqualTo(new CursorResponse.PageInfo(true, "campaign-next-cursor", 2));
 	}
@@ -110,7 +112,7 @@ class CursorPageInfoCreatorTest {
 
 		assertThat(pageInfo)
 			.isEqualTo(new CursorResponse.PageInfo(false, null, 1));
-		verifyNoInteractions(cursorEncoder);
+		then(cursorEncoder).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -124,7 +126,7 @@ class CursorPageInfoCreatorTest {
 
 		assertThat(pageInfo)
 			.isEqualTo(new CursorResponse.PageInfo(false, null, 1));
-		verifyNoInteractions(cursorEncoder);
+		then(cursorEncoder).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -138,7 +140,7 @@ class CursorPageInfoCreatorTest {
 
 		assertThat(pageInfo)
 			.isEqualTo(new CursorResponse.PageInfo(false, null, 0));
-		verifyNoInteractions(cursorEncoder);
+		then(cursorEncoder).shouldHaveNoInteractions();
 	}
 
 	private Item item(long id, int minute, int rating) {

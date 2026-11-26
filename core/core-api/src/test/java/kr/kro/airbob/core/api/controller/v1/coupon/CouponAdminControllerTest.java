@@ -3,9 +3,8 @@ package kr.kro.airbob.core.api.controller.v1.coupon;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -57,7 +56,7 @@ class CouponAdminControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 
-		verify(preparationService).prepare(1L);
+		then(preparationService).should().prepare(1L);
 	}
 
 	@ParameterizedTest
@@ -65,7 +64,7 @@ class CouponAdminControllerTest {
 	void rejectsMissingOrNonpositiveQuantity(String body) throws Exception {
 		mockMvc.perform(patch("/api/v1/admin/coupons/1/quantity")
 			.contentType("application/json").content(body)).andExpect(status().isBadRequest());
-		verifyNoInteractions(couponService);
+		then(couponService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -73,12 +72,12 @@ class CouponAdminControllerTest {
 		mockMvc.perform(patch("/api/v1/admin/coupons/1/quantity")
 			.contentType("application/json").content("{\"total_quantity\":100}"))
 			.andExpect(status().isOk());
-		verify(couponService).changeQuantity(1L, 100);
+		then(couponService).should().changeQuantity(1L, 100);
 	}
 
 	@Test
 	void acceptsExplicitOffsetsAsInstantsBeforeCallingTheService() throws Exception {
-		when(couponService.createCoupon(any())).thenReturn(101L);
+		given(couponService.createCoupon(any())).willReturn(101L);
 		mockMvc.perform(post("/api/v1/admin/coupons").contentType("application/json").content("""
 			{"name":"new year","discount_type":"FIXED_AMOUNT","discount_value":1000,
 			 "issue_start_at":"2027-01-01T00:30:00.123456+09:00","issue_end_at":"2027-01-01T01:30:00.123456+09:00",
@@ -86,7 +85,7 @@ class CouponAdminControllerTest {
 			 "is_active":true,"total_quantity":100}
 			""")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value(101));
 		var command = ArgumentCaptor.forClass(NewCoupon.class);
-		verify(couponService).createCoupon(command.capture());
+		then(couponService).should().createCoupon(command.capture());
 		assertThat(command.getValue().issueStartAt()).isEqualTo(Instant.parse("2026-12-31T15:30:00.123456Z"));
 		assertThat(command.getValue().issueEndAt()).isEqualTo(Instant.parse("2026-12-31T16:30:00.123456Z"));
 		assertThat(command.getValue().usableFrom()).isEqualTo(Instant.parse("2026-12-31T15:30:00.123456Z"));
@@ -100,7 +99,7 @@ class CouponAdminControllerTest {
 			{"issue_end_at":"2026-12-31T15:30:00.123456Z","total_quantity":200}
 			""")).andExpect(status().isOk());
 		var command = ArgumentCaptor.forClass(CouponPatch.class);
-		verify(couponService).updateCoupon(command.capture(), eq(1L));
+		then(couponService).should().updateCoupon(command.capture(), eq(1L));
 		assertThat(command.getValue().issueEndAt()).isEqualTo(Instant.parse("2026-12-31T15:30:00.123456Z"));
 		assertThat(command.getValue().issueStartAt()).isNull();
 		assertThat(command.getValue().usableFrom()).isNull();
@@ -114,6 +113,6 @@ class CouponAdminControllerTest {
 		mockMvc.perform(patch("/api/v1/admin/coupons/1").contentType("application/json")
 			.content("{\"issue_end_at\":\"" + value + "\"}"))
 			.andExpect(status().isBadRequest());
-		verifyNoInteractions(couponService);
+		then(couponService).shouldHaveNoInteractions();
 	}
 }

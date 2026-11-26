@@ -1,8 +1,8 @@
 package kr.kro.airbob.core.api.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import java.util.List;
 
@@ -41,7 +41,7 @@ class ReservationPollingCorsTest {
 
 		corsFilter.doFilter(request, response, chain);
 
-		verify(chain).doFilter(request, response);
+		then(chain).should().doFilter(request, response);
 		String exposedHeaders = response.getHeader(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS);
 		assertThat(exposedHeaders).isNotBlank();
 		assertThat(exposedHeaders.split(",\\s*"))

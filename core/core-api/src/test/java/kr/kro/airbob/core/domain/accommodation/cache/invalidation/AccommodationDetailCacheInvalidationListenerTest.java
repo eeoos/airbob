@@ -1,13 +1,12 @@
 package kr.kro.airbob.core.domain.accommodation.cache.invalidation;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,12 +56,12 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		transaction.executeWithoutResult(status -> {
 			publisher.publish(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 
-			verify(outboxWriter).append(new AccommodationDetailCacheInvalidationRequestedV1(
+			then(outboxWriter).should().append(new AccommodationDetailCacheInvalidationRequestedV1(
 				1L, AccommodationDetailCacheInvalidationReason.IMAGE));
-			verify(cache, never()).evict(anyLong(), any());
+			then(cache).should(never()).evict(anyLong(), any());
 		});
 
-		verify(cache).evict(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
+		then(cache).should().evict(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 	}
 
 	@Test
@@ -75,7 +74,7 @@ class AccommodationDetailCacheInvalidationListenerTest {
 			status.setRollbackOnly();
 		});
 
-		verifyNoInteractions(cache);
+		then(cache).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -85,7 +84,8 @@ class AccommodationDetailCacheInvalidationListenerTest {
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION))
 			.isInstanceOf(IllegalTransactionStateException.class);
 
-		verifyNoInteractions(cache, outboxWriter);
+		then(cache).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
 	}
 
 	@Configuration(proxyBeanMethods = false)

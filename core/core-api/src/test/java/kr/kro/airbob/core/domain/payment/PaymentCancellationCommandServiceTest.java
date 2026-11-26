@@ -246,8 +246,8 @@ class PaymentCancellationCommandServiceTest {
 		assertThat(response.status()).isEqualTo(Status.SUCCEEDED);
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
 		InOrder lockOrder = inOrder(reservationRepository, inventoryManager);
-		lockOrder.verify(reservationRepository).findByReservationUidWithLock(RESERVATION_UID);
-		lockOrder.verify(inventoryManager).releaseOccupied(
+		then(reservationRepository).should(lockOrder).findByReservationUidWithLock(RESERVATION_UID);
+		then(inventoryManager).should(lockOrder).releaseOccupied(
 			ACCOMMODATION_ID,
 			CHECK_IN,
 			CHECK_OUT,

@@ -2,10 +2,9 @@ package kr.kro.airbob.core.domain.coupon;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,10 +65,10 @@ class CouponQueryServiceTest {
 	void findsCouponCampaignsWithIssuanceStatus() {
 		CouponCampaignProjection upcoming = campaign(coupon(2L, NOW.plusDays(1), 100), false);
 		CouponCampaignProjection open = campaign(coupon(1L, NOW.minusMinutes(30), 100), true);
-		when(units.databaseNow()).thenReturn(NOW);
+		given(units.databaseNow()).willReturn(NOW);
 
-		when(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
-			.thenReturn(new SliceImpl<>(List.of(upcoming, open), PageRequest.of(0, 20), false));
+		given(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
+			.willReturn(new SliceImpl<>(List.of(upcoming, open), PageRequest.of(0, 20), false));
 
 		CouponResponse.CouponInfos response = CouponResponse.CouponInfos.from(service.getCouponCampaigns(
 			new CursorRequest.CouponCampaignCursorPageRequest(20, null, null)));
@@ -80,10 +79,10 @@ class CouponQueryServiceTest {
 				tuple(2L, CouponIssuanceStatus.UPCOMING),
 				tuple(1L, CouponIssuanceStatus.OPEN));
 		assertThat(response.pageInfo()).isEqualTo(new CursorResponse.PageInfo(false, null, 2));
-		verify(timeProvider, never()).now();
-		verify(units).databaseNow();
+		then(timeProvider).should(never()).now();
+		then(units).should().databaseNow();
 
-		verifyNoInteractions(memberCouponRepository);
+		then(memberCouponRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -91,9 +90,9 @@ class CouponQueryServiceTest {
 	void findsMyCouponsWithMemberCouponStatus() {
 		MemberCouponProjection used = memberCoupon(coupon(2L, NOW.minusDays(2), 100), true);
 		MemberCouponProjection available = memberCoupon(coupon(1L, NOW.minusDays(3), 100), false);
-		when(timeProvider.now()).thenReturn(NOW);
-		when(memberCouponRepository.findByMemberIdWithCursor(10L, null, null, PageRequest.of(0, 20)))
-			.thenReturn(new SliceImpl<>(List.of(used, available), PageRequest.of(0, 20), false));
+		given(timeProvider.now()).willReturn(NOW);
+		given(memberCouponRepository.findByMemberIdWithCursor(10L, null, null, PageRequest.of(0, 20)))
+			.willReturn(new SliceImpl<>(List.of(used, available), PageRequest.of(0, 20), false));
 
 		CouponResponse.MemberCouponInfos response = CouponResponse.MemberCouponInfos.from(service.getMyCoupons(
 			10L, new CursorRequest.CursorPageRequest(20, null, null)));
@@ -104,8 +103,9 @@ class CouponQueryServiceTest {
 				tuple(2L, MemberCouponStatus.USED),
 				tuple(1L, MemberCouponStatus.AVAILABLE));
 		assertThat(response.pageInfo()).isEqualTo(new CursorResponse.PageInfo(false, null, 2));
-		verify(timeProvider).now();
-		verifyNoInteractions(couponRepository, units);
+		then(timeProvider).should().now();
+		then(couponRepository).shouldHaveNoInteractions();
+		then(units).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -115,9 +115,9 @@ class CouponQueryServiceTest {
 		LocalDateTime issueStartAt = NOW.plusHours(1).withNano(123456000);
 		var first = campaign(coupon(15L, NOW.plusDays(1), 100), true);
 		var last = campaign(coupon(7L, issueStartAt, 100), true);
-		when(units.databaseNow()).thenReturn(NOW);
-		when(couponRepository.findCampaignsWithCursor(NOW, 19L, boundary, PageRequest.of(0, 2)))
-			.thenReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
+		given(units.databaseNow()).willReturn(NOW);
+		given(couponRepository.findCampaignsWithCursor(NOW, 19L, boundary, PageRequest.of(0, 2)))
+			.willReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
 
 		var result = CouponResponse.CouponInfos
 			.from(service.getCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(2, 19L, boundary)));
@@ -126,7 +126,7 @@ class CouponQueryServiceTest {
 		assertThat(result.pageInfo().currentSize()).isEqualTo(2);
 		assertThat(cursorDecoder.decode(result.pageInfo().nextCursor(), CouponCampaignCursorData.class))
 			.isEqualTo(new CouponCampaignCursorData(7L, issueStartAt));
-		verify(couponRepository).findCampaignsWithCursor(NOW, 19L, boundary, PageRequest.of(0, 2));
+		then(couponRepository).should().findCampaignsWithCursor(NOW, 19L, boundary, PageRequest.of(0, 2));
 	}
 
 	@Test
@@ -134,9 +134,9 @@ class CouponQueryServiceTest {
 	void createsMemberCursorFromOwnershipIdentity() {
 		var first = memberCoupon(coupon(2L, NOW.minusDays(2), 100), false);
 		var last = memberCoupon(coupon(1L, NOW.minusDays(3), 100), false);
-		when(timeProvider.now()).thenReturn(NOW);
-		when(memberCouponRepository.findByMemberIdWithCursor(10L, 500L, NOW.plusHours(1), PageRequest.of(0, 2)))
-			.thenReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
+		given(timeProvider.now()).willReturn(NOW);
+		given(memberCouponRepository.findByMemberIdWithCursor(10L, 500L, NOW.plusHours(1), PageRequest.of(0, 2)))
+			.willReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
 
 		var result = CouponResponse.MemberCouponInfos
 			.from(service.getMyCoupons(10L, new CursorRequest.CursorPageRequest(2, 500L, NOW.plusHours(1))));
@@ -146,18 +146,19 @@ class CouponQueryServiceTest {
 		assertThat(result.pageInfo().currentSize()).isEqualTo(2);
 		assertThat(cursorDecoder.decode(result.pageInfo().nextCursor(), CursorData.class))
 			.isEqualTo(new CursorData(101L, NOW.withNano(123456000)));
-		verify(memberCouponRepository).findByMemberIdWithCursor(10L, 500L, NOW.plusHours(1), PageRequest.of(0, 2));
+		then(memberCouponRepository).should().findByMemberIdWithCursor(10L, 500L, NOW.plusHours(1),
+			PageRequest.of(0, 2));
 	}
 
 	@Test
 	@DisplayName("빈 쿠폰 목록은 다음 커서 없는 크기 0 페이지를 반환한다")
 	void returnsEmptyPageInfo() {
-		when(units.databaseNow()).thenReturn(NOW);
-		when(timeProvider.now()).thenReturn(NOW);
-		when(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
-			.thenReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
-		when(memberCouponRepository.findByMemberIdWithCursor(10L, null, null, PageRequest.of(0, 20)))
-			.thenReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
+		given(units.databaseNow()).willReturn(NOW);
+		given(timeProvider.now()).willReturn(NOW);
+		given(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
+			.willReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
+		given(memberCouponRepository.findByMemberIdWithCursor(10L, null, null, PageRequest.of(0, 20)))
+			.willReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
 
 		var campaigns = CouponResponse.CouponInfos
 			.from(service.getCouponCampaigns(new CursorRequest.CouponCampaignCursorPageRequest(20, null, null)));

@@ -81,12 +81,12 @@ class ExpiredReservationCleanupServiceTest {
 		service.cleanupExpiredPendingReservations();
 
 		InOrder inOrder = inOrder(inventoryManager, couponUsageManager, batchWriter);
-		inOrder.verify(inventoryManager).releaseHeldIfOwned(
+		then(inventoryManager).should(inOrder).releaseHeldIfOwned(
 			first.getAccommodation().getId(), first.getCheckInDate(), first.getCheckOutDate(), first.getId());
-		inOrder.verify(inventoryManager).releaseHeldIfOwned(
+		then(inventoryManager).should(inOrder).releaseHeldIfOwned(
 			second.getAccommodation().getId(), second.getCheckInDate(), second.getCheckOutDate(), second.getId());
-		inOrder.verify(couponUsageManager).restoreAll(List.of(first.getId(), second.getId()));
-		inOrder.verify(batchWriter).writeAll(anyList(), eq(NOW));
+		then(couponUsageManager).should(inOrder).restoreAll(List.of(first.getId(), second.getId()));
+		then(batchWriter).should(inOrder).writeAll(anyList(), eq(NOW));
 	}
 
 	@Test

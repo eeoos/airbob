@@ -2,6 +2,9 @@ package kr.kro.airbob.core.domain.accommodation;
 
 import static kr.kro.airbob.core.domain.commoncode.CommonCodeGroups.*;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
 import java.time.Clock;
@@ -106,8 +109,8 @@ class AccommodationCommandServiceTest {
 		Accommodation accommodation = Accommodation.builder()
 			.id(1L).accommodationUid(UUID.randomUUID()).status(AccommodationStatus.PUBLISHED)
 			.occupancyPolicy(policy).build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
 
 		accommodationCommandService.updateAccommodation(1L, AccommodationRequest.Update.builder()
 			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(6, 2, 3)).build().toUpdate(), 2L);
@@ -116,9 +119,9 @@ class AccommodationCommandServiceTest {
 		assertThat(policy.getMaxOccupancy()).isEqualTo(6);
 		assertThat(policy.getInfantOccupancy()).isEqualTo(2);
 		assertThat(policy.getPetOccupancy()).isEqualTo(3);
-		verifyNoInteractions(occupancyPolicyRepository);
-		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
-		verify(cacheInvalidationPublisher).publish(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		then(occupancyPolicyRepository).shouldHaveNoInteractions();
+		then(searchRefreshPublisher).should().requestRefresh(accommodation.getAccommodationUid());
+		then(cacheInvalidationPublisher).should().publish(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
 
 	@Test
@@ -135,23 +138,23 @@ class AccommodationCommandServiceTest {
 			.build();
 		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780);
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
-		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
-		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
+		given(geocodingService.getCoordinates(anyString())).willReturn(geocodeResult);
+		given(timeZoneResolver.resolve(37.5665, 126.9780)).willReturn(Optional.of(ZoneId.of("Asia/Seoul")));
+		given(addressRepository.save(any(Address.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getAddress().getLatitude()).isEqualTo(37.5665);
 		assertThat(accommodation.getAddress().getLongitude()).isEqualTo(126.9780);
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
-		verify(cacheInvalidationPublisher).publish(
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 		InOrder resolutionOrder = inOrder(geocodingService, timeZoneResolver, addressRepository);
-		resolutionOrder.verify(geocodingService).getCoordinates(anyString());
-		resolutionOrder.verify(timeZoneResolver).resolve(37.5665, 126.9780);
-		resolutionOrder.verify(addressRepository).save(any(Address.class));
+		then(geocodingService).should(resolutionOrder).getCoordinates(anyString());
+		then(timeZoneResolver).should(resolutionOrder).resolve(37.5665, 126.9780);
+		then(addressRepository).should(resolutionOrder).save(any(Address.class));
 	}
 
 	@Test
@@ -176,9 +179,9 @@ class AccommodationCommandServiceTest {
 			.addressInfo(seoulAddressInfo())
 			.build();
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(geocodingService.getCoordinates(anyString())).thenReturn(GeocodeResult.fail());
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
+		given(geocodingService.getCoordinates(anyString())).willReturn(GeocodeResult.fail());
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
@@ -187,7 +190,8 @@ class AccommodationCommandServiceTest {
 			});
 		assertThat(accommodation.getName()).isEqualTo("기존 이름");
 		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
-		verifyNoInteractions(timeZoneResolver, addressRepository);
+		then(timeZoneResolver).shouldHaveNoInteractions();
+		then(addressRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -213,10 +217,10 @@ class AccommodationCommandServiceTest {
 			.build();
 		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780);
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
-		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.empty());
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
+		given(geocodingService.getCoordinates(anyString())).willReturn(geocodeResult);
+		given(timeZoneResolver.resolve(37.5665, 126.9780)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
@@ -225,7 +229,8 @@ class AccommodationCommandServiceTest {
 			});
 		assertThat(accommodation.getName()).isEqualTo("공개 중인 숙소");
 		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
-		verifyNoInteractions(addressRepository, searchRefreshPublisher);
+		then(addressRepository).shouldHaveNoInteractions();
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -253,11 +258,11 @@ class AccommodationCommandServiceTest {
 			.build();
 		GeocodeResult geocodeResult = GeocodeResult.success(37.5665, 126.9780);
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
-		when(timeZoneResolver.resolve(37.5665, 126.9780)).thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
-		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
+		given(geocodingService.getCoordinates(anyString())).willReturn(geocodeResult);
+		given(timeZoneResolver.resolve(37.5665, 126.9780)).willReturn(Optional.of(ZoneId.of("Asia/Seoul")));
+		given(addressRepository.save(any(Address.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
@@ -270,9 +275,9 @@ class AccommodationCommandServiceTest {
 	void rejectPublishingWithoutTimeZone() {
 		Accommodation accommodation = publishableAccommodation();
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
@@ -280,7 +285,7 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(searchRefreshPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -288,9 +293,9 @@ class AccommodationCommandServiceTest {
 	void rejectPublishingWithInvalidTimeZoneId() {
 		Accommodation accommodation = publishableAccommodation("Mars/Olympus_Mons");
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
@@ -306,9 +311,9 @@ class AccommodationCommandServiceTest {
 	void rejectPublishingWithFixedOffsetTimeZoneId(String timeZoneId) {
 		Accommodation accommodation = publishableAccommodation(timeZoneId);
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 		lenient().when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
@@ -317,7 +322,7 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(searchRefreshPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -325,9 +330,9 @@ class AccommodationCommandServiceTest {
 	void rejectPublishingWithBlankTimeZoneId() {
 		Accommodation accommodation = publishableAccommodation("   ");
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
@@ -335,7 +340,7 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(searchRefreshPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -346,10 +351,10 @@ class AccommodationCommandServiceTest {
 			.type("not_a_type")
 			.build();
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "NOT_A_TYPE"))
-			.thenReturn(false);
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
+		given(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "NOT_A_TYPE"))
+			.willReturn(false);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
@@ -371,9 +376,9 @@ class AccommodationCommandServiceTest {
 			.checkInTime(LocalTime.of(10, 0))
 			.checkOutTime(LocalTime.of(12, 0))
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class,
@@ -381,7 +386,7 @@ class AccommodationCommandServiceTest {
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
-		verifyNoInteractions(searchRefreshPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -396,9 +401,9 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.checkInTime(LocalTime.of(10, 0))
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class,
@@ -406,7 +411,7 @@ class AccommodationCommandServiceTest {
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
-		verifyNoInteractions(searchRefreshPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -414,16 +419,16 @@ class AccommodationCommandServiceTest {
 	void rejectPublishingWithOverlappingTurnoverTimes() {
 		Accommodation accommodation = publishableAccommodation(
 			"Asia/Seoul", LocalTime.of(10, 0), LocalTime.of(12, 0));
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class,
 				exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("A009"));
 
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(searchRefreshPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -439,10 +444,10 @@ class AccommodationCommandServiceTest {
 			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(4, 1, 0))
 			.build();
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(commonCodeReader.isValidCode(eq(AMENITY_TYPE), anyString()))
-			.thenAnswer(invocation -> "WIFI".equals(invocation.getArgument(1)));
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.willReturn(Optional.of(accommodation));
+		given(commonCodeReader.isValidCode(eq(AMENITY_TYPE), anyString()))
+			.willAnswer(invocation -> "WIFI".equals(invocation.getArgument(1)));
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
@@ -450,10 +455,12 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A007");
 			});
 
-		verify(accommodation, never()).updateAccommodation(any());
-		verify(accommodationAmenityRepository, never()).deleteByAccommodationIdInBulk(anyLong());
-		verify(accommodationAmenityRepository, never()).saveAll(any());
-		verifyNoInteractions(geocodingService, addressRepository, occupancyPolicyRepository);
+		then(accommodation).should(never()).updateAccommodation(any());
+		then(accommodationAmenityRepository).should(never()).deleteByAccommodationIdInBulk(anyLong());
+		then(accommodationAmenityRepository).should(never()).saveAll(any());
+		then(geocodingService).shouldHaveNoInteractions();
+		then(addressRepository).shouldHaveNoInteractions();
+		then(occupancyPolicyRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -471,18 +478,18 @@ class AccommodationCommandServiceTest {
 				.amenityInfos(List.of(new AmenityRequest.AmenityInfo("wifi", 1)))
 				.build();
 
-			when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 				1L, 2L, AccommodationStatus.DELETED))
-				.thenReturn(Optional.of(accommodation));
-			when(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "PRIVATE_ROOM"))
-				.thenReturn(true);
-			when(commonCodeReader.isValidCode(AMENITY_TYPE, "WIFI"))
-				.thenReturn(true);
+				.willReturn(Optional.of(accommodation));
+			given(commonCodeReader.isValidCode(ACCOMMODATION_TYPE, "PRIVATE_ROOM"))
+				.willReturn(true);
+			given(commonCodeReader.isValidCode(AMENITY_TYPE, "WIFI"))
+				.willReturn(true);
 
 			accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 			assertThat(accommodation.getType()).isEqualTo("PRIVATE_ROOM");
-			verify(accommodationAmenityRepository).saveAll(argThat(amenities -> {
+			then(accommodationAmenityRepository).should().saveAll(argThat(amenities -> {
 				AccommodationAmenity amenity = amenities.iterator().next();
 				return amenity.getAmenityCode().equals("WIFI");
 			}));
@@ -504,11 +511,11 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.checkInTime(LocalTime.of(16, 0))
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(clock.instant()).thenReturn(NOW);
-		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+			.willReturn(Optional.of(accommodation));
+		given(clock.instant()).willReturn(NOW);
+		given(reservationReader.existsFutureInventoryReservation(1L, NOW)).willReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
@@ -530,10 +537,10 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.checkOutTime(LocalTime.of(10, 0))
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+			.willReturn(Optional.of(accommodation));
+		given(reservationReader.existsFutureInventoryReservation(1L, NOW)).willReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
@@ -566,20 +573,20 @@ class AccommodationCommandServiceTest {
 			.addressInfo(addressInfo)
 			.build();
 		GeocodeResult geocodeResult = GeocodeResult.success(40.7128, -74.0060);
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
-		when(timeZoneResolver.resolve(40.7128, -74.0060))
-			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
-		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(true);
+			.willReturn(Optional.of(accommodation));
+		given(geocodingService.getCoordinates(anyString())).willReturn(geocodeResult);
+		given(timeZoneResolver.resolve(40.7128, -74.0060))
+			.willReturn(Optional.of(ZoneId.of("America/New_York")));
+		given(reservationReader.existsFutureInventoryReservation(1L, NOW)).willReturn(true);
 
 		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L))
 			.isInstanceOf(kr.kro.airbob.core.support.error.InvalidInputException.class);
 
 		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
-		verify(addressRepository, never()).save(any());
+		then(addressRepository).should(never()).save(any());
 	}
 
 	@Test
@@ -608,20 +615,20 @@ class AccommodationCommandServiceTest {
 			.addressInfo(addressInfo)
 			.build();
 		GeocodeResult geocodeResult = GeocodeResult.success(35.1796, 129.0756);
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(geocodingService.getCoordinates(anyString())).thenReturn(geocodeResult);
-		when(timeZoneResolver.resolve(35.1796, 129.0756))
-			.thenReturn(Optional.of(ZoneId.of("Asia/Seoul")));
-		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+			.willReturn(Optional.of(accommodation));
+		given(geocodingService.getCoordinates(anyString())).willReturn(geocodeResult);
+		given(timeZoneResolver.resolve(35.1796, 129.0756))
+			.willReturn(Optional.of(ZoneId.of("Asia/Seoul")));
+		given(addressRepository.save(any(Address.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getAddress().getCity()).isEqualTo("Busan");
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
-		verify(reservationReader, never()).existsFutureInventoryReservation(anyLong(), any());
-		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		then(reservationReader).should(never()).existsFutureInventoryReservation(anyLong(), any());
+		then(searchRefreshPublisher).should().requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -638,16 +645,16 @@ class AccommodationCommandServiceTest {
 		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
 			.checkInTime(LocalTime.of(16, 0))
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(clock.instant()).thenReturn(NOW);
-		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
+			.willReturn(Optional.of(accommodation));
+		given(clock.instant()).willReturn(NOW);
+		given(reservationReader.existsFutureInventoryReservation(1L, NOW)).willReturn(false);
 
 		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(16, 0));
-		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		then(searchRefreshPublisher).should().requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -658,33 +665,33 @@ class AccommodationCommandServiceTest {
 			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
 			.status(AccommodationStatus.PUBLISHED)
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		accommodationCommandService.deleteAccommodation(1L, 2L);
 
-		verify(cacheInvalidationPublisher).publish(
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
-		verifyNoInteractions(inventorySeeder);
+		then(searchRefreshPublisher).should().requestRefresh(accommodation.getAccommodationUid());
+		then(inventorySeeder).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("숙소를 게시하면 상세 캐시 무효화 이벤트를 발행한다")
 	void invalidateDetailCacheWhenAccommodationIsPublished() {
 		Accommodation accommodation = publishableAccommodation("Asia/Seoul");
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
+			.willReturn(Optional.of(accommodation));
+		given(accommodationImageRepository.countByAccommodationId(1L)).willReturn(1L);
 
 		accommodationCommandService.publishAccommodation(1L, 2L);
 
-		verify(inventorySeeder).seedCurrentHorizon(accommodation);
-		verify(cacheInvalidationPublisher).publish(
+		then(inventorySeeder).should().seedCurrentHorizon(accommodation);
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		then(searchRefreshPublisher).should().requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -695,35 +702,36 @@ class AccommodationCommandServiceTest {
 			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
 			.status(AccommodationStatus.PUBLISHED)
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
+			.willReturn(Optional.of(accommodation));
 
 		accommodationCommandService.unpublishAccommodation(1L, 2L);
 
-		verify(cacheInvalidationPublisher).publish(
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
-		verifyNoInteractions(inventorySeeder);
+		then(searchRefreshPublisher).should().requestRefresh(accommodation.getAccommodationUid());
+		then(inventorySeeder).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("inventory horizon seed가 실패하면 숙소를 게시 상태로 바꾸지 않는다")
 	void seedFailurePreventsPublishing() {
 		Accommodation accommodation = publishableAccommodation("Asia/Seoul");
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
-		doThrow(new IllegalStateException("seed failed"))
-			.when(inventorySeeder).seedCurrentHorizon(accommodation);
+			.willReturn(Optional.of(accommodation));
+		given(accommodationImageRepository.countByAccommodationId(1L)).willReturn(1L);
+		willThrow(new IllegalStateException("seed failed"))
+			.given(inventorySeeder).seedCurrentHorizon(accommodation);
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessage("seed failed");
 
 		assertThat(accommodation.getStatus()).isNotEqualTo(AccommodationStatus.PUBLISHED);
-		verifyNoInteractions(searchRefreshPublisher, cacheInvalidationPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
+		then(cacheInvalidationPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -744,19 +752,19 @@ class AccommodationCommandServiceTest {
 			.addressInfo(new AddressRequest.AddressInfo(
 				"10001", "US", "New York", "NY", "Manhattan", "5th Ave", "1"))
 			.build();
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
-			1L, 2L, AccommodationStatus.DELETED)).thenReturn(Optional.of(accommodation));
-		when(geocodingService.getCoordinates(anyString()))
-			.thenReturn(GeocodeResult.success(40.7128, -74.0060));
-		when(timeZoneResolver.resolve(40.7128, -74.0060))
-			.thenReturn(Optional.of(ZoneId.of("America/New_York")));
-		when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		when(reservationReader.existsFutureInventoryReservation(1L, NOW)).thenReturn(false);
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
+			1L, 2L, AccommodationStatus.DELETED)).willReturn(Optional.of(accommodation));
+		given(geocodingService.getCoordinates(anyString()))
+			.willReturn(GeocodeResult.success(40.7128, -74.0060));
+		given(timeZoneResolver.resolve(40.7128, -74.0060))
+			.willReturn(Optional.of(ZoneId.of("America/New_York")));
+		given(addressRepository.save(any(Address.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(reservationReader.existsFutureInventoryReservation(1L, NOW)).willReturn(false);
 
 		accommodationCommandService.updateAccommodation(1L, request.toUpdate(), 2L);
 
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("America/New_York");
-		verify(inventorySeeder).seedCurrentHorizon(accommodation);
+		then(inventorySeeder).should().seedCurrentHorizon(accommodation);
 	}
 
 	private AddressRequest.AddressInfo seoulAddressInfo() {

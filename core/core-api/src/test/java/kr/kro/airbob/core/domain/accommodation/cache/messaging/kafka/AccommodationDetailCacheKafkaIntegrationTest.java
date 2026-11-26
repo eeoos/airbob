@@ -1,12 +1,10 @@
 package kr.kro.airbob.core.domain.accommodation.cache.messaging.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -181,18 +179,18 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 			.get(10, TimeUnit.SECONDS)
 			.getRecordMetadata().offset();
 
-		verify(cache, timeout(15_000)).evictOrThrow(
+		then(cache).should(timeout(15_000)).evictOrThrow(
 			ACCOMMODATION_ID, AccommodationDetailCacheInvalidationReason.IMAGE);
 		awaitCommittedOffset(validOffset + 1);
 		assertThat(KafkaTestUtils.getRecords(retryConsumer, Duration.ofMillis(300)).isEmpty())
 			.isTrue();
 		assertThat(KafkaTestUtils.getRecords(dltConsumer, Duration.ofMillis(300)).isEmpty())
 			.isTrue();
-		verifyNoInteractions(alertEnqueueService);
+		then(alertEnqueueService).shouldHaveNoInteractions();
 
 		reset(cache, alertEnqueueService);
-		doThrow(new IllegalStateException("redis unavailable"))
-			.when(cache).evictOrThrow(
+		willThrow(new IllegalStateException("redis unavailable"))
+			.given(cache).evictOrThrow(
 				ACCOMMODATION_ID, AccommodationDetailCacheInvalidationReason.IMAGE);
 		long failureOffset = kafkaTemplate.send(
 			CACHE_TOPIC, "untrusted-key", validMessage)
@@ -207,12 +205,12 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 		assertThat(failedDlt.value()).isEqualTo(validMessage);
 		assertThat(failedRetry.key()).isEqualTo(Long.toString(ACCOMMODATION_ID));
 		assertThat(failedDlt.key()).isEqualTo(Long.toString(ACCOMMODATION_ID));
-		verify(cache, timeout(15_000).times(2)).evictOrThrow(
+		then(cache).should(timeout(15_000).times(2)).evictOrThrow(
 			ACCOMMODATION_ID, AccommodationDetailCacheInvalidationReason.IMAGE);
-		verify(alertEnqueueService, timeout(15_000)).enqueue(
+		then(alertEnqueueService).should(timeout(15_000)).enqueue(
 			OperatorAlertRequest.accommodationCacheQuarantined(
 				new OperatorAlertSourcePosition(CACHE_TOPIC, 0, failureOffset)));
-		verifyNoMoreInteractions(alertEnqueueService);
+		then(alertEnqueueService).shouldHaveNoMoreInteractions();
 
 		reset(cache, alertEnqueueService);
 		String malformed = "not-json cacheToken=" + RAW_SECRET;
@@ -245,11 +243,11 @@ class AccommodationDetailCacheKafkaIntegrationTest {
 		assertThat(readTimestampHeader(
 			poisonRetry, RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP))
 			.isLessThan(attackerBackoff);
-		verifyNoInteractions(cache);
-		verify(alertEnqueueService, timeout(15_000)).enqueue(
+		then(cache).shouldHaveNoInteractions();
+		then(alertEnqueueService).should(timeout(15_000)).enqueue(
 			OperatorAlertRequest.accommodationCacheQuarantined(
 				new OperatorAlertSourcePosition(CACHE_TOPIC, 0, poisonOffset)));
-		verifyNoMoreInteractions(alertEnqueueService);
+		then(alertEnqueueService).shouldHaveNoMoreInteractions();
 		assertThat(KafkaTestUtils.getRecords(
 			otherStreamsConsumer, Duration.ofSeconds(1)).isEmpty()).isTrue();
 		assertThat(output).doesNotContain(

@@ -1,6 +1,8 @@
 package kr.kro.airbob.core.domain.accommodation;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
@@ -71,22 +73,22 @@ class AccommodationImageServiceTest {
 		AccommodationImage savedFirst = image(10L, accommodation, "https://cdn.example.com/first.jpg");
 		AccommodationImage savedSecond = image(11L, accommodation, "https://cdn.example.com/second.png");
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(s3ImageUploader.upload(firstFile, "accommodationInfos/1"))
-			.thenReturn(savedFirst.getImageUrl());
-		when(s3ImageUploader.upload(secondFile, "accommodationInfos/1"))
-			.thenReturn(savedSecond.getImageUrl());
-		when(accommodationImageRepository.saveAll(anyList()))
-			.thenReturn(List.of(savedFirst, savedSecond));
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
-			.thenReturn(List.of(savedFirst, savedSecond));
+			.willReturn(Optional.of(accommodation));
+		given(s3ImageUploader.upload(firstFile, "accommodationInfos/1"))
+			.willReturn(savedFirst.getImageUrl());
+		given(s3ImageUploader.upload(secondFile, "accommodationInfos/1"))
+			.willReturn(savedSecond.getImageUrl());
+		given(accommodationImageRepository.saveAll(anyList()))
+			.willReturn(List.of(savedFirst, savedSecond));
+		given(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
+			.willReturn(List.of(savedFirst, savedSecond));
 
 		List<StoredImage> response = accommodationImageService.uploadImages(
 			1L, List.of(firstFile, secondFile), 2L);
 
-		verify(accommodationImageRepository).saveAll(imagesCaptor.capture());
+		then(accommodationImageRepository).should().saveAll(imagesCaptor.capture());
 		assertThat(imagesCaptor.getValue())
 			.extracting(AccommodationImage::getImageUrl)
 			.containsExactly(savedFirst.getImageUrl(), savedSecond.getImageUrl());
@@ -97,9 +99,9 @@ class AccommodationImageServiceTest {
 			new StoredImage(10L, savedFirst.getImageUrl()),
 			new StoredImage(11L, savedSecond.getImageUrl()));
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(savedFirst.getImageUrl());
-		verify(applicationEventPublisher).publishEvent(new ImageUploaded(savedFirst.getImageUrl()));
-		verify(applicationEventPublisher).publishEvent(new ImageUploaded(savedSecond.getImageUrl()));
-		verify(cacheInvalidationPublisher).publish(
+		then(applicationEventPublisher).should().publishEvent(new ImageUploaded(savedFirst.getImageUrl()));
+		then(applicationEventPublisher).should().publishEvent(new ImageUploaded(savedSecond.getImageUrl()));
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 	}
 
@@ -112,21 +114,21 @@ class AccommodationImageServiceTest {
 		MockMultipartFile secondFile = new MockMultipartFile(
 			"images", "second.jpg", "image/jpeg", new byte[] {2});
 		String firstImageUrl = "https://cdn.example.com/first.jpg";
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(s3ImageUploader.upload(firstFile, "accommodationInfos/1"))
-			.thenReturn(firstImageUrl);
-		when(s3ImageUploader.upload(secondFile, "accommodationInfos/1"))
-			.thenThrow(new IOException("S3 unavailable"));
+			.willReturn(Optional.of(accommodation));
+		given(s3ImageUploader.upload(firstFile, "accommodationInfos/1"))
+			.willReturn(firstImageUrl);
+		given(s3ImageUploader.upload(secondFile, "accommodationInfos/1"))
+			.willThrow(new IOException("S3 unavailable"));
 
 		assertThatThrownBy(() -> accommodationImageService.uploadImages(
 			1L, List.of(firstFile, secondFile), 2L))
 			.isInstanceOf(ImageUploadException.class);
 
-		verify(applicationEventPublisher).publishEvent(new ImageUploaded(firstImageUrl));
-		verify(accommodationImageRepository, never()).saveAll(anyList());
-		verifyNoInteractions(cacheInvalidationPublisher);
+		then(applicationEventPublisher).should().publishEvent(new ImageUploaded(firstImageUrl));
+		then(accommodationImageRepository).should(never()).saveAll(anyList());
+		then(cacheInvalidationPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -138,17 +140,17 @@ class AccommodationImageServiceTest {
 		AccommodationImage nextImage = image(11L, accommodation, "https://cdn.example.com/second.jpg");
 
 		givenOwnedAccommodationAndImage(accommodation, currentThumbnail);
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
-			.thenReturn(List.of(nextImage));
+		given(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
+			.willReturn(List.of(nextImage));
 
 		accommodationImageService.deleteImage(1L, 10L, 2L);
 
-		verify(applicationEventPublisher).publishEvent(
+		then(applicationEventPublisher).should().publishEvent(
 			new ImageDeletionRequested(currentThumbnail.getImageUrl()));
-		verify(s3ImageUploader, never()).delete(anyString());
-		verify(accommodationImageRepository).delete(currentThumbnail);
+		then(s3ImageUploader).should(never()).delete(anyString());
+		then(accommodationImageRepository).should().delete(currentThumbnail);
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(nextImage.getImageUrl());
-		verify(cacheInvalidationPublisher).publish(
+		then(cacheInvalidationPublisher).should().publish(
 			1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 	}
 
@@ -160,8 +162,8 @@ class AccommodationImageServiceTest {
 			10L, accommodation, "https://cdn.example.com/only.jpg");
 
 		givenOwnedAccommodationAndImage(accommodation, currentThumbnail);
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
-			.thenReturn(List.of());
+		given(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
+			.willReturn(List.of());
 
 		accommodationImageService.deleteImage(1L, 10L, 2L);
 
@@ -177,17 +179,17 @@ class AccommodationImageServiceTest {
 		MockMultipartFile file = new MockMultipartFile(
 			"images", "first.jpg", "image/jpeg", new byte[] {1});
 		AccommodationImage saved = image(10L, accommodation, "https://cdn.example.com/first.jpg");
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
-			1L, 2L, AccommodationStatus.DELETED)).thenReturn(Optional.of(accommodation));
-		when(s3ImageUploader.upload(file, "accommodationInfos/1"))
-			.thenReturn(saved.getImageUrl());
-		when(accommodationImageRepository.saveAll(anyList())).thenReturn(List.of(saved));
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
-			.thenReturn(List.of(saved));
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+			1L, 2L, AccommodationStatus.DELETED)).willReturn(Optional.of(accommodation));
+		given(s3ImageUploader.upload(file, "accommodationInfos/1"))
+			.willReturn(saved.getImageUrl());
+		given(accommodationImageRepository.saveAll(anyList())).willReturn(List.of(saved));
+		given(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
+			.willReturn(List.of(saved));
 
 		accommodationImageService.uploadImages(1L, List.of(file), 2L);
 
-		verify(searchRefreshPublisher).requestRefresh(accommodationUid);
+		then(searchRefreshPublisher).should().requestRefresh(accommodationUid);
 	}
 
 	@Test
@@ -197,17 +199,17 @@ class AccommodationImageServiceTest {
 		MockMultipartFile file = new MockMultipartFile(
 			"images", "first.jpg", "image/jpeg", new byte[] {1});
 		AccommodationImage saved = image(10L, accommodation, "https://cdn.example.com/first.jpg");
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
-			1L, 2L, AccommodationStatus.DELETED)).thenReturn(Optional.of(accommodation));
-		when(s3ImageUploader.upload(file, "accommodationInfos/1"))
-			.thenReturn(saved.getImageUrl());
-		when(accommodationImageRepository.saveAll(anyList())).thenReturn(List.of(saved));
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
-			.thenReturn(List.of(saved));
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+			1L, 2L, AccommodationStatus.DELETED)).willReturn(Optional.of(accommodation));
+		given(s3ImageUploader.upload(file, "accommodationInfos/1"))
+			.willReturn(saved.getImageUrl());
+		given(accommodationImageRepository.saveAll(anyList())).willReturn(List.of(saved));
+		given(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
+			.willReturn(List.of(saved));
 
 		accommodationImageService.uploadImages(1L, List.of(file), 2L);
 
-		verifyNoInteractions(searchRefreshPublisher);
+		then(searchRefreshPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -224,14 +226,14 @@ class AccommodationImageServiceTest {
 		AccommodationImage next = image(
 			11L, accommodation, "https://cdn.example.com/second.jpg");
 		givenOwnedAccommodationAndImage(accommodation, current);
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
-			.thenReturn(List.of(next));
+		given(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
+			.willReturn(List.of(next));
 
 		accommodationImageService.deleteImage(1L, 10L, 2L);
 
 		var order = inOrder(searchRefreshPublisher, applicationEventPublisher);
-		order.verify(searchRefreshPublisher).requestRefresh(accommodationUid);
-		order.verify(applicationEventPublisher).publishEvent(
+		then(searchRefreshPublisher).should(order).requestRefresh(accommodationUid);
+		then(applicationEventPublisher).should(order).publishEvent(
 			new ImageDeletionRequested(current.getImageUrl()));
 	}
 
@@ -242,26 +244,26 @@ class AccommodationImageServiceTest {
 		Accommodation otherAccommodation = accommodation(3L, null);
 		AccommodationImage otherImage = image(10L, otherAccommodation, "https://cdn.example.com/other.jpg");
 
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			1L, 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(requestedAccommodation));
-		when(accommodationImageRepository.findById(10L)).thenReturn(Optional.of(otherImage));
+			.willReturn(Optional.of(requestedAccommodation));
+		given(accommodationImageRepository.findById(10L)).willReturn(Optional.of(otherImage));
 
 		assertThatThrownBy(() -> accommodationImageService.deleteImage(1L, 10L, 2L))
 			.isInstanceOf(InvalidInputException.class);
 
-		verifyNoInteractions(s3ImageUploader);
-		verify(accommodationImageRepository, never()).delete(any());
-		verify(accommodationImageRepository, never()).findByAccommodationIdOrderByIdAsc(anyLong());
+		then(s3ImageUploader).shouldHaveNoInteractions();
+		then(accommodationImageRepository).should(never()).delete(any());
+		then(accommodationImageRepository).should(never()).findByAccommodationIdOrderByIdAsc(anyLong());
 	}
 
 	private void givenOwnedAccommodationAndImage(
 		Accommodation accommodation,
 		AccommodationImage image) {
-		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+		given(accommodationRepository.findByIdAndMemberIdAndStatusNot(
 			accommodation.getId(), 2L, AccommodationStatus.DELETED))
-			.thenReturn(Optional.of(accommodation));
-		when(accommodationImageRepository.findById(image.getId())).thenReturn(Optional.of(image));
+			.willReturn(Optional.of(accommodation));
+		given(accommodationImageRepository.findById(image.getId())).willReturn(Optional.of(image));
 	}
 
 	private Accommodation accommodation(Long id, String thumbnailUrl) {

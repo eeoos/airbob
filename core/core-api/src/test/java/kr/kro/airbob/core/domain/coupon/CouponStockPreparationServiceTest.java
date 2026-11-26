@@ -1,6 +1,8 @@
 package kr.kro.airbob.core.domain.coupon;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
@@ -21,14 +23,14 @@ class CouponStockPreparationServiceTest {
 		var service = new CouponStockPreparationService(new CouponReader(coupons, members, units),
 			new CouponWriter(coupons, units));
 		var now = LocalDateTime.of(2026, 10, 9, 10, 0);
-		when(units.databaseNow()).thenReturn(now);
+		given(units.databaseNow()).willReturn(now);
 		var coupon = Coupon.builder().id(1L).name("coupon").totalQuantity(10)
 			.isActive(false).issueStartAt(now.plusHours(1)).issueEndAt(now.plusHours(2)).build();
-		when(coupons.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
+		given(coupons.findByIdForUpdate(1L)).willReturn(Optional.of(coupon));
 		assertThatThrownBy(() -> service.prepare(1L)).isInstanceOf(CouponStockPreparationNotAllowedException.class);
 		coupon.activate();
-		when(members.countByCouponId(1L)).thenReturn(1L);
+		given(members.countByCouponId(1L)).willReturn(1L);
 		assertThatThrownBy(() -> service.prepare(1L)).isInstanceOf(CouponStockPreparationNotAllowedException.class);
-		verify(units, never()).insertRange(anyLong(), anyInt(), anyInt());
+		then(units).should(never()).insertRange(anyLong(), anyInt(), anyInt());
 	}
 }

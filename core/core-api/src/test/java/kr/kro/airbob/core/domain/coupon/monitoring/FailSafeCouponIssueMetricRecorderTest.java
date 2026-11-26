@@ -1,6 +1,7 @@
 package kr.kro.airbob.core.domain.coupon.monitoring;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.Test;
@@ -14,9 +15,9 @@ class FailSafeCouponIssueMetricRecorderTest {
 	void swallowsEveryMetricFailure() {
 		var delegate = mock(MicrometerCouponIssueMetricRecorder.class);
 		var recorder = new FailSafeCouponIssueMetricRecorder(delegate);
-		doThrow(new IllegalStateException()).when(delegate).recordIssue(IssueResult.SUCCESS, 1);
-		doThrow(new IllegalStateException()).when(delegate).recordDatabase(DatabaseResult.SUCCESS, 1);
-		doThrow(new IllegalStateException()).when(delegate).recordRetry(RetryReason.DEADLOCK);
+		willThrow(new IllegalStateException()).given(delegate).recordIssue(IssueResult.SUCCESS, 1);
+		willThrow(new IllegalStateException()).given(delegate).recordDatabase(DatabaseResult.SUCCESS, 1);
+		willThrow(new IllegalStateException()).given(delegate).recordRetry(RetryReason.DEADLOCK);
 		assertThatCode(() -> recorder.recordIssue(IssueResult.SUCCESS, 1)).doesNotThrowAnyException();
 		assertThatCode(() -> recorder.recordDatabase(DatabaseResult.SUCCESS, 1)).doesNotThrowAnyException();
 		assertThatCode(() -> recorder.recordRetry(RetryReason.DEADLOCK)).doesNotThrowAnyException();

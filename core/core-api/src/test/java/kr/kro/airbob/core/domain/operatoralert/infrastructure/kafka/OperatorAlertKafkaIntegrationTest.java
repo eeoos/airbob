@@ -1,11 +1,10 @@
 package kr.kro.airbob.core.domain.operatoralert.infrastructure.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -174,9 +173,9 @@ class OperatorAlertKafkaIntegrationTest {
 		assertThat(backoffTimestamp).isGreaterThanOrEqualTo(originalTimestamp + 200L);
 		assertThat(backoffTimestamp).isLessThan(attackerBackoff);
 		assertThat(output).doesNotContain(RAW_SECRET, poisonValue);
-		verifyNoInteractions(gateway);
-		verify(metrics, timeout(15_000).times(2)).failed();
-		verify(metrics, timeout(15_000)).dlt();
+		then(gateway).shouldHaveNoInteractions();
+		then(metrics).should(timeout(15_000).times(2)).failed();
+		then(metrics).should(timeout(15_000)).dlt();
 	}
 
 	@Test
@@ -186,9 +185,9 @@ class OperatorAlertKafkaIntegrationTest {
 			UUID.fromString("343f7f20-3f4b-43df-b896-e95939e40d06"),
 			Instant.parse("2026-08-17T00:00:00Z"),
 			event));
-		doThrow(new IllegalStateException("transport unavailable"))
-			.doNothing()
-			.when(gateway).deliver(event);
+		willThrow(new IllegalStateException("transport unavailable"))
+			.willDoNothing()
+			.given(gateway).deliver(event);
 
 		template.send(ALERT_TOPIC, "untrusted-key", message).get(10, TimeUnit.SECONDS);
 
@@ -196,9 +195,9 @@ class OperatorAlertKafkaIntegrationTest {
 			retryConsumer, ALERT_RETRY_TOPIC, Duration.ofSeconds(15));
 		assertThat(retry.key()).isEqualTo(SUBJECT_UID.toString());
 		assertThat(retry.value()).isEqualTo(message);
-		verify(gateway, timeout(15_000).times(2)).deliver(event);
-		verify(metrics, timeout(15_000)).failed();
-		verify(metrics, timeout(15_000)).delivered();
+		then(gateway).should(timeout(15_000).times(2)).deliver(event);
+		then(metrics).should(timeout(15_000)).failed();
+		then(metrics).should(timeout(15_000)).delivered();
 	}
 
 	private OperatorAlertRequestedV1 event() {

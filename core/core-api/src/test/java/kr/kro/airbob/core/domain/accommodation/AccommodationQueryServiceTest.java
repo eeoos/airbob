@@ -1,6 +1,8 @@
 package kr.kro.airbob.core.domain.accommodation;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.time.Clock;
@@ -68,20 +70,20 @@ class AccommodationQueryServiceTest {
 			.from(accommodationQueryService.getAccommodation(1L, null));
 
 		assertThat(response.isInWishlist()).isFalse();
-		verify(accommodationDetailReader, never()).isInWishlist(anyLong(), anyLong());
+		then(accommodationDetailReader).should(never()).isInWishlist(anyLong(), anyLong());
 	}
 
 	@Test
 	@DisplayName("로그인 숙소 상세 조회는 현재 회원과 숙소 ID로 찜 여부를 조회한다")
 	void authenticatedAccommodationDetailUsesViewerIdForWishlistLookup() {
 		givenCachedAccommodation(1L);
-		when(accommodationDetailReader.isInWishlist(1L, 7L)).thenReturn(true);
+		given(accommodationDetailReader.isInWishlist(1L, 7L)).willReturn(true);
 
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo
 			.from(accommodationQueryService.getAccommodation(1L, 7L));
 
 		assertThat(response.isInWishlist()).isTrue();
-		verify(accommodationDetailReader).isInWishlist(1L, 7L);
+		then(accommodationDetailReader).should().isInWishlist(1L, 7L);
 	}
 
 	@Test
@@ -95,7 +97,7 @@ class AccommodationQueryServiceTest {
 
 		assertThat(response.bookingWindowStartInclusive()).isEqualTo(LocalDate.of(2026, 8, 11));
 		assertThat(response.bookingWindowEndExclusive()).isEqualTo(LocalDate.of(2026, 11, 11));
-		verify(bookingWindowProvider).currentFor("America/New_York");
+		then(bookingWindowProvider).should().currentFor("America/New_York");
 	}
 
 	@Test
@@ -105,8 +107,9 @@ class AccommodationQueryServiceTest {
 
 		AccommodationResponse.DetailInfo.from(accommodationQueryService.getAccommodation(1L, null));
 
-		verify(accommodationDetailCache).getOrLoad(eq(1L), any());
-		verifyNoInteractions(bookingWindowProvider, inventoryManager);
+		then(accommodationDetailCache).should().getOrLoad(eq(1L), any());
+		then(bookingWindowProvider).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -119,7 +122,7 @@ class AccommodationQueryServiceTest {
 		ArgumentCaptor<LocalDate> windowStartCaptor = ArgumentCaptor.forClass(LocalDate.class);
 		ArgumentCaptor<LocalDate> windowEndCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
-		verify(inventoryManager).findUnavailableRangesSnapshot(
+		then(inventoryManager).should().findUnavailableRangesSnapshot(
 			eq(1L), windowStartCaptor.capture(), windowEndCaptor.capture(),
 			eq(AVAILABILITY_QUERIED_AT));
 		assertThat(windowEndCaptor.getValue()).isEqualTo(windowStartCaptor.getValue().plusMonths(3));
@@ -135,9 +138,9 @@ class AccommodationQueryServiceTest {
 		Long accommodationId = 1L;
 		LocalDate today = BOOKING_WINDOW_START;
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(inventoryManager.findUnavailableRangesSnapshot(
+		given(inventoryManager.findUnavailableRangesSnapshot(
 			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-			.thenReturn(List.of(new ReservationInventoryManager.UnavailableRange(
+			.willReturn(List.of(new ReservationInventoryManager.UnavailableRange(
 				today.plusDays(1),
 				today.plusDays(4))));
 
@@ -156,9 +159,9 @@ class AccommodationQueryServiceTest {
 		LocalDate windowStart = BOOKING_WINDOW_START;
 		LocalDate windowEndExclusive = windowStart.plusMonths(3);
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(inventoryManager.findUnavailableRangesSnapshot(
+		given(inventoryManager.findUnavailableRangesSnapshot(
 			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-			.thenReturn(List.of(
+			.willReturn(List.of(
 				new ReservationInventoryManager.UnavailableRange(
 					windowStart,
 					windowStart.plusDays(6)),
@@ -178,34 +181,35 @@ class AccommodationQueryServiceTest {
 	@Test
 	@DisplayName("게시되지 않은 숙소의 예약 가능 정보는 조회할 수 없다")
 	void accommodationAvailabilityRequiresPublishedAccommodation() {
-		when(accommodationRepository.findBookingProjectionByIdAndStatus(
-			1L, AccommodationStatus.PUBLISHED)).thenReturn(Optional.empty());
+		given(accommodationRepository.findBookingProjectionByIdAndStatus(
+			1L, AccommodationStatus.PUBLISHED)).willReturn(Optional.empty());
 
 		assertThatThrownBy(
 			() -> AccommodationResponse.Availability.from(accommodationQueryService.getAccommodationAvailability(1L)))
 			.isInstanceOf(AccommodationNotFoundException.class);
-		verifyNoInteractions(bookingWindowProvider, inventoryManager);
+		then(bookingWindowProvider).shouldHaveNoInteractions();
+		then(inventoryManager).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("호스트 숙소 상세 조회는 이미지를 숙소 ID로 조회한다")
 	void hostAccommodationDetailUsesAccommodationIdForImages() {
 		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
-		when(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
-			.thenReturn(Optional.of(accommodation));
-		when(accommodationDetailReader.readAmenities(1L)).thenReturn(List.of());
-		when(accommodationDetailReader.readImages(1L)).thenReturn(List.of());
+		given(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
+			.willReturn(Optional.of(accommodation));
+		given(accommodationDetailReader.readAmenities(1L)).willReturn(List.of());
+		given(accommodationDetailReader.readImages(1L)).willReturn(List.of());
 
 		AccommodationResponse.HostDetail.from(accommodationQueryService.getHostAccommodationDetail(1L, 7L));
 
-		verify(accommodationDetailReader).readImages(1L);
+		then(accommodationDetailReader).should().readImages(1L);
 	}
 
 	private void givenCachedAccommodation(Long accommodationId) {
 		AccommodationDetailSnapshot snapshot = new AccommodationDetailSnapshot(
 			accommodationId, "숙소", null, null, null, null, null, null,
 			DEFAULT_TIME_ZONE_ID, null, null, null, null, List.of(), List.of(), null);
-		when(accommodationDetailCache.getOrLoad(eq(accommodationId), any())).thenReturn(snapshot);
+		given(accommodationDetailCache.getOrLoad(eq(accommodationId), any())).willReturn(snapshot);
 	}
 
 	private void givenPublishedAccommodationAvailability(Long accommodationId) {
@@ -216,10 +220,10 @@ class AccommodationQueryServiceTest {
 		Long accommodationId,
 		String timeZoneId,
 		BookingWindow bookingWindow) {
-		when(accommodationRepository.findBookingProjectionByIdAndStatus(
+		given(accommodationRepository.findBookingProjectionByIdAndStatus(
 			accommodationId, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(new AccommodationBookingProjection(timeZoneId)));
-		when(bookingWindowProvider.currentFor(timeZoneId)).thenReturn(bookingWindow);
-		when(clock.instant()).thenReturn(AVAILABILITY_QUERIED_AT);
+			.willReturn(Optional.of(new AccommodationBookingProjection(timeZoneId)));
+		given(bookingWindowProvider.currentFor(timeZoneId)).willReturn(bookingWindow);
+		given(clock.instant()).willReturn(AVAILABILITY_QUERIED_AT);
 	}
 }

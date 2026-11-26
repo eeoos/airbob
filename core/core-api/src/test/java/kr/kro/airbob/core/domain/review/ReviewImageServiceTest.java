@@ -3,6 +3,8 @@ package kr.kro.airbob.core.domain.review;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
@@ -58,10 +60,10 @@ class ReviewImageServiceTest {
 			.review(review)
 			.imageUrl("https://cdn.example.com/review.jpg")
 			.build();
-		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
-		when(s3ImageUploader.upload(image, "reviews/10"))
-			.thenReturn(savedImage.getImageUrl());
-		when(reviewImageRepository.saveAll(anyList())).thenReturn(List.of(savedImage));
+		given(reviewRepository.findByIdAndAuthorId(10L, 2L)).willReturn(Optional.of(review));
+		given(s3ImageUploader.upload(image, "reviews/10"))
+			.willReturn(savedImage.getImageUrl());
+		given(reviewImageRepository.saveAll(anyList())).willReturn(List.of(savedImage));
 
 		List<StoredImage> response = reviewImageService.uploadReviewImages(10L, List.of(image), 2L);
 
@@ -78,25 +80,26 @@ class ReviewImageServiceTest {
 			.review(review)
 			.imageUrl("https://cdn.example.com/review.jpg")
 			.build();
-		when(reviewImageRepository.findByIdAndReviewAuthorId(20L, 2L))
-			.thenReturn(Optional.of(image));
+		given(reviewImageRepository.findByIdAndReviewAuthorId(20L, 2L))
+			.willReturn(Optional.of(image));
 
 		reviewImageService.deleteReviewImage(10L, 20L, 2L);
 
-		verify(s3ImageUploader).delete(image.getImageUrl());
-		verify(reviewImageRepository).delete(image);
+		then(s3ImageUploader).should().delete(image.getImageUrl());
+		then(reviewImageRepository).should().delete(image);
 	}
 
 	@Test
 	@DisplayName("뒤쪽 파일이 유효하지 않으면 앞쪽 파일도 저장소에 업로드하지 않는다")
 	void validatesEveryFileBeforeUploadingAnyFile() throws IOException {
 		Review review = review(10L, 4, accommodation(), member());
-		when(reviewRepository.findByIdAndAuthorId(10L, 2L)).thenReturn(Optional.of(review));
+		given(reviewRepository.findByIdAndAuthorId(10L, 2L)).willReturn(Optional.of(review));
 		var valid = new MockMultipartFile("images", "review.png", "image/png", new byte[] {1});
 		var invalid = new MockMultipartFile("images", "invalid.txt", "text/plain", new byte[] {1});
 		assertThatThrownBy(() -> reviewImageService.uploadReviewImages(10L, List.of(valid, invalid), 2L))
 			.isInstanceOf(kr.kro.airbob.core.domain.image.InvalidImageFormatException.class);
-		verifyNoInteractions(s3ImageUploader, reviewImageRepository);
+		then(s3ImageUploader).shouldHaveNoInteractions();
+		then(reviewImageRepository).shouldHaveNoInteractions();
 	}
 
 	private Accommodation accommodation() {

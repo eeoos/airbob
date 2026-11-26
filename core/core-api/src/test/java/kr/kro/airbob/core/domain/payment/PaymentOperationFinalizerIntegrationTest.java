@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.reset;
 
 import java.time.Clock;
@@ -186,7 +186,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(historyRepository.findAll()).extracting(ReservationHistory::getStatus)
 			.containsExactly(CONFIRMED);
 		assertThat(outboxRepository.count()).isZero();
-		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
 	}
 
 	@Test
@@ -207,8 +207,8 @@ class PaymentOperationFinalizerIntegrationTest {
 	@Test
 	void manualResolutionAuditFailureRollsBackEveryFinalizationEffect() {
 		prepareManualReconciliationExecution();
-		doThrow(new IllegalStateException("injected resolution outbox failure"))
-			.when(resolutionRecorder).recordSystem(
+		willThrow(new IllegalStateException("injected resolution outbox failure"))
+			.given(resolutionRecorder).recordSystem(
 				any(PaymentOperation.class),
 				eq(PaymentOperationResolutionAction.RECONCILIATION_APPLIED),
 				eq("PROVIDER_PAYMENT_CONFIRMED"),
@@ -411,8 +411,8 @@ class PaymentOperationFinalizerIntegrationTest {
 
 	@Test
 	void approvalRefreshPublicationFailureRollsBackPaymentLedgerReservationHistoryAndOperation() {
-		doThrow(new IllegalStateException("injected index outbox failure"))
-			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+		willThrow(new IllegalStateException("injected index outbox failure"))
+			.given(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 
 		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment()))
 			.isInstanceOf(RuntimeException.class);
@@ -447,7 +447,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			assertThat(history.getSourceSystem()).isEqualTo("PAYMENT_OPERATION");
 		});
 		assertThat(outboxRepository.count()).isZero();
-		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
 	}
 
 	@Test
@@ -465,8 +465,8 @@ class PaymentOperationFinalizerIntegrationTest {
 
 	@Test
 	void declineRefreshPublicationFailureRollsBackLedgerReservationCouponHistoryAndOperation() {
-		doThrow(new IllegalStateException("injected expiration outbox failure"))
-			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+		willThrow(new IllegalStateException("injected expiration outbox failure"))
+			.given(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 
 		assertThatThrownBy(() -> finalizer.applyDeclined(
 			execution(LEASE_OWNER), "REJECT_CARD_PAYMENT", "card rejected"))
@@ -501,7 +501,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			assertThat(history.getStatus()).isEqualTo(CANCELLED);
 			assertThat(history.getSourceSystem()).isEqualTo("PAYMENT_OPERATION");
 		});
-		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
 	}
 
 	@Test
@@ -542,8 +542,8 @@ class PaymentOperationFinalizerIntegrationTest {
 	@Test
 	void databaseFailureAfterProviderCancellationLeavesExecutionForLeaseInquiryRecovery() {
 		prepareCancellationFixture();
-		doThrow(new IllegalStateException("injected index outbox failure"))
-			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+		willThrow(new IllegalStateException("injected index outbox failure"))
+			.given(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 
 		assertThatThrownBy(() -> finalizer.applyCancelled(
 			cancellationExecution(LEASE_OWNER), cancelledPayment()))

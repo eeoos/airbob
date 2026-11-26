@@ -80,10 +80,21 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 ## B. PR 후: Claude 리뷰
 
 1. **실행을 기다린다.**
-   - 초안이 아닌 PR을 열거나 다시 열 때, 초안을 준비 완료로 바꿀 때 `claude-review-request.yml`이 PR에서 돈다. 그 실행이 끝나면 main의 `claude-review.yml`이 `workflow_run`으로 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. 초안 PR은 준비 완료로 바꿔야 돈다.
-   - 리뷰는 main에 있는 워크플로, 스크립트, 리뷰 기준으로 돈다. 이것들을 바꾼 PR도 바꾸기 전 버전으로 리뷰되고, 바뀐 것은 머지 뒤 다음 PR부터 적용된다.
-   - PR을 만들 때 `claude-review` 라벨을 함께 붙이지 않는다. `opened`와 `labeled`로 같은 커밋을 두 번 리뷰한다.
-   - 리뷰를 받은 PR은 고치는 동안 초안으로 돌리거나 닫지 않는다. 초안을 준비 완료로 되돌리거나 다시 열면 라벨 없이 리뷰가 다시 돈다.
+   - 초안이 아닌 PR에 `claude-review` 라벨을 붙이면 `claude-review-request.yml`이 PR에서 돈다. 그 실행이 끝나면 main의 `claude-review.yml`이 `workflow_run`으로 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. PR을 열거나 다시 열거나 push해도 돌지 않는다.
+   - 리뷰는 main에 있는 워크플로, 스크립트, 리뷰 기준으로 돈다. 이것들을 바꾼 PR도 바꾸기 전 버전으로 리뷰되고, 바뀐 것은 머지 뒤 다음 PR부터 적용된다. 단 요청 조건(`claude-review-request.yml`)은 PR의 것을 따른다.
+   - 코드가 바뀐 PR은 만들 때 라벨을 붙인다(`gh pr create --label claude-review`). 사용자가 건너뛰자고 한 PR(예: 기계적인 대량 변경)에만 붙이지 않고, 기록 파일에 "생략(사용자 결정)"으로 남겨 지표에서 뺀다.
+   - 리뷰할 PR인데 요청 실행이 없으면 라벨을 확인해 붙인다. 이미 붙어 있으면 원인을 없앤 뒤 뗐다가 다시 붙인다.
+     - `gh pr create`가 PR은 만들고 라벨 추가에서 실패했을 때
+     - 문서만 바뀌어 라벨 없이 만든 PR에 코드가 들어왔을 때
+     - 초안에 붙인 라벨은 무시된다. 준비 완료로 바꾼 뒤 다시 붙인다.
+     - PR의 대상 브랜치와 충돌하면 pull_request 워크플로가 돌지 않는다. 충돌을 푼 뒤 다시 붙인다.
+
+     ```
+     gh api -X DELETE repos/eeoos/airbob/issues/<번호>/labels/claude-review --silent
+     gh api -X POST repos/eeoos/airbob/issues/<번호>/labels -f 'labels[]=claude-review'
+     ```
+
+     `gh pr edit`은 classic Projects 조회 오류로 실패할 수 있어 `gh api`를 쓴다.
    - 먼저 요청 실행을 찾고, 그 ID로 리뷰 실행을 찾아 끝날 때까지 기다린다. 리뷰 실행은 브랜치가 main으로 찍히고, 이름 끝에 `(request <요청 실행 ID>)`가 붙는다.
      ```
      gh run list --workflow claude-review-request.yml --branch <브랜치> --json databaseId,headSha,conclusion
@@ -124,7 +135,7 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
 5. **Claude 리뷰는 PR당 1회다.** 다시 돌릴 때마다 지적과 수정, Codex 재리뷰가 새로 시작돼 끝나지 않기 때문이다.
    - Claude 지적을 고친 부분은 다시 Claude가 아니라 A.4의 Codex 재리뷰로 확인한다. 재리뷰를 할지, 언제 멈출지는 A.4의 기준을 따른다.
    - A.4의 기준으로 재리뷰가 멈추면 그 PR의 리뷰를 끝낸다. Claude를 다시 돌리지 않는다.
-   - `claude-review` 라벨로 다시 돌리는 것은 다음 경우뿐이다. 이미 붙어 있으면 뗐다가 다시 붙인다.
+   - `claude-review` 라벨을 뗐다가 다시 붙여 다시 돌리는 것은 다음 경우뿐이다.
      - 실행이 실패해 리뷰를 받지 못했을 때(미완료)
      - 리뷰 뒤에 설계가 크게 바뀌었을 때(예: 구현 방식 교체)
      - 리뷰 과정 자체(이 스킬, 리뷰 기준, 리뷰 워크플로·스크립트)를 다듬는 PR에서 사용자가 원할 때

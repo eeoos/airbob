@@ -2,8 +2,8 @@ package kr.kro.airbob.core.domain.auth.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.BDDMockito.when;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -48,8 +48,8 @@ class SessionRedisRepositoryTest {
 	@Test
 	@DisplayName("세션 저장 시 만료 시각을 가진 회원별 세션 인덱스와 TTL도 함께 저장한다")
 	void saveSessionStoresMemberSessionIndex() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+		given(redisTemplate.opsForValue()).willReturn(valueOperations);
+		given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
 		ArgumentCaptor<Double> cleanupThreshold = ArgumentCaptor.forClass(Double.class);
 		ArgumentCaptor<Double> expiresAt = ArgumentCaptor.forClass(Double.class);
 
@@ -72,9 +72,9 @@ class SessionRedisRepositoryTest {
 	@Test
 	@DisplayName("단일 로그아웃 시 정방향 세션과 회원별 세션 인덱스를 함께 제거한다")
 	void deleteSessionRemovesBothSessionIndexes() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get("SESSION:session-1")).thenReturn(10L);
-		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+		given(redisTemplate.opsForValue()).willReturn(valueOperations);
+		given(valueOperations.get("SESSION:session-1")).willReturn(10L);
+		given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
 
 		sessionRedisRepository.deleteSession("session-1");
 
@@ -86,8 +86,8 @@ class SessionRedisRepositoryTest {
 	@Test
 	@DisplayName("이미 만료된 세션 로그아웃도 오류 없이 처리한다")
 	void deleteExpiredSessionIsIdempotent() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get("SESSION:expired-session")).thenReturn(null);
+		given(redisTemplate.opsForValue()).willReturn(valueOperations);
+		given(valueOperations.get("SESSION:expired-session")).willReturn(null);
 
 		sessionRedisRepository.deleteSession("expired-session");
 
@@ -98,9 +98,9 @@ class SessionRedisRepositoryTest {
 	@Test
 	@DisplayName("회원의 모든 정방향 세션과 회원별 세션 인덱스를 제거한다")
 	void invalidateAllRemovesEverySessionForMember() {
-		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
-		when(zSetOperations.range("MEMBER_SESSIONS:10", 0, -1))
-			.thenReturn(Set.of("session-1", "session-2"));
+		given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
+		given(zSetOperations.range("MEMBER_SESSIONS:10", 0, -1))
+			.willReturn(Set.of("session-1", "session-2"));
 
 		sessionRedisRepository.invalidateAll(10L);
 
@@ -113,9 +113,9 @@ class SessionRedisRepositoryTest {
 	@Test
 	@DisplayName("역인덱스가 축출돼도 회원별 세션 활성 상태를 먼저 제거한다")
 	void invalidateAllRevokesMemberWhenReverseIndexIsMissing() {
-		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
-		when(zSetOperations.range("MEMBER_SESSIONS:10", 0, -1))
-			.thenReturn(Set.of());
+		given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
+		given(zSetOperations.range("MEMBER_SESSIONS:10", 0, -1))
+			.willReturn(Set.of());
 
 		sessionRedisRepository.invalidateAll(10L);
 

@@ -1,6 +1,7 @@
 package kr.kro.airbob.core.api.controller.v1.accommodation.response;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import java.time.Instant;
@@ -106,7 +107,7 @@ class AccommodationResponseJsonTest {
 	@DisplayName("호스트 상세에도 숙소 현지 시간대 식별자를 반환한다")
 	void serializesHostAccommodationTimeZoneId() {
 		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
-		when(accommodation.timeZoneId()).thenReturn("Europe/Paris");
+		given(accommodation.timeZoneId()).willReturn("Europe/Paris");
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
 			accommodation,
 			List.of(),
