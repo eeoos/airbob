@@ -15,12 +15,6 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class RedisConfig {
 
-	@Value("${spring.data.redis.host}")
-	private String redisHost;
-
-	@Value("${spring.data.redis.port}")
-	private int redisPort;
-
 	@Bean
 	public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
 		RedisTemplate<String, Object> template = new RedisTemplate<>();
@@ -32,11 +26,15 @@ public class RedisConfig {
 
 	@Bean
 	@Primary
-	public RedissonClient redissonClient() {
-		return Redisson.create(redissonConfig());
+	public RedissonClient redissonClient(
+		@Value("${spring.data.redis.host}")
+		String redisHost,
+		@Value("${spring.data.redis.port}")
+		int redisPort) {
+		return Redisson.create(redissonConfig(redisHost, redisPort));
 	}
 
-	Config redissonConfig() {
+	Config redissonConfig(String redisHost, int redisPort) {
 		Config config = new Config();
 		config.setUseScriptCache(true);
 		String redisAddress = "redis://" + redisHost + ":" + redisPort;

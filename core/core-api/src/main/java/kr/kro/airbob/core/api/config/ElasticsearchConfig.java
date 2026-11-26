@@ -23,17 +23,14 @@ import co.elastic.clients.transport.rest_client.RestClientTransport;
 @EnableElasticsearchRepositories
 public class ElasticsearchConfig {
 
-	@Value("${spring.elasticsearch.uris}")
-	private String elasticsearchUrl;
-
-	@Value("${spring.elasticsearch.username:}")
-	private String username;
-
-	@Value("${spring.elasticsearch.password:}")
-	private String password;
-
 	@Bean
-	public ElasticsearchClient elasticsearchClient(ObjectMapper objectMapper) {
+	public ElasticsearchClient elasticsearchClient(ObjectMapper objectMapper,
+		@Value("${spring.elasticsearch.uris}")
+		String elasticsearchUrl,
+		@Value("${spring.elasticsearch.username:}")
+		String username,
+		@Value("${spring.elasticsearch.password:}")
+		String password) {
 		CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
 		credentialsProvider.setCredentials(AuthScope.ANY,
 			new UsernamePasswordCredentials(username, password));

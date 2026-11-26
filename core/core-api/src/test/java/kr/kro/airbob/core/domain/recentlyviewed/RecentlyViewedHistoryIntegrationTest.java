@@ -10,6 +10,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -73,7 +74,8 @@ class RecentlyViewedHistoryIntegrationTest {
 		accommodations = mock(AccommodationRepository.class);
 		wishlists = mock(WishlistReader.class);
 		service = new RecentlyViewedService(
-			new RecentlyViewedReader(redis), new RecentlyViewedWriter(redis), new AccommodationReader(accommodations),
+			new RecentlyViewedReader(redis), new RecentlyViewedWriter(redis, Clock.systemUTC()),
+			new AccommodationReader(accommodations),
 			wishlists);
 	}
 
@@ -122,7 +124,8 @@ class RecentlyViewedHistoryIntegrationTest {
 			return size;
 		}).when(operations).size(KEY);
 		var concurrentService = new RecentlyViewedService(new RecentlyViewedReader(interleavedTemplate),
-			new RecentlyViewedWriter(interleavedTemplate), new AccommodationReader(accommodations), wishlists);
+			new RecentlyViewedWriter(interleavedTemplate, Clock.systemUTC()), new AccommodationReader(accommodations),
+			wishlists);
 		try (var executor = Executors.newFixedThreadPool(8)) {
 			var futures = IntStream.rangeClosed(101, 108)
 				.mapToObj(id -> executor.submit(() -> concurrentService.addRecentlyViewed((long)id, 7L))).toList();

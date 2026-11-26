@@ -88,6 +88,7 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 
 import jakarta.servlet.http.Cookie;
+import kr.kro.airbob.core.api.config.ClockConfig;
 import kr.kro.airbob.core.api.config.WebMvcConfig;
 import kr.kro.airbob.core.api.config.apidocs.OpenApiConfiguration;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
@@ -3114,7 +3115,7 @@ class ApiDocumentationTest {
 		SpringDocPageableConfiguration.class, SpringDocSortConfiguration.class, SwaggerConfig.class,
 		SwaggerUiConfigProperties.class, SwaggerUiOAuthProperties.class})
 	@Import({OpenApiConfiguration.class, WebMvcConfig.class, GlobalExceptionHandler.class, SessionAuthFilter.class,
-		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class,
+		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class, ClockConfig.class,
 		AdminAuthInterceptor.class, QueryCountInterceptor.class, CurrentMemberIdArgumentResolver.class,
 		CursorDecoder.class, CursorParamArgumentResolver.class, CouponCampaignCursorParamArgumentResolver.class,
 		ReviewCursorParamArgumentResolver.class})

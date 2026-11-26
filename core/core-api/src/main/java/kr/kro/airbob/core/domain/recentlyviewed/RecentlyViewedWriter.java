@@ -1,5 +1,6 @@
 package kr.kro.airbob.core.domain.recentlyviewed;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -29,9 +30,10 @@ public class RecentlyViewedWriter {
 		""", Long.class);
 
 	private final RedisTemplate<String, String> redisTemplate;
+	private final Clock clock;
 
 	public void add(Long accommodationId, Long memberId) {
-		long timestamp = System.currentTimeMillis();
+		long timestamp = clock.millis();
 		// 기록·개수 제한·만료 갱신 사이에 다른 요청이 끼어 과도하게 삭제되지 않도록 함께 실행한다.
 		redisTemplate.execute(ADD_HISTORY, List.of(RecentlyViewedKeys.of(memberId)), accommodationId.toString(),
 			Long.toString(timestamp), Integer.toString(MAX_COUNT),

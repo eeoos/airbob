@@ -2,9 +2,6 @@ package kr.kro.airbob.core.domain.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -60,8 +57,8 @@ class MemberServiceTest {
 
 		then(memberRepository).should().save(memberCaptor.capture());
 		Member savedMember = memberCaptor.getValue();
-		assertNotEquals("password1", savedMember.getPassword());
-		assertTrue(BCrypt.checkpw("password1", savedMember.getPassword()));
+		assertThat(savedMember.getPassword()).isNotEqualTo("password1");
+		assertThat(BCrypt.checkpw("password1", savedMember.getPassword())).isTrue();
 		then(historyRepository).should().save(any(MemberHistory.class));
 	}
 
@@ -72,8 +69,8 @@ class MemberServiceTest {
 		given(memberRepository.existsByIdAndStatusAndRole(1L, MemberStatus.ACTIVE, MemberRole.ADMIN))
 			.willReturn(true);
 
-		assertTrue(service.isActiveAdmin(1L));
-		assertFalse(service.isActiveAdmin(2L));
+		assertThat(service.isActiveAdmin(1L)).isTrue();
+		assertThat(service.isActiveAdmin(2L)).isFalse();
 	}
 
 	@Test

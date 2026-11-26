@@ -54,7 +54,7 @@ class SettlementServiceTest {
 		SettlementHistoryWriter historyWriter = new SettlementHistoryWriter(settlementHistoryRepository);
 		settlementService = new SettlementService(
 			new SettlementReader(settlementRepository),
-			new SettlementGenerator(settlementRepository, historyWriter),
+			new SettlementGenerator(settlementRepository, historyWriter, new BigDecimal("0.03")),
 			historyWriter,
 			redissonClient,
 			transactionManager,

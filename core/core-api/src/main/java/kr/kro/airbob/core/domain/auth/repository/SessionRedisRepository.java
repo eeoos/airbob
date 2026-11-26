@@ -1,5 +1,6 @@
 package kr.kro.airbob.core.domain.auth.repository;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.Set;
@@ -20,12 +21,13 @@ public class SessionRedisRepository {
 	private static final String MEMBER_SESSIONS = "MEMBER_SESSIONS:";
 	private static final String MEMBER_SESSION_ACTIVE = "MEMBER_SESSION_ACTIVE:";
 	private final RedisTemplate<String, Object> redisTemplate;
+	private final Clock clock;
 
 	public void saveSession(String sessionId, Long memberId) {
 		redisTemplate.opsForValue().set(SESSION + sessionId, memberId, TTL);
 		redisTemplate.opsForValue().set(MEMBER_SESSION_ACTIVE + memberId, true, TTL);
 		String memberSessionsKey = MEMBER_SESSIONS + memberId;
-		long now = System.currentTimeMillis();
+		long now = clock.millis();
 		redisTemplate.opsForZSet().removeRangeByScore(memberSessionsKey, 0, now);
 		redisTemplate.opsForZSet().add(memberSessionsKey, sessionId, now + TTL.toMillis());
 		redisTemplate.expire(memberSessionsKey, TTL);

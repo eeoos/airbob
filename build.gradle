@@ -51,6 +51,12 @@ configure(subprojects.findAll { it.subprojects.isEmpty() }) {
 			// The Naver convention allows wildcards only in static imports; forbidWildcardImports() rejects both.
 			forbidRegex('Non-static wildcard import', '(?m)^import (?!static\\s)[\\w.]+\\.\\*;',
 				'Import each class by name; only static imports may use *')
+			// Tests assert with AssertJ. A lint here covers every module's tests, unlike an ArchUnit rule in core-api.
+			// JUnit 4 and Hamcrest are on the test classpath through Testcontainers and spring-boot-starter-test;
+			// org.hamcrest.Matchers stays allowed for MockMvc jsonPath matchers.
+			forbidRegex('Non-AssertJ assertions',
+				'org\\.junit\\.jupiter\\.api\\.Assertions\\b|org\\.junit\\.Assert\\b|junit\\.framework\\.Assert\\b|org\\.hamcrest\\.MatcherAssert\\b',
+				'Assert with AssertJ (assertThat, assertThatThrownBy) instead of JUnit Assertions, JUnit 4 or 3 Assert, or Hamcrest MatcherAssert')
 			eclipse().configFile(rootProject.file('config/formatter/naver-eclipse-formatter.xml'))
 		}
 	}

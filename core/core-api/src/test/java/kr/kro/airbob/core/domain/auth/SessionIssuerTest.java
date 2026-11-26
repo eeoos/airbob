@@ -1,7 +1,7 @@
 package kr.kro.airbob.core.domain.auth;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -36,7 +36,7 @@ class SessionIssuerTest {
 
 		String sessionId = issuer.issue(1L, "current-hash");
 
-		assertFalse(sessionId.isBlank());
+		assertThat(sessionId).isNotBlank();
 		then(sessionRedisRepository).should().saveSession(sessionId, 1L);
 	}
 
@@ -47,7 +47,7 @@ class SessionIssuerTest {
 		given(memberRepository.findByIdAndStatusForUpdate(1L, MemberStatus.ACTIVE))
 			.willReturn(Optional.empty());
 
-		assertThrows(MemberNotFoundException.class, () -> issuer.issue(1L, "current-hash"));
+		assertThatThrownBy(() -> issuer.issue(1L, "current-hash")).isInstanceOf(MemberNotFoundException.class);
 
 		then(sessionRedisRepository).shouldHaveNoInteractions();
 	}
@@ -60,7 +60,7 @@ class SessionIssuerTest {
 		given(memberRepository.findByIdAndStatusForUpdate(1L, MemberStatus.ACTIVE))
 			.willReturn(Optional.of(member));
 
-		assertThrows(InvalidPasswordException.class, () -> issuer.issue(1L, "old-hash"));
+		assertThatThrownBy(() -> issuer.issue(1L, "old-hash")).isInstanceOf(InvalidPasswordException.class);
 
 		then(sessionRedisRepository).shouldHaveNoInteractions();
 	}

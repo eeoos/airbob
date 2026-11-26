@@ -44,6 +44,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.core.api.config.ClockConfig;
 import kr.kro.airbob.core.api.controller.GlobalExceptionHandler;
 import kr.kro.airbob.core.api.security.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.core.api.security.SessionAuthFilter;
@@ -172,7 +173,7 @@ class AccommodationUploadHttpTest {
 		DispatcherServletAutoConfiguration.class, WebMvcAutoConfiguration.class, MultipartAutoConfiguration.class,
 		JacksonAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class})
 	@Import({AccommodationHostController.class, GlobalExceptionHandler.class, SessionAuthFilter.class,
-		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class,
+		SessionAuthenticationService.class, SessionReader.class, SessionRedisRepository.class, ClockConfig.class,
 		CurrentMemberIdArgumentResolver.class})
 	static class Application {
 		@Bean

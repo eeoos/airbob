@@ -5,14 +5,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.when;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -24,6 +27,7 @@ import org.springframework.data.redis.core.ZSetOperations;
 class SessionRedisRepositoryTest {
 
 	private static final Duration SESSION_TTL = Duration.ofHours(1);
+	private static final Instant NOW = Instant.parse("2026-11-25T00:00:00Z");
 
 	@Mock
 	private RedisTemplate<String, Object> redisTemplate;
@@ -34,8 +38,12 @@ class SessionRedisRepositoryTest {
 	@Mock
 	private ZSetOperations<String, Object> zSetOperations;
 
-	@InjectMocks
 	private SessionRedisRepository sessionRedisRepository;
+
+	@BeforeEach
+	void setUp() {
+		sessionRedisRepository = new SessionRedisRepository(redisTemplate, Clock.fixed(NOW, ZoneOffset.UTC));
+	}
 
 	@Test
 	@DisplayName("세션 저장 시 만료 시각을 가진 회원별 세션 인덱스와 TTL도 함께 저장한다")
@@ -55,8 +63,8 @@ class SessionRedisRepositoryTest {
 			.removeRangeByScore(eq("MEMBER_SESSIONS:10"), eq(0D), cleanupThreshold.capture());
 		then(zSetOperations).should()
 			.add(eq("MEMBER_SESSIONS:10"), eq("session-1"), expiresAt.capture());
-		assertThat(expiresAt.getValue() - cleanupThreshold.getValue())
-			.isEqualTo(SESSION_TTL.toMillis());
+		assertThat(cleanupThreshold.getValue()).isEqualTo((double)NOW.toEpochMilli());
+		assertThat(expiresAt.getValue()).isEqualTo((double)NOW.plus(SESSION_TTL).toEpochMilli());
 		then(redisTemplate).should()
 			.expire("MEMBER_SESSIONS:10", SESSION_TTL);
 	}

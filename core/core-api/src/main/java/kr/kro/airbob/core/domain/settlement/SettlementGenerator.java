@@ -12,23 +12,27 @@ import org.springframework.stereotype.Component;
 import kr.kro.airbob.core.domain.settlement.repository.SettlementRepository;
 import kr.kro.airbob.core.domain.settlement.repository.projection.HostMonthlyAggregate;
 import kr.kro.airbob.core.support.persistence.history.ChangeType;
-import lombok.RequiredArgsConstructor;
 
 /**
  * 한 달 결제 원장을 호스트별로 집계해 PENDING 정산을 만들거나 갱신한다. PAID 정산은 건드리지 않는다.
  * 잠금과 트랜잭션은 호출한 Business가 연다.
  */
 @Component
-@RequiredArgsConstructor
 public class SettlementGenerator {
 
 	private static final String SOURCE_BATCH = "BATCH";
 
 	private final SettlementRepository settlementRepository;
 	private final SettlementHistoryWriter historyWriter;
+	private final BigDecimal commissionRate;
 
-	@Value("${settlement.commission-rate:0.03}")
-	private BigDecimal commissionRate;
+	public SettlementGenerator(SettlementRepository settlementRepository, SettlementHistoryWriter historyWriter,
+		@Value("${settlement.commission-rate:0.03}")
+		BigDecimal commissionRate) {
+		this.settlementRepository = settlementRepository;
+		this.historyWriter = historyWriter;
+		this.commissionRate = commissionRate;
+	}
 
 	/** @return 집계한 호스트 수 */
 	public int generate(YearMonth month) {
