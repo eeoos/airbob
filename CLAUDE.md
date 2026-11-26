@@ -9,8 +9,10 @@ state. The README, `docs/` and `scripts/README.md` are written in Korean.
 - Run `./gradlew compileJava` after entity changes to regenerate QueryDSL Q-classes.
 - Java code follows the Naver convention through Spotless. The edit hook formats each edited file.
   `spotlessCheck`, part of `./gradlew build`, fails on unformatted code, a non-static wildcard import,
-  a non-AssertJ assertion class (JUnit `Assertions`, JUnit 4/3 `Assert`, Hamcrest `MatcherAssert`), or a
-  `void` method name in Korean or starting with a capital (put a Korean test description in `@DisplayName`).
+  a non-AssertJ assertion class (JUnit `Assertions`, JUnit 4/3 `Assert`, Hamcrest `MatcherAssert`), a
+  `void` method name in Korean or starting with a capital (put a Korean test description in `@DisplayName`),
+  `@MockBean`/`@SpyBean` (use `@MockitoBean`/`@MockitoSpyBean`), or Mockito `when`/`verify`/`do...` in tests
+  (use BDDMockito `given`/`then`/`will...`).
   Fix formatting with `./gradlew spotlessApply`. `spotlessApply` cannot fix a non-static wildcard
   import; replace it with class imports by hand. The Stop hook runs `spotlessCheck`; the edit hook
   does not. Do not change the formatter XML; see `docs/development/coding-convention.md`.
@@ -42,7 +44,8 @@ shrunk store with the fix. `CodingRulesTest` bans field injection (including `@V
 constructor or `@Bean` method parameters), `System.out`/`System.err`/`printStackTrace()`, creating
 `Throwable`/`Exception`/`RuntimeException` (constructor references included), `java.util.logging`, and
 reading the current time without the `Clock` bean (`now()`, `now(ZoneId)`, `System.currentTimeMillis()`,
-or a system `Clock`/`InstantSource` created outside `ClockConfiguration`). `NamingRulesTest` and
+or a system `Clock`/`InstantSource` created outside `ClockConfiguration`), and public setters on entities.
+`NamingRulesTest` and
 `TestNamingRulesTest` enforce the naming rules in `docs/development/coding-convention.md` ("이름"): role suffixes,
 Reader `read` (required value or list) and `find` (`Optional`), `get` for `@Service` and controller queries, no
 `Dto` suffix, and no capitalized abbreviations. `.claude/rules/java-conventions.md` lists what only review checks.
@@ -78,7 +81,7 @@ directly, even if you have not opened a matching file yet.
 | `deploy-ci.md` | CI/CD, OCI deployment gates, archived AWS performance lab |
 | `database.md` | Flyway migrations, roll-forward rules, migration notes |
 | `api-docs.md` | OpenAPI contracts, API guides, snapshot regeneration, Swagger exposure |
-| `java-conventions.md` | Java naming rules that only review checks (any Java source) |
+| `java-conventions.md` | Java naming, design and test rules that only review checks (any Java source) |
 
 ## Testing expectations
 

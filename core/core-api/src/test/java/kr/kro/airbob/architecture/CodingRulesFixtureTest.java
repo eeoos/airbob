@@ -76,6 +76,14 @@ class CodingRulesFixtureTest {
 		assertThat(hasViolation(CodingRulesTest.currentTimeComesFromClock, fixture)).isFalse();
 	}
 
+	@Test
+	void entitySetterRuleReportsPublicSetters() {
+		ArchRule rule = CodingRulesTest.noPublicSettersInClassesAnnotatedWith(FixtureEntity.class.getName());
+
+		assertThat(hasViolation(rule, SettableEntity.class)).isTrue();
+		assertThat(hasViolation(rule, ConfirmableEntity.class)).isFalse();
+	}
+
 	private static boolean hasViolation(ArchRule rule, Class<?> fixture) {
 		return rule.evaluate(new ClassFileImporter().importClasses(fixture)).hasViolation();
 	}
@@ -199,6 +207,27 @@ class CodingRulesFixtureTest {
 
 		long elapsedSince(long startNanos) {
 			return System.nanoTime() - startNanos;
+		}
+	}
+
+	/** 실제 @Entity를 쓰면 JPA 엔티티 스캔에 잡히므로 픽스처 전용 어노테이션을 쓴다. */
+	@interface FixtureEntity{}
+
+	@FixtureEntity
+	static class SettableEntity {
+		private String name;
+
+		public void setName(String name) {
+			this.name = name;
+		}
+	}
+
+	@FixtureEntity
+	static class ConfirmableEntity {
+		private boolean confirmed;
+
+		public void confirm() {
+			confirmed = true;
 		}
 	}
 }

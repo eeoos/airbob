@@ -9,6 +9,8 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 계층·의존 | [코드 구조](../architecture/code-structure.md) | ArchUnit(`core/core-api/src/test/java/kr/kro/airbob/architecture`) |
 | 코드 규칙 | 아래 [코드 규칙](#코드-규칙) | ArchUnit `CodingRulesTest`, 테스트의 단언 API 제한은 Spotless |
 | 이름 | 아래 [이름](#이름) | ArchUnit `NamingRulesTest`·`TestNamingRulesTest`, 테스트 메서드 이름은 Spotless, 나머지는 리뷰 |
+| 설계 | 아래 [설계](#설계) | 엔티티의 public setter 금지는 ArchUnit `CodingRulesTest`, 나머지는 리뷰 |
+| 테스트 | 아래 [테스트](#테스트) | 목 API 제한은 Spotless, 나머지는 리뷰 |
 
 ## 포매팅
 
@@ -35,7 +37,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 명령 | 하는 일 |
 |---|---|
 | `./gradlew spotlessApply` | 모든 모듈의 Java 파일을 포매팅한다 |
-| `./gradlew spotlessCheck` | 포매팅이 다르거나, static이 아닌 와일드카드 import, 아래 [코드 규칙](#코드-규칙)에서 막는 단언 클래스, [이름](#이름)에서 막는 테스트 메서드 이름이 있으면 실패한다. `check`에 포함되어 `./gradlew build`가 함께 실행한다 |
+| `./gradlew spotlessCheck` | 포매팅이 다르거나, static이 아닌 와일드카드 import, 아래 [코드 규칙](#코드-규칙)에서 막는 단언 클래스, [이름](#이름)에서 막는 테스트 메서드 이름, [테스트](#테스트)에서 막는 목 API가 있으면 실패한다. `check`에 포함되어 `./gradlew build`가 함께 실행한다 |
 
 `spotlessApply`는 static이 아닌 와일드카드 import를 고치지 못한다. 쓰는 클래스를 하나씩 import하도록 직접 바꾼다.
 
@@ -80,6 +82,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | `java.util.logging` | main | SLF4J(`@Slf4j`) |
 | `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()`, `ClockConfiguration` 밖에서 시스템 시계 만들기(`Clock.systemUTC()`·`systemDefaultZone()`·`system(ZoneId)`, `Clock.tickSeconds`·`tickMinutes`·`tickMillis`, `InstantSource.system()`) | main | `Clock` 빈을 주입받아 `clock.instant()`, `clock.millis()`, `LocalDate.now(clock)`를 쓴다. 저장할 `LocalDateTime`은 JPA 감사 시각처럼 `LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)`로 만든다. 주입받은 시계를 감싸는 `Clock.tick(clock, …)`, `Clock.offset(clock, …)`은 쓸 수 있다. 경과 시간은 `System.nanoTime()`으로 잰다 |
 | 단언 클래스. JUnit `org.junit.jupiter.api.Assertions`, JUnit 4 `org.junit.Assert`, JUnit 3 `junit.framework.Assert`, Hamcrest `org.hamcrest.MatcherAssert` | 모든 모듈의 test | AssertJ의 `assertThat`, `assertThatThrownBy`. MockMvc `jsonPath`에 넘기는 Hamcrest `Matchers`는 쓸 수 있다 |
+| 엔티티(`@Entity`)의 public setter(`set…`). Lombok `@Setter`·`@Data`가 만든 것도 포함한다 | main | 바뀌는 뜻을 이름에 담은 엔티티 메서드(`Reservation.confirm()`). [설계](#설계) 참고 |
 
 - **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfiguration`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`). 옛 날짜 API(`new Date()`, `Calendar.getInstance()`)는 이 규칙이 다루지 않는다. main에서 쓰지 않으며 새 코드에도 쓰지 않는다.
 - **테스트 코드는 대부분 대상이 아니다.** 테스트의 `@Autowired` 필드는 스프링 테스트의 관행이고, 동시성 테스트는 결과를 표준 출력으로 남긴다.
@@ -170,3 +173,42 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
     - 약어 30(`mySQLContainer` 13개 파일 포함)
   - Spotless: 테스트 메서드 이름 78(한글 76, 대문자로 시작 2)
 - **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 코드 규칙과 함께 몇 초 안에 끝난다. 테스트 메서드 이름은 `./gradlew spotlessCheck`가 본다.
+
+## 설계
+
+계층·의존 규칙과 Business 입출력은 [코드 구조](../architecture/code-structure.md#계층과-의존-규칙)에 있다. 이 절은 그 밖의 작성 규칙이다.
+
+- 규칙은 2026-11-26에 지금 코드의 다수 관행을 재서 정했다. 관행이 갈린 항목은 사용자가 정했다.
+- 기계가 검사하는 규칙을 빼면, 기존 코드는 고치지 않고 새로 쓰거나 고치는 코드부터 적용한다.
+
+| 규칙 | 도입할 때 관행 | 강제 |
+|---|---|---|
+| 의존성은 생성자로 주입한다. `private final` 필드와 `@RequiredArgsConstructor`가 기본이다. `@Value` 파라미터나 생성 로직이 필요하면 생성자를 직접 쓴다 | 빈 클래스 214개 중 `@RequiredArgsConstructor` 123, 직접 쓴 생성자 57 | 필드 주입 금지는 ArchUnit([코드 규칙](#코드-규칙)), 나머지는 리뷰 |
+| 로거는 `@Slf4j`로 만든다. `LoggerFactory`는 이름을 지정하는 로거(`airbob.sql.trace`)에만 쓴다 | `@Slf4j` 29, `LoggerFactory` 3 | 리뷰 |
+| 엔티티는 `@Getter`와 `@NoArgsConstructor(access = AccessLevel.PROTECTED)`를 쓴다. `@Setter`·`@Data`는 쓰지 않고, 상태는 바뀌는 뜻을 이름에 담은 엔티티 메서드로 바꾼다(`Reservation.confirm()`) | 엔티티 29개 모두 | public setter 금지는 ArchUnit, 나머지는 리뷰 |
+| 요청·응답 DTO와 도메인 입출력은 record로 쓴다 | 응답 중첩 타입 73개 모두, 요청 28개 중 24개 | 리뷰 |
+| 정적 팩토리는 다른 타입 하나를 바꾸면 `from`, 값 여러 개를 모아 만들면 `of`로 짓는다 | 응답의 `from` 65, `of` 7 | 리뷰 |
+| 예외는 세 갈래로 나눈다. 클라이언트에 오류 코드로 알리는 실패는 `BaseException` 하위 예외와 `ErrorCode`로 던진다. 외부 연동·인프라 실패는 뜻을 담은 `RuntimeException` 하위 예외로 던진다(클라이언트 모듈은 core의 예외를 모른다). 내부 불변식 위반은 `IllegalStateException`(또는 그 하위), 잘못된 인자는 `IllegalArgumentException`이다 | 예외 99개 중 `BaseException` 하위 85 | 일반 예외 생성 금지는 ArchUnit, 나머지는 리뷰 |
+| `@Transactional`은 Business 메서드 단위로 붙인다. DB를 읽는 조회는 `readOnly = true`로 둔다 | 메서드 단위 114, 클래스 단위 2. Service `get…` 29개 중 `readOnly` 26(나머지 3개는 ES·캐시 조회) | 리뷰 |
+| `Optional`은 반환값과, "없을 수 있음"이 뜻인 record 컴포넌트에만 쓴다. 메서드 매개변수와 클래스 필드에는 쓰지 않는다 | 필드 0, 매개변수 1, record 컴포넌트 8 | 리뷰 |
+| 주석은 한국어로 쓴다. 코드의 이름과 타입은 영어 그대로 적는다 | main 한국어 572·영어 121, test 영어 313·한국어 63(사용자 결정) | 리뷰 |
+| 로그 메시지와 내부용 예외 메시지는 영어로 쓴다. 클라이언트에 가는 문구는 `ErrorCode`가 정한다 | 로그 한국어 47·영어 24, 예외 메시지 영어 132·한국어 39(사용자 결정) | 리뷰 |
+
+## 테스트
+
+통합 테스트의 기준(실제 MySQL, Embedded Kafka, `test` 프로필 격리)은 `CLAUDE.md`의 "Testing expectations"에 있다. 규칙을 정한 날짜와 적용 방식은 [설계](#설계)와 같다.
+
+| 규칙 | 도입할 때 관행 | 강제 |
+|---|---|---|
+| 단언은 AssertJ로 한다 | | Spotless([코드 규칙](#코드-규칙)) |
+| 목은 BDDMockito로 다룬다. 스텁은 `given(…).willReturn(…)`·`willThrow(…).given(mock)…`, 검증은 `then(mock).should()…`·`then(mock).shouldHaveNoInteractions()`, 순서 검증은 `then(mock).should(inOrder)…`로 쓴다 | 스텁 BDD 64·Mockito 37개 파일(사용자 결정). 기존 70개 파일을 바꿨다 | Mockito의 `when`·`verify`·`do…`·`verifyNo…Interactions` 호출은 Spotless(test 소스). `InOrder.verify`는 리뷰 |
+| 스프링 테스트의 목 빈은 `@MockitoBean`·`@MockitoSpyBean`으로 만든다 | `@MockitoBean` 35, `@MockBean` 0 | `@MockBean`·`@SpyBean`은 Spotless |
+| 새 테스트에는 동작을 설명하는 한국어 `@DisplayName`을 붙인다 | 테스트 메서드 1,623개 중 약 1,055개, 한국어 997·영어만 58(사용자 결정) | 리뷰 |
+| 범위에 맞는 테스트를 쓴다. 단위는 `@ExtendWith(MockitoExtension.class)`, 쿼리는 `@DataJpaTest`, 여러 계층과 MySQL 계약은 `@SpringBootTest`와 Testcontainers로 한다 | `MockitoExtension` 76, `@DataJpaTest` 33, `@SpringBootTest` 26개 파일 | 리뷰 |
+| 비동기 결과는 Awaitility로 기다린다. 고정 `Thread.sleep`으로 기다리지 않는다 | Awaitility 8, `Thread.sleep` 4개 파일(폴링 루프) | 리뷰 |
+| `@Nested`와 given/when/then 주석은 선택이다 | `@Nested` 7, 주석 6개 파일 | — |
+
+- **BDDMockito로 통일한 이유.** 테스트를 준비·실행·검증 순서로 읽히게 한다. 다수 관행이기도 했다. 기존 Mockito 코드는 이 규칙을 넣으며 함께 바꿨다(70개 파일, 동작 불변).
+- **Spotless가 보는 것.** test 소스에서 접두어 없는 `when(`·`verify(`·`doThrow(` 같은 호출과 `Mockito.when(` 같은 호출을 막는다. 주석에 같은 글을 쓰면 걸리니 문구를 바꾼다.
+  - `lenient().when(…)`은 막지 않는다. BDDMockito에는 lenient 스텁이 없다.
+  - `inOrder.verify(…)`는 변수 이름을 알 수 없어 막지 못하므로 리뷰가 본다.
