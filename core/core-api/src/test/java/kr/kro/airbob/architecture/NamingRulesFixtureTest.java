@@ -115,6 +115,7 @@ class NamingRulesFixtureTest {
 		assertThat(hasViolation(rule, UrlMethod.class)).isTrue();
 		assertThat(hasViolation(rule, UrlContainerField.class)).isTrue();
 		assertThat(hasViolation(rule, CapitalizedField.class)).isTrue();
+		assertThat(hasViolation(rule, MutableSerialVersion.class)).isTrue();
 		assertThat(hasViolation(rule, WellSpelledNames.class, StatusCode.class)).isFalse();
 	}
 
@@ -124,6 +125,9 @@ class NamingRulesFixtureTest {
 
 		assertThat(hasViolation(rule, ChecksWithoutSuffix.class)).isTrue();
 		assertThat(hasViolation(rule, PaymentCases.AcceptedTest.class, PaymentCases.class)).isTrue();
+		assertThat(hasViolation(rule, InheritedCases.ApprovedTest.class, InheritedCases.class, AcceptanceChecks.class))
+			.isTrue();
+		assertThat(hasViolation(rule, StandaloneHolder.StandaloneTest.class, StandaloneHolder.class)).isFalse();
 		assertThat(hasViolation(rule, ChecksTest.class)).isFalse();
 	}
 
@@ -314,6 +318,10 @@ class NamingRulesFixtureTest {
 		private static final Object sharedURL = new Object();
 	}
 
+	static class MutableSerialVersion {
+		private long serialVersionUID = 1L;
+	}
+
 	static class CapitalizedField {
 		String URL;
 	}
@@ -355,6 +363,25 @@ class NamingRulesFixtureTest {
 		class AcceptedTest {
 			@Test
 			void accepts() {}
+		}
+	}
+
+	/** The @Nested class runs test methods it inherits; the class around it lacks the suffix. */
+	private static class InheritedCases {
+		@Nested
+		class ApprovedTest implements AcceptanceChecks {}
+	}
+
+	interface AcceptanceChecks {
+		@Test
+		default void accepts() {}
+	}
+
+	/** A static nested test class runs on its own, so the class around it is not a test class. */
+	private static class StandaloneHolder {
+		private static class StandaloneTest {
+			@Test
+			void passes() {}
 		}
 	}
 }

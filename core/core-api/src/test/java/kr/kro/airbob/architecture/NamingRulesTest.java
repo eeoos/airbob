@@ -233,9 +233,10 @@ class NamingRulesTest {
 				}
 				for (JavaField field : javaClass.getFields()) {
 					boolean constant = field.getModifiers().containsAll(Set.of(JavaModifier.STATIC, JavaModifier.FINAL))
-						&& CONSTANT_NAME.matcher(field.getName()).matches();
-					if (!constant && !field.getName().equals("serialVersionUID")
-						&& !field.getModifiers().contains(JavaModifier.SYNTHETIC) && !field.getName().contains("$")) {
+						&& (CONSTANT_NAME.matcher(field.getName()).matches()
+							|| field.getName().equals("serialVersionUID"));
+					if (!constant && !field.getModifiers().contains(JavaModifier.SYNTHETIC)
+						&& !field.getName().contains("$")) {
 						report(field, field.getName(), field.getFullName(), events);
 					}
 				}

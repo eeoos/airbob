@@ -2,13 +2,13 @@ package kr.kro.airbob.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
-import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.boot.test.context.TestConfiguration;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -28,6 +28,7 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 	cacheMode = CacheMode.PER_CLASS)
 class TestNamingRulesTest {
 
+	private static final String NESTED = "org.junit.jupiter.api.Nested";
 	private static final Set<String> TEST_ANNOTATIONS = Set.of(
 		"org.junit.jupiter.api.Test",
 		"org.junit.jupiter.api.RepeatedTest",
@@ -48,35 +49,42 @@ class TestNamingRulesTest {
 	static final ArchRule abbreviations = NamingRulesTest.abbreviationsIn(notNamingFixtures());
 
 	/**
-	 * A class that declares test methods ends with Test, and so does every class around it: the test class around
-	 * @Nested classes is checked even when only the @Nested classes declare test methods.
+	 * Classes that JUnit runs end with Test, and so does the class around a @Nested one. A static nested test class
+	 * runs on its own, so the class around it is not a test class.
 	 */
 	static ArchRule testClassNamingIn(DescribedPredicate<? super JavaClass> scope) {
 		return classes()
-			.that(declareTestMethods()).and(scope)
-			.should(beNamedTestWithTheClassesAroundThem())
-			.as("classes that declare test methods, and the classes around them, should be named *Test");
+			.that(runTestMethods()).and(scope)
+			.should(beNamedTestWithTheClassesAroundNestedOnes())
+			.as("classes that run test methods, and the classes around @Nested ones, should be named *Test");
 	}
 
-	private static ArchCondition<JavaClass> beNamedTestWithTheClassesAroundThem() {
-		return new ArchCondition<>("be named *Test, with the classes around them") {
+	private static ArchCondition<JavaClass> beNamedTestWithTheClassesAroundNestedOnes() {
+		return new ArchCondition<>("be named *Test, with the classes around @Nested ones") {
 			@Override
 			public void check(JavaClass javaClass, ConditionEvents events) {
-				Optional<JavaClass> current = Optional.of(javaClass);
-				while (current.isPresent()) {
-					JavaClass testClass = current.get();
-					boolean named = testClass.getSimpleName().endsWith("Test");
-					events.add(new SimpleConditionEvent(testClass, named, testClass.getName()
-						+ (named ? " is named *Test" : " holds test methods but is not named *Test")));
-					current = testClass.getEnclosingClass();
+				JavaClass current = javaClass;
+				report(current, events);
+				while (current.isAnnotatedWith(NESTED) && current.getEnclosingClass().isPresent()) {
+					current = current.getEnclosingClass().get();
+					report(current, events);
 				}
+			}
+
+			private void report(JavaClass testClass, ConditionEvents events) {
+				boolean named = testClass.getSimpleName().endsWith("Test");
+				events.add(new SimpleConditionEvent(testClass, named, testClass.getName()
+					+ (named ? " is named *Test" : " runs or holds test methods but is not named *Test")));
 			}
 		};
 	}
 
-	private static DescribedPredicate<JavaClass> declareTestMethods() {
-		return DescribedPredicate.describe("declare test methods", javaClass -> javaClass.getMethods().stream()
-			.anyMatch(method -> TEST_ANNOTATIONS.stream().anyMatch(method::isAnnotatedWith)));
+	/** Concrete classes with their own or inherited test methods; abstract classes and interfaces do not run. */
+	private static DescribedPredicate<JavaClass> runTestMethods() {
+		return DescribedPredicate.describe("run test methods", javaClass -> !javaClass.isInterface()
+			&& !javaClass.getModifiers().contains(JavaModifier.ABSTRACT)
+			&& javaClass.getAllMethods().stream()
+				.anyMatch(method -> TEST_ANNOTATIONS.stream().anyMatch(method::isAnnotatedWith)));
 	}
 
 	private static DescribedPredicate<JavaClass> notNamingFixtures() {
