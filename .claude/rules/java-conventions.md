@@ -45,13 +45,17 @@ Apply these to code you write or change; existing code is not rewritten for them
 - Log with `@Slf4j`; use `LoggerFactory` only for a named logger such as `airbob.sql.trace`.
 - Entities use `@Getter` and `@NoArgsConstructor(access = AccessLevel.PROTECTED)`, never `@Setter` or
   `@Data`; change state through a method that names the change (`Reservation.confirm()`).
-- Write request/response DTOs and domain inputs/outputs as records.
+- Write request/response DTOs, and any type made for domain inputs or outputs, as records; pass simple
+  values and return entity IDs as they are.
 - Name a static factory `from` when it converts one other type and `of` when it builds from several values.
 - Exceptions: a failure reported to clients with an error code is a `BaseException` subclass with an
   `ErrorCode`; an external or infrastructure failure is a `RuntimeException` subclass named for it (client
   modules do not know core exceptions); a broken invariant is `IllegalStateException` (or a subclass) and a
   bad argument is `IllegalArgumentException`.
-- Put `@Transactional` on business methods, `readOnly = true` for queries that read the database.
+- Put `@Transactional` on the business method that owns the transaction, `readOnly = true` for queries that
+  read the database. Do not put it on a method that coordinates steps outside a transaction, such as
+  `PaymentOperationExecutionService.execute()` (the execution fence refuses an active transaction) or a flow
+  that opens a new transaction per attempt.
 - Use `Optional` for return values and for record components that may be absent, never for method
   parameters or class fields.
 - Write comments in Korean, keeping code names and types as they are. Write log messages and internal

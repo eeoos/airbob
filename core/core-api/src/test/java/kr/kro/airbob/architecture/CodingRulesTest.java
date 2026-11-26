@@ -6,6 +6,7 @@ import static com.tngtech.archunit.library.GeneralCodingRules.ACCESS_STANDARD_ST
 import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_USE_FIELD_INJECTION;
 import static com.tngtech.archunit.library.GeneralCodingRules.THROW_GENERIC_EXCEPTIONS;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -34,6 +35,7 @@ import kr.kro.airbob.core.api.config.ClockConfiguration;
 class CodingRulesTest {
 
 	private static final String ENTITY = "jakarta.persistence.Entity";
+	private static final String MAPPED_SUPERCLASS = "jakarta.persistence.MappedSuperclass";
 	private static final Set<String> GENERIC_EXCEPTIONS = Set.of(
 		"java.lang.Throwable", "java.lang.Exception", "java.lang.RuntimeException");
 	/** Static methods of Clock and InstantSource that create a clock on the system time. */
@@ -69,14 +71,20 @@ class CodingRulesTest {
 		.should().accessTargetWhere(readsTheSystemClock())
 		.because("tests replace the Clock bean to control time; System.nanoTime() for elapsed time is allowed");
 
-	/** 엔티티의 상태는 바뀌는 뜻을 이름에 담은 메서드로 바꾼다(예: Reservation.confirm()). Lombok이 만든 setter도 잡는다. */
+	/**
+	 * 엔티티의 상태는 바뀌는 뜻을 이름에 담은 메서드로 바꾼다(예: Reservation.confirm()). Lombok이 만든 setter도 잡는다.
+	 * 엔티티가 물려받는 @MappedSuperclass의 메서드도 보고, 인자가 없어도 set으로 시작하는 상태 변경 메서드는 막는다.
+	 */
 	@ArchTest
-	static final ArchRule entitiesHaveNoPublicSetters = noPublicSettersInClassesAnnotatedWith(ENTITY);
+	static final ArchRule entitiesHaveNoPublicSetters = noPublicSettersInClassesAnnotatedWith(ENTITY,
+		MAPPED_SUPERCLASS);
 
-	/** 픽스처가 실제 @Entity 대신 자기 어노테이션을 쓸 수 있도록 대상 어노테이션을 인자로 받는다. */
-	static ArchRule noPublicSettersInClassesAnnotatedWith(String annotation) {
+	/** 픽스처가 실제 JPA 어노테이션 대신 자기 어노테이션을 쓸 수 있도록 대상 어노테이션을 인자로 받는다. */
+	static ArchRule noPublicSettersInClassesAnnotatedWith(String... annotations) {
 		return noMethods()
-			.that().areDeclaredInClassesThat().areAnnotatedWith(annotation).and().arePublic()
+			.that().areDeclaredInClassesThat(DescribedPredicate.describe("annotated with " + List.of(annotations),
+				javaClass -> Arrays.stream(annotations).anyMatch(javaClass::isAnnotatedWith)))
+			.and().arePublic()
 			.should().haveNameMatching("set[A-Z].*")
 			.because("entities change state through methods that name the change, such as Reservation.confirm()");
 	}

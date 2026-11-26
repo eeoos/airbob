@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.logging.Logger;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -77,10 +78,13 @@ class CodingRulesFixtureTest {
 	}
 
 	@Test
+	@DisplayName("엔티티와 그 상위 클래스의 public setter를 막고 상태 변경 메서드는 허용한다")
 	void entitySetterRuleReportsPublicSetters() {
-		ArchRule rule = CodingRulesTest.noPublicSettersInClassesAnnotatedWith(FixtureEntity.class.getName());
+		ArchRule rule = CodingRulesTest.noPublicSettersInClassesAnnotatedWith(
+			FixtureEntity.class.getName(), FixtureSuperclass.class.getName());
 
 		assertThat(hasViolation(rule, SettableEntity.class)).isTrue();
+		assertThat(hasViolation(rule, SettableSuperclass.class)).isTrue();
 		assertThat(hasViolation(rule, ConfirmableEntity.class)).isFalse();
 	}
 
@@ -212,6 +216,17 @@ class CodingRulesFixtureTest {
 
 	/** 실제 @Entity를 쓰면 JPA 엔티티 스캔에 잡히므로 픽스처 전용 어노테이션을 쓴다. */
 	@interface FixtureEntity{}
+
+	@interface FixtureSuperclass{}
+
+	@FixtureSuperclass
+	static class SettableSuperclass {
+		private String imageUrl;
+
+		public void setImageUrl(String imageUrl) {
+			this.imageUrl = imageUrl;
+		}
+	}
 
 	@FixtureEntity
 	static class SettableEntity {

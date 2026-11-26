@@ -82,7 +82,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | `java.util.logging` | main | SLF4J(`@Slf4j`) |
 | `Clock` 빈 없이 현재 시각 읽기. java.time의 `now()`·`now(ZoneId)`, `System.currentTimeMillis()`, `ClockConfiguration` 밖에서 시스템 시계 만들기(`Clock.systemUTC()`·`systemDefaultZone()`·`system(ZoneId)`, `Clock.tickSeconds`·`tickMinutes`·`tickMillis`, `InstantSource.system()`) | main | `Clock` 빈을 주입받아 `clock.instant()`, `clock.millis()`, `LocalDate.now(clock)`를 쓴다. 저장할 `LocalDateTime`은 JPA 감사 시각처럼 `LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)`로 만든다. 주입받은 시계를 감싸는 `Clock.tick(clock, …)`, `Clock.offset(clock, …)`은 쓸 수 있다. 경과 시간은 `System.nanoTime()`으로 잰다 |
 | 단언 클래스. JUnit `org.junit.jupiter.api.Assertions`, JUnit 4 `org.junit.Assert`, JUnit 3 `junit.framework.Assert`, Hamcrest `org.hamcrest.MatcherAssert` | 모든 모듈의 test | AssertJ의 `assertThat`, `assertThatThrownBy`. MockMvc `jsonPath`에 넘기는 Hamcrest `Matchers`는 쓸 수 있다 |
-| 엔티티(`@Entity`)의 public setter(`set…`). Lombok `@Setter`·`@Data`가 만든 것도 포함한다 | main | 바뀌는 뜻을 이름에 담은 엔티티 메서드(`Reservation.confirm()`). [설계](#설계) 참고 |
+| 엔티티(`@Entity`)와 엔티티가 물려받는 `@MappedSuperclass`의 public `set…` 메서드. Lombok `@Setter`·`@Data`가 만든 것도, 인자가 없는 것도 포함한다(상태 변경을 `set`으로 짓지 않는다) | main | 바뀌는 뜻을 이름에 담은 엔티티 메서드(`Reservation.confirm()`). [설계](#설계) 참고 |
 
 - **Clock 규칙의 이유.** 운영의 `Clock` 빈은 `Clock.systemUTC()`(`ClockConfiguration`)다. 테스트는 이 빈을 고정 시각으로 바꿔 시간을 제어한다. 그래서 시각을 직접 읽는 코드는 테스트에서 시간을 제어할 수 없다. 쿠폰 발급처럼 DB 시각을 쓰는 곳은 이 규칙과 무관하다(`.claude/rules/coupon.md`). 옛 날짜 API(`new Date()`, `Calendar.getInstance()`)는 이 규칙이 다루지 않는다. main에서 쓰지 않으며 새 코드에도 쓰지 않는다.
 - **테스트 코드는 대부분 대상이 아니다.** 테스트의 `@Autowired` 필드는 스프링 테스트의 관행이고, 동시성 테스트는 결과를 표준 출력으로 남긴다.
@@ -186,10 +186,10 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | 의존성은 생성자로 주입한다. `private final` 필드와 `@RequiredArgsConstructor`가 기본이다. `@Value` 파라미터나 생성 로직이 필요하면 생성자를 직접 쓴다 | 빈 클래스 214개 중 `@RequiredArgsConstructor` 123, 직접 쓴 생성자 57 | 필드 주입 금지는 ArchUnit([코드 규칙](#코드-규칙)), 나머지는 리뷰 |
 | 로거는 `@Slf4j`로 만든다. `LoggerFactory`는 이름을 지정하는 로거(`airbob.sql.trace`)에만 쓴다 | `@Slf4j` 29, `LoggerFactory` 3 | 리뷰 |
 | 엔티티는 `@Getter`와 `@NoArgsConstructor(access = AccessLevel.PROTECTED)`를 쓴다. `@Setter`·`@Data`는 쓰지 않고, 상태는 바뀌는 뜻을 이름에 담은 엔티티 메서드로 바꾼다(`Reservation.confirm()`) | 엔티티 29개 모두 | public setter 금지는 ArchUnit, 나머지는 리뷰 |
-| 요청·응답 DTO와 도메인 입출력은 record로 쓴다 | 응답 중첩 타입 73개 모두, 요청 28개 중 24개 | 리뷰 |
+| 요청·응답 DTO와, 도메인 입출력에 따로 만드는 타입은 record로 쓴다. 단순 값을 넘기거나 엔티티 ID를 돌려줄 때는 그 값을 그대로 쓴다([코드 구조](../architecture/code-structure.md#business-입출력과-도메인-레코드)) | 응답 중첩 타입 73개 모두, 요청 28개 중 24개 | 리뷰 |
 | 정적 팩토리는 다른 타입 하나를 바꾸면 `from`, 값 여러 개를 모아 만들면 `of`로 짓는다 | 응답의 `from` 65, `of` 7 | 리뷰 |
 | 예외는 세 갈래로 나눈다. 클라이언트에 오류 코드로 알리는 실패는 `BaseException` 하위 예외와 `ErrorCode`로 던진다. 외부 연동·인프라 실패는 뜻을 담은 `RuntimeException` 하위 예외로 던진다(클라이언트 모듈은 core의 예외를 모른다). 내부 불변식 위반은 `IllegalStateException`(또는 그 하위), 잘못된 인자는 `IllegalArgumentException`이다 | 예외 99개 중 `BaseException` 하위 85 | 일반 예외 생성 금지는 ArchUnit, 나머지는 리뷰 |
-| `@Transactional`은 Business 메서드 단위로 붙인다. DB를 읽는 조회는 `readOnly = true`로 둔다 | 메서드 단위 114, 클래스 단위 2. Service `get…` 29개 중 `readOnly` 26(나머지 3개는 ES·캐시 조회) | 리뷰 |
+| `@Transactional`은 트랜잭션을 소유하는 Business 메서드 단위로 붙인다. DB를 읽는 조회는 `readOnly = true`로 둔다. 트랜잭션 밖에서 단계를 조율하는 메서드에는 붙이지 않는다. 예: 결제 실행 펜스를 잡는 `PaymentOperationExecutionService.execute()`([코드 구조의 payment 계층](../architecture/code-structure.md#payment의-계층-pr-16a16d)), 시도마다 새 트랜잭션을 여는 흐름([Business 입출력](../architecture/code-structure.md#business-입출력과-도메인-레코드)) | 메서드 단위 114, 클래스 단위 2. Service `get…` 29개 중 `readOnly` 26(나머지 3개는 ES·캐시 조회) | 리뷰 |
 | `Optional`은 반환값과, "없을 수 있음"이 뜻인 record 컴포넌트에만 쓴다. 메서드 매개변수와 클래스 필드에는 쓰지 않는다 | 필드 0, 매개변수 1, record 컴포넌트 8 | 리뷰 |
 | 주석은 한국어로 쓴다. 코드의 이름과 타입은 영어 그대로 적는다 | main 한국어 572·영어 121, test 영어 313·한국어 63(사용자 결정) | 리뷰 |
 | 로그 메시지와 내부용 예외 메시지는 영어로 쓴다. 클라이언트에 가는 문구는 `ErrorCode`가 정한다 | 로그 한국어 47·영어 24, 예외 메시지 영어 132·한국어 39(사용자 결정) | 리뷰 |
