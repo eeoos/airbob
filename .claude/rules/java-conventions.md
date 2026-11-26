@@ -22,11 +22,13 @@ formatting, the code rules (`CodingRulesTest`), and most naming rules (`NamingRu
   entity's collection, `update`/`change` a value, `record` a history row.
 - Name an integration event `<Subject><PastParticiple>V<n>`, such as `AccommodationSearchRefreshRequestedV1`.
 - Name a query with `get` in a `@Service`, even when its first word would be another verb such as `show` or
-  `browse`, and in a controller mapped with `@RequestMapping(method = GET)`; the tests check `@GetMapping`
-  methods and only the common other verbs.
-- In test code too: no class ends with `Dto`, and a `@TestFactory` method that returns a value has a
-  lowerCamelCase English name (the Spotless lint reads `void` declarations only).
-- Every class JUnit runs ends with `Test`, including ones the test rule cannot judge: a class that inherits an
-  abstract parent's `@Nested` class, a test overridden without annotations, a composed `@Nested` annotation.
+  `browse`, and in a controller or Swagger interface mapped with `@RequestMapping(method = GET)`; the tests
+  check `@GetMapping` methods and only the common other verbs.
+- In test code too: no class ends with `Dto`, and a `@TestFactory` method that returns a value starts with a
+  lowercase English word like any test method (`_` allowed); the Spotless lint reads `void` declarations only.
+- A class that JUnit runs ends with `Test`, also where the test rule cannot judge it: a class that inherits an
+  abstract parent's `@Nested` class, and the class around one marked with a composed `@Nested` annotation.
+  A class JUnit does not run needs no suffix: a private class, an inner class without `@Nested`, or a class
+  whose test method is overridden without `@Test`.
 - Name domain input records `NewXxx` for creation and `XxxPatch` for a partial update that keeps null fields;
   see `docs/architecture/code-structure.md` ("Business 입출력과 도메인 레코드").

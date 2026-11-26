@@ -82,14 +82,16 @@ class TestNamingRulesTest {
 	}
 
 	/**
-	 * ArchUnit test classes, and concrete classes with their own or inherited test methods; abstract classes and
-	 * interfaces do not run.
+	 * Concrete classes that run tests: ArchUnit test classes, through @AnalyzeClasses or an annotation composed with
+	 * it, and classes with their own or inherited test methods. Abstract classes, interfaces and annotation types do
+	 * not run.
 	 */
 	private static DescribedPredicate<JavaClass> runTestMethods() {
-		return DescribedPredicate.describe("run tests", javaClass -> javaClass.isAnnotatedWith(ANALYZE_CLASSES)
-			|| !javaClass.isInterface() && !javaClass.getModifiers().contains(JavaModifier.ABSTRACT)
-				&& javaClass.getAllMethods().stream()
-					.anyMatch(method -> TEST_ANNOTATIONS.stream().anyMatch(method::isAnnotatedWith)));
+		return DescribedPredicate.describe("run tests", javaClass -> !javaClass.isInterface()
+			&& !javaClass.isAnnotation() && !javaClass.getModifiers().contains(JavaModifier.ABSTRACT)
+			&& (javaClass.isAnnotatedWith(ANALYZE_CLASSES) || javaClass.isMetaAnnotatedWith(ANALYZE_CLASSES)
+				|| javaClass.getAllMethods().stream()
+					.anyMatch(method -> TEST_ANNOTATIONS.stream().anyMatch(method::isAnnotatedWith))));
 	}
 
 	private static DescribedPredicate<JavaClass> notNamingFixtures() {

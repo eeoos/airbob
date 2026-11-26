@@ -2,6 +2,10 @@ package kr.kro.airbob.architecture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Optional;
 
@@ -127,6 +131,8 @@ class NamingRulesFixtureTest {
 
 		assertThat(hasViolation(rule, ChecksWithoutSuffix.class)).isTrue();
 		assertThat(hasViolation(rule, PaymentArchitectureRules.class)).isTrue();
+		assertThat(hasViolation(rule, ComposedArchitectureRules.class, AnalyzeFixturePackage.class)).isTrue();
+		assertThat(hasViolation(rule, ComposedRulesTest.class, AnalyzeFixturePackage.class)).isFalse();
 		assertThat(hasViolation(rule, PaymentCases.AcceptedTest.class, PaymentCases.class)).isTrue();
 		assertThat(hasViolation(rule, InheritedCases.ApprovedTest.class, InheritedCases.class, AcceptanceChecks.class))
 			.isTrue();
@@ -356,6 +362,18 @@ class NamingRulesFixtureTest {
 	/** An ArchUnit test class without @ArchTest members, so ArchUnit's engine has nothing to run. */
 	@AnalyzeClasses(packages = "kr.kro.airbob.architecture.fixture.none")
 	private static class PaymentArchitectureRules {}
+
+	/** An annotation composed with @AnalyzeClasses is not a test class; the classes it marks are. */
+	@Retention(RetentionPolicy.RUNTIME)
+	@Target(ElementType.TYPE)
+	@AnalyzeClasses(packages = "kr.kro.airbob.architecture.fixture.none")
+	@interface AnalyzeFixturePackage{}
+
+	@AnalyzeFixturePackage
+	private static class ComposedArchitectureRules {}
+
+	@AnalyzeFixturePackage
+	private static class ComposedRulesTest {}
 
 	/** Private, so JUnit does not run it. */
 	private static class ChecksWithoutSuffix {
