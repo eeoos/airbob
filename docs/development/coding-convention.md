@@ -88,7 +88,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - 기본 규칙은 직접 호출만 본다. `orElseGet(Instant::now)`, `orElseThrow(RuntimeException::new)` 같은 메서드·생성자 참조도 잡도록 조건을 더했다. 픽스처는 호출과 참조를 모두 담는다.
 - **테스트 단언을 Spotless로 막는 이유.** ArchUnit 규칙은 core-api 테스트 클래스만 가져와서 클라이언트 모듈의 테스트를 보지 못한다. API 문서 테스트만 바뀐 PR은 CI에서 테스트 대신 `spotlessCheck`와 `verifyOpenApi`만 돈다. Spotless는 모든 모듈에 적용되고 두 경우 모두 실행된다. JUnit 4와 Hamcrest는 Testcontainers와 `spring-boot-starter-test`를 통해 테스트 클래스패스에 있어서 함께 막는다.
 - **도입할 때 고친 위반(2026-11-25).**
-  - 필드 주입 8개: `ElasticsearchConfiguration`, `RedisConfiguration`, `S3ImageUploader`, `SettlementGenerator`의 `@Value` 필드
+  - 필드 주입 8개: `ElasticsearchConfig`, `RedisConfig`(지금은 `ElasticsearchConfiguration`, `RedisConfiguration`), `S3ImageUploader`, `SettlementGenerator`의 `@Value` 필드
   - `Clock` 없이 시각을 읽은 5곳: `WishlistRepositoryImpl`, `SessionRedisRepository`, `RecentlyViewedWriter`
   - JUnit `Assertions`를 쓴 테스트 3개 파일
 - **넣지 않은 ArchUnit 기본 규칙.**
