@@ -225,6 +225,8 @@ kr.kro.airbob
 | 진입점 | `core.domain.<도메인>`의 `@Scheduled`·`@KafkaListener` 컴포넌트(`*Scheduler`, `*Listener`) | 프레임워크가 호출하는 비-HTTP 입구. Controller처럼 Business를 호출해 유스케이스를 시작한다 |
 | Data Access | `core.domain.<도메인>.repository` | 영속성. 같은 도메인의 Implement만 사용한다 |
 
+역할별 이름(접미사, Reader의 `read`·`find`, Service·Controller의 `get` 등)은 [코딩 컨벤션의 이름](../development/coding-convention.md#이름)에 있다.
+
 1. **역참조 금지**: `core.domain`은 `core.api`에 의존하지 않는다. Business 메서드는 web Request/Response를 받지도, 반환하지도 않는다.
 2. **Presentation은 Business만 호출한다**: Implement나 Repository를 직접 쓰지 않는다.
 3. **Business 규칙**: 다른 Business를 부르지 않는다(같은 계층 참조 금지). Repository에도 직접 접근하지 않는다(계층 건너뛰기 금지).
@@ -274,8 +276,8 @@ wishlist(PR 7b)에서 정한 기준이다. 도메인을 옮길 때 같은 기준
 
 규칙은 `core/core-api/src/test/java/kr/kro/airbob/architecture`의 ArchUnit 테스트가 강제한다.
 `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 실행된다.
-Stop 훅도 core-api의 main 코드가 바뀌면 이 테스트를 함께 실행한다.
-코드 규칙(`CodingRulesTest`)은 [코딩 컨벤션](../development/coding-convention.md#코드-규칙)에 있다.
+Stop 훅도 core-api의 main이나 test, 클라이언트 모듈의 main 코드가 바뀌면 이 테스트를 함께 실행한다.
+코드 규칙(`CodingRulesTest`)은 [코딩 컨벤션의 코드 규칙](../development/coding-convention.md#코드-규칙)에, 이름 규칙(`NamingRulesTest`, `TestNamingRulesTest`)은 [코딩 컨벤션의 이름](../development/coding-convention.md#이름)에 있다.
 
 - **`LayeredArchitectureTest`(엄격)**: 애플리케이션 코드(`kr.kro.airbob.core..`)에 규칙 1~4와 이름 규칙을 적용한다.
   `core.support`가 도메인·Presentation·설정에 의존하지 않는지도 확인한다.
