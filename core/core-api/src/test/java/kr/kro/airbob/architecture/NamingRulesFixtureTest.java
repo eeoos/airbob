@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.lang.ArchRule;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -125,6 +126,7 @@ class NamingRulesFixtureTest {
 		ArchRule rule = TestNamingRulesTest.testClassNamingIn(DescribedPredicate.alwaysTrue());
 
 		assertThat(hasViolation(rule, ChecksWithoutSuffix.class)).isTrue();
+		assertThat(hasViolation(rule, PaymentArchitectureRules.class)).isTrue();
 		assertThat(hasViolation(rule, PaymentCases.AcceptedTest.class, PaymentCases.class)).isTrue();
 		assertThat(hasViolation(rule, InheritedCases.ApprovedTest.class, InheritedCases.class, AcceptanceChecks.class))
 			.isTrue();
@@ -350,6 +352,10 @@ class NamingRulesFixtureTest {
 	enum StatusCode {
 		NOT_FOUND
 	}
+
+	/** An ArchUnit test class without @ArchTest members, so ArchUnit's engine has nothing to run. */
+	@AnalyzeClasses(packages = "kr.kro.airbob.architecture.fixture.none")
+	private static class PaymentArchitectureRules {}
 
 	/** Private, so JUnit does not run it. */
 	private static class ChecksWithoutSuffix {

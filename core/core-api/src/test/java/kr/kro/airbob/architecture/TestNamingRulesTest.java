@@ -29,6 +29,8 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 class TestNamingRulesTest {
 
 	private static final String NESTED = "org.junit.jupiter.api.Nested";
+	/** ArchUnit's JUnit engine runs the @ArchTest members of classes with this annotation. */
+	private static final String ANALYZE_CLASSES = "com.tngtech.archunit.junit.AnalyzeClasses";
 	private static final Set<String> TEST_ANNOTATIONS = Set.of(
 		"org.junit.jupiter.api.Test",
 		"org.junit.jupiter.api.RepeatedTest",
@@ -79,12 +81,15 @@ class TestNamingRulesTest {
 		};
 	}
 
-	/** Concrete classes with their own or inherited test methods; abstract classes and interfaces do not run. */
+	/**
+	 * ArchUnit test classes, and concrete classes with their own or inherited test methods; abstract classes and
+	 * interfaces do not run.
+	 */
 	private static DescribedPredicate<JavaClass> runTestMethods() {
-		return DescribedPredicate.describe("run test methods", javaClass -> !javaClass.isInterface()
-			&& !javaClass.getModifiers().contains(JavaModifier.ABSTRACT)
-			&& javaClass.getAllMethods().stream()
-				.anyMatch(method -> TEST_ANNOTATIONS.stream().anyMatch(method::isAnnotatedWith)));
+		return DescribedPredicate.describe("run tests", javaClass -> javaClass.isAnnotatedWith(ANALYZE_CLASSES)
+			|| !javaClass.isInterface() && !javaClass.getModifiers().contains(JavaModifier.ABSTRACT)
+				&& javaClass.getAllMethods().stream()
+					.anyMatch(method -> TEST_ANNOTATIONS.stream().anyMatch(method::isAnnotatedWith)));
 	}
 
 	private static DescribedPredicate<JavaClass> notNamingFixtures() {

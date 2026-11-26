@@ -39,8 +39,9 @@ app_args=()
 for area in $areas; do
   [ -d "$app/src/test/java/$area" ] && app_args+=(--tests "$(echo "$area" | tr / .)*")
 done
-# Any production change can break a layer or frozen dependency rule; those tests take seconds.
-if echo "$changed" | grep -q "^$app/src/main/java/"; then
+# Any production change can break a layer, frozen dependency or naming rule, and a test change can break
+# the test naming rules (TestNamingRulesTest); those tests take seconds.
+if echo "$changed" | grep -q "^$app/src/\(main\|test\)/java/"; then
   app_args+=(--tests "kr.kro.airbob.architecture*")
 fi
 # --tests applies to the task right before it, so core-api's filtered task goes last.

@@ -96,7 +96,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - JodaTime 금지: 의존성이 없다.
   - 옛 날짜·시간 클래스 금지: JDBC에 값을 넘기는 `java.sql.Timestamp`·`Date` 사용이 정당하다.
   - 사용 중단 API 금지: 라이브러리 클래스를 가져오지 않아 JDK API의 사용 중단 표시를 볼 수 없다.
-- **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 끝난다. Stop 훅은 core-api의 main 코드가 바뀌면 이 테스트를 실행한다.
+- **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 끝난다. Stop 훅은 core-api의 main이나 test 코드가 바뀌면 이 테스트를 실행한다.
 
 ## 이름
 
@@ -123,7 +123,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 | 클래스는 명사, 인터페이스는 명사나 형용사로 짓는다(2.6·2.7) | | 리뷰 |
 | 메서드는 동사나 전치사로 시작한다(2.10) | `readActive`, `toCondition`, `withTicker` | 역할별 동사는 아래 표 |
 | 1글자 이름은 반복문 변수나 람다 파라미터처럼 잠깐 쓰는 변수에만 쓴다(2.13) | | 리뷰 |
-| 테스트 클래스는 `Test`로 끝난다(2.8). JUnit이 실행하는 클래스(물려받은 테스트만 있어도 포함)와, `@Nested` 클래스를 감싸는 클래스가 대상이다. 추상 클래스, 인터페이스, 정적 중첩 테스트 클래스를 담기만 한 클래스는 대상이 아니다 | `ReservationTest`, `StatusTransitionTest` | ArchUnit `TestNamingRulesTest` |
+| 테스트 클래스는 `Test`로 끝난다(2.8). JUnit이 실행하는 클래스(물려받은 테스트만 있어도 포함, ArchUnit의 `@AnalyzeClasses` 클래스 포함)와, `@Nested` 클래스를 감싸는 클래스가 대상이다. 추상 클래스, 인터페이스, 정적 중첩 테스트 클래스를 담기만 한 클래스는 대상이 아니다 | `ReservationTest`, `StatusTransitionTest` | ArchUnit `TestNamingRulesTest` |
 
 ### 역할 이름
 
@@ -148,7 +148,7 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - 정규식은 `void` 메서드 선언만 본다. 값을 돌려주는 `@TestFactory` 메서드는 리뷰가 본다(도입할 때 0개).
   - 한글은 유니코드 한글 문자 전체(`\p{IsHangul}`)로 판별해 분해된 자모도 잡는다.
   - 주석에 `void 한글이름(` 같은 글을 쓰면 걸리니 문구를 바꾼다.
-- **규칙의 시험.** `NamingRulesFixtureTest`는 자체 조건을 가진 규칙마다 위반 예시와 허용 예시를 둔다. Reader 동사, 조회 동사와 `@GetMapping`, 막연한 접미사, 진입점(반복 어노테이션 포함), 예외, 통합 이벤트, 약어, 테스트 클래스(물려받은 테스트, `@Nested`를 감싸는 클래스, 정적 중첩 테스트 클래스 포함)가 대상이다.
+- **규칙의 시험.** `NamingRulesFixtureTest`는 자체 조건을 가진 규칙마다 위반 예시와 허용 예시를 둔다. Reader 동사, 조회 동사와 `@GetMapping`, 막연한 접미사, 진입점(반복 어노테이션 포함), 예외, 통합 이벤트, 약어, 테스트 클래스(물려받은 테스트, `@Nested`를 감싸는 클래스, 정적 중첩 테스트 클래스, ArchUnit 테스트 클래스 포함)가 대상이다.
   - 예외 규칙은 앱의 예외가 JDK 예외를 상속하는지 따라가야 한다. ArchUnit 설정이 JDK 클래스를 가져오지 않으므로, 앱 클래스가 끝나는 곳의 라이브러리 타입은 테스트 클래스패스에서 읽어 판단한다. 그래서 `IllegalStateException`을 바로 상속한 예외도 잡는다.
   - 테스트 클래스 규칙은 JUnit의 테스트 클래스 탐색을 이름 검사에 필요한 만큼만 따른다. 다음 구조는 정확히 판단하지 못해 리뷰가 본다(도입할 때 모두 0개).
     - 추상 부모가 선언한 `@Nested` 클래스를 구체 자식이 물려받아 실행하는 구조

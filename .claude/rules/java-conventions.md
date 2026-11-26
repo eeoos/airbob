@@ -21,7 +21,12 @@ formatting, the code rules (`CodingRulesTest`), and most naming rules (`NamingRu
 - Pair Writer verbs by meaning: `create`/`delete` the entity itself, `add`/`remove` an item in another
   entity's collection, `update`/`change` a value, `record` a history row.
 - Name an integration event `<Subject><PastParticiple>V<n>`, such as `AccommodationSearchRefreshRequestedV1`.
-- Name a `@Service` query with `get`, even when its first word would be another verb such as `show` or
-  `browse` (the tests only catch the common ones).
+- Name a query with `get` in a `@Service`, even when its first word would be another verb such as `show` or
+  `browse`, and in a controller mapped with `@RequestMapping(method = GET)`; the tests check `@GetMapping`
+  methods and only the common other verbs.
+- In test code too: no class ends with `Dto`, and a `@TestFactory` method that returns a value has a
+  lowerCamelCase English name (the Spotless lint reads `void` declarations only).
+- Every class JUnit runs ends with `Test`, including ones the test rule cannot judge: a class that inherits an
+  abstract parent's `@Nested` class, a test overridden without annotations, a composed `@Nested` annotation.
 - Name domain input records `NewXxx` for creation and `XxxPatch` for a partial update that keeps null fields;
   see `docs/architecture/code-structure.md` ("Business 입출력과 도메인 레코드").
