@@ -52,10 +52,11 @@ Apply these to code you write or change; existing code is not rewritten for them
   `ErrorCode`; an external or infrastructure failure is a `RuntimeException` subclass named for it (client
   modules do not know core exceptions); a broken invariant is `IllegalStateException` (or a subclass) and a
   bad argument is `IllegalArgumentException`.
-- Put `@Transactional` on the business method that owns the transaction, `readOnly = true` for queries that
-  read the database. Do not put it on a method that coordinates steps outside a transaction, such as
-  `PaymentOperationExecutionService.execute()` (the execution fence refuses an active transaction) or a flow
-  that opens a new transaction per attempt.
+- Put `@Transactional` on the method that owns the transaction, usually a business method and, in a flow
+  that opens a transaction per step, that step's implement method (`PaymentOperationLeaseManager.claim()`);
+  `readOnly = true` for queries that read the database. Do not put it on a method that coordinates steps
+  outside a transaction, such as `PaymentOperationExecutionService.execute()` (the execution fence refuses an
+  active transaction) or a flow that opens a new transaction per attempt.
 - Use `Optional` for return values and for record components that may be absent, never for method
   parameters or class fields.
 - Write comments in Korean, keeping code names and types as they are. Write log messages and internal
