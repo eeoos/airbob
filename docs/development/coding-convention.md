@@ -8,6 +8,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 포매팅·import | 아래 [포매팅](#포매팅) | 편집 훅의 자동 정리, Stop 훅과 CI의 `spotlessCheck` |
 | 계층·의존 | [코드 구조](../architecture/code-structure.md) | ArchUnit(`core/core-api/src/test/java/kr/kro/airbob/architecture`) |
 | 코드 규칙 | 아래 [코드 규칙](#코드-규칙) | ArchUnit `CodingRulesTest`, 테스트의 단언 API 제한은 Spotless |
+| 이름 | 아래 [이름](#이름) | ArchUnit `NamingRulesTest`·`TestNamingRulesTest`, 테스트 메서드 이름은 Spotless, 나머지는 리뷰 |
 
 ## 포매팅
 
@@ -34,7 +35,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 명령 | 하는 일 |
 |---|---|
 | `./gradlew spotlessApply` | 모든 모듈의 Java 파일을 포매팅한다 |
-| `./gradlew spotlessCheck` | 포매팅이 다르거나, static이 아닌 와일드카드 import나 아래 [코드 규칙](#코드-규칙)에서 막는 단언 클래스가 있으면 실패한다. `check`에 포함되어 `./gradlew build`가 함께 실행한다 |
+| `./gradlew spotlessCheck` | 포매팅이 다르거나, static이 아닌 와일드카드 import, 아래 [코드 규칙](#코드-규칙)에서 막는 단언 클래스, [이름](#이름)에서 막는 테스트 메서드 이름이 있으면 실패한다. `check`에 포함되어 `./gradlew build`가 함께 실행한다 |
 
 `spotlessApply`는 static이 아닌 와일드카드 import를 고치지 못한다. 쓰는 클래스를 하나씩 import하도록 직접 바꾼다.
 
@@ -96,3 +97,59 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
   - 옛 날짜·시간 클래스 금지: JDBC에 값을 넘기는 `java.sql.Timestamp`·`Date` 사용이 정당하다.
   - 사용 중단 API 금지: 라이브러리 클래스를 가져오지 않아 JDK API의 사용 중단 표시를 볼 수 없다.
 - **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 몇 초 안에 끝난다. Stop 훅은 core-api의 main 코드가 바뀌면 이 테스트를 실행한다.
+
+## 이름
+
+기본 이름은 [네이버 Java 코딩 컨벤션](https://naver.github.io/hackday-conventions-java/)의 "이름" 장(2.1~2.13)을 따른다. 역할 이름은 [코드 구조](../architecture/code-structure.md#계층과-의존-규칙)의 계층 위에 정했다.
+
+- 규칙은 2026-11-26에 정했다.
+- 기존 이름은 규칙을 넣기 전에 먼저 맞췄다: main은 #228, 테스트는 #229.
+- 그래서 위반을 동결하지 않고 모두 엄격 규칙으로 둔다.
+
+### 기본 이름
+
+| 규칙 | 예 | 강제 |
+|---|---|---|
+| 식별자는 영문·숫자·`_`만 쓴다. 한국어 발음을 영문으로 옮겨 적지 않는다(2.1·2.2) | 테스트의 한국어 설명은 `@DisplayName("결제키가 200자를 넘으면 거부한다")`에 쓴다 | 테스트 메서드 이름은 Spotless, 그 밖은 리뷰 |
+| 약어도 첫 글자만 대문자로 쓴다. 대문자로 쓰는 약어 목록은 두지 않는다(2.3) | `HttpApiUrl`, `mysqlContainer`(`HTTPApiURL`, `mySQLContainer`가 아님) | ArchUnit: 클래스·메서드·필드 이름에 대문자 3개 이상 연속 금지. 대문자로 쓴 상수 이름(`MAX_URL_LENGTH`)은 빼고 본다. `userID`처럼 2글자 약어는 리뷰 |
+| 패키지는 소문자, 클래스는 대문자로 시작하는 카멜 표기, 메서드·변수는 소문자로 시작하는 카멜 표기, 상수는 대문자와 `_`(2.4·2.5·2.9·2.11·2.12) | `PaymentStatus`, `readActive`, `MAX_PAGE_NUMBER` | 대문자로 시작하는 `void` 메서드 이름은 Spotless. 그 밖은 리뷰(도입할 때 위반 0) |
+| 테스트 메서드에는 `_`를 쓸 수 있다. Spring Data 파생 쿼리에는 쓰지 않는다(2.9) | `existsByWishlistMemberIdAndAccommodationId` | 리뷰 |
+| 클래스는 명사, 인터페이스는 명사나 형용사로 짓는다(2.6·2.7) | | 리뷰 |
+| 메서드는 동사나 전치사로 시작한다(2.10) | `readActive`, `toCondition`, `withTicker` | 역할별 동사는 아래 표 |
+| 1글자 이름은 반복문 변수나 람다 파라미터처럼 잠깐 쓰는 변수에만 쓴다(2.13) | | 리뷰 |
+| 테스트 클래스는 `Test`로 끝난다. `@Nested` 클래스도 같다(2.8) | `ReservationTest`, `StatusTransitionTest` | ArchUnit `TestNamingRulesTest` |
+
+### 역할 이름
+
+| 대상 | 규칙 | 강제 |
+|---|---|---|
+| Reader 메서드(public이거나 다른 main 클래스가 부르는 것) | `read`는 반드시 있는 단건(없으면 예외)과 목록, `find`는 `Optional`만. 그 밖에는 `is`·`exists`·`has`(boolean), `count`, `search`를 쓴다 | ArchUnit |
+| `@Service`·`@RestController`·Swagger 인터페이스(`@Tag`)의 public 메서드 | 조회는 `get`으로 시작한다. 검색도 같다(`getSearchResults`). `find`·`read`·`search`·`load`·`fetch`·`retrieve`·`query`·`select`·`lookup`으로 시작하지 않는다 | ArchUnit |
+| Writer 메서드 | 뜻으로 짝을 맞춘다. `create`·`delete`는 엔티티 자체를 만들고 지운다. `add`·`remove`는 다른 엔티티의 컬렉션에 넣고 뺀다. `update`·`change`는 값을 바꾸고, `record`는 이력을 남긴다 | 리뷰 |
+| `core.domain`의 `@Component` | 역할을 드러내는 명사로 끝난다(`Reader`, `Writer`, `Validator`, `Issuer` …). `Helper`·`Util`·`Utils`·`Common`·`Misc`·`Etc`로 끝나지 않는다 | ArchUnit |
+| main의 `@Configuration`, 테스트의 `@TestConfiguration` | `*Configuration`. 최소 스프링 컨텍스트를 띄우는 테스트용 앱 루트(`@Configuration` `Application`)는 대상이 아니다 | ArchUnit |
+| 모든 클래스 | `Dto`로 끝나지 않는다. 역할로 짓는다(`Request`, `Response`, `Condition` …) | ArchUnit |
+| `@RestController`, Swagger 인터페이스 | `*Controller`, `*Api` | ArchUnit |
+| `@Scheduled` 메서드가 있는 클래스, `@KafkaListener` | `*Scheduler`, `*Listener` | ArchUnit |
+| 예외 | `*Exception`. 익명 클래스는 뺀다 | ArchUnit |
+| `request`·`response` 패키지의 최상위 클래스 | `*Request`, `*Response` | ArchUnit |
+| 통합 이벤트(`IntegrationEvent` 구현) | `<주어><과거분사>V<버전>`(`AccommodationSearchRefreshRequestedV1`) | 버전 접미사는 ArchUnit, 과거분사는 리뷰 |
+| 도메인 입출력 레코드 | 생성은 `NewXxx`, 부분 수정은 `XxxPatch`([코드 구조](../architecture/code-structure.md#business-입출력과-도메인-레코드)) | 리뷰 |
+
+- **Reader 동사를 결과로 나누는 이유.** 이름만 보고 값이 없을 때를 안다. `read`는 예외를 던지고, `find`는 빈 `Optional`을 돌려준다. Spring Data의 `findById`와도 맞는다. Service와 Controller는 조회 동사를 `get` 하나로 둔다. 호출하는 쪽이 Reader의 구분을 알 필요가 없어서다.
+- **Reader 검사 범위.** public 메서드와, 다른 main 클래스가 부르는 메서드를 본다. 그래서 package-private이어도 Service가 부르면 대상이다. 테스트에서만 부르는 메서드는 Reader의 조회 어휘가 아니어서 뺀다. 예: 검색 쿼리를 만드는 `AccommodationDocumentReader.buildQuery`, 테스트용 팩토리 `CommonCodeReader.withTicker`.
+- **테스트 메서드 이름을 Spotless로 막는 이유.** [코드 규칙](#코드-규칙)의 단언 제한과 같다. 모든 모듈에 적용되고, API 문서 테스트만 바뀐 PR에서도 돈다. 정규식은 `void` 메서드 선언만 본다. 테스트 메서드는 모두 `void`다. 주석에 `void 한글이름(` 같은 글을 쓰면 걸리니 문구를 바꾼다.
+- **규칙의 시험.** `NamingRulesFixtureTest`는 자체 조건을 가진 규칙마다 위반 예시와 허용 예시를 둔다. Reader 동사, 조회 동사, 막연한 접미사, 진입점, 예외, 통합 이벤트, 약어, 테스트 클래스가 대상이다.
+  - 예외 규칙은 앱의 예외가 JDK 예외를 상속하는지 따라가야 한다. ArchUnit 설정이 JDK 클래스를 가져오지 않으므로, 앱 클래스가 끝나는 곳의 라이브러리 타입은 테스트 클래스패스에서 읽어 판단한다. 그래서 `IllegalStateException`을 바로 상속한 예외도 잡는다.
+  - 나머지 규칙은 이름 접미사만 본다. 모든 규칙은 적어도 한 클래스에 적용되어야 통과하므로, 대상을 고르는 조건이 비면 실패한다.
+- **도입할 때 확인한 것(2026-11-26).** 이름을 바꾸기 전 코드(#227 머지 시점 `5dedd289`)에 이 규칙들을 돌렸다. #228·#229에서 고친 위반이 그대로 잡혔다.
+  - ArchUnit
+    - Reader 동사 12
+    - 조회 동사 35
+    - `*Config` 11
+    - `Dto` 2
+    - 테스트 클래스 이름 1
+    - 테스트 설정 이름 15
+    - 약어 30(`mySQLContainer` 13개 파일 포함)
+  - Spotless: 테스트 메서드 이름 78(한글 76, 대문자로 시작 2)
+- **실행.** `./gradlew :core:core-api:test --tests 'kr.kro.airbob.architecture*'`로 코드 규칙과 함께 몇 초 안에 끝난다. 테스트 메서드 이름은 `./gradlew spotlessCheck`가 본다.

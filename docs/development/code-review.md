@@ -7,6 +7,8 @@ airbob의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성한�
 
 작성자가 놓친 결함을 찾는다. 프로젝트 규칙은 `CLAUDE.md`와, 바뀐 파일에 해당하는 `.claude/rules/*.md`에 있다. 변경이 그 불변식을 어기는지도 확인한다.
 
+[코딩 컨벤션](coding-convention.md)에서 기계가 검사하지 않는 규칙을 어기면 "권장"으로 지적한다. 이름에서는 한국어 발음 표기, 2글자 약어의 대문자 표기, Writer 동사의 짝, 통합 이벤트 이름의 과거분사, 파생 쿼리의 `_` 등이다.
+
 ## 지적하기 전에
 
 - 코드를 직접 읽어 확인한다. 가능하면 테스트나 입력으로 재현한다.
@@ -14,7 +16,7 @@ airbob의 변경은 대부분 AI 코딩 에이전트(Claude Code)가 작성한�
 
 ## 지적하지 않는 것
 
-- CI가 이미 강제하는 것: 컴파일, 테스트 통과, ArchUnit(계층 규칙, [코드 규칙](coding-convention.md#코드-규칙)), OpenAPI 스냅샷, `scripts/ci/contracts.py`, GitHub Action의 SHA 고정, 포매팅·import 순서·static이 아닌 와일드카드 import·테스트 단언 클래스(JUnit `Assertions`, JUnit 4·3 `Assert`, Hamcrest `MatcherAssert`)(Spotless, [코딩 컨벤션](coding-convention.md))
+- CI가 이미 강제하는 것: 컴파일, 테스트 통과, ArchUnit(계층 규칙, [코드 규칙](coding-convention.md#코드-규칙), [이름 규칙](coding-convention.md#이름)), OpenAPI 스냅샷, `scripts/ci/contracts.py`, GitHub Action의 SHA 고정, 포매팅·import 순서·static이 아닌 와일드카드 import·테스트 단언 클래스(JUnit `Assertions`, JUnit 4·3 `Assert`, Hamcrest `MatcherAssert`)·한글이 들었거나 대문자로 시작하는 테스트 메서드 이름(Spotless, [코딩 컨벤션](coding-convention.md))
 - 비현실적인 전제가 있어야 일어나는 경로
   - 외부 API가 계약과 다른 응답을 보내는 경우(예: 정수 필드에 `null`)
   - 러너나 플랫폼의 비정상 동작(예: 러너가 제공한 파일에 쓰지 못함)
