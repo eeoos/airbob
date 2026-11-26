@@ -40,7 +40,7 @@ CD에서 테스트를 생략한 JAR를 다시 만들거나 PR 실행의 산출�
 - 각 실행의 Step Summary에도 같은 보고서가 남는다.
 
 **Claude 리뷰:** 두 워크플로가 [claude_review.py](../../scripts/ci/claude_review.py)로 코드를 리뷰하고 요약 댓글을 단다.
-- `claude-review-request.yml`은 PR에서 돈다. 권한이 없고 아무것도 실행하지 않으며, 리뷰할지만 정한다. 초안이 아닌 PR에 `claude-review` 라벨을 붙일 때만 돈다. PR을 열거나 push해도 돌지 않으므로, 작성자가 PR을 만들 때 라벨을 붙인다.
+- `claude-review-request.yml`은 PR에서 돈다. 권한이 없고 아무것도 실행하지 않으며, 리뷰할지만 정한다. 리뷰 요청이 성공하는 것은 초안이 아닌 PR에 `claude-review` 라벨을 붙일 때뿐이다. 다른 라벨을 붙여도 실행은 생기지만 요청 잡은 건너뛴다. PR을 열거나 push해도 돌지 않으므로, 작성자가 PR을 만들 때 라벨을 붙인다.
 - 그 실행이 성공하면 `claude-review.yml`이 `workflow_run`으로 main에서 돈다.
   - 워크플로, 스크립트, 잠금 파일, 리뷰 기준이 모두 main 버전이라, PR은 자기 리뷰 방식을 바꿀 수 없다. 리뷰 방식을 바꾸는 PR은 머지된 뒤부터 적용된다.
   - PR은 git 객체와 API 데이터로만 읽고, 체크아웃하거나 실행하지 않는다. 리뷰 기준은 시스템 프롬프트에, PR은 리뷰할 자료로 사용자 메시지에 넣는다.

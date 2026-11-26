@@ -83,9 +83,18 @@ description: AI 코드 리뷰 절차. 코드가 바뀐 PR을 push하기 전에 C
    - 초안이 아닌 PR에 `claude-review` 라벨을 붙이면 `claude-review-request.yml`이 PR에서 돈다. 그 실행이 끝나면 main의 `claude-review.yml`이 `workflow_run`으로 `scripts/ci/claude_review.py`를 돌린다. Messages API 1회, 도구 없음이다. PR을 열거나 다시 열거나 push해도 돌지 않는다.
    - 리뷰는 main에 있는 워크플로, 스크립트, 리뷰 기준으로 돈다. 이것들을 바꾼 PR도 바꾸기 전 버전으로 리뷰되고, 바뀐 것은 머지 뒤 다음 PR부터 적용된다. 단 요청 조건(`claude-review-request.yml`)은 PR의 것을 따른다.
    - 코드가 바뀐 PR은 만들 때 라벨을 붙인다(`gh pr create --label claude-review`). 사용자가 건너뛰자고 한 PR(예: 기계적인 대량 변경)에만 붙이지 않고, 기록 파일에 "생략(사용자 결정)"으로 남겨 지표에서 뺀다.
-   - 라벨을 붙여도 요청이 돌지 않는 경우가 있다. 원인을 없앤 뒤 라벨을 뗐다가 다시 붙인다.
+   - 리뷰할 PR인데 요청 실행이 없으면 라벨을 확인해 붙인다. 이미 붙어 있으면 원인을 없앤 뒤 뗐다가 다시 붙인다.
+     - `gh pr create`가 PR은 만들고 라벨 추가에서 실패했을 때
+     - 문서만 바뀌어 라벨 없이 만든 PR에 코드가 들어왔을 때
      - 초안에 붙인 라벨은 무시된다. 준비 완료로 바꾼 뒤 다시 붙인다.
-     - main과 충돌하는 PR에서는 pull_request 워크플로가 돌지 않는다. 충돌을 푼 뒤 다시 붙인다.
+     - PR의 대상 브랜치와 충돌하면 pull_request 워크플로가 돌지 않는다. 충돌을 푼 뒤 다시 붙인다.
+
+     ```
+     gh api -X DELETE repos/eeoos/airbob/issues/<번호>/labels/claude-review --silent
+     gh api -X POST repos/eeoos/airbob/issues/<번호>/labels -f 'labels[]=claude-review'
+     ```
+
+     `gh pr edit`은 classic Projects 조회 오류로 실패할 수 있어 `gh api`를 쓴다.
    - 먼저 요청 실행을 찾고, 그 ID로 리뷰 실행을 찾아 끝날 때까지 기다린다. 리뷰 실행은 브랜치가 main으로 찍히고, 이름 끝에 `(request <요청 실행 ID>)`가 붙는다.
      ```
      gh run list --workflow claude-review-request.yml --branch <브랜치> --json databaseId,headSha,conclusion
