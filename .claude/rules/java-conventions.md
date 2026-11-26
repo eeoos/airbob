@@ -21,13 +21,14 @@ formatting, the code rules (`CodingRulesTest`), and most naming rules (`NamingRu
 - Pair Writer verbs by meaning: `create`/`delete` the entity itself, `add`/`remove` an item in another
   entity's collection, `update`/`change` a value, `record` a history row.
 - Name an integration event `<Subject><PastParticiple>V<n>`, such as `AccommodationSearchRefreshRequestedV1`.
-- Name a query with `get` in a `@Service`, even when its first word would be another verb such as `show` or
-  `browse`, and in a controller or Swagger interface mapped with `@RequestMapping(method = GET)`; the tests
-  check `@GetMapping` methods and only the common other verbs.
+- Name a query with `get` in a `core.domain` `@Service`, even when its first word would be another verb such
+  as `show` or `browse`, and in any controller or Swagger interface, including one mapped with
+  `@RequestMapping(method = GET)`; the tests check `@GetMapping` methods and only the common other verbs.
 - In test code too: no class ends with `Dto`, and a `@TestFactory` method that returns a value starts with a
   lowercase English word like any test method (`_` allowed); the Spotless lint reads `void` declarations only.
 - A class that JUnit runs ends with `Test`, also where the test rule cannot judge it: a class that inherits an
-  abstract parent's `@Nested` class, and the class around one marked with a composed `@Nested` annotation.
+  abstract parent's `@Nested` class (the rule checks only the parent), the class around one marked with a
+  composed `@Nested` annotation, and a class whose tests use only a composed `@Test` annotation.
   Elsewhere the rule is stricter than JUnit: a concrete class with test methods, inherited ones included,
   must end with `Test` even if JUnit skips it (a private class, an inner class without `@Nested`, a class whose
   inherited tests are all overridden without `@Test`); rename it or move the test methods out.
