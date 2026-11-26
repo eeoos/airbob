@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.ZoneId;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import net.iakovlev.timeshape.TimeZoneEngine;
@@ -16,42 +17,49 @@ class TimeShapeTimeZoneResolverTest {
 	private final TimeShapeTimeZoneResolver resolver = new TimeShapeTimeZoneResolver();
 
 	@Test
-	void 서울_좌표를_AsiaSeoul로_해석한다() {
+	@DisplayName("서울 좌표를 Asia/Seoul로 해석한다")
+	void resolvesSeoulCoordinatesToAsiaSeoul() {
 		assertThat(resolver.resolve(37.5665, 126.9780))
 			.contains(ZoneId.of("Asia/Seoul"));
 	}
 
 	@Test
-	void 뉴욕_좌표를_AmericaNewYork로_해석한다() {
+	@DisplayName("뉴욕 좌표를 America/New_York으로 해석한다")
+	void resolvesNewYorkCoordinatesToAmericaNewYork() {
 		assertThat(resolver.resolve(40.7128, -74.0060))
 			.contains(ZoneId.of("America/New_York"));
 	}
 
 	@Test
-	void 새로_분리된_Coyhaique_영역을_누락하지_않는다() {
+	@DisplayName("새로 분리된 Coyhaique 영역을 누락하지 않는다")
+	void resolvesNewlySplitCoyhaiqueZone() {
 		assertThat(resolver.resolve(-45.5712, -72.0683))
 			.contains(ZoneId.of("America/Coyhaique"));
 	}
 
 	@Test
-	void Nevada_파일의_경계_좌표도_제공된_좌표의_Phoenix_시간대로_해석한다() {
+	@DisplayName("Nevada 파일의 경계 좌표도 제공된 좌표의 Phoenix 시간대로 해석한다")
+	void resolvesNevadaBoundaryCoordinateToPhoenix() {
 		assertThat(resolver.resolve(35.12159, -114.59891))
 			.contains(ZoneId.of("America/Phoenix"));
 	}
 
 	@Test
-	void 범위를_벗어난_위도는_빈_결과를_반환한다() {
+	@DisplayName("범위를 벗어난 위도는 빈 결과를 반환한다")
+	void returnsEmptyForLatitudeOutOfRange() {
 		assertThat(resolver.resolve(91.0, 0.0)).isEmpty();
 	}
 
 	@Test
-	void NaN_좌표는_빈_결과를_반환한다() {
+	@DisplayName("NaN 좌표는 빈 결과를 반환한다")
+	void returnsEmptyForNanCoordinates() {
 		assertThat(resolver.resolve(Double.NaN, 126.9780)).isEmpty();
 		assertThat(resolver.resolve(37.5665, Double.NaN)).isEmpty();
 	}
 
 	@Test
-	void NaN_좌표는_시간대_엔진을_호출하지_않는다() {
+	@DisplayName("NaN 좌표는 시간대 엔진을 호출하지 않는다")
+	void skipsTimeZoneEngineForNanCoordinates() {
 		TimeZoneEngine engine = mock(TimeZoneEngine.class);
 		when(engine.query(anyDouble(), anyDouble()))
 			.thenThrow(new AssertionError("유효하지 않은 좌표로 엔진을 호출하면 안 된다"));
@@ -62,7 +70,8 @@ class TimeShapeTimeZoneResolverTest {
 	}
 
 	@Test
-	void 무한대_좌표는_빈_결과를_반환한다() {
+	@DisplayName("무한대 좌표는 빈 결과를 반환한다")
+	void returnsEmptyForInfiniteCoordinates() {
 		assertThat(resolver.resolve(Double.POSITIVE_INFINITY, 126.9780)).isEmpty();
 		assertThat(resolver.resolve(Double.NEGATIVE_INFINITY, 126.9780)).isEmpty();
 		assertThat(resolver.resolve(37.5665, Double.POSITIVE_INFINITY)).isEmpty();
@@ -70,7 +79,8 @@ class TimeShapeTimeZoneResolverTest {
 	}
 
 	@Test
-	void 범위를_벗어난_경도는_빈_결과를_반환한다() {
+	@DisplayName("범위를 벗어난 경도는 빈 결과를 반환한다")
+	void returnsEmptyForLongitudeOutOfRange() {
 		assertThat(resolver.resolve(0.0, 181.0)).isEmpty();
 		assertThat(resolver.resolve(0.0, -181.0)).isEmpty();
 	}

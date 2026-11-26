@@ -70,7 +70,7 @@ class CouponUsageConcurrencyTest {
 	private io.awspring.cloud.s3.S3Template s3Template;
 
 	@Container
-	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> mysqlContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
@@ -80,12 +80,12 @@ class CouponUsageConcurrencyTest {
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
-		registry.add("spring.datasource.url", mySQLContainer::getJdbcUrl);
-		registry.add("spring.datasource.username", mySQLContainer::getUsername);
-		registry.add("spring.datasource.password", mySQLContainer::getPassword);
-		registry.add("spring.flyway.url", mySQLContainer::getJdbcUrl);
-		registry.add("spring.flyway.user", mySQLContainer::getUsername);
-		registry.add("spring.flyway.password", mySQLContainer::getPassword);
+		registry.add("spring.datasource.url", mysqlContainer::getJdbcUrl);
+		registry.add("spring.datasource.username", mysqlContainer::getUsername);
+		registry.add("spring.datasource.password", mysqlContainer::getPassword);
+		registry.add("spring.flyway.url", mysqlContainer::getJdbcUrl);
+		registry.add("spring.flyway.user", mysqlContainer::getUsername);
+		registry.add("spring.flyway.password", mysqlContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
 	}

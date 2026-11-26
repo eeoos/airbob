@@ -309,8 +309,8 @@ class ReservationCheckoutServiceTest {
 		}
 
 		@Test
-		@DisplayName("정상적인 예약 생성 시 Reservation이 저장되고 이벤트가 발행된다")
-		void 정상_예약_생성() {
+		@DisplayName("결제 대기 예약과 생성 이력을 저장하고 검색 갱신 이벤트는 발행하지 않는다")
+		void createsReservation() {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
@@ -440,7 +440,7 @@ class ReservationCheckoutServiceTest {
 
 		@Test
 		@DisplayName("회원이 존재하지 않으면 MemberNotFoundException이 발생한다")
-		void 예외_회원_미존재() {
+		void throwsWhenMemberMissing() {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.empty());
@@ -454,7 +454,7 @@ class ReservationCheckoutServiceTest {
 
 		@Test
 		@DisplayName("숙소가 존재하지 않으면 AccommodationNotFoundException이 발생한다")
-		void 예외_숙소_미존재() {
+		void throwsWhenAccommodationMissing() {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
@@ -471,7 +471,7 @@ class ReservationCheckoutServiceTest {
 
 		@Test
 		@DisplayName("체크아웃이 체크인보다 이후가 아니면 범위와 충돌 검사 전에 거부한다")
-		void 예외_잘못된_숙박_기간() {
+		void rejectsInvalidStayPeriod() {
 			ReservationCreateCommand invalidRequest = new ReservationCreateCommand(
 				1L,
 				LocalDate.of(2026, 8, 12),
@@ -494,7 +494,7 @@ class ReservationCheckoutServiceTest {
 
 		@Test
 		@DisplayName("숙소 현지 예약 가능 기간을 벗어나면 충돌과 쓰기 전에 거부한다")
-		void 예외_예약_가능_기간_초과() {
+		void rejectsStayOutsideBookingWindow() {
 			ReservationCreateCommand outsideRequest = new ReservationCreateCommand(
 				1L,
 				WINDOW_START.plusMonths(3),
@@ -517,7 +517,7 @@ class ReservationCheckoutServiceTest {
 
 		@Test
 		@DisplayName("날짜가 충돌하면 ReservationConflictException이 발생한다")
-		void 예외_날짜_충돌() {
+		void throwsWhenDatesConflict() {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
@@ -537,7 +537,7 @@ class ReservationCheckoutServiceTest {
 
 		@Test
 		@DisplayName("예약 코드가 중복되면 재생성한다")
-		void 예약코드_중복시_재생성() {
+		void regeneratesDuplicateReservationCode() {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));

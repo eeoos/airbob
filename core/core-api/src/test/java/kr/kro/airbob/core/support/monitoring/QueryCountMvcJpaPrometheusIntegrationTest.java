@@ -62,14 +62,14 @@ class QueryCountMvcJpaPrometheusIntegrationTest {
 	private static final String ROUTE_TEMPLATE = "/monitoring-test/members/{memberId}";
 
 	@Container
-	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> mysqlContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbob_query_monitoring_test");
 
 	@DynamicPropertySource
 	static void databaseProperties(DynamicPropertyRegistry registry) {
-		registry.add("spring.datasource.url", mySQLContainer::getJdbcUrl);
-		registry.add("spring.datasource.username", mySQLContainer::getUsername);
-		registry.add("spring.datasource.password", mySQLContainer::getPassword);
+		registry.add("spring.datasource.url", mysqlContainer::getJdbcUrl);
+		registry.add("spring.datasource.username", mysqlContainer::getUsername);
+		registry.add("spring.datasource.password", mysqlContainer::getPassword);
 	}
 
 	@Autowired

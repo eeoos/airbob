@@ -68,7 +68,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("3박 숙박 시 basePrice * 3으로 계산된다")
-		void 정상_3박_가격_계산() {
+		void calculatesThreeNightPrice() {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 26);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 29);
@@ -84,7 +84,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("1박 최소 숙박 시 basePrice * 1로 계산된다")
-		void 정상_1박_최소_가격_계산() {
+		void calculatesOneNightMinimumPrice() {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 26);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 27);
@@ -100,7 +100,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("30박 장기 숙박 시 basePrice * 30으로 계산된다")
-		void 경계값_30박_장기숙박() {
+		void calculatesThirtyNightLongStayPrice() {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 1);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 31);
@@ -116,7 +116,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("체크인과 체크아웃이 같은 날짜면 InvalidReservationDateException이 발생한다")
-		void 예외_당일_체크아웃() {
+		void rejectsSameDayCheckOut() {
 			// given
 			LocalDate sameDate = LocalDate.of(2025, 1, 26);
 			ReservationCreateCommand request = new ReservationCreateCommand(1L, sameDate, sameDate, 2);
@@ -130,7 +130,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("체크아웃이 체크인보다 빠르면 InvalidReservationDateException이 발생한다")
-		void 예외_체크아웃이_체크인보다_빠름() {
+		void rejectsCheckOutBeforeCheckIn() {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 28);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 26);
@@ -215,7 +215,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("PAYMENT_PROCESSING 상태에서 confirm() 호출 시 CONFIRMED로 변경된다")
-		void 정상_결제처리중에서_확정() {
+		void confirmsFromPaymentProcessing() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
@@ -230,7 +230,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("PAYMENT_PENDING 상태에서 expire() 호출 시 EXPIRED로 변경된다")
-		void 정상_결제대기에서_만료() {
+		void expiresFromPaymentPending() {
 			// given
 			Reservation reservation = createPendingReservation();
 
@@ -272,7 +272,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("CONFIRMED 상태에서 취소 요청 시 CANCELLATION_PENDING으로 변경된다")
-		void 정상_확정에서_취소요청() {
+		void requestsCancellationFromConfirmed() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
@@ -288,7 +288,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("CANCELLATION_PENDING 상태에서 failCancellation() 호출 시 CANCELLATION_FAILED로 변경된다")
-		void 정상_취소대기에서_취소실패() {
+		void failsCancellationFromCancellationPending() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
@@ -305,7 +305,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("CANCELLATION_PENDING 상태에서 completeCancellation() 호출 시 CANCELLED로 변경된다")
-		void 정상_취소대기에서_취소완료() {
+		void completesCancellationFromCancellationPending() {
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
 			reservation.confirm();
@@ -318,7 +318,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("CANCELLATION_FAILED 예약은 새 operation을 만들기 위해 CANCELLATION_PENDING으로 돌아간다")
-		void 취소실패에서_새작업_재요청() {
+		void retriesCancellationFromCancellationFailed() {
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
 			reservation.confirm();
@@ -331,7 +331,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("CANCELLATION_FAILED 예약은 새 operation 없이 완료될 수 없다")
-		void 취소실패에서_늦은성공_거부() {
+		void rejectsLateSuccessFromCancellationFailed() {
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
 			reservation.confirm();
@@ -345,7 +345,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("CONFIRMED 상태에서 expire() 호출 시 InvalidReservationStatusException이 발생한다")
-		void 예외_확정상태에서_만료시도() {
+		void rejectsExpireFromConfirmed() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
@@ -360,7 +360,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("EXPIRED 상태에서 confirm() 호출 시 InvalidReservationStatusException이 발생한다")
-		void 예외_만료상태에서_확정시도() {
+		void rejectsConfirmFromExpired() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.expire();
@@ -373,8 +373,8 @@ class ReservationTest {
 		}
 
 		@Test
-		@DisplayName("PAYMENT_PENDING 상태에서 cancel() 호출 시 InvalidReservationStatusException이 발생한다")
-		void 예외_결제대기에서_취소시도() {
+		@DisplayName("PAYMENT_PENDING 상태에서 requestCancellation() 호출 시 InvalidReservationStatusException이 발생한다")
+		void rejectsCancellationRequestFromPaymentPending() {
 			// given
 			Reservation reservation = createPendingReservation();
 
@@ -386,8 +386,8 @@ class ReservationTest {
 		}
 
 		@Test
-		@DisplayName("CANCELLED 상태에서 confirm() 호출 시 InvalidReservationStatusException이 발생한다")
-		void 예외_취소상태에서_확정시도() {
+		@DisplayName("CANCELLATION_PENDING 상태에서 confirm() 호출 시 InvalidReservationStatusException이 발생한다")
+		void rejectsConfirmFromCancellationPending() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
@@ -403,7 +403,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("CANCELLATION_FAILED 상태에서 failCancellation() 호출 시 상태가 유지된다 (멱등성)")
-		void 멱등성_이미_취소실패_상태() {
+		void keepsCancellationFailedWhenFailedAgain() {
 			// given
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
@@ -421,7 +421,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("PAYMENT_PENDING 상태에서 failCancellation() 호출 시 상태 오류가 발생한다")
-		void PAYMENT_PENDING에서_failCancellation_호출시_오류() {
+		void rejectsFailCancellationFromPaymentPending() {
 			// given
 			Reservation reservation = createPendingReservation();
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
@@ -438,7 +438,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("DST 전환으로 존재하지 않는 숙소 현지 체크인 시각은 예약을 거절한다")
-		void DST_gap_현지시각은_예약_거절() {
+		void rejectsLocalTimeInDstGap() {
 			Accommodation newYorkAccommodation = Accommodation.builder()
 				.id(1L)
 				.basePrice(100_000L)
@@ -461,7 +461,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("DST 종료로 두 번 존재하는 숙소 현지 시각은 첫 번째 시점으로 고정한다")
-		void DST_overlap_현지시각은_첫번째_시점_사용() {
+		void usesEarlierInstantForDstOverlap() {
 			Accommodation newYorkAccommodation = Accommodation.builder()
 				.id(1L)
 				.basePrice(100_000L)
@@ -483,7 +483,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("뉴욕 DST 경계를 지나도 숙소 현지 시각을 정확한 UTC 시점으로 저장한다")
-		void 뉴욕_DST_시간대_스냅샷과_UTC_시점_계산() {
+		void storesUtcInstantsAcrossNewYorkDst() {
 			Accommodation newYorkAccommodation = Accommodation.builder()
 				.id(1L)
 				.basePrice(100_000L)
@@ -511,7 +511,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("createPendingReservation 호출 시 PAYMENT_PENDING 상태로 생성된다")
-		void 정상_예약_생성_상태확인() {
+		void createsPendingReservationInPaymentPending() {
 			// given
 			ReservationCreateCommand request = createValidRequest();
 
@@ -525,7 +525,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("createPendingReservation 호출 시 체크인 시간이 숙소의 checkInTime과 병합된다")
-		void 체크인시간_병합() {
+		void mergesCheckInTime() {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 26);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 28);
@@ -545,7 +545,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("createPendingReservation 호출 시 만료시간이 15분 후로 설정된다")
-		void 만료시간_설정() {
+		void setsExpiresAt() {
 			// given
 			ReservationCreateCommand request = createValidRequest();
 			// when
@@ -558,7 +558,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("createPendingReservation 호출 시 예약코드가 설정된다")
-		void 예약코드_설정() {
+		void setsReservationCode() {
 			// given
 			ReservationCreateCommand request = createValidRequest();
 			String reservationCode = "XYZ789";
@@ -573,7 +573,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("createPendingReservation 호출 시 통화가 KRW로 설정된다")
-		void 통화_설정() {
+		void setsCurrency() {
 			// given
 			ReservationCreateCommand request = createValidRequest();
 
@@ -587,7 +587,7 @@ class ReservationTest {
 
 		@Test
 		@DisplayName("createPendingReservation 호출 시 게스트 수가 올바르게 설정된다")
-		void 게스트수_설정() {
+		void setsGuestCount() {
 			// given
 			int guestCount = 4;
 			ReservationCreateCommand request = new ReservationCreateCommand(

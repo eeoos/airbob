@@ -49,7 +49,7 @@ class CommonCodeReaderIntegrationTest {
 	private S3Template s3Template;
 
 	@Container
-	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> mysqlContainer = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbobdb_test");
 
 	@Container
@@ -59,19 +59,19 @@ class CommonCodeReaderIntegrationTest {
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
-		registry.add("spring.datasource.url", mySQLContainer::getJdbcUrl);
-		registry.add("spring.datasource.username", mySQLContainer::getUsername);
-		registry.add("spring.datasource.password", mySQLContainer::getPassword);
-		registry.add("spring.flyway.url", mySQLContainer::getJdbcUrl);
-		registry.add("spring.flyway.user", mySQLContainer::getUsername);
-		registry.add("spring.flyway.password", mySQLContainer::getPassword);
+		registry.add("spring.datasource.url", mysqlContainer::getJdbcUrl);
+		registry.add("spring.datasource.username", mysqlContainer::getUsername);
+		registry.add("spring.datasource.password", mysqlContainer::getPassword);
+		registry.add("spring.flyway.url", mysqlContainer::getJdbcUrl);
+		registry.add("spring.flyway.user", mysqlContainer::getUsername);
+		registry.add("spring.flyway.password", mysqlContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
 	}
 
 	@Test
 	@DisplayName("AMENITY_TYPE: 시드된 활성 코드를 sort_order 순으로 조회한다")
-	void getAmenityCodes() {
+	void readActiveAmenityCodes() {
 		List<CommonCodeDetail> codes = commonCodeReader.readActiveCodes(CommonCodeGroups.AMENITY_TYPE);
 
 		assertThat(codes).hasSize(30); // V6 시드 기준(UNKNOWN 제외)
@@ -82,7 +82,7 @@ class CommonCodeReaderIntegrationTest {
 
 	@Test
 	@DisplayName("ACCOMMODATION_TYPE: 시드된 활성 코드를 조회한다")
-	void getAccommodationCodes() {
+	void readActiveAccommodationCodes() {
 		List<CommonCodeDetail> codes = commonCodeReader.readActiveCodes(CommonCodeGroups.ACCOMMODATION_TYPE);
 
 		assertThat(codes).hasSize(16); // V6 시드 기준
@@ -103,7 +103,7 @@ class CommonCodeReaderIntegrationTest {
 
 	@Test
 	@DisplayName("readLabel: 코드의 표시명을 반환하고, 없으면 코드 원본을 폴백한다")
-	void getLabel() {
+	void readLabel() {
 		assertThat(commonCodeReader.readLabel(CommonCodeGroups.ACCOMMODATION_TYPE, "HOTEL_ROOM"))
 			.isEqualTo("호텔 객실");
 		assertThat(commonCodeReader.readLabel(CommonCodeGroups.ACCOMMODATION_TYPE, "NOT_EXIST"))

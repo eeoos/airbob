@@ -15,7 +15,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("카드 설명으로 CARD 반환")
-		void 카드_매핑() {
+		void mapsCard() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("카드");
 
@@ -25,7 +25,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("가상계좌 설명으로 VIRTUAL_ACCOUNT 반환")
-		void 가상계좌_매핑() {
+		void mapsVirtualAccount() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("가상계좌");
 
@@ -35,7 +35,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("간편결제 설명으로 EASY_PAY 반환")
-		void 간편결제_매핑() {
+		void mapsEasyPay() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("간편결제");
 
@@ -45,7 +45,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("휴대폰 설명으로 MOBILE_PHONE 반환")
-		void 휴대폰_매핑() {
+		void mapsMobilePhone() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("휴대폰");
 
@@ -55,7 +55,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("계좌이체 설명으로 BANK_TRANSFER 반환")
-		void 계좌이체_매핑() {
+		void mapsBankTransfer() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("계좌이체");
 
@@ -65,7 +65,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("문화상품권 설명으로 CULTURE_GIFT_CARD 반환")
-		void 문화상품권_매핑() {
+		void mapsCultureGiftCard() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("문화상품권");
 
@@ -75,7 +75,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("도서문화상품권 설명으로 BOOK_GIFT_CARD 반환")
-		void 도서문화상품권_매핑() {
+		void mapsBookGiftCard() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("도서문화상품권");
 
@@ -85,7 +85,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("게임문화상품권 설명으로 GAME_GIFT_CARD 반환")
-		void 게임문화상품권_매핑() {
+		void mapsGameGiftCard() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("게임문화상품권");
 
@@ -95,7 +95,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("알 수 없는 설명으로 UNKNOWN 반환")
-		void 알수없는_설명_UNKNOWN() {
+		void mapsUnknownDescriptionToUnknown() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("알 수 없는 결제 방식");
 
@@ -105,7 +105,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("null 입력 시 UNKNOWN 반환")
-		void null_입력_UNKNOWN() {
+		void mapsNullToUnknown() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription(null);
 
@@ -115,7 +115,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("빈 문자열 입력 시 UNKNOWN 반환")
-		void 빈문자열_UNKNOWN() {
+		void mapsEmptyStringToUnknown() {
 			// when
 			PaymentMethod method = PaymentMethod.fromDescription("");
 
@@ -130,7 +130,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("CARD의 description은 '카드'이다")
-		void CARD_description() {
+		void returnsCardDescription() {
 			// when
 			String description = PaymentMethod.CARD.getDescription();
 
@@ -140,7 +140,7 @@ class PaymentMethodTest {
 
 		@Test
 		@DisplayName("UNKNOWN의 description은 '알수없음'이다")
-		void UNKNOWN_description() {
+		void returnsUnknownDescription() {
 			// when
 			String description = PaymentMethod.UNKNOWN.getDescription();
 
