@@ -29,6 +29,6 @@ formatting, the code rules (`CodingRulesTest`), and most naming rules (`NamingRu
 - A class that JUnit runs ends with `Test`, also where the test rule cannot judge it: a class that inherits an
   abstract parent's `@Nested` class, and the class around one marked with a composed `@Nested` annotation.
   A class JUnit does not run needs no suffix: a private class, an inner class without `@Nested`, or a class
-  whose test method is overridden without `@Test`.
+  left with no test to run after overriding its inherited test methods without `@Test`.
 - Name domain input records `NewXxx` for creation and `XxxPatch` for a partial update that keeps null fields;
   see `docs/architecture/code-structure.md` ("Business 입출력과 도메인 레코드").

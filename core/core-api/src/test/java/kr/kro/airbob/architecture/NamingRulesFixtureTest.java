@@ -133,6 +133,9 @@ class NamingRulesFixtureTest {
 		assertThat(hasViolation(rule, PaymentArchitectureRules.class)).isTrue();
 		assertThat(hasViolation(rule, ComposedArchitectureRules.class, AnalyzeFixturePackage.class)).isTrue();
 		assertThat(hasViolation(rule, ComposedRulesTest.class, AnalyzeFixturePackage.class)).isFalse();
+		assertThat(
+			hasViolation(rule, ChecksTest.class, AbstractArchitectureRules.class, ArchitectureRules.class))
+			.isFalse();
 		assertThat(hasViolation(rule, PaymentCases.AcceptedTest.class, PaymentCases.class)).isTrue();
 		assertThat(hasViolation(rule, InheritedCases.ApprovedTest.class, InheritedCases.class, AcceptanceChecks.class))
 			.isTrue();
@@ -374,6 +377,13 @@ class NamingRulesFixtureTest {
 
 	@AnalyzeFixturePackage
 	private static class ComposedRulesTest {}
+
+	/** Abstract classes and interfaces do not run, even with @AnalyzeClasses. */
+	@AnalyzeClasses(packages = "kr.kro.airbob.architecture.fixture.none")
+	private abstract static class AbstractArchitectureRules {}
+
+	@AnalyzeClasses(packages = "kr.kro.airbob.architecture.fixture.none")
+	private interface ArchitectureRules {}
 
 	/** Private, so JUnit does not run it. */
 	private static class ChecksWithoutSuffix {
