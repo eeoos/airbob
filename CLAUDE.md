@@ -99,8 +99,8 @@ directly, even if you have not opened a matching file yet.
 
 Write PR titles and bodies with the `pr-description` skill; the format is `.github/pull_request_template.md`.
 Commit subjects are `<type>: <Korean summary>` with a type from feat, fix, refactor, perf, test, docs, style,
-build, ci, chore, revert, and no scope or `!`. CI's `scope` job checks every non-merge commit of a PR
-(`scripts/ci/commit_messages.py`; rule in `docs/development/coding-convention.md`).
+build, ci, chore, revert, no scope or `!`, and a blank line after it. CI's `scope` job checks every non-merge
+commit of a PR (`scripts/ci/commit_messages.py`; rule in `docs/development/coding-convention.md`).
 
 ## AI code review
 

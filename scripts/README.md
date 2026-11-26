@@ -39,7 +39,7 @@
   - 보관 부하 테스트 파일: `load-test/archive-source.json`에 기록된 해시·모드와 다르거나, 기록되지 않은 파일이 있는 경우
   - 이미 적용된 Flyway 마이그레이션: 수정·삭제된 경우
   - 로컬에서는 `--base <커밋> [--head <커밋>]`으로 과거 변경도 검사할 수 있다.
-- [ci/commit_messages.py](ci/commit_messages.py): PR의 머지가 아닌 커밋 제목이 `<type>: <한국어 요약>`이 아니면 `scope` 잡을 실패시킨다. 규칙은 [코딩 컨벤션](../docs/development/coding-convention.md#커밋-메시지)에 있다.
+- [ci/commit_messages.py](ci/commit_messages.py): PR의 머지가 아닌 커밋 제목이 `<type>: <한국어 요약>`이 아니거나 제목 다음 줄이 비어 있지 않으면 `scope` 잡을 실패시킨다. 규칙은 [코딩 컨벤션](../docs/development/coding-convention.md#커밋-메시지)에 있다.
   - PR에서만 돈다. 로컬에서는 `BASE_SHA=<커밋> [HEAD_SHA=<커밋>]`으로 검사할 수 있다.
 - [ci/pr_report.py](ci/pr_report.py): PR 점검 보고서의 사실을 결정적으로 모은다. AI는 쓰지 않는다.
   - `tests`: `app` 잡에서 모든 모듈의 JUnit XML을 `test-summary.json`으로 요약한다.

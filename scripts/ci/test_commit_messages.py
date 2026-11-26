@@ -10,8 +10,8 @@ import commit_messages
 
 class SubjectTests(unittest.TestCase):
     def test_the_types_are_the_eleven_of_the_convention(self):
-        self.assertEqual(set(commit_messages.TYPES), {
-            'feat', 'fix', 'refactor', 'perf', 'test', 'docs', 'style', 'build', 'ci', 'chore', 'revert'})
+        self.assertEqual(commit_messages.TYPES,
+                         ('feat', 'fix', 'refactor', 'perf', 'test', 'docs', 'style', 'build', 'ci', 'chore', 'revert'))
 
     def test_every_type_with_a_korean_summary_passes(self):
         for type_ in commit_messages.TYPES:
@@ -35,6 +35,13 @@ class SubjectTests(unittest.TestCase):
         for subject in ('fix: wait through RDS rebooting during resume', 'docs: CLAUDE.md'):
             with self.subTest(subject=subject):
                 self.assertEqual(commit_messages.problem(subject), 'the summary has no Korean')
+
+    def test_the_line_after_the_subject_must_be_blank(self):
+        self.assertEqual(commit_messages.problem('fix: 재시도 조건을 고친다\nretry on 503'),
+                         'the line after the subject is not blank')
+        for message in ('fix: 재시도 조건을 고친다\n', 'fix: 재시도 조건을 고친다\n\nretry on 503\n'):
+            with self.subTest(message=message):
+                self.assertIsNone(commit_messages.problem(message))
 
 
 class RangeTests(unittest.TestCase):
@@ -65,8 +72,7 @@ class RangeTests(unittest.TestCase):
         self.git('merge', '-q', '--no-ff', '-m', 'Merge branch main into feature', main)
         head = self.commit('Fix the subject later')
 
-        self.assertEqual(commit_messages.commits(base, head, self.root), [
-            (good, 'feat: 예약을 추가한다'), (bad, 'fix: wait for the database'), (head, 'Fix the subject later')])
+        self.assertEqual([sha for sha, _ in commit_messages.commits(base, head, self.root)], [good, bad, head])
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             code = commit_messages.main({'BASE_SHA': base, 'HEAD_SHA': head}, self.root)
@@ -78,7 +84,6 @@ class RangeTests(unittest.TestCase):
     def test_a_range_that_follows_the_rule_passes(self):
         base = self.commit('chore: 시작한다')
         head = self.commit('docs: 규칙을 적는다\n\n본문은 English only여도 된다.\n두 번째 문단')
-        self.assertEqual(commit_messages.commits(base, head, self.root), [(head, 'docs: 규칙을 적는다')])
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(commit_messages.main({'BASE_SHA': base, 'HEAD_SHA': head}, self.root), 0)
 
