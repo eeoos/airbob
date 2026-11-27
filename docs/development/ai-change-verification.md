@@ -27,6 +27,7 @@ airbob의 코드 변경과 PR 상당수는 AI 코딩 에이전트(Claude Code)�
 | 응답 종료 전 | `.claude/hooks/test-before-stop.sh`: 커밋하지 않은 변경이 있는 영역의 테스트와 ArchUnit, 바뀐 모듈의 `spotlessCheck`(포매팅 설정이 바뀌면 모든 모듈)를 실행한다 | 테스트 | 에이전트가 작업을 끝내지 못한다 |
 | push 전 | Codex 리뷰(`.claude/skills/pr-ai-review`): 작성자와 계열이 다른 모델이 브랜치 diff를 [리뷰 기준](code-review.md)에 따라 리뷰한다 | 리뷰 | 작성자가 지적을 검증해 고치거나 사유를 남긴다 |
 | PR CI | `scripts/ci/contracts.py`: 보관 부하 테스트 파일의 해시·모드, 적용된 Flyway 마이그레이션의 수정·삭제 | 계약 검사 | CI 실패 |
+| PR CI | `scripts/ci/commit_messages.py`: PR의 머지가 아닌 커밋 제목이 `<type>: <한국어 요약>`이고 다음 줄이 비었는지([코딩 컨벤션](coding-convention.md#커밋-메시지)) | 계약 검사 | CI 실패 |
 | PR CI | `scripts/ci/scope.py`와 `check_result.py`: 변경에 맞는 검사를 고르고, 선택한 검사가 실패·취소·누락되면 필수 검사 `CI result`를 실패시킨다 | 계약 검사 | CI 실패 |
 | PR CI | 테스트 1,968개: core-api 1,865, API 문서 85, client 모듈 18 (2026-11-24 기준) | 테스트 | CI 실패 |
 | PR CI | ArchUnit: 엄격 계층 규칙 10개, 동결 규칙 3개(기록된 위반 외에 새 위반이 생기면 실패), 코드 규칙 6개([코딩 컨벤션](coding-convention.md#코드-규칙), 엔티티 public setter 금지 포함), 이름 규칙 18개(main 15, 테스트 3, [코딩 컨벤션](coding-convention.md#이름)) | 계약 검사 | CI 실패 |

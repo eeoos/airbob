@@ -11,6 +11,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 이름 | 아래 [이름](#이름) | ArchUnit `NamingRulesTest`·`TestNamingRulesTest`, 테스트 메서드 이름은 Spotless, 나머지는 리뷰 |
 | 설계 | 아래 [설계](#설계) | 엔티티의 public setter 금지는 ArchUnit `CodingRulesTest`, 나머지는 리뷰 |
 | 테스트 | 아래 [테스트](#테스트) | 목 API 제한은 Spotless, 나머지는 리뷰 |
+| 커밋 메시지 | 아래 [커밋 메시지](#커밋-메시지) | CI `scope` 잡의 `scripts/ci/commit_messages.py` |
 
 ## 포매팅
 
@@ -212,3 +213,34 @@ main 코드 규칙은 ArchUnit `CodingRulesTest`(`core/core-api/src/test/java/kr
 - **Spotless가 보는 것.** test 소스에서 접두어 없는 `when(`·`verify(`·`doThrow(` 같은 호출과 `Mockito.when(` 같은 호출을 막는다. 주석에 같은 글을 쓰면 걸리니 문구를 바꾼다.
   - `lenient().when(…)`은 막지 않는다. BDDMockito에는 lenient 스텁이 없다.
   - `inOrder.verify(…)`는 변수 이름을 알 수 없어 막지 못하므로 리뷰가 본다.
+
+## 커밋 메시지
+
+커밋 제목은 `<type>: <요약>` 한 줄로 쓴다. 2026-11-26에 정했다.
+
+| type | 쓰는 곳 |
+|---|---|
+| `feat` | 새 기능 |
+| `fix` | 버그 수정 |
+| `refactor` | 동작을 바꾸지 않는 구조 변경 |
+| `perf` | 성능 개선 |
+| `test` | 테스트만 바뀜 |
+| `docs` | 문서만 바뀜 |
+| `style` | 포매팅만 바뀜 |
+| `build` | 빌드 설정과 의존성 |
+| `ci` | CI 워크플로와 스크립트 |
+| `chore` | 그 밖의 유지보수(도구 설정, 규칙 도입 등) |
+| `revert` | 이전 커밋 되돌리기 |
+
+- 요약은 한국어로, 무엇을 하는지 한 문장으로 쓴다. 클래스·파일 이름 같은 영어 식별자는 섞어도 된다. 예: `docs: CLAUDE.md에 행동 가이드라인 추가`
+- 범위 표기(`fix(aws): …`)와 깨는 변경 표시(`feat!: …`)는 쓰지 않는다.
+- `git revert`가 만드는 `Revert "…"` 제목은 `revert: …`로 고쳐 쓴다. `fixup!`·`squash!` 커밋은 PR을 열기 전에 합친다.
+- 제목 다음 줄은 비운다. git은 빈 줄 없이 이어진 줄을 제목에 합쳐 보여 준다(`%s`, `git log --oneline`).
+- 본문은 자유다. 검사하지 않는다.
+- PR 제목도 같은 형식으로 쓴다(`pr-description` 스킬). PR 제목은 검사하지 않는다.
+
+**강제.** CI `scope` 잡의 `scripts/ci/commit_messages.py`가 PR의 머지가 아닌 커밋(`base..head`) 제목(메시지의 첫 줄)을 검사한다. 형식, type 목록, 요약의 한글(완성형 1자 이상), 제목 다음 빈 줄을 본다. 위반이 있으면 `scope` 잡과 `CI result`가 실패하고, 빌드와 테스트도 돌지 않는다.
+- 고치는 법: 해당 커밋의 제목을 고치고(`git rebase -i <base>`에서 `reword`) `git push --force-with-lease`로 다시 올린다.
+- 로컬 확인: `BASE_SHA=origin/main python3 -B scripts/ci/commit_messages.py` (`HEAD_SHA`를 주지 않으면 `HEAD`)
+
+**도입할 때 관행.** main의 첫 번째 부모 이력에서 두 부모가 있는 PR 머지 커밋 119개를 골라, 두 부모 사이(`<머지>^1..<머지>^2`)를 다시 검사했다. 머지 커밋 없이 들어간 PR은 빠진다. #160~#232(2026-10-11~11-26)의 73개는 모두 통과하고, 그 전의 #92~#159는 46개 중 41개가 실패한다. 대부분 AWS 실험 커밋의 범위 표기(`fix(aws): …`)와 영어 요약이다. 검사는 새 PR부터 적용하고 이력은 고치지 않는다.
