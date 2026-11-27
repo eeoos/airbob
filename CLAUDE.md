@@ -50,6 +50,8 @@ methods of any arity on entities and their `@MappedSuperclass` parents.
 `TestNamingRulesTest` enforce the naming rules in `docs/development/coding-convention.md` ("이름"): role suffixes,
 Reader `read` (required value or list) and `find` (`Optional`), `get` for `@Service` and controller queries, no
 `Dto` suffix, and no capitalized abbreviations. `.claude/rules/java-conventions.md` lists what only review checks.
+When you add or change a convention rule or how it is enforced, update every place listed in "규칙을 바꿀 때" of
+`docs/development/coding-convention.md`.
 
 Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
 Domain Kafka adapters live beside their domain (`core/domain/payment/messaging/`,

@@ -13,6 +13,19 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 테스트 | 아래 [테스트](#테스트) | 목 API 제한은 Spotless, 나머지는 리뷰 |
 | 커밋 메시지 | 아래 [커밋 메시지](#커밋-메시지) | CI `scope` 잡의 `scripts/ci/commit_messages.py` |
 
+## 규칙을 바꿀 때
+
+규칙의 요약은 여러 곳에 있다. 에이전트와 리뷰어는 이 문서보다 요약을 읽기 때문이다. 예를 들어 Claude 리뷰는 리뷰 기준, `CLAUDE.md`, 바뀐 경로의 `.claude/rules`만 받는다. 규칙을 더하거나 바꾸거나 강제하는 방식을 바꾸면 아래를 함께 고친다. 도입 PR들(#227~#233)의 Claude 리뷰 지적 25건 가운데 9건이, 이 요약들이 서로 다르거나 실제 규칙과 다른 것이었다.
+
+| 고칠 곳 | 무엇을 |
+|---|---|
+| 이 문서 | 규칙, 이유, 도입할 때 관행(개수), 강제 방식, 맨 위 표의 "강제하는 장치" |
+| 강제 장치 | Spotless는 루트 `build.gradle`, ArchUnit은 `architecture` 패키지의 규칙과 픽스처 테스트, 커밋 메시지는 `scripts/ci/commit_messages.py`와 그 테스트 |
+| `CLAUDE.md` | 기계가 막는 것의 요약. Spotless는 Commands, ArchUnit은 "Module and package structure", 커밋 메시지는 "Pull requests" |
+| `.claude/rules/java-conventions.md` | 리뷰만 보는 Java 규칙. 기계 검사로 옮긴 규칙은 여기서 뺀다 |
+| `docs/development/code-review.md` | "지적하지 않는 것"의 CI가 이미 강제하는 목록 |
+| `docs/development/ai-change-verification.md` | 장치 표의 항목과 규칙 수 |
+
 ## 포매팅
 
 ### 기준
@@ -24,12 +37,13 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 - import 순서는 static → `java` → `javax` → `org` → `net` → `com` → 그 외이고, 그룹 사이에 빈 줄을 둔다. 쓰지 않는 import는 지운다.
 - 와일드카드 import(`*`)는 static import에서만 쓴다. 일반 import는 클래스 이름을 하나씩 쓴다.
 
-포매터 설정은 `config/formatter/naver-eclipse-formatter.xml`이다.
+포매터 설정은 `config/formatter/naver-eclipse-formatter.xml`이고, 이 설정을 읽는 Eclipse 포매터는 4.41로 고정한다(루트 `build.gradle`의 `eclipse('4.41')`).
 
 - 네이버 저장소의 `rule-config/naver-eclipse-formatter.xml`을 그대로 옮겼다. 원본은 [커밋 `ad868727`](https://github.com/naver/hackday-conventions-java/blob/ad868727813252198d577c152071f190b774a87d/rule-config/naver-eclipse-formatter.xml)(2020-07-24)이고, 출처 주석만 붙였다.
 - 원본 저장소에는 라이선스 표기가 없다.
 - 옵션을 바꾸지 않고 원본 그대로 쓰기로 했다(2026-11-25). 지금 코드와 모양이 다른 곳도 네이버 설정에 맞췄다. 예를 들면 여러 줄로 쓴 파라미터 목록의 닫는 괄호를 앞 줄 끝에 둔다.
 - 옵션을 바꾸려면 전체 코드를 다시 포매팅하고 이 문서를 함께 고친다.
+- Eclipse 버전을 고정한 이유: 버전을 비워 두면 Spotless의 기본값을 따르므로, 다른 이유로 Spotless를 올려도 포매터가 바뀌어 전체 파일이 `spotlessCheck`에서 실패할 수 있다. 포매터는 일부러 올릴 때만 바꾼다. 올릴 때는 버전을 바꾸고 `./gradlew spotlessApply`의 결과를 포매팅만 담은 커밋으로 따로 만든 뒤, 그 SHA를 `.git-blame-ignore-revs`에 더한다.
 
 ### Spotless
 
@@ -61,11 +75,11 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
   - 커밋 전에 `./gradlew spotlessApply`를 실행한다.
   - IntelliJ에 [Adapter for Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546) 플러그인을 설치하고, 위 XML과 같은 import 순서를 지정한다.
 
-### 전체 포매팅 커밋과 blame
+### blame에서 숨기는 커밋
 
 - 기존 코드는 2026-11-25에 포매팅만 담은 커밋 `1f871dd7` 하나로 맞췄다. 652개 파일이 바뀌었다.
 - 디버그 정보 없이(`-g:none`) 컴파일한 클래스 파일 1,484개가 이 커밋 전후로 같다. 그래서 동작은 바뀌지 않았다.
-- 이 커밋은 `.git-blame-ignore-revs`에 있다. GitHub의 blame 화면은 자동으로 건너뛴다. 로컬에서는 한 번 설정한다.
+- 이 커밋은 `.git-blame-ignore-revs`에 있다. 테스트의 목 호출을 BDDMockito로 바꾼 기계적 변환 커밋 `271d9d82`(70개 파일, [테스트](#테스트))도 함께 있다. GitHub의 blame 화면은 자동으로 건너뛴다. 로컬에서는 한 번 설정한다.
   ```bash
   git config blame.ignoreRevsFile .git-blame-ignore-revs
   ```
