@@ -20,7 +20,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | 고칠 곳 | 무엇을 |
 |---|---|
 | 이 문서 | 규칙, 이유, 도입할 때 관행(개수), 강제 방식, 맨 위 표의 "강제하는 장치" |
-| 강제 장치 | Spotless는 루트 `build.gradle`, ArchUnit은 `architecture` 패키지의 규칙과 픽스처 테스트, 커밋 메시지는 `scripts/ci/commit_messages.py`와 그 테스트 |
+| 강제 장치 | Spotless는 루트 `build.gradle`, ArchUnit은 `architecture` 패키지의 규칙과 픽스처 테스트, 커밋 메시지는 `scripts/ci/commit_messages.py`와 그 테스트. 검사를 돌리는 범위를 바꾸면 Stop 훅(`.claude/hooks/test-before-stop.sh`)의 경로 조건과 CI의 검사 선택(`scripts/ci/scope.py`)도 본다 |
 | `CLAUDE.md` | 기계가 막는 것의 요약. Spotless는 Commands, ArchUnit은 "Module and package structure", 커밋 메시지는 "Pull requests" |
 | `.claude/rules/java-conventions.md` | 리뷰만 보는 Java 규칙. 기계 검사로 옮긴 규칙은 여기서 뺀다 |
 | `docs/development/code-review.md` | "지적하지 않는 것"의 CI가 이미 강제하는 목록 |
@@ -85,7 +85,8 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
   ```bash
   git config blame.ignoreRevsFile .git-blame-ignore-revs
   ```
-- 이 커밋 전에 갈라진 브랜치는 main을 합칠 때 충돌할 수 있다. 자기 브랜치의 변경을 기준으로 충돌을 풀고 `./gradlew spotlessApply`를 실행한다.
+- 포매팅 커밋 `1f871dd7` 전에 갈라진 브랜치는 main을 합칠 때 충돌할 수 있다. 자기 브랜치의 변경을 기준으로 충돌을 풀고 `./gradlew spotlessApply`를 실행한다.
+- 변환 커밋 `271d9d82` 전에 갈라진 브랜치에서 Mockito `when`·`verify`로 쓴 테스트는 `spotlessCheck`에서 실패한다. `spotlessApply`는 고치지 못하므로 BDDMockito로 직접 바꾼다.
 
 ## 코드 규칙
 
