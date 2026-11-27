@@ -13,6 +13,7 @@ org-json = "20250107"
 json-schema-validator = "1.5.9"
 archunit = "1.5.1"
 spotless = "8.11.0"
+eclipse-formatter = "4.41"
 
 [libraries]
 springdoc-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }

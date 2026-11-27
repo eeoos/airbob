@@ -15,7 +15,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 
 ## 규칙을 바꿀 때
 
-규칙의 요약은 여러 곳에 있다. 에이전트와 리뷰어는 이 문서보다 요약을 읽기 때문이다. 예를 들어 Claude 리뷰는 리뷰 기준, `CLAUDE.md`, 바뀐 경로의 `.claude/rules`만 받는다. 규칙을 더하거나 바꾸거나 강제하는 방식을 바꾸면 아래를 함께 고친다. 도입 PR들(#227~#233)의 Claude 리뷰 지적 25건 가운데 9건이, 이 요약들이 서로 다르거나 실제 규칙과 다른 것이었다.
+규칙의 요약은 여러 곳에 있다. 에이전트와 리뷰어는 이 문서보다 요약을 읽기 때문이다. 예를 들어 Claude 리뷰는 리뷰 기준, `CLAUDE.md`, 바뀐 경로의 `.claude/rules`만 받는다. 규칙을 더하거나 바꾸거나 강제하는 방식을 바꾸면 아래 표에서 그 규칙을 적은 곳을 찾아 함께 고친다. 도입 PR들(#227~#233)의 Claude 리뷰 지적 25건 가운데 9건이, 이 요약들이 서로 다르거나 실제 규칙과 다른 것이었다.
 
 | 고칠 곳 | 무엇을 |
 |---|---|
@@ -25,6 +25,8 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 | `.claude/rules/java-conventions.md` | 리뷰만 보는 Java 규칙. 기계 검사로 옮긴 규칙은 여기서 뺀다 |
 | `docs/development/code-review.md` | "지적하지 않는 것"의 CI가 이미 강제하는 목록 |
 | `docs/development/ai-change-verification.md` | 장치 표의 항목과 규칙 수 |
+| `.claude/rules/deploy-ci.md`, `scripts/README.md` | 커밋 메시지 검사의 설명 |
+| `docs/architecture/code-structure.md` | 계층 역할 이름과 도메인 레코드 이름(`NewXxx`, `XxxPatch`) |
 
 ## 포매팅
 
@@ -37,7 +39,7 @@ airbob 코드의 규칙을 영역별로 모은 문서다. 규칙마다 그것을
 - import 순서는 static → `java` → `javax` → `org` → `net` → `com` → 그 외이고, 그룹 사이에 빈 줄을 둔다. 쓰지 않는 import는 지운다.
 - 와일드카드 import(`*`)는 static import에서만 쓴다. 일반 import는 클래스 이름을 하나씩 쓴다.
 
-포매터 설정은 `config/formatter/naver-eclipse-formatter.xml`이고, 이 설정을 읽는 Eclipse 포매터는 4.41로 고정한다(루트 `build.gradle`의 `eclipse('4.41')`).
+포매터 설정은 `config/formatter/naver-eclipse-formatter.xml`이고, 이 설정을 읽는 Eclipse 포매터는 4.41로 고정한다(`gradle/libs.versions.toml`의 `eclipse-formatter`). 4.41은 Spotless 8.11.0의 기본값이다.
 
 - 네이버 저장소의 `rule-config/naver-eclipse-formatter.xml`을 그대로 옮겼다. 원본은 [커밋 `ad868727`](https://github.com/naver/hackday-conventions-java/blob/ad868727813252198d577c152071f190b774a87d/rule-config/naver-eclipse-formatter.xml)(2020-07-24)이고, 출처 주석만 붙였다.
 - 원본 저장소에는 라이선스 표기가 없다.
